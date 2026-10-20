@@ -150,7 +150,9 @@ await test('webhook rejects requests without the secret token', async () => {
 });
 
 await test('/setup requires the secret and registers webhook + commands', async () => {
-  assert.equal((await fetch(`${BASE}/setup?secret=nope`)).status, 403);
+  const wrong = await fetch(`${BASE}/setup?secret=nope`);
+  assert.equal(wrong.status, 403);
+  includesAll((await wrong.json()).message, ['WEBHOOK_SECRET', 'Cloudflare']);
   since();
   const res = await fetch(`${BASE}/setup?secret=${SECRET}`);
   assert.equal(res.status, 200);
@@ -514,6 +516,9 @@ await test('channel where the bot is not admin: added with warning, users are no
   mock.join('@FwdChan', U1);
   const { calls } = await say(U1, '/stats');
   includesAll(lastText(calls), ['آمار شما']);
+  const html = await (await fetch(BASE + '/')).text();
+  includesAll(html, ['❌</span><div>ربات در کانال <code>@NoAdmin</code> ادمین است', '✅</span><div>ربات در کانال <code>@HIDE_i_SEEK</code> ادمین است']);
+  assert.ok(!html.includes('همه‌چیز آماده است'), 'status page must not claim everything is ready');
 });
 
 await test('limit of 10 channels is enforced', async () => {
@@ -557,15 +562,23 @@ await test('bot stats for the owner', async () => {
 
 await test('broadcast is queued, delivered by cron, and reported to the owner', async () => {
   await press(OWNER, 'A|bc');
+  // An album arrives as separate messages; the bot warns once and keeps waiting for a single message.
+  const album = { media_group_id: 'g1', text: undefined, photo: [{ file_id: 'p', width: 1, height: 1 }] };
+  includesAll(lastText((await say(OWNER, undefined, album)).calls), ['آلبوم']);
+  assert.equal(outgoing((await say(OWNER, undefined, album)).calls).length, 0, 'second album item is ignored');
   const { calls, messageId: bcMsg } = await say(OWNER, 'سلام به همه! نسخه جدید ربات 🎉');
   assert.ok(callbacksOf(calls).includes(`A|bcy|${bcMsg}`));
   includesAll(lastText(calls), ['کاربر ارسال شود']);
   includesAll(lastText(await press(OWNER, `A|bcy|${bcMsg}`)), ['شروع شد']);
-  const sent = await cron(Date.now());
-  const copies = sent.filter((c) => c.method === 'copyMessage');
-  assert.deepEqual(copies.map((c) => Number(c.params.chat_id)).sort(), [U1, U3, OWNER].sort(), 'blocked U2 skipped');
+  mock.state.failOnce.add(U3); // a rate limit mid-broadcast: resume there next minute, skip nobody, repeat nobody
+  const first = await cron(Date.now());
+  const second = await cron(Date.now());
+  const copies = [...first, ...second].filter((c) => c.method === 'copyMessage');
+  const delivered = copies.filter((c) => c.result.ok).map((c) => Number(c.params.chat_id));
+  assert.deepEqual(delivered.sort(), [U1, U3, OWNER].sort(), 'each user exactly once; blocked U2 skipped');
   assert.ok(copies.every((c) => Number(c.params.message_id) === bcMsg && Number(c.params.from_chat_id) === OWNER));
-  includesAll(lastText(sent.filter((c) => Number(c.params.chat_id) === OWNER)), ['تمام شد', 'موفق: ۳']);
+  assert.equal(outgoing(first, OWNER).filter((c) => c.params.text.includes('تمام شد')).length, 0, 'not finished after the 429');
+  includesAll(lastText(second.filter((c) => Number(c.params.chat_id) === OWNER)), ['تمام شد', 'موفق: ۳']);
 });
 
 console.log('\nRobustness');

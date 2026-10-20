@@ -10,6 +10,7 @@ export function createMockTelegram({ botId }) {
     members: new Map(), // `${chatKey}:${userId}` -> status
     blocked: new Set(), // user ids that blocked the bot
     webhookUrl: '',
+    failOnce: new Set(), // user ids whose next copyMessage gets a 429
   };
 
   const key = (chatId) => {
@@ -58,6 +59,7 @@ export function createMockTelegram({ botId }) {
     },
     editMessageText: (p) => ok({ message_id: p.message_id, chat: { id: p.chat_id }, text: p.text }),
     copyMessage: (p) => {
+      if (state.failOnce.delete(Number(p.chat_id))) return err(429, 'Too Many Requests: retry after 1');
       if (state.blocked.has(Number(p.chat_id))) return err(403, 'Forbidden: bot was blocked by the user');
       return ok({ message_id: state.nextMessageId++ });
     },

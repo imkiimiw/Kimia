@@ -47,7 +47,7 @@ export function createApi(env) {
         chat_id: chatId,
         text,
         parse_mode: 'HTML',
-        disable_web_page_preview: true,
+        link_preview_options: { is_disabled: true },
         ...extra,
       }),
     edit: (chatId, messageId, text, extra = {}) =>
@@ -56,7 +56,7 @@ export function createApi(env) {
         message_id: messageId,
         text,
         parse_mode: 'HTML',
-        disable_web_page_preview: true,
+        link_preview_options: { is_disabled: true },
         ...extra,
       }),
     answer: (callbackId, text, showAlert = false) =>

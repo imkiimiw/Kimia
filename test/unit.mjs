@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseChannelInput } from '../src/admin.js';
 import { cleanCategory, parseQuickAdd } from '../src/quickadd.js';
-import { addRepeat, DAY, formatDate, fromLocal, g2j, HOUR, j2g, localParts, MINUTE, nextOccurrence, parseWhen } from '../src/time.js';
+import { addRepeat, DAY, fa, formatDate, fromLocal, g2j, HOUR, j2g, localParts, MINUTE, nextDigestAt, nextOccurrence, parseWhen } from '../src/time.js';
 
 // Tuesday 1405/07/28 (2026-10-20) 15:00 Tehran.
 const NOW = fromLocal(2026, 10, 20, 15, 0);
@@ -19,6 +19,7 @@ test('Jalali conversion', () => {
     assert.deepEqual(j2g(j.jy, j.jm, j.jd), { gy: p.y, gm: p.m, gd: p.d });
   }
   assert.equal(formatDate(NOW, { now: NOW }), 'سه‌شنبه ۲۸ مهر، ساعت ۱۵:۰۰');
+  assert.equal(fa('12:05 / 2026'), '۱۲:۰۵ / ۲۰۲۶');
 });
 
 test('parseWhen: keywords, times, dates, relative', () => {
@@ -42,6 +43,13 @@ test('parseWhen: keywords, times, dates, relative', () => {
   assert.equal(at(parseWhen('دوشنبه 7 صبح', NOW)).hh, 7);
   for (const bad of ['', 'abc', '25:00', '1405/12/30', '2026-02-30', '1405/13/01', 'دیروز']) assert.equal(parseWhen(bad, NOW), null, bad);
   assert.equal(parseWhen('1403/12/30', NOW) !== null, true, '1403 is a leap year');
+});
+
+test('daily digest scheduling', () => {
+  const at = (ts) => localParts(ts);
+  assert.deepEqual([at(nextDigestAt(NOW, 18)).d, at(nextDigestAt(NOW, 18)).hh], [20, 18], 'later today');
+  assert.deepEqual([at(nextDigestAt(NOW, 15)).d, at(nextDigestAt(NOW, 15)).hh], [21, 15], 'current hour -> tomorrow');
+  assert.deepEqual([at(nextDigestAt(NOW, 8)).d, at(nextDigestAt(NOW, 8)).hh], [21, 8], 'past hour -> tomorrow');
 });
 
 test('recurrence', () => {
@@ -93,5 +101,8 @@ test('channel input parsing', () => {
   assert.deepEqual(parseChannelInput({ text: '/addchannel t.me/joinchat/XyZ -100555555555' }), { chat: '-100555555555', link: 'https://t.me/joinchat/XyZ' });
   assert.deepEqual(parseChannelInput({ text: 'x', forward_origin: { type: 'channel', chat: { id: -1009, type: 'channel', username: 'wangerBots' } } }), { chat: '@wangerBots', link: 'https://t.me/wangerBots' });
   assert.equal(parseChannelInput({ text: 'سلام' }), null);
+  assert.equal(parseChannelInput({ text: 'عضو شوید @other_channel' }), null, 'a copied post is not a channel reference');
+  assert.equal(parseChannelInput({ caption: '@other_channel' }), null, 'captions are ignored');
+  assert.equal(parseChannelInput({ text: 'x', forward_origin: { type: 'hidden_user', sender_user_name: 'A' } }), null);
   assert.equal(parseChannelInput({ text: '@ab' }), null, 'too short for a username');
 });

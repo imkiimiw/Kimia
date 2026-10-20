@@ -1,5 +1,5 @@
 import { DEFAULT_CHANNELS, PAGE_SIZE } from './config.js';
-import { DAY, startOfLocalDay } from './time.js';
+import { DAY, nextDigestAt, startOfLocalDay } from './time.js';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS users (
@@ -11,7 +11,7 @@ const SCHEMA = [
     task_seq INTEGER NOT NULL DEFAULT 0,
     state TEXT,
     digest_hour INTEGER,
-    digest_last TEXT,
+    digest_next INTEGER,
     blocked INTEGER NOT NULL DEFAULT 0
   )`,
   `CREATE TABLE IF NOT EXISTS tasks (
@@ -57,9 +57,14 @@ let schemaReady = false;
 
 export async function ensureSchema(db) {
   if (schemaReady) return;
-  await db.batch(SCHEMA.map((sql) => db.prepare(sql)));
+  const results = await db.batch([
+    ...SCHEMA.map((sql) => db.prepare(sql)),
+    db.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES ('seeded', '1')`),
+    db.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES ('schema', '2')`),
+  ]);
+  const [seeded, migrate] = results.slice(-2);
+  if (migrate.meta.changes) await migrateToV2(db);
   // Seed the initial mandatory channels exactly once; afterwards only the owner changes them.
-  const seeded = await db.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES ('seeded', '1')`).run();
   if (seeded.meta.changes) {
     const now = Date.now();
     await db.batch(
@@ -71,6 +76,22 @@ export async function ensureSchema(db) {
     );
   }
   schemaReady = true;
+}
+
+// v2 finds due digests by their next send time (indexed) instead of scanning every user each minute,
+// which on the free plan would use up D1's daily read quota once the bot has a few thousand users.
+async function migrateToV2(db) {
+  try {
+    await db.prepare(`ALTER TABLE users ADD COLUMN digest_next INTEGER`).run();
+  } catch {
+    // Databases created by this version already have the column.
+  }
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_users_digest ON users (digest_next) WHERE digest_next IS NOT NULL`).run();
+  const { results } = await db.prepare(`SELECT id, digest_hour FROM users WHERE digest_hour IS NOT NULL`).all();
+  if (results.length) {
+    const now = Date.now();
+    await db.batch(results.map((u) => db.prepare(`UPDATE users SET digest_next = ? WHERE id = ?`).bind(nextDigestAt(now, u.digest_hour), u.id)));
+  }
 }
 
 export async function getSetting(db, key) {
@@ -96,7 +117,7 @@ export async function touchUser(db, from, now) {
       .prepare(`INSERT INTO users (id, first_name, username, created_at, last_seen) VALUES (?, ?, ?, ?, ?)`)
       .bind(from.id, name, username, now, now)
       .run();
-    return { id: from.id, first_name: name, username, created_at: now, last_seen: now, task_seq: 0, state: null, digest_hour: null, digest_last: null, blocked: 0, isNew: true };
+    return { id: from.id, first_name: name, username, created_at: now, last_seen: now, task_seq: 0, state: null, digest_hour: null, digest_next: null, blocked: 0, isNew: true };
   }
   if (user.first_name !== name || user.username !== username || user.blocked || now - user.last_seen > 10 * 60_000) {
     await db
@@ -122,8 +143,8 @@ export function setState(db, userId, state) {
     .run();
 }
 
-export function setDigest(db, userId, hour, lastKey) {
-  return db.prepare(`UPDATE users SET digest_hour = ?, digest_last = ? WHERE id = ?`).bind(hour, lastKey, userId).run();
+export function setDigest(db, userId, hour, next) {
+  return db.prepare(`UPDATE users SET digest_hour = ?, digest_next = ? WHERE id = ?`).bind(hour, next, userId).run();
 }
 
 export function markBlocked(db, userId) {
@@ -245,8 +266,14 @@ export async function userStats(db, userId, now) {
   return row;
 }
 
+// Keeps the export inside the free plan's CPU budget; pending tasks come first.
+export const EXPORT_LIMIT = 500;
+
 export async function allTasks(db, userId) {
-  const { results } = await db.prepare(`SELECT * FROM tasks WHERE user_id = ? ORDER BY done ASC, ${PENDING_ORDER}`).bind(userId).all();
+  const { results } = await db
+    .prepare(`SELECT * FROM tasks WHERE user_id = ? ORDER BY done ASC, ${PENDING_ORDER} LIMIT ?`)
+    .bind(userId, EXPORT_LIMIT)
+    .all();
   return results;
 }
 
@@ -282,8 +309,8 @@ export function setChannelTitles(db, pairs) {
 export async function dueReminders(db, now, limit) {
   const { results } = await db
     .prepare(
-      `SELECT t.* FROM tasks t JOIN users u ON u.id = t.user_id
-       WHERE t.remind_at IS NOT NULL AND t.remind_at <= ? AND t.done = 0 AND u.blocked = 0
+      `SELECT t.*, u.blocked AS blocked FROM tasks t JOIN users u ON u.id = t.user_id
+       WHERE t.remind_at IS NOT NULL AND t.remind_at <= ?
        ORDER BY t.remind_at LIMIT ?`,
     )
     .bind(now, limit)
@@ -291,13 +318,10 @@ export async function dueReminders(db, now, limit) {
   return results;
 }
 
-export async function digestCandidates(db, hour, dateKey, limit) {
+export async function digestCandidates(db, now, limit) {
   const { results } = await db
-    .prepare(
-      `SELECT * FROM users WHERE digest_hour IS NOT NULL AND digest_hour <= ? AND (digest_last IS NULL OR digest_last <> ?) AND blocked = 0
-       ORDER BY id LIMIT ?`,
-    )
-    .bind(hour, dateKey, limit)
+    .prepare(`SELECT * FROM users WHERE digest_next IS NOT NULL AND digest_next <= ? ORDER BY digest_next LIMIT ?`)
+    .bind(now, limit)
     .all();
   return results;
 }

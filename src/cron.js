@@ -1,7 +1,7 @@
 import { CRON_BUDGET, CRON_SUBREQUESTS, ownerId } from './config.js';
 import * as Q from './db.js';
 import { createApi, isBlockedError } from './telegram.js';
-import { fa, formatDate, localDateKey, localParts, nextOccurrence } from './time.js';
+import { fa, formatDate, localParts, nextDigestAt, nextOccurrence } from './time.js';
 import { btn, cb, esc, inline, taskLine } from './ui.js';
 
 // Rate limits and network errors are worth retrying next minute; anything else is final.
@@ -65,7 +65,8 @@ async function sendReminders(ctx) {
         .prepare(`UPDATE tasks SET remind_at = ? WHERE id = ? AND remind_at = ?`)
         .bind(next, t.id, t.remind_at)
         .run();
-      if (!claim.meta.changes) return;
+      // Finished tasks and users who blocked the bot are claimed (cleared/advanced) but not messaged.
+      if (!claim.meta.changes || t.done || t.blocked) return;
       const r = await ctx.api.send(t.user_id, `⏰ <b>یادآوری</b>\n\n${taskLine(t, ctx.now, Infinity)}${t.note ? `\n\n📝 ${esc(t.note)}` : ''}`, {
         reply_markup: inline([
           [btn('✅ انجام شد', cb('D', t.num, 'p.0')), btn('📄 جزئیات', cb('T', t.num, 'p.0'))],
@@ -90,16 +91,17 @@ async function sendDigests(ctx) {
   const n = affordable(ctx, 1, COST.digest, CRON_BUDGET.digests);
   if (!n) return 0;
   const lp = localParts(ctx.now);
-  const key = localDateKey(ctx.now);
-  const users = await Q.digestCandidates(ctx.db, lp.hh, key, n);
+  const users = await Q.digestCandidates(ctx.db, ctx.now, n);
   let sent = 0;
   await Promise.all(
     users.map(async (u) => {
+      // Move to the next day first, so an overlapping run can't send it twice and a missed day sends only once.
+      const next = u.digest_hour === null ? null : nextDigestAt(ctx.now, u.digest_hour);
       const claim = await ctx.db
-        .prepare(`UPDATE users SET digest_last = ? WHERE id = ? AND (digest_last IS NULL OR digest_last <> ?)`)
-        .bind(key, u.id, key)
+        .prepare(`UPDATE users SET digest_next = ? WHERE id = ? AND digest_next = ?`)
+        .bind(next, u.id, u.digest_next)
         .run();
-      if (!claim.meta.changes) return;
+      if (!claim.meta.changes || u.blocked || next === null) return;
       const [stats, tasks] = await Promise.all([Q.userStats(ctx.db, u.id, ctx.now), Q.pendingForDigest(ctx.db, u.id, ctx.now)]);
       const lines = [
         `${greeting(lp.hh)} ${esc(u.first_name || '')}!`,
@@ -116,7 +118,7 @@ async function sendDigests(ctx) {
       });
       if (r.ok) sent += 1;
       else if (isBlockedError(r)) await Q.markBlocked(ctx.db, u.id);
-      else if (transient(r)) await ctx.db.prepare(`UPDATE users SET digest_last = ? WHERE id = ?`).bind(u.digest_last, u.id).run();
+      else if (transient(r)) await ctx.db.prepare(`UPDATE users SET digest_next = ? WHERE id = ?`).bind(u.digest_next, u.id).run();
     }),
   );
   return sent;
@@ -130,18 +132,24 @@ async function runBroadcast(ctx) {
   const targets = await Q.broadcastTargets(ctx.db, b.cursor, n);
   let sent = 0;
   let failed = 0;
-  await Promise.all(
-    targets.map(async (id) => {
-      const r = await ctx.api.call('copyMessage', { chat_id: id, from_chat_id: b.from_chat, message_id: b.message_id });
-      if (r.ok) sent += 1;
-      else {
-        failed += 1;
-        if (isBlockedError(r)) await Q.markBlocked(ctx.db, id);
-      }
-    }),
-  );
-  const finished = targets.length < n;
-  const cursor = targets.length ? targets[targets.length - 1] : b.cursor;
+  let cursor = b.cursor;
+  let interrupted = false;
+  // In order, stopping at a rate limit or network error: the cursor then resumes exactly there next minute,
+  // so nobody is skipped and nobody gets the message twice.
+  for (const id of targets) {
+    const r = await ctx.api.call('copyMessage', { chat_id: id, from_chat_id: b.from_chat, message_id: b.message_id });
+    if (transient(r)) {
+      interrupted = true;
+      break;
+    }
+    if (r.ok) sent += 1;
+    else {
+      failed += 1;
+      if (isBlockedError(r)) await Q.markBlocked(ctx.db, id);
+    }
+    cursor = id;
+  }
+  const finished = !interrupted && targets.length < n;
   await Q.updateBroadcast(ctx.db, b.id, cursor, sent, failed, finished ? 'done' : 'running');
   if (finished) {
     const total = await Q.getBroadcast(ctx.db, b.id);

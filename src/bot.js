@@ -15,6 +15,7 @@ import {
   localDateKey,
   localParts,
   MINUTE,
+  nextDigestAt,
   nextOccurrence,
   parseWhen,
   REPEAT_LABELS,
@@ -195,7 +196,8 @@ async function buildList(ctx, filter, page) {
 }
 
 async function sendSearch(ctx, query) {
-  const q = query.trim().slice(0, 100);
+  // Cut by code points: slicing UTF-16 can split an emoji, and Telegram rejects the broken string.
+  const q = Array.from(query.trim()).slice(0, 100).join('');
   const rows = await Q.searchTasks(ctx.db, ctx.uid, q);
   if (!rows.length) return ctx.api.send(ctx.chatId, `🔍 نتیجه‌ای برای «${esc(q)}» پیدا نشد.`);
   const text = `🔍 <b>نتایج جستجو برای «${esc(q)}»</b> (${fa(rows.length)})\n\n${rows.map((t) => ui.taskLine(t, ctx.now)).join('\n\n')}`;
@@ -606,8 +608,7 @@ async function onSettingsCallback(ctx, p) {
     case 'dh': {
       const hour = arg === 'x' ? null : Math.min(23, Math.max(0, Number(arg)));
       // If today's slot already passed, start from tomorrow instead of sending immediately.
-      const last = hour !== null && localParts(ctx.now).hh >= hour ? localDateKey(ctx.now) : null;
-      await Q.setDigest(ctx.db, ctx.uid, hour, last);
+      await Q.setDigest(ctx.db, ctx.uid, hour, hour === null ? null : nextDigestAt(ctx.now, hour));
       ctx.user.digest_hour = hour;
       await ctx.toast(hour === null ? '🔕 خلاصه روزانه خاموش شد' : `🌅 هر روز ساعت ${fa(hour)}:۰۰`);
       const v = settingsView(ctx);
@@ -617,7 +618,8 @@ async function onSettingsCallback(ctx, p) {
       const tasks = await Q.allTasks(ctx.db, ctx.uid);
       if (!tasks.length) return ctx.toast('هنوز کاری ثبت نکرده‌اید.', true);
       await ctx.toast('📤 در حال آماده‌سازی فایل...');
-      return ctx.api.sendDocument(ctx.chatId, `todo-${localDateKey(ctx.now)}.txt`, exportText(tasks, ctx.now), `📤 خروجی ${fa(tasks.length)} کار شما`);
+      const capped = tasks.length >= Q.EXPORT_LIMIT ? ` (${fa(Q.EXPORT_LIMIT)} کار اول؛ کارهای انجام‌شده‌ی قدیمی را با «پاکسازی» حذف کنید)` : '';
+      return ctx.api.sendDocument(ctx.chatId, `todo-${localDateKey(ctx.now)}.txt`, exportText(tasks, ctx.now), `📤 خروجی ${fa(tasks.length)} کار شما${capped}`);
     }
     case 'cl':
       return ctx.show('🧹 همه کارهای <b>انجام‌شده</b> برای همیشه حذف شوند؟', inline([[btn('✅ بله، پاک کن', 'S|cly'), btn('❌ نه', 'S|h')]]));

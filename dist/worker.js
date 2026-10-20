@@ -124,7 +124,15 @@ function toJalali(ts) {
   return { ...g2j(p.y, p.m, p.d), hh: p.hh, mm: p.mm, dow: p.dow };
 }
 var FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
-var fa = (v) => String(v).replace(/\d/g, (d) => FA_DIGITS[d]);
+var fa = (v) => {
+  const s = String(v);
+  let out = "";
+  for (let i = 0; i < s.length; i += 1) {
+    const c = s.charCodeAt(i);
+    out += c >= 48 && c <= 57 ? FA_DIGITS[c - 48] : s[i];
+  }
+  return out;
+};
 var WEEKDAYS = ["یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه"];
 var JMONTHS = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
 var pad2 = (n) => String(n).padStart(2, "0");
@@ -265,6 +273,11 @@ function parseWhen(raw, now = Date.now(), { defaultHour = 9, defaultMinute = 0 }
   if (hh === null) return { ts: fromLocal(date.y, date.m, date.d, defaultHour, defaultMinute), hasTime: false };
   return { ts: fromLocal(date.y, date.m, date.d, hh, mm), hasTime: true };
 }
+function nextDigestAt(now, hour) {
+  const p = localParts(now);
+  const today = fromLocal(p.y, p.m, p.d, hour, 0);
+  return p.hh < hour ? today : today + DAY;
+}
 var REPEAT_LABELS = { d: "روزانه", w: "هفتگی", m: "ماهانه" };
 function addRepeat(ts, repeat) {
   if (repeat === "d") return ts + DAY;
@@ -300,7 +313,7 @@ var SCHEMA = [
     task_seq INTEGER NOT NULL DEFAULT 0,
     state TEXT,
     digest_hour INTEGER,
-    digest_last TEXT,
+    digest_next INTEGER,
     blocked INTEGER NOT NULL DEFAULT 0
   )`,
   `CREATE TABLE IF NOT EXISTS tasks (
@@ -344,8 +357,13 @@ var SCHEMA = [
 var schemaReady = false;
 async function ensureSchema(db) {
   if (schemaReady) return;
-  await db.batch(SCHEMA.map((sql) => db.prepare(sql)));
-  const seeded = await db.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES ('seeded', '1')`).run();
+  const results = await db.batch([
+    ...SCHEMA.map((sql) => db.prepare(sql)),
+    db.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES ('seeded', '1')`),
+    db.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES ('schema', '2')`)
+  ]);
+  const [seeded, migrate] = results.slice(-2);
+  if (migrate.meta.changes) await migrateToV2(db);
   if (seeded.meta.changes) {
     const now = Date.now();
     await db.batch(
@@ -355,6 +373,18 @@ async function ensureSchema(db) {
     );
   }
   schemaReady = true;
+}
+async function migrateToV2(db) {
+  try {
+    await db.prepare(`ALTER TABLE users ADD COLUMN digest_next INTEGER`).run();
+  } catch {
+  }
+  await db.prepare(`CREATE INDEX IF NOT EXISTS idx_users_digest ON users (digest_next) WHERE digest_next IS NOT NULL`).run();
+  const { results } = await db.prepare(`SELECT id, digest_hour FROM users WHERE digest_hour IS NOT NULL`).all();
+  if (results.length) {
+    const now = Date.now();
+    await db.batch(results.map((u) => db.prepare(`UPDATE users SET digest_next = ? WHERE id = ?`).bind(nextDigestAt(now, u.digest_hour), u.id)));
+  }
 }
 async function getSetting(db, key) {
   const row = await db.prepare(`SELECT value FROM settings WHERE key = ?`).bind(key).first();
@@ -369,7 +399,7 @@ async function touchUser(db, from, now) {
   const username = from.username || null;
   if (!user) {
     await db.prepare(`INSERT INTO users (id, first_name, username, created_at, last_seen) VALUES (?, ?, ?, ?, ?)`).bind(from.id, name, username, now, now).run();
-    return { id: from.id, first_name: name, username, created_at: now, last_seen: now, task_seq: 0, state: null, digest_hour: null, digest_last: null, blocked: 0, isNew: true };
+    return { id: from.id, first_name: name, username, created_at: now, last_seen: now, task_seq: 0, state: null, digest_hour: null, digest_next: null, blocked: 0, isNew: true };
   }
   if (user.first_name !== name || user.username !== username || user.blocked || now - user.last_seen > 10 * 6e4) {
     await db.prepare(`UPDATE users SET first_name = ?, username = ?, last_seen = ?, blocked = 0 WHERE id = ?`).bind(name, username, now, from.id).run();
@@ -386,8 +416,8 @@ function parseState(user) {
 function setState(db, userId, state) {
   return db.prepare(`UPDATE users SET state = ? WHERE id = ?`).bind(state ? JSON.stringify(state) : null, userId).run();
 }
-function setDigest(db, userId, hour, lastKey) {
-  return db.prepare(`UPDATE users SET digest_hour = ?, digest_last = ? WHERE id = ?`).bind(hour, lastKey, userId).run();
+function setDigest(db, userId, hour, next) {
+  return db.prepare(`UPDATE users SET digest_hour = ?, digest_next = ? WHERE id = ?`).bind(hour, next, userId).run();
 }
 function markBlocked(db, userId) {
   return db.prepare(`UPDATE users SET blocked = 1 WHERE id = ?`).bind(userId).run();
@@ -477,8 +507,9 @@ async function userStats(db, userId, now) {
   ).bind(userId, now, today, today + DAY, now - 7 * DAY).first();
   return row;
 }
+var EXPORT_LIMIT = 500;
 async function allTasks(db, userId) {
-  const { results } = await db.prepare(`SELECT * FROM tasks WHERE user_id = ? ORDER BY done ASC, ${PENDING_ORDER}`).bind(userId).all();
+  const { results } = await db.prepare(`SELECT * FROM tasks WHERE user_id = ? ORDER BY done ASC, ${PENDING_ORDER} LIMIT ?`).bind(userId, EXPORT_LIMIT).all();
   return results;
 }
 function clearDone(db, userId) {
@@ -502,17 +533,14 @@ function setChannelTitles(db, pairs) {
 }
 async function dueReminders(db, now, limit) {
   const { results } = await db.prepare(
-    `SELECT t.* FROM tasks t JOIN users u ON u.id = t.user_id
-       WHERE t.remind_at IS NOT NULL AND t.remind_at <= ? AND t.done = 0 AND u.blocked = 0
+    `SELECT t.*, u.blocked AS blocked FROM tasks t JOIN users u ON u.id = t.user_id
+       WHERE t.remind_at IS NOT NULL AND t.remind_at <= ?
        ORDER BY t.remind_at LIMIT ?`
   ).bind(now, limit).all();
   return results;
 }
-async function digestCandidates(db, hour, dateKey, limit) {
-  const { results } = await db.prepare(
-    `SELECT * FROM users WHERE digest_hour IS NOT NULL AND digest_hour <= ? AND (digest_last IS NULL OR digest_last <> ?) AND blocked = 0
-       ORDER BY id LIMIT ?`
-  ).bind(hour, dateKey, limit).all();
+async function digestCandidates(db, now, limit) {
+  const { results } = await db.prepare(`SELECT * FROM users WHERE digest_next IS NOT NULL AND digest_next <= ? ORDER BY digest_next LIMIT ?`).bind(now, limit).all();
   return results;
 }
 async function pendingForDigest(db, userId, now) {
@@ -866,20 +894,20 @@ var ADD_CHANNEL_PROMPT = [
   "• لینک کانال: <code>https://t.me/channel</code>",
   "• کانال خصوصی: آیدی عددی + لینک دعوت، مثل:",
   "  <code>-1001234567890 https://t.me/+AbCdEf</code>",
-  "• یا یک پیام از خود کانال را اینجا فوروارد کنید.",
+  "• یا یک پست را که خود کانال منتشر کرده (نه بازنشر از کانال دیگر) اینجا فوروارد کنید.",
   "",
   "⚠️ قبلش ربات را در کانال ادمین کنید."
 ].join("\n");
 function parseChannelInput(msg) {
   const origin = msg.forward_origin;
-  const fwdChat = origin?.type === "channel" ? origin.chat : msg.forward_from_chat;
-  if (fwdChat && fwdChat.type === "channel") {
-    return fwdChat.username ? { chat: `@${fwdChat.username}`, link: `https://t.me/${fwdChat.username}` } : { chat: String(fwdChat.id), link: null };
+  if (origin) {
+    if (origin.type !== "channel" || origin.chat?.type !== "channel") return null;
+    return origin.chat.username ? { chat: `@${origin.chat.username}`, link: `https://t.me/${origin.chat.username}` } : { chat: String(origin.chat.id), link: null };
   }
-  const text = toLatinDigits(msg.text || msg.caption || "").trim().replace(/^\/addchannel(@\w+)?\s*/i, "");
+  const text = toLatinDigits(msg.text || "").trim().replace(/^\/addchannel(@\w+)?\s*/i, "");
   let chat = null;
   let link = null;
-  for (const raw of text.split(/\s+/)) {
+  for (const raw of text.split(/\s+/).filter(Boolean)) {
     const token = raw.replace(/^<|>$/g, "");
     const invite = token.match(/^(?:https?:\/\/)?(?:t\.me|telegram\.me)\/(\+[\w-]+|joinchat\/[\w-]+)\/?$/i);
     const pub = token.match(/^(?:https?:\/\/)?(?:t\.me|telegram\.me)\/([A-Za-z][A-Za-z0-9_]{3,31})\/?$/i);
@@ -887,6 +915,7 @@ function parseChannelInput(msg) {
     else if (pub) chat = `@${pub[1]}`;
     else if (/^@/.test(token) && USERNAME_RE.test(token.slice(1))) chat = token;
     else if (/^-100\d{5,}$/.test(token)) chat = token;
+    else return null;
   }
   if (chat?.startsWith("@")) link = `https://t.me/${chat.slice(1)}`;
   return chat ? { chat, link } : null;
@@ -986,7 +1015,7 @@ async function prepareBroadcast(ctx, msg) {
   await setState(ctx.db, ctx.uid, null);
   const count = await countActiveUsers(ctx.db);
   return ctx.api.send(ctx.chatId, `📣 این پیام برای <b>${fa(count)}</b> کاربر ارسال شود؟`, {
-    reply_to_message_id: msg.message_id,
+    reply_parameters: { message_id: msg.message_id, allow_sending_without_reply: true },
     reply_markup: inline([[btn("✅ بله، ارسال کن", `A|bcy|${msg.message_id}`), btn("❌ لغو", "A|bcn")]])
   });
 }
@@ -1026,7 +1055,16 @@ async function onAdminState(ctx, msg) {
     const v = await channelsView(ctx, res.text);
     return ctx.api.send(ctx.chatId, v.text, { reply_markup: v.kb });
   }
-  if (ctx.state.a === "bc") return prepareBroadcast(ctx, msg);
+  if (ctx.state.a === "bc") {
+    if (msg.media_group_id) {
+      if (ctx.state.g === msg.media_group_id) return null;
+      await setState(ctx.db, ctx.uid, { a: "bc", g: msg.media_group_id });
+      return ctx.api.send(ctx.chatId, "❗️ آلبوم (چند عکس یا ویدیو با هم) پشتیبانی نمی‌شود. یک پیام تکی بفرستید، مثلاً یک عکس با کپشن.", {
+        reply_markup: inline([[btn("🔙 لغو و بازگشت", "A|h")]])
+      });
+    }
+    return prepareBroadcast(ctx, msg);
+  }
   return null;
 }
 async function onAdminCallback(ctx, parts) {
@@ -1077,7 +1115,7 @@ async function onAdminCallback(ctx, parts) {
     case "bc": {
       await setState(ctx.db, ctx.uid, { a: "bc" });
       return ctx.show(
-        "📣 <b>پیام همگانی</b>\n\nپیامی که می‌خواهید برای همه کاربران ارسال شود را بفرستید (متن، عکس، ویدیو، فایل یا فوروارد).",
+        "📣 <b>پیام همگانی</b>\n\nپیامی که می‌خواهید برای همه کاربران ارسال شود را بفرستید (متن، عکس، ویدیو، فایل یا فوروارد؛ آلبوم چندتایی نه).",
         inline([[btn("🔙 لغو و بازگشت", "A|h")]])
       );
     }
@@ -1179,7 +1217,7 @@ function createApi(env) {
       chat_id: chatId,
       text,
       parse_mode: "HTML",
-      disable_web_page_preview: true,
+      link_preview_options: { is_disabled: true },
       ...extra
     }),
     edit: (chatId, messageId, text, extra = {}) => call("editMessageText", {
@@ -1187,7 +1225,7 @@ function createApi(env) {
       message_id: messageId,
       text,
       parse_mode: "HTML",
-      disable_web_page_preview: true,
+      link_preview_options: { is_disabled: true },
       ...extra
     }),
     answer: (callbackId, text, showAlert = false) => call("answerCallbackQuery", { callback_query_id: callbackId, text, show_alert: showAlert }),
@@ -1348,7 +1386,7 @@ async function buildList(ctx, filter, page) {
   return listView({ filter, page, total, rows, now: ctx.now });
 }
 async function sendSearch(ctx, query) {
-  const q = query.trim().slice(0, 100);
+  const q = Array.from(query.trim()).slice(0, 100).join("");
   const rows = await searchTasks(ctx.db, ctx.uid, q);
   if (!rows.length) return ctx.api.send(ctx.chatId, `🔍 نتیجه‌ای برای «${esc2(q)}» پیدا نشد.`);
   const text = `🔍 <b>نتایج جستجو برای «${esc2(q)}»</b> (${fa(rows.length)})
@@ -1735,8 +1773,7 @@ async function onSettingsCallback(ctx, p) {
     }
     case "dh": {
       const hour = arg === "x" ? null : Math.min(23, Math.max(0, Number(arg)));
-      const last = hour !== null && localParts(ctx.now).hh >= hour ? localDateKey(ctx.now) : null;
-      await setDigest(ctx.db, ctx.uid, hour, last);
+      await setDigest(ctx.db, ctx.uid, hour, hour === null ? null : nextDigestAt(ctx.now, hour));
       ctx.user.digest_hour = hour;
       await ctx.toast(hour === null ? "🔕 خلاصه روزانه خاموش شد" : `🌅 هر روز ساعت ${fa(hour)}:۰۰`);
       const v = settingsView(ctx);
@@ -1746,7 +1783,8 @@ async function onSettingsCallback(ctx, p) {
       const tasks = await allTasks(ctx.db, ctx.uid);
       if (!tasks.length) return ctx.toast("هنوز کاری ثبت نکرده‌اید.", true);
       await ctx.toast("📤 در حال آماده‌سازی فایل...");
-      return ctx.api.sendDocument(ctx.chatId, `todo-${localDateKey(ctx.now)}.txt`, exportText(tasks, ctx.now), `📤 خروجی ${fa(tasks.length)} کار شما`);
+      const capped = tasks.length >= EXPORT_LIMIT ? ` (${fa(EXPORT_LIMIT)} کار اول؛ کارهای انجام‌شده‌ی قدیمی را با «پاکسازی» حذف کنید)` : "";
+      return ctx.api.sendDocument(ctx.chatId, `todo-${localDateKey(ctx.now)}.txt`, exportText(tasks, ctx.now), `📤 خروجی ${fa(tasks.length)} کار شما${capped}`);
     }
     case "cl":
       return ctx.show("🧹 همه کارهای <b>انجام‌شده</b> برای همیشه حذف شوند؟", inline2([[btn2("✅ بله، پاک کن", "S|cly"), btn2("❌ نه", "S|h")]]));
@@ -1833,7 +1871,7 @@ async function sendReminders(ctx) {
     tasks.map(async (t) => {
       const next = t.repeat ? nextOccurrence(t.remind_at, t.repeat, ctx.now) : null;
       const claim = await ctx.db.prepare(`UPDATE tasks SET remind_at = ? WHERE id = ? AND remind_at = ?`).bind(next, t.id, t.remind_at).run();
-      if (!claim.meta.changes) return;
+      if (!claim.meta.changes || t.done || t.blocked) return;
       const r = await ctx.api.send(t.user_id, `⏰ <b>یادآوری</b>
 
 ${taskLine(t, ctx.now, Infinity)}${t.note ? `
@@ -1860,13 +1898,13 @@ async function sendDigests(ctx) {
   const n = affordable(ctx, 1, COST.digest, CRON_BUDGET.digests);
   if (!n) return 0;
   const lp = localParts(ctx.now);
-  const key = localDateKey(ctx.now);
-  const users = await digestCandidates(ctx.db, lp.hh, key, n);
+  const users = await digestCandidates(ctx.db, ctx.now, n);
   let sent = 0;
   await Promise.all(
     users.map(async (u) => {
-      const claim = await ctx.db.prepare(`UPDATE users SET digest_last = ? WHERE id = ? AND (digest_last IS NULL OR digest_last <> ?)`).bind(key, u.id, key).run();
-      if (!claim.meta.changes) return;
+      const next = u.digest_hour === null ? null : nextDigestAt(ctx.now, u.digest_hour);
+      const claim = await ctx.db.prepare(`UPDATE users SET digest_next = ? WHERE id = ? AND digest_next = ?`).bind(next, u.id, u.digest_next).run();
+      if (!claim.meta.changes || u.blocked || next === null) return;
       const [stats, tasks] = await Promise.all([userStats(ctx.db, u.id, ctx.now), pendingForDigest(ctx.db, u.id, ctx.now)]);
       const lines = [
         `${greeting(lp.hh)} ${esc(u.first_name || "")}!`,
@@ -1883,7 +1921,7 @@ async function sendDigests(ctx) {
       });
       if (r.ok) sent += 1;
       else if (isBlockedError(r)) await markBlocked(ctx.db, u.id);
-      else if (transient(r)) await ctx.db.prepare(`UPDATE users SET digest_last = ? WHERE id = ?`).bind(u.digest_last, u.id).run();
+      else if (transient(r)) await ctx.db.prepare(`UPDATE users SET digest_next = ? WHERE id = ?`).bind(u.digest_next, u.id).run();
     })
   );
   return sent;
@@ -1896,18 +1934,22 @@ async function runBroadcast(ctx) {
   const targets = await broadcastTargets(ctx.db, b.cursor, n);
   let sent = 0;
   let failed = 0;
-  await Promise.all(
-    targets.map(async (id) => {
-      const r = await ctx.api.call("copyMessage", { chat_id: id, from_chat_id: b.from_chat, message_id: b.message_id });
-      if (r.ok) sent += 1;
-      else {
-        failed += 1;
-        if (isBlockedError(r)) await markBlocked(ctx.db, id);
-      }
-    })
-  );
-  const finished = targets.length < n;
-  const cursor = targets.length ? targets[targets.length - 1] : b.cursor;
+  let cursor = b.cursor;
+  let interrupted = false;
+  for (const id of targets) {
+    const r = await ctx.api.call("copyMessage", { chat_id: id, from_chat_id: b.from_chat, message_id: b.message_id });
+    if (transient(r)) {
+      interrupted = true;
+      break;
+    }
+    if (r.ok) sent += 1;
+    else {
+      failed += 1;
+      if (isBlockedError(r)) await markBlocked(ctx.db, id);
+    }
+    cursor = id;
+  }
+  const finished = !interrupted && targets.length < n;
   await updateBroadcast(ctx.db, b.id, cursor, sent, failed, finished ? "done" : "running");
   if (finished) {
     const total = await getBroadcast(ctx.db, b.id);
@@ -1952,7 +1994,16 @@ async function setup(request, env) {
   if (!WEBHOOK_SECRET_RE.test(webhookSecret)) {
     return json({ ok: false, error: "WEBHOOK_SECRET فقط می‌تواند حروف انگلیسی، عدد، _ و - داشته باشد. / WEBHOOK_SECRET may only contain A-Z a-z 0-9 _ -" }, 500);
   }
-  if ((url.searchParams.get("secret") || "").trim() !== webhookSecret) return json({ ok: false, error: "wrong secret" }, 403);
+  if ((url.searchParams.get("secret") || "").trim() !== webhookSecret) {
+    return json(
+      {
+        ok: false,
+        error: "wrong secret",
+        message: "رمز داخل لینک با Secret ‏WEBHOOK_SECRET در Cloudflare یکی نیست. در Cloudflare: Settings ← Variables and secrets ← مقدار WEBHOOK_SECRET را با همان رمزی که در لینک است عوض کنید ← Deploy، بعد این لینک را دوباره باز کنید."
+      },
+      403
+    );
+  }
   const api = createApi(env);
   const webhook = await api.call("setWebhook", {
     url: `${url.origin}/webhook`,
@@ -1963,8 +2014,11 @@ async function setup(request, env) {
   const commands = await api.call("setMyCommands", { commands: USER_COMMANDS });
   const ownerCommands = await api.call("setMyCommands", { commands: OWNER_COMMANDS, scope: { type: "chat", chat_id: ownerId(env) } });
   const me = await api.call("getMe");
+  const notes = [webhook.ok ? "✅ وبهوک تنظیم شد؛ ربات حالا جواب می‌دهد." : `❌ تلگرام وبهوک را نپذیرفت: ${webhook.description}`];
+  if (!ownerCommands.ok) notes.push("⚠️ منوی دستورات مالک تنظیم نشد: اول از اکانت مالک به ربات /start بدهید و بعد همین لینک را دوباره باز کنید.");
   return json({
     ok: webhook.ok,
+    message: notes.join(" "),
     webhook,
     commands,
     ownerCommands: ownerCommands.ok ? ownerCommands : `${ownerCommands.description} (the owner must /start the bot first, then open /setup again)`,
@@ -2007,8 +2061,25 @@ async function status(request, env) {
     const info = await api.call("getWebhookInfo");
     const hookOk = info.ok && info.result.url === `${origin}/webhook`;
     check(hookOk, "اتصال وبهوک تلگرام", `یک بار این آدرس را باز کنید: <code>${esc(origin)}/setup?secret=رمز_وبهوک</code>`);
+    const errorAt = (info.result?.last_error_date || 0) * 1e3;
     if (hookOk && info.result.last_error_message) {
-      rows.push({ warn: true, label: `آخرین خطای تلگرام: ${esc(info.result.last_error_message)}`, hint: "اگر قدیمی است نگران نباشید." });
+      const ago = Math.max(0, Math.floor((Date.now() - errorAt) / 6e4));
+      const msg = esc(info.result.last_error_message);
+      const hint = /403/.test(info.result.last_error_message) ? "WEBHOOK_SECRET بعد از تنظیم وبهوک عوض شده؛ لینک setup را با رمز فعلی دوباره باز کنید." : "اگر دوباره تکرار شد، تب Observability در صفحه‌ی ورکر را ببینید.";
+      if (ago < 15) check(false, `تلگرام نتوانست پیام برساند (${fa(ago)} دقیقه پیش): ${msg}`, hint);
+      else rows.push({ warn: true, label: `آخرین خطای تلگرام (${fa(ago)} دقیقه پیش): ${msg}`, hint: "قدیمی است؛ اگر ربات جواب می‌دهد مشکلی نیست." });
+    }
+    if (dbOk) {
+      const channels = await listChannels(env.DB);
+      const admins = await Promise.all(channels.map((c) => api.call("getChatMember", { chat_id: c.chat, user_id: me.result.id })));
+      channels.forEach((c, i) => {
+        const r = admins[i];
+        check(
+          r.ok && ["administrator", "creator"].includes(r.result.status),
+          `ربات در کانال <code>${esc(c.chat)}</code> ادمین است`,
+          r.ok || /member list is inaccessible|not enough rights/i.test(r.description || "") ? "ربات را در این کانال ادمین کنید (Administrators ← Add Admin)؛ وگرنه عضویت در آن بررسی نمی‌شود." : `تلگرام این کانال را پیدا نکرد (${esc(r.description || "")}). یوزرنیم را در پنل مدیریت بررسی کنید.`
+        );
+      });
     }
   }
   if (dbOk) {

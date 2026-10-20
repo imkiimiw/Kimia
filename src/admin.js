@@ -62,7 +62,7 @@ export const ADD_CHANNEL_PROMPT = [
   '• لینک کانال: <code>https://t.me/channel</code>',
   '• کانال خصوصی: آیدی عددی + لینک دعوت، مثل:',
   '  <code>-1001234567890 https://t.me/+AbCdEf</code>',
-  '• یا یک پیام از خود کانال را اینجا فوروارد کنید.',
+  '• یا یک پست را که خود کانال منتشر کرده (نه بازنشر از کانال دیگر) اینجا فوروارد کنید.',
   '',
   '⚠️ قبلش ربات را در کانال ادمین کنید.',
 ].join('\n');
@@ -72,17 +72,20 @@ export const ADD_CHANNEL_PROMPT = [
 /** Extracts { chat, link } from owner input (text or a forwarded channel post). */
 export function parseChannelInput(msg) {
   const origin = msg.forward_origin;
-  const fwdChat = origin?.type === 'channel' ? origin.chat : msg.forward_from_chat;
-  if (fwdChat && fwdChat.type === 'channel') {
-    return fwdChat.username
-      ? { chat: `@${fwdChat.username}`, link: `https://t.me/${fwdChat.username}` }
-      : { chat: String(fwdChat.id), link: null };
+  if (origin) {
+    // Only a post forwarded from the channel itself identifies it; other forwards are rejected.
+    if (origin.type !== 'channel' || origin.chat?.type !== 'channel') return null;
+    return origin.chat.username
+      ? { chat: `@${origin.chat.username}`, link: `https://t.me/${origin.chat.username}` }
+      : { chat: String(origin.chat.id), link: null };
   }
+  // Only a bare reference is accepted: a copied post (e.g. forwarded with the sender hidden) may mention
+  // other channels, and picking one of those would lock users behind the wrong channel.
   // Not lower-cased: private invite links are case-sensitive.
-  const text = toLatinDigits(msg.text || msg.caption || '').trim().replace(/^\/addchannel(@\w+)?\s*/i, '');
+  const text = toLatinDigits(msg.text || '').trim().replace(/^\/addchannel(@\w+)?\s*/i, '');
   let chat = null;
   let link = null;
-  for (const raw of text.split(/\s+/)) {
+  for (const raw of text.split(/\s+/).filter(Boolean)) {
     const token = raw.replace(/^<|>$/g, '');
     const invite = token.match(/^(?:https?:\/\/)?(?:t\.me|telegram\.me)\/(\+[\w-]+|joinchat\/[\w-]+)\/?$/i);
     const pub = token.match(/^(?:https?:\/\/)?(?:t\.me|telegram\.me)\/([A-Za-z][A-Za-z0-9_]{3,31})\/?$/i);
@@ -90,6 +93,7 @@ export function parseChannelInput(msg) {
     else if (pub) chat = `@${pub[1]}`;
     else if (/^@/.test(token) && USERNAME_RE.test(token.slice(1))) chat = token;
     else if (/^-100\d{5,}$/.test(token)) chat = token;
+    else return null;
   }
   if (chat?.startsWith('@')) link = `https://t.me/${chat.slice(1)}`;
   return chat ? { chat, link } : null;
@@ -197,7 +201,7 @@ export async function prepareBroadcast(ctx, msg) {
   await Q.setState(ctx.db, ctx.uid, null);
   const count = await Q.countActiveUsers(ctx.db);
   return ctx.api.send(ctx.chatId, `📣 این پیام برای <b>${fa(count)}</b> کاربر ارسال شود؟`, {
-    reply_to_message_id: msg.message_id,
+    reply_parameters: { message_id: msg.message_id, allow_sending_without_reply: true },
     reply_markup: inline([[btn('✅ بله، ارسال کن', `A|bcy|${msg.message_id}`), btn('❌ لغو', 'A|bcn')]]),
   });
 }
@@ -240,7 +244,17 @@ export async function onAdminState(ctx, msg) {
     const v = await channelsView(ctx, res.text);
     return ctx.api.send(ctx.chatId, v.text, { reply_markup: v.kb });
   }
-  if (ctx.state.a === 'bc') return prepareBroadcast(ctx, msg);
+  if (ctx.state.a === 'bc') {
+    if (msg.media_group_id) {
+      // An album arrives as several messages and copyMessage would copy only one of them.
+      if (ctx.state.g === msg.media_group_id) return null;
+      await Q.setState(ctx.db, ctx.uid, { a: 'bc', g: msg.media_group_id });
+      return ctx.api.send(ctx.chatId, '❗️ آلبوم (چند عکس یا ویدیو با هم) پشتیبانی نمی‌شود. یک پیام تکی بفرستید، مثلاً یک عکس با کپشن.', {
+        reply_markup: inline([[btn('🔙 لغو و بازگشت', 'A|h')]]),
+      });
+    }
+    return prepareBroadcast(ctx, msg);
+  }
   return null;
 }
 
@@ -292,7 +306,7 @@ export async function onAdminCallback(ctx, parts) {
     case 'bc': {
       await Q.setState(ctx.db, ctx.uid, { a: 'bc' });
       return ctx.show(
-        '📣 <b>پیام همگانی</b>\n\nپیامی که می‌خواهید برای همه کاربران ارسال شود را بفرستید (متن، عکس، ویدیو، فایل یا فوروارد).',
+        '📣 <b>پیام همگانی</b>\n\nپیامی که می‌خواهید برای همه کاربران ارسال شود را بفرستید (متن، عکس، ویدیو، فایل یا فوروارد؛ آلبوم چندتایی نه).',
         inline([[btn('🔙 لغو و بازگشت', 'A|h')]]),
       );
     }

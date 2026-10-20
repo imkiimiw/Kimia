@@ -119,7 +119,16 @@ export function toJalali(ts) {
 // ---------- formatting ----------
 
 const FA_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
-export const fa = (v) => String(v).replace(/\d/g, (d) => FA_DIGITS[d]);
+// Called for nearly every number shown, so a plain loop instead of a regex callback.
+export const fa = (v) => {
+  const s = String(v);
+  let out = '';
+  for (let i = 0; i < s.length; i += 1) {
+    const c = s.charCodeAt(i);
+    out += c >= 48 && c <= 57 ? FA_DIGITS[c - 48] : s[i];
+  }
+  return out;
+};
 
 export const WEEKDAYS = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه', 'شنبه'];
 export const JMONTHS = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
@@ -287,6 +296,13 @@ export function parseWhen(raw, now = Date.now(), { defaultHour = 9, defaultMinut
 
   if (hh === null) return { ts: fromLocal(date.y, date.m, date.d, defaultHour, defaultMinute), hasTime: false };
   return { ts: fromLocal(date.y, date.m, date.d, hh, mm), hasTime: true };
+}
+
+/** The next local `hour`:00 for a daily digest: today if that hour hasn't started yet, otherwise tomorrow. */
+export function nextDigestAt(now, hour) {
+  const p = localParts(now);
+  const today = fromLocal(p.y, p.m, p.d, hour, 0);
+  return p.hh < hour ? today : today + DAY;
 }
 
 // ---------- recurrence ----------

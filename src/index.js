@@ -39,7 +39,17 @@ async function setup(request, env) {
   if (!WEBHOOK_SECRET_RE.test(webhookSecret)) {
     return json({ ok: false, error: 'WEBHOOK_SECRET فقط می‌تواند حروف انگلیسی، عدد، _ و - داشته باشد. / WEBHOOK_SECRET may only contain A-Z a-z 0-9 _ -' }, 500);
   }
-  if ((url.searchParams.get('secret') || '').trim() !== webhookSecret) return json({ ok: false, error: 'wrong secret' }, 403);
+  if ((url.searchParams.get('secret') || '').trim() !== webhookSecret) {
+    return json(
+      {
+        ok: false,
+        error: 'wrong secret',
+        message:
+          'رمز داخل لینک با Secret ‏WEBHOOK_SECRET در Cloudflare یکی نیست. در Cloudflare: Settings ← Variables and secrets ← مقدار WEBHOOK_SECRET را با همان رمزی که در لینک است عوض کنید ← Deploy، بعد این لینک را دوباره باز کنید.',
+      },
+      403,
+    );
+  }
   const api = createApi(env);
   const webhook = await api.call('setWebhook', {
     url: `${url.origin}/webhook`,
@@ -50,8 +60,11 @@ async function setup(request, env) {
   const commands = await api.call('setMyCommands', { commands: USER_COMMANDS });
   const ownerCommands = await api.call('setMyCommands', { commands: OWNER_COMMANDS, scope: { type: 'chat', chat_id: ownerId(env) } });
   const me = await api.call('getMe');
+  const notes = [webhook.ok ? '✅ وبهوک تنظیم شد؛ ربات حالا جواب می‌دهد.' : `❌ تلگرام وبهوک را نپذیرفت: ${webhook.description}`];
+  if (!ownerCommands.ok) notes.push('⚠️ منوی دستورات مالک تنظیم نشد: اول از اکانت مالک به ربات /start بدهید و بعد همین لینک را دوباره باز کنید.');
   return json({
     ok: webhook.ok,
+    message: notes.join(' '),
     webhook,
     commands,
     ownerCommands: ownerCommands.ok ? ownerCommands : `${ownerCommands.description} (the owner must /start the bot first, then open /setup again)`,
@@ -100,8 +113,31 @@ async function status(request, env) {
     const info = await api.call('getWebhookInfo');
     const hookOk = info.ok && info.result.url === `${origin}/webhook`;
     check(hookOk, 'اتصال وبهوک تلگرام', `یک بار این آدرس را باز کنید: <code>${esc(origin)}/setup?secret=رمز_وبهوک</code>`);
+    const errorAt = (info.result?.last_error_date || 0) * 1000;
     if (hookOk && info.result.last_error_message) {
-      rows.push({ warn: true, label: `آخرین خطای تلگرام: ${esc(info.result.last_error_message)}`, hint: 'اگر قدیمی است نگران نباشید.' });
+      const ago = Math.max(0, Math.floor((Date.now() - errorAt) / 60_000));
+      const msg = esc(info.result.last_error_message);
+      // A 403 from our own /webhook means the secret Telegram sends no longer matches WEBHOOK_SECRET.
+      const hint = /403/.test(info.result.last_error_message)
+        ? 'WEBHOOK_SECRET بعد از تنظیم وبهوک عوض شده؛ لینک setup را با رمز فعلی دوباره باز کنید.'
+        : 'اگر دوباره تکرار شد، تب Observability در صفحه‌ی ورکر را ببینید.';
+      if (ago < 15) check(false, `تلگرام نتوانست پیام برساند (${fa(ago)} دقیقه پیش): ${msg}`, hint);
+      else rows.push({ warn: true, label: `آخرین خطای تلگرام (${fa(ago)} دقیقه پیش): ${msg}`, hint: 'قدیمی است؛ اگر ربات جواب می‌دهد مشکلی نیست.' });
+    }
+    if (dbOk) {
+      // Without admin rights getChatMember fails and join.js skips the channel, so the forced join is silently off.
+      const channels = await listChannels(env.DB);
+      const admins = await Promise.all(channels.map((c) => api.call('getChatMember', { chat_id: c.chat, user_id: me.result.id })));
+      channels.forEach((c, i) => {
+        const r = admins[i];
+        check(
+          r.ok && ['administrator', 'creator'].includes(r.result.status),
+          `ربات در کانال <code>${esc(c.chat)}</code> ادمین است`,
+          r.ok || /member list is inaccessible|not enough rights/i.test(r.description || '')
+            ? 'ربات را در این کانال ادمین کنید (Administrators ← Add Admin)؛ وگرنه عضویت در آن بررسی نمی‌شود.'
+            : `تلگرام این کانال را پیدا نکرد (${esc(r.description || '')}). یوزرنیم را در پنل مدیریت بررسی کنید.`,
+        );
+      });
     }
   }
 
