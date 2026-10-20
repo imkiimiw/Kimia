@@ -1095,10 +1095,12 @@ async function onAdminCallback(ctx, parts) {
 }
 
 // src/quickadd.js
-var CATEGORY_RE = /^[\p{L}\p{N}_ \-]+$/u;
+var CATEGORY_RE = /^[\p{L}\p{M}\p{N}_ \-\u200c]+$/u;
+var MAX_CATEGORY_BYTES = 40;
 function cleanCategory(raw) {
-  const name = String(raw || "").replace(/\s+/g, " ").trim();
+  const name = String(raw || "").replace(/\s+/g, " ").replace(/^[\s\u200c]+|[\s\u200c]+$/g, "");
   if (!name || !CATEGORY_RE.test(name) || Array.from(name).length > MAX_CATEGORY_LEN) return null;
+  if (new TextEncoder().encode(name).length > MAX_CATEGORY_BYTES) return null;
   return name;
 }
 function parseQuickAdd(input, now) {
@@ -1110,7 +1112,7 @@ function parseQuickAdd(input, now) {
     priority = Number(normalizeInput(d));
     return pre;
   });
-  s = s.replace(/(\s)#([\p{L}\p{N}_]+)(?=\s)/gu, (whole, pre, name) => {
+  s = s.replace(/(\s)#([\p{L}\p{M}\p{N}_\u200c]+)(?=\s)/gu, (whole, pre, name) => {
     if (category) return whole;
     const c = cleanCategory(name.replace(/_/g, " "));
     if (!c) return whole;
@@ -1443,7 +1445,7 @@ async function onStateInput(ctx, msg, text) {
     }
     case "cat": {
       const name = cleanCategory(text.replace(/^#/, ""));
-      if (!name) return retry("❗️ نام دسته فقط می‌تواند حروف، عدد، فاصله و _ داشته باشد و حداکثر ۲۰ کاراکتر باشد. دوباره بفرستید:");
+      if (!name) return retry("❗️ نام دسته فقط می‌تواند حروف، عدد، فاصله، نیم‌فاصله و _ داشته باشد و کوتاه باشد (حداکثر ۲۰ حرف). دوباره بفرستید:");
       await updateTask(ctx.db, ctx.uid, t.num, { category: name });
       break;
     }

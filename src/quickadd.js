@@ -1,11 +1,18 @@
 import { MAX_CATEGORY_LEN } from './config.js';
 import { normalizeInput, parseWhen } from './time.js';
 
-export const CATEGORY_RE = /^[\p{L}\p{N}_ \-]+$/u;
+// \u200c (ZWNJ, "نیم‌فاصله") is part of ordinary Persian words such as خانه‌داری.
+export const CATEGORY_RE = /^[\p{L}\p{M}\p{N}_ \-\u200c]+$/u;
+
+// Category names end up in callback_data (64 bytes max, e.g. "L|c<name>|12"), so cap the UTF-8 size too.
+const MAX_CATEGORY_BYTES = 40;
 
 export function cleanCategory(raw) {
-  const name = String(raw || '').replace(/\s+/g, ' ').trim();
+  const name = String(raw || '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s\u200c]+|[\s\u200c]+$/g, '');
   if (!name || !CATEGORY_RE.test(name) || Array.from(name).length > MAX_CATEGORY_LEN) return null;
+  if (new TextEncoder().encode(name).length > MAX_CATEGORY_BYTES) return null;
   return name;
 }
 
@@ -24,7 +31,7 @@ export function parseQuickAdd(input, now) {
     return pre;
   });
 
-  s = s.replace(/(\s)#([\p{L}\p{N}_]+)(?=\s)/gu, (whole, pre, name) => {
+  s = s.replace(/(\s)#([\p{L}\p{M}\p{N}_\u200c]+)(?=\s)/gu, (whole, pre, name) => {
     if (category) return whole;
     const c = cleanCategory(name.replace(/_/g, ' '));
     if (!c) return whole;

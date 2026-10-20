@@ -296,7 +296,7 @@ async function onStateInput(ctx, msg, text) {
     }
     case 'cat': {
       const name = cleanCategory(text.replace(/^#/, ''));
-      if (!name) return retry('❗️ نام دسته فقط می‌تواند حروف، عدد، فاصله و _ داشته باشد و حداکثر ۲۰ کاراکتر باشد. دوباره بفرستید:');
+      if (!name) return retry('❗️ نام دسته فقط می‌تواند حروف، عدد، فاصله، نیم‌فاصله و _ داشته باشد و کوتاه باشد (حداکثر ۲۰ حرف). دوباره بفرستید:');
       await Q.updateTask(ctx.db, ctx.uid, t.num, { category: name });
       break;
     }

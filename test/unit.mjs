@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseChannelInput } from '../src/admin.js';
-import { parseQuickAdd } from '../src/quickadd.js';
+import { cleanCategory, parseQuickAdd } from '../src/quickadd.js';
 import { addRepeat, DAY, formatDate, fromLocal, g2j, HOUR, j2g, localParts, MINUTE, nextOccurrence, parseWhen } from '../src/time.js';
 
 // Tuesday 1405/07/28 (2026-10-20) 15:00 Tehran.
@@ -69,6 +69,21 @@ test('quick add syntax', () => {
   assert.equal(dateOnly.due.hasTime, false);
   assert.equal(at(dateOnly.due).hh, 23);
   assert.equal(parseQuickAdd('عالیه! !5 #', NOW).text, 'عالیه! !5 #');
+  const zwnj = parseQuickAdd('جارو کشیدن #خانه\u200cداری', NOW);
+  assert.equal(zwnj.category, 'خانه\u200cداری', 'ZWNJ is part of Persian words');
+  assert.equal(zwnj.text, 'جارو کشیدن');
+});
+
+test('category names fit in callback_data', () => {
+  assert.equal(cleanCategory('کارهای\u200cروزانه'), 'کارهای\u200cروزانه');
+  assert.equal(cleanCategory('  کار شرکت  '), 'کار شرکت');
+  assert.equal(cleanCategory('a|b'), null);
+  assert.equal(cleanCategory('ا'.repeat(21)), null, 'more than 20 characters');
+  assert.equal(cleanCategory('漢'.repeat(14)), null, 'more than 40 bytes');
+  for (const name of ['ا'.repeat(20), 'ک\u200c'.repeat(10).slice(0, 19), 'abcdefghijklmnopqrst']) {
+    const c = cleanCategory(name);
+    if (c) assert.ok(new TextEncoder().encode(`L|c${c}|99`).length <= 64, name);
+  }
 });
 
 test('channel input parsing', () => {
