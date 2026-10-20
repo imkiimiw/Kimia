@@ -111,7 +111,7 @@ async function status(request, env) {
     check(
       last > 0 && minutes < 3,
       `کرون یادآورها${last ? ` — آخرین اجرا ${minutes < 1 ? 'کمتر از ۱ دقیقه' : `${fa(minutes)} دقیقه`} پیش` : ''}`,
-      'در Settings ← Triggers یک Cron Trigger با عبارت <code>* * * * *</code> اضافه کنید (اولین اجرا تا ۱ دقیقه بعد).',
+      'در Settings ← Trigger events یک Cron Trigger با عبارت <code>* * * * *</code> اضافه کنید. شروع به کار کرون جدید ممکن است تا ۱۵ دقیقه طول بکشد.',
     );
     const channels = await listChannels(env.DB);
     rows.push({ info: true, label: `کانال‌های جوین اجباری: ${fa(channels.length)} — مالک: <code>${ownerId(env)}</code>` });

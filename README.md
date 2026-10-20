@@ -80,6 +80,21 @@
 
    باید `"ok": true` ببینید. تمام! 🎉
 
+### راه‌اندازی فقط با داشبورد Cloudflare (کپی/پیست، بدون CLI)
+
+1. **D1:** Storage & Databases ← D1 SQL Database ← Create Database (نام: `todo-bot-db`، Location: Automatic).
+2. **ورکر:** Workers & Pages ← Create application ← Start with Hello World! ← نام `todo-bot` ← Deploy.
+3. **کد:** Edit code ← یکی از دو روش، بعد دکمه‌ی **Deploy** (نه Save):
+   - **یک فایل:** محتوای [`dist/worker.js`](dist/worker.js) را به‌جای کل کد `worker.js` بچسبانید.
+   - **فایل‌به‌فایل:** محتوای `src/index.js` را در `worker.js` بچسبانید و ۱۰ فایل دیگر `src/` را با همان اسم‌ها کنار آن بسازید (New File…).
+4. **Binding:** Settings ← Bindings ← Add binding ← D1 database ← Variable name: `DB` ← `todo-bot-db`.
+5. **Secrets:** Settings ← Variables and Secrets ← Add ← Type: Secret ← `BOT_TOKEN` و `WEBHOOK_SECRET` ← Deploy.
+6. **Cron:** Settings ← Trigger Events ← Add ← Cron Triggers ← `* * * * *` (شروع تا ۱۵ دقیقه).
+7. ربات را از اکانت مالک `/start` کنید و `https://<آدرس-ورکر>/setup?secret=<WEBHOOK_SECRET>` را باز کنید.
+8. **بررسی:** آدرس خود ورکر (`https://<آدرس-ورکر>/`) یک چک‌لیست ✅/❌ از همه‌ی مراحل نشان می‌دهد.
+
+> `dist/worker.js` با `npm run build` از `src/` ساخته می‌شود؛ بعد از تغییر کد دوباره بسازید.
+
 ### دیپلوی از طریق GitHub (بدون نیاز به کامپیوتر)
 
 در تنظیمات مخزن ← Secrets and variables ← Actions این چهار سکرت را بسازید:
@@ -102,7 +117,7 @@ npm test
 ```
 
 - **تست واحد:** تقویم شمسی، تشخیص تاریخ/ساعت فارسی، سینتکس افزودن سریع، ورودی کانال‌ها.
-- **تست سرتاسری (۵۲ سناریو):** ورکر داخل همان رانتایم سرورلس کلادفلر (`workerd` از طریق `wrangler dev` با D1 محلی) اجرا می‌شود و با یک شبیه‌ساز API تلگرام، همه‌ی مسیرها تست می‌شوند: جوین اجباری، همه‌ی ۱۰ قابلیت، Cron یادآور و خلاصه روزانه، مدیریت کانال‌ها و سقف ۱۰ تایی، دسترسی فقط مالک، پیام همگانی و…
+- **تست سرتاسری (۵۴ سناریو):** ورکر داخل همان رانتایم سرورلس کلادفلر (`workerd` از طریق `wrangler dev` با D1 محلی) اجرا می‌شود و با یک شبیه‌ساز API تلگرام، همه‌ی مسیرها تست می‌شوند: جوین اجباری، همه‌ی ۱۰ قابلیت، Cron یادآور و خلاصه روزانه، مدیریت کانال‌ها و سقف ۱۰ تایی، دسترسی فقط مالک، پیام همگانی و…
 
 ## 🏗 ساختار پروژه
 
@@ -118,6 +133,7 @@ src/
   quickadd.js   سینتکس افزودن سریع
   ui.js         متن‌ها و کیبوردها
   telegram.js   ارتباط با Bot API
+dist/worker.js  کل ربات در یک فایل (برای چسباندن در داشبورد؛ npm run build)
 test/           تست واحد + تست سرتاسری با شبیه‌ساز تلگرام
 ```
 

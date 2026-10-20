@@ -423,6 +423,28 @@ await test('users who blocked the bot are marked and skipped', async () => {
   assert.equal(attempt?.result.error_code, 403);
 });
 
+await test('a reminder backlog is spread over several cron runs within the free-plan budget', async () => {
+  const first = mock.state.calls.length;
+  for (let i = 1; i <= 20; i += 1) {
+    const { calls } = await say(U1, `یادآور انبوه ${i}`);
+    const num = Number(callbacksOf(calls).find((c) => c.startsWith('D|')).split('|')[1]);
+    await press(U1, `RM|${num}|15|p.0`);
+  }
+  assert.ok(mock.state.calls.length > first);
+  const seen = [];
+  const perRun = [];
+  for (let run = 0; run < 5; run += 1) {
+    const calls = await cron(Date.now() + 16 * MINUTE);
+    const texts = outgoing(calls, U1).map((c) => c.params.text).filter((t) => t.includes('یادآور انبوه'));
+    perRun.push(texts.length);
+    assert.ok(calls.length <= 45, `run ${run} made ${calls.length} Telegram calls`);
+    seen.push(...texts.map((t) => t.match(/یادآور انبوه (\d+)/)[1]));
+  }
+  assert.ok(perRun[0] <= 8 && perRun[0] > 0, `first run sent ${perRun[0]}`);
+  assert.equal(new Set(seen).size, 20, `delivered ${JSON.stringify(perRun)}`);
+  assert.equal(seen.length, 20, 'no duplicates');
+});
+
 console.log('\nOwner panel & channel management');
 
 await test('owner skips forced join and sees the admin button', async () => {
@@ -562,11 +584,12 @@ await test('group messages are ignored', async () => {
 
 await test('long tasks keep list and search messages under 4096 characters', async () => {
   for (let i = 0; i < 10; i += 1) await say(U1, `بلند ${i} ${'متن طولانی '.repeat(26)}`.slice(0, 300));
-  const search = lastText((await say(U1, '/search بلند')).calls);
+  const found = (await say(U1, '/search بلند')).calls;
+  const search = lastText(found);
   const list = lastText((await say(U1, '/list')).calls);
   assert.ok(search.includes('نتایج جستجو') && search.length < 4096, `search length ${search.length}`);
   assert.ok(list.length < 4096, `list length ${list.length}`);
-  const card = lastText(await press(U1, 'T|20|p.0'));
+  const card = lastText(await press(U1, callbacksOf(found).find((c) => c.startsWith('T|'))));
   assert.ok(card.length < 4096 && card.includes('متن طولانی'), `card length ${card.length}`);
 });
 

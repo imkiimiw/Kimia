@@ -11,8 +11,11 @@ export const MAX_TASK_LEN = 300;
 export const MAX_NOTE_LEN = 1000;
 export const MAX_CATEGORY_LEN = 20;
 
-// Outbound Telegram calls per cron tick (Workers Free allows 50 subrequests per invocation).
-export const CRON_BUDGET = { reminders: 20, digests: 10, broadcast: 15 };
+// Workers Free allows 50 subrequests per invocation and D1 queries count toward that limit too, so each
+// cron run meters both against one budget (with a margin) and leaves the rest for the next minute.
+export const CRON_SUBREQUESTS = 45;
+// Upper bounds per run, so a reminder backlog can't starve digests and broadcasts.
+export const CRON_BUDGET = { reminders: 8, digests: 10, broadcast: 15 };
 
 // How long a successful membership check is trusted inside one isolate.
 export const JOIN_CACHE_MS = 60_000;

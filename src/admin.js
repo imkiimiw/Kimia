@@ -149,19 +149,22 @@ async function resolveChannelRef(ctx, ref) {
 export async function statusReport(ctx) {
   const channels = await Q.listChannels(ctx.db);
   const botId = ctx.api.botId();
+  const renamed = [];
   const lines = await Promise.all(
     channels.map(async (c, i) => {
       const [info, me] = await Promise.all([
         ctx.api.call('getChat', { chat_id: c.chat }),
         ctx.api.call('getChatMember', { chat_id: c.chat, user_id: botId }),
       ]);
-      if (info.ok && info.result.title && info.result.title !== c.title) await Q.setChannelTitle(ctx.db, c.id, info.result.title);
+      if (info.ok && info.result.title && info.result.title !== c.title) renamed.push([c.id, info.result.title]);
       const name = esc((info.ok && info.result.title) || c.title || c.chat);
       if (!info.ok) return `${fa(i + 1)}. ❌ <b>${name}</b> — کانال پیدا نشد یا ربات به آن دسترسی ندارد`;
       if (me.ok && ['administrator', 'creator'].includes(me.result.status)) return `${fa(i + 1)}. ✅ <b>${name}</b> — ربات ادمین است`;
       return `${fa(i + 1)}. ⚠️ <b>${name}</b> — ربات ادمین نیست (عضویت بررسی نمی‌شود)`;
     }),
   );
+  // One D1 call for all title changes: with 10 channels this check already makes 20 Telegram calls.
+  if (renamed.length) await Q.setChannelTitles(ctx.db, renamed);
   return lines.length ? `🔄 <b>وضعیت کانال‌ها:</b>\n${lines.join('\n')}\n` : '';
 }
 

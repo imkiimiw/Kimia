@@ -273,8 +273,8 @@ export function getChannel(db, id) {
   return db.prepare(`SELECT * FROM channels WHERE id = ?`).bind(id).first();
 }
 
-export function setChannelTitle(db, id, title) {
-  return db.prepare(`UPDATE channels SET title = ? WHERE id = ?`).bind(title, id).run();
+export function setChannelTitles(db, pairs) {
+  return db.batch(pairs.map(([id, title]) => db.prepare(`UPDATE channels SET title = ? WHERE id = ?`).bind(title, id)));
 }
 
 // ---------- cron queries ----------

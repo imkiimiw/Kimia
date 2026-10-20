@@ -13,7 +13,8 @@ var PAGE_SIZE = 8;
 var MAX_TASK_LEN = 300;
 var MAX_NOTE_LEN = 1e3;
 var MAX_CATEGORY_LEN = 20;
-var CRON_BUDGET = { reminders: 20, digests: 10, broadcast: 15 };
+var CRON_SUBREQUESTS = 45;
+var CRON_BUDGET = { reminders: 8, digests: 10, broadcast: 15 };
 var JOIN_CACHE_MS = 6e4;
 var WEBHOOK_SECRET_RE = /^[A-Za-z0-9_-]{1,256}$/;
 function secret(env, name) {
@@ -496,8 +497,8 @@ function removeChannel(db, id) {
 function getChannel(db, id) {
   return db.prepare(`SELECT * FROM channels WHERE id = ?`).bind(id).first();
 }
-function setChannelTitle(db, id, title) {
-  return db.prepare(`UPDATE channels SET title = ? WHERE id = ?`).bind(title, id).run();
+function setChannelTitles(db, pairs) {
+  return db.batch(pairs.map(([id, title]) => db.prepare(`UPDATE channels SET title = ? WHERE id = ?`).bind(title, id)));
 }
 async function dueReminders(db, now, limit) {
   const { results } = await db.prepare(
@@ -939,19 +940,21 @@ async function resolveChannelRef(ctx, ref) {
 async function statusReport(ctx) {
   const channels = await listChannels(ctx.db);
   const botId = ctx.api.botId();
+  const renamed = [];
   const lines = await Promise.all(
     channels.map(async (c, i) => {
       const [info, me] = await Promise.all([
         ctx.api.call("getChat", { chat_id: c.chat }),
         ctx.api.call("getChatMember", { chat_id: c.chat, user_id: botId })
       ]);
-      if (info.ok && info.result.title && info.result.title !== c.title) await setChannelTitle(ctx.db, c.id, info.result.title);
+      if (info.ok && info.result.title && info.result.title !== c.title) renamed.push([c.id, info.result.title]);
       const name = esc(info.ok && info.result.title || c.title || c.chat);
       if (!info.ok) return `${fa(i + 1)}. ❌ <b>${name}</b> — کانال پیدا نشد یا ربات به آن دسترسی ندارد`;
       if (me.ok && ["administrator", "creator"].includes(me.result.status)) return `${fa(i + 1)}. ✅ <b>${name}</b> — ربات ادمین است`;
       return `${fa(i + 1)}. ⚠️ <b>${name}</b> — ربات ادمین نیست (عضویت بررسی نمی‌شود)`;
     })
   );
+  if (renamed.length) await setChannelTitles(ctx.db, renamed);
   return lines.length ? `🔄 <b>وضعیت کانال‌ها:</b>
 ${lines.join("\n")}
 ` : "";
@@ -1783,16 +1786,46 @@ function exportText(tasks, now) {
 
 // src/cron.js
 var transient = (r) => !r.ok && (r.error_code === 429 || r.error_code === 0 || r.error_code >= 500);
+var COST = { reminder: 3, digest: 5, broadcastItem: 2, broadcastFixed: 5 };
+function metered(env, limit) {
+  let used = 0;
+  const wrap = (stmt) => ({
+    stmt,
+    bind: (...args) => wrap(stmt.bind(...args)),
+    first: (...args) => (used += 1, stmt.first(...args)),
+    run: () => (used += 1, stmt.run()),
+    all: () => (used += 1, stmt.all())
+  });
+  const db = {
+    prepare: (sql) => wrap(env.DB.prepare(sql)),
+    // Counted per statement: the docs don't say whether a batch counts once, so assume the worst.
+    batch: (list) => (used += list.length, env.DB.batch(list.map((s) => s.stmt)))
+  };
+  const raw = createApi(env);
+  const api = { ...raw, call: (...a) => (used += 1, raw.call(...a)), send: (...a) => (used += 1, raw.send(...a)) };
+  return { db, api, left: () => limit - used };
+}
+var affordable = (ctx, fixed, each, max) => Math.max(0, Math.min(max, Math.floor((ctx.left() - fixed) / each)));
 async function runCron(env, now) {
-  await ensureSchema(env.DB);
-  await setSetting(env.DB, "last_cron", String(Date.now()));
-  const ctx = { env, db: env.DB, api: createApi(env), now };
-  const results = await Promise.allSettled([sendReminders(ctx), sendDigests(ctx), runBroadcast(ctx)]);
-  for (const r of results) if (r.status === "rejected") console.error("cron job failed:", r.reason?.stack || r.reason);
-  return results.map((r) => r.status === "fulfilled" ? r.value : 0);
+  const m = metered(env, CRON_SUBREQUESTS);
+  await ensureSchema(m.db);
+  await setSetting(m.db, "last_cron", String(Date.now()));
+  const ctx = { env, now, ...m };
+  const results = [];
+  for (const job of [sendReminders, sendDigests, runBroadcast]) {
+    try {
+      results.push(await job(ctx));
+    } catch (err) {
+      console.error(`cron ${job.name} failed:`, err?.stack || err);
+      results.push(0);
+    }
+  }
+  return results;
 }
 async function sendReminders(ctx) {
-  const tasks = await dueReminders(ctx.db, ctx.now, CRON_BUDGET.reminders);
+  const n = affordable(ctx, 1, COST.reminder, CRON_BUDGET.reminders);
+  if (!n) return 0;
+  const tasks = await dueReminders(ctx.db, ctx.now, n);
   let sent = 0;
   await Promise.all(
     tasks.map(async (t) => {
@@ -1822,9 +1855,11 @@ function greeting(hour) {
   return "🌙 عصر بخیر";
 }
 async function sendDigests(ctx) {
+  const n = affordable(ctx, 1, COST.digest, CRON_BUDGET.digests);
+  if (!n) return 0;
   const lp = localParts(ctx.now);
   const key = localDateKey(ctx.now);
-  const users = await digestCandidates(ctx.db, lp.hh, key, CRON_BUDGET.digests);
+  const users = await digestCandidates(ctx.db, lp.hh, key, n);
   let sent = 0;
   await Promise.all(
     users.map(async (u) => {
@@ -1852,9 +1887,11 @@ async function sendDigests(ctx) {
   return sent;
 }
 async function runBroadcast(ctx) {
+  const n = affordable(ctx, COST.broadcastFixed, COST.broadcastItem, CRON_BUDGET.broadcast);
+  if (!n) return 0;
   const b = await activeBroadcast(ctx.db);
   if (!b) return 0;
-  const targets = await broadcastTargets(ctx.db, b.cursor, CRON_BUDGET.broadcast);
+  const targets = await broadcastTargets(ctx.db, b.cursor, n);
   let sent = 0;
   let failed = 0;
   await Promise.all(
@@ -1867,7 +1904,7 @@ async function runBroadcast(ctx) {
       }
     })
   );
-  const finished = targets.length < CRON_BUDGET.broadcast;
+  const finished = targets.length < n;
   const cursor = targets.length ? targets[targets.length - 1] : b.cursor;
   await updateBroadcast(ctx.db, b.id, cursor, sent, failed, finished ? "done" : "running");
   if (finished) {
@@ -1978,7 +2015,7 @@ async function status(request, env) {
     check(
       last > 0 && minutes < 3,
       `کرون یادآورها${last ? ` — آخرین اجرا ${minutes < 1 ? "کمتر از ۱ دقیقه" : `${fa(minutes)} دقیقه`} پیش` : ""}`,
-      "در Settings ← Triggers یک Cron Trigger با عبارت <code>* * * * *</code> اضافه کنید (اولین اجرا تا ۱ دقیقه بعد)."
+      "در Settings ← Trigger events یک Cron Trigger با عبارت <code>* * * * *</code> اضافه کنید. شروع به کار کرون جدید ممکن است تا ۱۵ دقیقه طول بکشد."
     );
     const channels = await listChannels(env.DB);
     rows.push({ info: true, label: `کانال‌های جوین اجباری: ${fa(channels.length)} — مالک: <code>${ownerId(env)}</code>` });
