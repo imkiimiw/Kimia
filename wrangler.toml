@@ -1,0 +1,19 @@
+name = "todo-bot"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# Every minute: reminders, daily digests and queued broadcasts.
+[triggers]
+crons = ["* * * * *"]
+
+# Created automatically on the first `wrangler deploy`.
+[[d1_databases]]
+binding = "DB"
+database_name = "todo-bot-db"
+
+[vars]
+OWNER_ID = "5557901897"
+TZ_OFFSET_MINUTES = "210"
+
+[observability]
+enabled = true

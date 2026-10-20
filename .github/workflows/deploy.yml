@@ -1,0 +1,29 @@
+name: Deploy to Cloudflare
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Deploy worker (creates the D1 database on first run)
+        run: npx wrangler deploy
+      - name: Upload bot secrets
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+        run: |
+          node -e 'require("fs").writeFileSync("secrets.json", JSON.stringify({ BOT_TOKEN: process.env.BOT_TOKEN, WEBHOOK_SECRET: process.env.WEBHOOK_SECRET }))'
+          npx wrangler secret bulk secrets.json
+          rm secrets.json
