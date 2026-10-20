@@ -73,6 +73,18 @@ export async function ensureSchema(db) {
   schemaReady = true;
 }
 
+export async function getSetting(db, key) {
+  const row = await db.prepare(`SELECT value FROM settings WHERE key = ?`).bind(key).first();
+  return row ? row.value : null;
+}
+
+export function setSetting(db, key, value) {
+  return db
+    .prepare(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value`)
+    .bind(key, value)
+    .run();
+}
+
 // ---------- users ----------
 
 export async function touchUser(db, from, now) {

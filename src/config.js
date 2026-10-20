@@ -17,6 +17,14 @@ export const CRON_BUDGET = { reminders: 20, digests: 10, broadcast: 15 };
 // How long a successful membership check is trusted inside one isolate.
 export const JOIN_CACHE_MS = 60_000;
 
+// Telegram only accepts these characters in a webhook secret token.
+export const WEBHOOK_SECRET_RE = /^[A-Za-z0-9_-]{1,256}$/;
+
+/** Secrets pasted into the dashboard often carry a stray space or newline. */
+export function secret(env, name) {
+  return String(env[name] ?? '').trim();
+}
+
 export function ownerId(env) {
   return Number(env.OWNER_ID || DEFAULT_OWNER_ID);
 }

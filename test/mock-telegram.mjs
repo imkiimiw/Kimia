@@ -9,6 +9,7 @@ export function createMockTelegram({ botId }) {
     botAdmin: new Set(), // chat keys where the bot is admin
     members: new Map(), // `${chatKey}:${userId}` -> status
     blocked: new Set(), // user ids that blocked the bot
+    webhookUrl: '',
   };
 
   const key = (chatId) => {
@@ -32,7 +33,11 @@ export function createMockTelegram({ botId }) {
 
   const handlers = {
     getMe: () => ok({ id: botId, is_bot: true, first_name: 'TodoBot', username: 'todo_test_bot' }),
-    setWebhook: () => ok(true),
+    setWebhook: (p) => {
+      state.webhookUrl = p.url;
+      return ok(true);
+    },
+    getWebhookInfo: () => ok({ url: state.webhookUrl, pending_update_count: 0 }),
     setMyCommands: () => ok(true),
     answerCallbackQuery: () => ok(true),
     getChat: (p) => {

@@ -32,9 +32,11 @@ writeFileSync(envFile, `BOT_TOKEN=${TOKEN}\nWEBHOOK_SECRET=${SECRET}\nTELEGRAM_A
 const port = 18000 + Math.floor(Math.random() * 2000);
 const BASE = `http://127.0.0.1:${port}`;
 
+// E2E_CONFIG runs the same suite against another wrangler config, e.g. the exact files pasted into the dashboard.
+const configArgs = process.env.E2E_CONFIG ? ['--config', path.resolve(process.env.E2E_CONFIG)] : [];
 const child = spawn(
   'npx',
-  ['wrangler', 'dev', '--local', '--ip', '127.0.0.1', '--port', String(port), '--test-scheduled', '--persist-to', path.join(work, 'state'), '--env-file', envFile, '--show-interactive-dev-session=false'],
+  ['wrangler', 'dev', ...configArgs, '--local', '--ip', '127.0.0.1', '--port', String(port), '--test-scheduled', '--persist-to', path.join(work, 'state'), '--env-file', envFile, '--show-interactive-dev-session=false'],
   { cwd: ROOT, env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' }, stdio: ['ignore', 'pipe', 'pipe'] },
 );
 let devLog = '';
@@ -136,9 +138,11 @@ const lp = localParts(NOW);
 
 console.log('\nHTTP & setup');
 
-await test('GET / answers health check', async () => {
+await test('status page: DB, token and secret OK; webhook and cron not yet', async () => {
   const res = await fetch(BASE + '/');
   assert.equal(res.status, 200);
+  const html = await res.text();
+  includesAll(html, ['✅</span><div>دیتابیس D1', '@todo_test_bot', '✅</span><div>رمز وبهوک', '❌</span><div>اتصال وبهوک', '❌</span><div>کرون']);
 });
 
 await test('webhook rejects requests without the secret token', async () => {
@@ -543,6 +547,12 @@ await test('broadcast is queued, delivered by cron, and reported to the owner', 
 });
 
 console.log('\nRobustness');
+
+await test('status page is all green once webhook and cron are running', async () => {
+  const html = await (await fetch(BASE + '/')).text();
+  assert.ok(!html.includes('❌'), html);
+  includesAll(html, ['همه‌چیز آماده است', 'کانال‌های جوین اجباری: ۶', 'مالک: <code>5557901897</code>']);
+});
 
 await test('group messages are ignored', async () => {
   since();

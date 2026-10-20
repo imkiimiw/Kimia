@@ -1,5 +1,8 @@
+import { secret } from './config.js';
+
 export function createApi(env) {
-  const base = `${env.TELEGRAM_API || 'https://api.telegram.org'}/bot${env.BOT_TOKEN}/`;
+  const token = secret(env, 'BOT_TOKEN');
+  const base = `${env.TELEGRAM_API || 'https://api.telegram.org'}/bot${token}/`;
 
   async function call(method, params = {}) {
     try {
@@ -58,7 +61,7 @@ export function createApi(env) {
       }),
     answer: (callbackId, text, showAlert = false) =>
       call('answerCallbackQuery', { callback_query_id: callbackId, text, show_alert: showAlert }),
-    botId: () => Number(String(env.BOT_TOKEN || '').split(':')[0]),
+    botId: () => Number(token.split(':')[0]),
   };
 }
 

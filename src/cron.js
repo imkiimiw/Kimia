@@ -9,6 +9,8 @@ const transient = (r) => !r.ok && (r.error_code === 429 || r.error_code === 0 ||
 
 export async function runCron(env, now) {
   await Q.ensureSchema(env.DB);
+  // Wall-clock time (not scheduledTime) so the status page can tell whether the cron trigger is running.
+  await Q.setSetting(env.DB, 'last_cron', String(Date.now()));
   const ctx = { env, db: env.DB, api: createApi(env), now };
   const results = await Promise.allSettled([sendReminders(ctx), sendDigests(ctx), runBroadcast(ctx)]);
   for (const r of results) if (r.status === 'rejected') console.error('cron job failed:', r.reason?.stack || r.reason);

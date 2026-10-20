@@ -165,7 +165,7 @@ export function normalizeInput(s) {
   return toLatinDigits(s)
     .replace(/ي/g, 'ی')
     .replace(/ك/g, 'ک')
-    .replace(/[‌‏‎]/g, ' ')
+    .replace(/[\u200c\u200f\u200e]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
@@ -205,7 +205,7 @@ export function parseWhen(raw, now = Date.now(), { defaultHour = 9, defaultMinut
   if (!s) return null;
 
   // Relative offsets: "+30m", "30 دقیقه دیگر", "in 2h", "+3" (days).
-  const rel = s.match(/^(?:\+|in\s+)?\s*(\d{1,4})\s*([a-z؀-ۿ]*)\s*(?:دیگر|دیگه|بعد|later)?$/);
+  const rel = s.match(/^(?:\+|in\s+)?\s*(\d{1,4})\s*([a-z\u0600-\u06ff]*)\s*(?:دیگر|دیگه|بعد|later)?$/);
   if (rel && (s.startsWith('+') || s.startsWith('in ') || rel[2])) {
     const n = Number(rel[1]);
     const unit = rel[2] || 'd';

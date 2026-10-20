@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node --test test/unit.mjs && node test/e2e.mjs",
+    "build": "esbuild src/index.js --bundle --format=esm --platform=neutral --target=es2022 --charset=utf8 --legal-comments=none --outfile=dist/worker.js",
+    "test": "node --test test/unit.mjs && node test/e2e.mjs && node test/setup-check.mjs",
     "test:unit": "node --test test/unit.mjs"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "wrangler": "^4.151.3"
   }
 }
