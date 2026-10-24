@@ -1,4 +1,5 @@
-// Minimal stand-in for the Telegram Bot API, enough to drive the worker end to end.
+// Minimal stand-in for the Telegram Bot API, enough to drive the bot end to end.
+import { Buffer } from 'node:buffer';
 import http from 'node:http';
 
 export function createMockTelegram({ botId }) {

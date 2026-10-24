@@ -1,18 +1,15 @@
-// End-to-end test: runs the worker in the real Workers runtime (workerd via `wrangler dev`, with a local D1)
-// against a mock Telegram Bot API, then drives it with webhook updates and cron triggers.
+// End-to-end test of the Telegram Serverless bot: the real handlers (tgcloud/handlers/*.js) run against a
+// local emulation of the platform's `sdk` (test/sdk/: SQLite database + Bot API client) and a mock Bot API.
+// Run: node --import ./test/sdk/register.mjs test/e2e.mjs
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createMockTelegram } from './mock-telegram.mjs';
-import { DAY, fromLocal, localParts, MINUTE } from '../src/time.js';
+import { setupDatabase } from './sdk/db.mjs';
+import * as schema from '../tgcloud/schema.js';
+import { d1 } from '../tgcloud/lib/d1.js';
+import { getSetting } from '../tgcloud/lib/store.js';
+import { DAY, fromLocal, localParts, MINUTE } from '../tgcloud/lib/time.js';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BOT_ID = 7000000001;
-const TOKEN = `${BOT_ID}:TEST_TOKEN`;
-const SECRET = 'test_secret_123';
 const OWNER = 5557901897;
 const U1 = 1001;
 const U2 = 1002;
@@ -24,63 +21,41 @@ const mock = createMockTelegram({ botId: BOT_ID });
 mock.addChannel('@HIDE_i_SEEK', { title: 'Hide & Seek' });
 mock.addChannel('@Nepenthw_ir', { title: 'Nepenthe' });
 mock.addChannel('@wangerBots', { title: 'Wanger Bots' });
-const mockPort = await mock.listen();
+process.env.TG_MOCK_URL = `http://127.0.0.1:${await mock.listen()}`;
+setupDatabase(schema); // what `npx tgcloud migrate` does on the platform
 
-const work = mkdtempSync(path.join(tmpdir(), 'todo-bot-e2e-'));
-const envFile = path.join(work, '.env');
-writeFileSync(envFile, `BOT_TOKEN=${TOKEN}\nWEBHOOK_SECRET=${SECRET}\nTELEGRAM_API=http://127.0.0.1:${mockPort}\n`);
-const port = 18000 + Math.floor(Math.random() * 2000);
-const BASE = `http://127.0.0.1:${port}`;
-
-// E2E_CONFIG runs the same suite against another wrangler config, e.g. the exact files pasted into the dashboard.
-const configArgs = process.env.E2E_CONFIG ? ['--config', path.resolve(process.env.E2E_CONFIG)] : [];
-const child = spawn(
-  'npx',
-  ['wrangler', 'dev', ...configArgs, '--local', '--ip', '127.0.0.1', '--port', String(port), '--test-scheduled', '--persist-to', path.join(work, 'state'), '--env-file', envFile, '--show-interactive-dev-session=false'],
-  { cwd: ROOT, env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' }, stdio: ['ignore', 'pipe', 'pipe'] },
-);
-let devLog = '';
-child.stdout.on('data', (d) => (devLog += d));
-child.stderr.on('data', (d) => (devLog += d));
-
-async function shutdown(code) {
-  child.kill('SIGTERM');
-  await mock.close();
-  rmSync(work, { recursive: true, force: true });
-  process.exit(code);
+// Telegram runs modules in a bare V8 isolate: only ECMAScript built-ins, `console` and the `sdk`.
+// Remove Node's web and timer globals so any use of them in the bot fails here too.
+for (const name of ['TextEncoder', 'TextDecoder', 'URL', 'URLSearchParams', 'Blob', 'File', 'FormData', 'Headers', 'Request', 'Response',
+  'fetch', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'setImmediate', 'queueMicrotask', 'structuredClone',
+  'atob', 'btoa', 'crypto', 'AbortController', 'AbortSignal', 'Buffer', 'performance', 'navigator']) {
+  delete globalThis[name];
 }
 
-for (let i = 0; ; i += 1) {
-  if (/Ready on/.test(devLog)) break;
-  if (i > 600 || child.exitCode !== null) {
-    console.error('wrangler dev did not start:\n', devLog);
-    await shutdown(1);
-  }
-  await new Promise((r) => setTimeout(r, 100));
-}
-// Ready is printed slightly before the port accepts traffic.
-for (let i = 0; i < 100; i += 1) {
-  try {
-    await fetch(BASE + '/');
-    break;
-  } catch {
-    await new Promise((r) => setTimeout(r, 100));
-  }
+const { default: onMessage } = await import('../tgcloud/handlers/message.js');
+const { default: onCallback } = await import('../tgcloud/handlers/callback_query.js');
+
+// Handler crashes are logged (not thrown) by the handlers, so collect console.error output.
+const errors = [];
+const logError = console.error;
+console.error = (...args) => {
+  errors.push(args.map((a) => (a && a.stack) || String(a)).join(' '));
+  logError(...args);
+};
+console.warn = () => {}; // expected Bot API failures (e.g. "chat not found") are logged as warnings
+
+// The platform clock is frozen between steps, so a tick (at most one a minute) runs exactly when a test moves time.
+let clock = Date.now();
+Date.now = () => clock;
+function setClock(t) {
+  assert.ok(t >= clock, 'the test clock only moves forward');
+  clock = t;
 }
 
 let updateId = 1;
 let messageId = 1;
 let mark = 0;
 const user = (id) => ({ id, is_bot: false, first_name: `User${id}`, username: `user${id}` });
-
-async function post(update, secret = SECRET) {
-  const res = await fetch(BASE + '/webhook', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': secret },
-    body: JSON.stringify(update),
-  });
-  return res.status;
-}
 
 function since() {
   const calls = mock.state.calls.slice(mark);
@@ -90,22 +65,24 @@ function since() {
 
 async function say(uid, text, extra = {}) {
   since();
-  const message = { message_id: messageId++, from: user(uid), chat: { id: uid, type: 'private' }, date: Math.floor(Date.now() / 1000), text, ...extra };
-  assert.equal(await post({ update_id: updateId++, message }), 200);
+  const message = { message_id: messageId++, from: user(uid), chat: { id: uid, type: 'private' }, date: Math.floor(clock / 1000), text, ...extra };
+  await onMessage(message, { update: { update_id: updateId++, message } });
   return { calls: since(), messageId: message.message_id };
 }
 
 async function press(uid, data) {
   since();
   const cq = { id: String(updateId), from: user(uid), chat_instance: '1', data, message: { message_id: 1, chat: { id: uid, type: 'private' }, date: 0, text: '.' } };
-  assert.equal(await post({ update_id: updateId++, callback_query: cq }), 200);
+  await onCallback(cq, { update: { update_id: updateId++, callback_query: cq } });
   return since();
 }
 
-async function cron(time) {
+/** Moves the clock and delivers an update the bot otherwise ignores, which runs the tick (reminders, digests, broadcasts). */
+async function tickAt(time) {
+  setClock(time);
   since();
-  const res = await fetch(`${BASE}/cdn-cgi/local/scheduled?cron=${encodeURIComponent('* * * * *')}&time=${time}&format=json`);
-  assert.equal(res.status, 200, await res.text());
+  const message = { message_id: messageId++, from: user(9999), chat: { id: -500, type: 'group' }, date: Math.floor(clock / 1000), text: 'tick' };
+  await onMessage(message, { update: { update_id: updateId++, message } });
   return since();
 }
 
@@ -136,33 +113,22 @@ const lp = localParts(NOW);
 
 // ---------- tests ----------
 
-console.log('\nHTTP & setup');
+console.log('\nServerless basics');
 
-await test('status page: DB, token and secret OK; webhook and cron not yet', async () => {
-  const res = await fetch(BASE + '/');
-  assert.equal(res.status, 200);
-  const html = await res.text();
-  includesAll(html, ['✅</span><div>دیتابیس D1', '@todo_test_bot', '✅</span><div>رمز وبهوک', '❌</span><div>اتصال وبهوک', '❌</span><div>کرون']);
+await test('the default channels are seeded once, on the first update', async () => {
+  await tickAt(NOW);
+  const rows = await d1.prepare('SELECT chat FROM channels ORDER BY id').all();
+  assert.deepEqual(rows.results.map((r) => r.chat), ['@HIDE_i_SEEK', '@Nepenthw_ir', '@wangerBots']);
+  await tickAt(NOW);
+  assert.equal((await d1.prepare('SELECT COUNT(*) AS n FROM channels').first()).n, 3);
 });
 
-await test('webhook rejects requests without the secret token', async () => {
-  assert.equal(await post({ update_id: 1 }, 'wrong'), 403);
-});
-
-await test('/setup requires the secret and registers webhook + commands', async () => {
-  const wrong = await fetch(`${BASE}/setup?secret=nope`);
-  assert.equal(wrong.status, 403);
-  includesAll((await wrong.json()).message, ['WEBHOOK_SECRET', 'Cloudflare']);
-  since();
-  const res = await fetch(`${BASE}/setup?secret=${SECRET}`);
-  assert.equal(res.status, 200);
-  const calls = since();
-  const hook = calls.find((c) => c.method === 'setWebhook');
-  assert.equal(hook.params.url, `${BASE}/webhook`);
-  assert.equal(hook.params.secret_token, SECRET);
-  const cmds = calls.filter((c) => c.method === 'setMyCommands');
-  assert.equal(cmds.length, 2);
-  assert.equal(cmds[1].params.scope.chat_id, OWNER);
+await test('the tick runs at most once a minute, on any update', async () => {
+  assert.equal(Number(await getSetting(d1, 'last_tick')), NOW);
+  await tickAt(NOW + 30_000);
+  assert.equal(Number(await getSetting(d1, 'last_tick')), NOW, 'throttled within the minute');
+  await tickAt(NOW + 60_000);
+  assert.equal(Number(await getSetting(d1, 'last_tick')), NOW + 60_000);
 });
 
 console.log('\nForced join (default channels)');
@@ -365,16 +331,16 @@ await test('settings: daily digest hour, export file, clear done', async () => {
   includesAll(doc.params.document, ['خرید نان', 'یادداشت: نان سنگک بگیر', 'در جریان']);
 });
 
-console.log('\nCron (reminders, digest)');
+console.log('\nReminders & digests (driven by updates)');
 
 await test('#4 reminder fires at its time, with snooze buttons, exactly once', async () => {
-  const calls = await cron(NOW + 31 * MINUTE);
+  const calls = await tickAt(NOW + 31 * MINUTE);
   const reminders = outgoing(calls, U1).filter((c) => c.params.text.includes('یادآوری'));
   assert.equal(reminders.length, 1, JSON.stringify(reminders.map((r) => r.params.text)));
   includesAll(reminders[0].params.text, ['زنگ به @ali']);
   const cbs = reminders[0].params.reply_markup.inline_keyboard.flat().map((b) => b.callback_data);
   assert.ok(cbs.includes('SN|2|10') && cbs.includes('D|2|p.0'));
-  const again = await cron(NOW + 32 * MINUTE);
+  const again = await tickAt(NOW + 32 * MINUTE);
   assert.equal(outgoing(again, U1).filter((c) => c.params.text.includes('زنگ به')).length, 0, 'no duplicate');
 });
 
@@ -382,29 +348,39 @@ await test('#4 snooze reschedules the reminder', async () => {
   const calls = await press(U1, 'SN|2|10');
   includesAll(answerOf(calls).text, ['به تعویق']);
   includesAll(lastText(calls), ['موکول شد']);
-  const fired = await cron(Date.now() + 11 * MINUTE);
+  const fired = await tickAt(Date.now() + 11 * MINUTE);
   assert.ok(outgoing(fired, U1).some((c) => c.params.text.includes('یادآوری') && c.params.text.includes('زنگ به')), 'snoozed reminder fires');
+});
+
+await test('a due reminder rides along with the next ordinary message from anyone', async () => {
+  await press(U1, 'RM|3|15|p.0');
+  setClock(Date.now() + 16 * MINUTE);
+  const { calls } = await say(U1, '📊 آمار');
+  const reminder = outgoing(calls, U1).filter((c) => c.params.text.includes('یادآوری'));
+  assert.equal(reminder.length, 1, 'reminder delivered during this update');
+  includesAll(reminder[0].params.text, ['ورزش']);
+  assert.ok(outgoing(calls, U1).some((c) => c.params.text.includes('آمار شما')), 'the user still gets the reply');
 });
 
 await test('#6 recurring reminder repeats on the next day', async () => {
   // Task 1: reminder 1h before its (moved) due date the day after tomorrow, repeating daily.
-  const t1 = await cron(NOW + 3 * DAY);
+  const t1 = await tickAt(NOW + 3 * DAY);
   assert.ok(outgoing(t1, U1).some((c) => c.params.text.includes('یادآوری') && c.params.text.includes('خرید نان')));
-  const t2 = await cron(NOW + 4 * DAY);
+  const t2 = await tickAt(NOW + 4 * DAY);
   assert.ok(outgoing(t2, U1).some((c) => c.params.text.includes('یادآوری') && c.params.text.includes('خرید نان')), 'fires again next day');
 });
 
 await test('#10 daily digest is sent at the chosen hour, once per day', async () => {
   const day = localParts(NOW + 6 * DAY);
   const at = fromLocal(day.y, day.m, day.d, 8, 5);
-  const calls = await cron(at);
+  const calls = await tickAt(at);
   const digest = outgoing(calls, U1).filter((c) => c.params.text.includes('خلاصه روزانه'));
   assert.equal(digest.length, 1);
   includesAll(digest[0].params.text, ['صبح بخیر', 'در جریان', 'خرید نان']);
-  const again = await cron(at + 10 * MINUTE);
+  const again = await tickAt(at + 10 * MINUTE);
   assert.equal(outgoing(again, U1).filter((c) => c.params.text.includes('خلاصه روزانه')).length, 0);
   const early = localParts(NOW + 7 * DAY);
-  const before = await cron(fromLocal(early.y, early.m, early.d, 7, 30));
+  const before = await tickAt(fromLocal(early.y, early.m, early.d, 7, 30));
   assert.equal(outgoing(before, U1).filter((c) => c.params.text.includes('خلاصه روزانه')).length, 0, 'not before 08:00');
 });
 
@@ -420,12 +396,12 @@ await test('users who blocked the bot are marked and skipped', async () => {
   await say(U2, 'تست بلاک');
   await press(U2, 'RM|1|15|p.0');
   mock.state.blocked.add(U2);
-  const calls = await cron(Date.now() + 16 * MINUTE);
+  const calls = await tickAt(Date.now() + 16 * MINUTE);
   const attempt = calls.find((c) => c.method === 'sendMessage' && Number(c.params.chat_id) === U2);
   assert.equal(attempt?.result.error_code, 403);
 });
 
-await test('a reminder backlog is spread over several cron runs within the free-plan budget', async () => {
+await test('a reminder backlog is spread over several ticks, each bounded', async () => {
   const first = mock.state.calls.length;
   for (let i = 1; i <= 20; i += 1) {
     const { calls } = await say(U1, `یادآور انبوه ${i}`);
@@ -436,24 +412,29 @@ await test('a reminder backlog is spread over several cron runs within the free-
   const seen = [];
   const perRun = [];
   for (let run = 0; run < 5; run += 1) {
-    const calls = await cron(Date.now() + 16 * MINUTE);
+    const calls = await tickAt(Date.now() + 16 * MINUTE);
     const texts = outgoing(calls, U1).map((c) => c.params.text).filter((t) => t.includes('یادآور انبوه'));
     perRun.push(texts.length);
     assert.ok(calls.length <= 45, `run ${run} made ${calls.length} Telegram calls`);
     seen.push(...texts.map((t) => t.match(/یادآور انبوه (\d+)/)[1]));
   }
-  assert.ok(perRun[0] <= 8 && perRun[0] > 0, `first run sent ${perRun[0]}`);
+  assert.ok(perRun[0] <= 10 && perRun[0] > 0, `first run sent ${perRun[0]}`);
   assert.equal(new Set(seen).size, 20, `delivered ${JSON.stringify(perRun)}`);
   assert.equal(seen.length, 20, 'no duplicates');
 });
 
 console.log('\nOwner panel & channel management');
 
-await test('owner skips forced join and sees the admin button', async () => {
+await test('owner skips forced join, sees the admin button, and gets the owner command menu', async () => {
   const { calls } = await say(OWNER, '/start');
   assert.equal(calls.filter((c) => c.method === 'getChatMember').length, 0);
   const keys = outgoing(calls)[0].params.reply_markup.keyboard.flat().map((k) => k.text);
   assert.ok(keys.includes('👑 پنل مدیریت'));
+  const menus = calls.filter((c) => c.method === 'setMyCommands');
+  assert.equal(menus.length, 1, 'default menu was already published by the first user');
+  assert.equal(menus[0].params.scope.chat_id, OWNER);
+  assert.ok(menus[0].params.commands.some((c) => c.command === 'addchannel'));
+  assert.equal((await say(OWNER, '/start')).calls.filter((c) => c.method === 'setMyCommands').length, 0, 'published once');
 });
 
 await test('non-owners cannot use admin commands or buttons', async () => {
@@ -516,9 +497,7 @@ await test('channel where the bot is not admin: added with warning, users are no
   mock.join('@FwdChan', U1);
   const { calls } = await say(U1, '/stats');
   includesAll(lastText(calls), ['آمار شما']);
-  const html = await (await fetch(BASE + '/')).text();
-  includesAll(html, ['❌</span><div>ربات در کانال <code>@NoAdmin</code> ادمین است', '✅</span><div>ربات در کانال <code>@HIDE_i_SEEK</code> ادمین است']);
-  assert.ok(!html.includes('همه‌چیز آماده است'), 'status page must not claim everything is ready');
+  includesAll(lastText(await press(OWNER, 'A|ck')), ['No Admin</b> — ربات ادمین نیست', 'Hide &amp; Seek</b> — ربات ادمین است']);
 });
 
 await test('limit of 10 channels is enforced', async () => {
@@ -560,7 +539,7 @@ await test('bot stats for the owner', async () => {
   includesAll(lastText(await press(OWNER, 'A|st')), ['کل کاربران: ۴', 'بلاک کرده‌اند: ۱']);
 });
 
-await test('broadcast is queued, delivered by cron, and reported to the owner', async () => {
+await test('broadcast: first batch on confirm, the rest on the next tick, then a report to the owner', async () => {
   await press(OWNER, 'A|bc');
   // An album arrives as separate messages; the bot warns once and keeps waiting for a single message.
   const album = { media_group_id: 'g1', text: undefined, photo: [{ file_id: 'p', width: 1, height: 1 }] };
@@ -569,10 +548,11 @@ await test('broadcast is queued, delivered by cron, and reported to the owner', 
   const { calls, messageId: bcMsg } = await say(OWNER, 'سلام به همه! نسخه جدید ربات 🎉');
   assert.ok(callbacksOf(calls).includes(`A|bcy|${bcMsg}`));
   includesAll(lastText(calls), ['کاربر ارسال شود']);
-  includesAll(lastText(await press(OWNER, `A|bcy|${bcMsg}`)), ['شروع شد']);
-  mock.state.failOnce.add(U3); // a rate limit mid-broadcast: resume there next minute, skip nobody, repeat nobody
-  const first = await cron(Date.now());
-  const second = await cron(Date.now());
+  mock.state.failOnce.add(U3); // a rate limit mid-broadcast: resume there later, skip nobody, repeat nobody
+  const first = await press(OWNER, `A|bcy|${bcMsg}`); // the first batch goes out right away
+  includesAll(lastText(first), ['در جریان است']);
+  assert.ok(callbacksOf(first).includes('A|bcgo'));
+  const second = await tickAt(Date.now() + MINUTE);
   const copies = [...first, ...second].filter((c) => c.method === 'copyMessage');
   const delivered = copies.filter((c) => c.result.ok).map((c) => Number(c.params.chat_id));
   assert.deepEqual(delivered.sort(), [U1, U3, OWNER].sort(), 'each user exactly once; blocked U2 skipped');
@@ -583,15 +563,13 @@ await test('broadcast is queued, delivered by cron, and reported to the owner', 
 
 console.log('\nRobustness');
 
-await test('status page is all green once webhook and cron are running', async () => {
-  const html = await (await fetch(BASE + '/')).text();
-  assert.ok(!html.includes('❌'), html);
-  includesAll(html, ['همه‌چیز آماده است', 'کانال‌های جوین اجباری: ۶', 'مالک: <code>5557901897</code>']);
+await test('owner stats show serverless health instead of a status page', async () => {
+  includesAll(lastText(await press(OWNER, 'A|st')), ['🩺 <b>وضعیت سرورلس</b>', '✅ تحویل پیام‌ها بدون خطا', 'آخرین پردازش یادآورها', 'دقیقه پیش']);
 });
 
 await test('group messages are ignored', async () => {
   since();
-  await post({ update_id: updateId++, message: { message_id: messageId++, from: user(U1), chat: { id: -500, type: 'group' }, date: 0, text: '/start' } });
+  await onMessage({ message_id: messageId++, from: user(U1), chat: { id: -500, type: 'group' }, date: 0, text: '/start' }, {});
   assert.equal(since().length, 0);
 });
 
@@ -610,12 +588,11 @@ await test('unknown commands and garbage callbacks do not crash', async () => {
   includesAll(lastText((await say(U1, '/whatever')).calls), ['دستور ناشناخته']);
   const calls = await press(U1, 'ZZ|abc|');
   assert.ok(calls.some((c) => c.method === 'answerCallbackQuery'));
-  assert.ok(!/update failed/.test(devLog), devLog);
+  assert.deepEqual(errors, [], 'no handler or tick errors were logged');
 });
 
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) console.log('Failed:\n - ' + failures.join('\n - '));
-if (/update failed|cron job failed|Uncaught/.test(devLog)) {
-  console.log('\nWorker errors in log:\n', devLog.split('\n').filter((l) => /fail|error|Uncaught/i.test(l)).join('\n'));
-}
-await shutdown(failures.length ? 1 : 0);
+if (errors.length) console.log('\nErrors logged by handlers:\n' + errors.join('\n'));
+await mock.close();
+process.exit(failures.length || errors.length ? 1 : 0);

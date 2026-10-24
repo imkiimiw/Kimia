@@ -1,4 +1,4 @@
 node_modules/
-.wrangler/
-.dev.vars
+# tgcloud CLI state, including the saved access token: never commit
+.tgcloud/
 *.log

@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseChannelInput } from '../src/admin.js';
-import { cleanCategory, parseQuickAdd } from '../src/quickadd.js';
-import { addRepeat, DAY, fa, formatDate, fromLocal, g2j, HOUR, j2g, localParts, MINUTE, nextDigestAt, nextOccurrence, parseWhen } from '../src/time.js';
+import { parseChannelInput } from '../tgcloud/lib/admin.js';
+import { cleanCategory, parseQuickAdd } from '../tgcloud/lib/quickadd.js';
+import { utf8Bytes, utf8Length } from '../tgcloud/lib/utf8.js';
+import { addRepeat, DAY, fa, formatDate, fromLocal, g2j, HOUR, j2g, localParts, MINUTE, nextDigestAt, nextOccurrence, parseWhen } from '../tgcloud/lib/time.js';
 
 // Tuesday 1405/07/28 (2026-10-20) 15:00 Tehran.
 const NOW = fromLocal(2026, 10, 20, 15, 0);
@@ -80,6 +81,14 @@ test('quick add syntax', () => {
   const zwnj = parseQuickAdd('جارو کشیدن #خانه\u200cداری', NOW);
   assert.equal(zwnj.category, 'خانه\u200cداری', 'ZWNJ is part of Persian words');
   assert.equal(zwnj.text, 'جارو کشیدن');
+});
+
+test('UTF-8 helpers match TextEncoder', () => {
+  const enc = new TextEncoder();
+  for (const s of ['', 'abc', 'خرید نان', 'کارهای\u200cروزانه', '😀 emoji', '漢字', 'a\ud800b', '۱۴۰۵/۰۸/۱۰']) {
+    assert.deepEqual(Array.from(utf8Bytes(s)), Array.from(enc.encode(s)), s);
+    assert.equal(utf8Length(s), enc.encode(s).length, s);
+  }
 });
 
 test('category names fit in callback_data', () => {
