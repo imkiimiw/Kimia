@@ -40,6 +40,29 @@
 1. [@BotFather](https://t.me/BotFather) ← ربات ← **Serverless** ← روشن.
 2. ربات را در هر سه کانال **ادمین** کنید (بدون ادمین بودن، تلگرام اجازه‌ی بررسی عضویت نمی‌دهد).
 
+### روش ۱: چسباندن کد در BotFather (بدون CLI و توکن)
+
+BotFather ← ربات ← Serverless. هر فایل را **به همین ترتیب** بچسبانید و Save کنید؛ هر ماژول فقط ماژول‌های
+قبل از خودش را import می‌کند، پس موقع Save وابستگی‌هایش از قبل وجود دارند:
+
+| # | بخش در BotFather | نام | فایل |
+|---|---|---|---|
+| 1 | Database | — | `tgcloud/schema.js` (بعد از Save تغییرات را اعمال کنید: ۶ جدول) |
+| 2 | Library | `config` | `tgcloud/lib/config.js` |
+| 3 | Library | `text` | `tgcloud/lib/text.js` |
+| 4 | Library | `tg` | `tgcloud/lib/tg.js` |
+| 5 | Library | `dates` | `tgcloud/lib/dates.js` |
+| 6 | Library | `store` | `tgcloud/lib/store.js` |
+| 7 | Library | `ui` | `tgcloud/lib/ui.js` |
+| 8 | Library | `join` | `tgcloud/lib/join.js` |
+| 9 | Library | `todo` | `tgcloud/lib/todo.js` |
+| 10 | Library | `admin` | `tgcloud/lib/admin.js` |
+| 11 | Library | `router` | `tgcloud/lib/router.js` |
+| 12 | Handlers | `message` | `tgcloud/handlers/message.js` |
+| 13 | Handlers | `callback_query` | `tgcloud/handlers/callback_query.js` |
+
+### روش ۲: با CLI رسمی
+
 با Node.js ۱۸ به بالا:
 
 ```bash
