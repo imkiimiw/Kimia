@@ -1,364 +1,188 @@
-import { MAX_CHANNELS } from './config.js';
-import * as Q from './store.js';
-import { runBroadcast } from './tick.js';
-import { fa, formatDate, normalizeInput, toLatinDigits } from './time.js';
-import { btn, esc, inline } from './ui.js';
+// Owner panel: mandatory channels (list / add / remove, at most 10) and the join on/off switch.
+// The router lets only OWNER_ID (by numeric from.id) reach these functions, and every one of
+// them checks again, so a forged callback or a stale state can never act for someone else.
+import { MAX_CHANNELS, OWNER_ID } from './config.js';
+import { channelRef } from './join.js';
+import { answer, btn, call, describeError, send, show } from './tg.js';
+import { asciiDigits, esc, fa, short } from './text.js';
+import { menuBtn } from './ui.js';
+import * as store from './store.js';
 
-const USERNAME_RE = /^[A-Za-z][A-Za-z0-9_]{3,31}$/;
+/** callback_data actions that belong to the owner panel. */
+export const ADMIN_ACTIONS = new Set(['a', 'al', 'aa', 'ar', 'ary', 'at']);
 
-// ---------- views ----------
+export const isOwner = (userId) => userId === OWNER_ID;
 
-export async function homeView(ctx) {
-  const channels = await Q.listChannels(ctx.db);
-  return {
-    text: [
-      '👑 <b>پنل مدیریت ربات</b>',
-      '',
-      `📢 کانال‌های جوین اجباری: ${fa(channels.length)} از ${fa(MAX_CHANNELS)}`,
-      '',
-      'دستورات متنی هم در دسترس است:',
-      '<code>/channels</code> — لیست کانال‌ها',
-      '<code>/addchannel @username</code> — افزودن کانال',
-      '<code>/delchannel @username</code> یا <code>/delchannel 2</code> — حذف کانال',
-    ].join('\n'),
-    kb: inline([
-      [btn(`📢 کانال‌های جوین اجباری (${fa(channels.length)}/${fa(MAX_CHANNELS)})`, 'A|ch')],
-      [btn('📊 آمار ربات', 'A|st'), btn('📣 پیام همگانی', 'A|bc')],
-    ]),
-  };
+async function botId(ctx) {
+  if (!ctx.botId) ctx.botId = (await call(ctx, 'getMe', {})).id;
+  return ctx.botId;
 }
 
-export async function channelsView(ctx, notice = '') {
-  const channels = await Q.listChannels(ctx.db);
-  const lines = channels.length
-    ? channels.map((c, i) => `${fa(i + 1)}. <b>${esc(c.title || c.chat)}</b>\n      <code>${esc(c.chat)}</code> — ${esc(c.link)}`)
-    : ['هیچ کانالی تنظیم نشده؛ جوین اجباری غیرفعال است.'];
-  const rows = channels.map((c, i) => [btn(`❌ حذف ${fa(i + 1)}. ${c.title || c.chat}`, `A|cd|${c.id}`)]);
-  rows.push([
-    channels.length < MAX_CHANNELS ? btn('➕ افزودن کانال', 'A|ca') : btn(`⛔️ سقف ${fa(MAX_CHANNELS)} کانال پر است`, 'A|full'),
-    btn('🔄 بررسی وضعیت', 'A|ck'),
+const isAdminStatus = (m) => !!m && (m.status === 'administrator' || m.status === 'creator');
+
+const withNotice = (notice, text) => (notice ? `${notice}\n\n${text}` : text);
+
+export async function showPanel(ctx, notice) {
+  if (!isOwner(ctx.userId)) return null;
+  const settings = await store.getSettings();
+  const channels = await store.getChannels(settings);
+  const joinOn = settings.join !== '0';
+  const text = '👑 <b>پنل مدیریت</b>\n\n'
+    + `🔒 عضویت اجباری: ${joinOn ? '✅ روشن' : '⛔️ خاموش'}\n`
+    + `📢 کانال‌ها: ${fa(channels.length)} از ${fa(MAX_CHANNELS)}\n`
+    + `👥 کاربران: ${fa(Number(settings.users || 0))}`;
+  return show(ctx, 'admin_panel', withNotice(notice, text), [
+    [btn('📢 کانال‌ها', 'al'), btn('➕ افزودن کانال', 'aa')],
+    [btn(joinOn ? '⛔️ خاموش کردن عضویت اجباری' : '✅ روشن کردن عضویت اجباری', 'at')],
+    [menuBtn()],
   ]);
-  rows.push([btn('🔙 پنل مدیریت', 'A|h')]);
-  return {
-    text: [
-      notice,
-      `📢 <b>کانال‌های جوین اجباری</b> (${fa(channels.length)} از ${fa(MAX_CHANNELS)})`,
-      '',
-      ...lines,
-      '',
-      '⚠️ ربات باید در هر کانال <b>ادمین</b> باشد تا عضویت کاربران بررسی شود.',
-    ]
-      .filter((l, i) => i > 0 || l)
-      .join('\n'),
-    kb: inline(rows),
-  };
 }
 
-export const ADD_CHANNEL_PROMPT = [
-  '➕ <b>افزودن کانال جوین اجباری</b>',
-  '',
-  'یکی از این‌ها را بفرستید:',
-  '• یوزرنیم کانال: <code>@channel</code>',
-  '• لینک کانال: <code>https://t.me/channel</code>',
-  '• کانال خصوصی: آیدی عددی + لینک دعوت، مثل:',
-  '  <code>-1001234567890 https://t.me/+AbCdEf</code>',
-  '• یا یک پست را که خود کانال منتشر کرده (نه بازنشر از کانال دیگر) اینجا فوروارد کنید.',
-  '',
-  '⚠️ قبلش ربات را در کانال ادمین کنید.',
-].join('\n');
-
-// ---------- channel management ----------
-
-/** Extracts { chat, link } from owner input (text or a forwarded channel post). */
-export function parseChannelInput(msg) {
-  const origin = msg.forward_origin;
-  if (origin) {
-    // Only a post forwarded from the channel itself identifies it; other forwards are rejected.
-    if (origin.type !== 'channel' || origin.chat?.type !== 'channel') return null;
-    return origin.chat.username
-      ? { chat: `@${origin.chat.username}`, link: `https://t.me/${origin.chat.username}` }
-      : { chat: String(origin.chat.id), link: null };
+/** Lists the channels and whether the bot is an admin in each (otherwise membership can't be checked). */
+export async function showChannels(ctx, notice) {
+  if (!isOwner(ctx.userId)) return null;
+  const channels = await store.getChannels(await store.getSettings());
+  let text = `📢 <b>کانال‌های عضویت اجباری</b> (${fa(channels.length)} از ${fa(MAX_CHANNELS)})\n\n`;
+  if (!channels.length) {
+    text += 'هیچ کانالی ثبت نشده؛ فعلاً عضویت اجباری از هیچ‌کس خواسته نمی‌شود.';
+  } else {
+    const me = await botId(ctx);
+    const status = await Promise.all(channels.map(async (ch) => {
+      try {
+        const m = await call(ctx, 'getChatMember', { chat_id: channelRef(ch), user_id: me });
+        return isAdminStatus(m) ? '✅' : '⚠️ ربات ادمین نیست';
+      } catch (err) {
+        return `❌ بررسی نشد: <code>${esc(describeError(err))}</code>`;
+      }
+    }));
+    text += channels.map((ch, i) => {
+      const name = ch.title ? `${esc(ch.title)} — @${esc(ch.username)}` : `@${esc(ch.username)}`;
+      return `${fa(i + 1)}. ${name} ${status[i]}`;
+    }).join('\n');
+    text += '\n\n✅ = ربات ادمین است و عضویت بررسی می‌شود.\n'
+      + '⚠️ / ❌ = عضویت در این کانال بررسی نمی‌شود (کاربران به‌خاطر آن قفل نمی‌شوند).';
   }
-  // Only a bare reference is accepted: a copied post (e.g. forwarded with the sender hidden) may mention
-  // other channels, and picking one of those would lock users behind the wrong channel.
-  // Not lower-cased: private invite links are case-sensitive.
-  const text = toLatinDigits(msg.text || '').trim().replace(/^\/addchannel(@\w+)?\s*/i, '');
-  let chat = null;
-  let link = null;
-  for (const raw of text.split(/\s+/).filter(Boolean)) {
-    const token = raw.replace(/^<|>$/g, '');
-    const invite = token.match(/^(?:https?:\/\/)?(?:t\.me|telegram\.me)\/(\+[\w-]+|joinchat\/[\w-]+)\/?$/i);
-    const pub = token.match(/^(?:https?:\/\/)?(?:t\.me|telegram\.me)\/([A-Za-z][A-Za-z0-9_]{3,31})\/?$/i);
-    if (invite) link = `https://t.me/${invite[1]}`;
-    else if (pub) chat = `@${pub[1]}`;
-    else if (/^@/.test(token) && USERNAME_RE.test(token.slice(1))) chat = token;
-    else if (/^-100\d{5,}$/.test(token)) chat = token;
-    else return null;
+  const kb = channels.map((ch) => [btn(`❌ حذف @${short(ch.username, 24)}`, `ar:${ch.id}`)]);
+  kb.push([btn('➕ افزودن کانال', 'aa'), btn('🔙 پنل', 'a')]);
+  return show(ctx, 'admin_channels', withNotice(notice, text), kb);
+}
+
+function limitScreen(ctx) {
+  return show(ctx, 'admin_channel_limit',
+    `⛔️ <b>سقف کانال‌ها پر است</b>\n\nحداکثر ${fa(MAX_CHANNELS)} کانال می‌توانید داشته باشید و الان ${fa(MAX_CHANNELS)} کانال ثبت شده است. `
+    + 'برای افزودن کانال جدید، اول یکی را حذف کنید.',
+    [[btn('📢 کانال‌ها', 'al'), btn('🔙 پنل', 'a')]]);
+}
+
+export async function promptAddChannel(ctx) {
+  if (!isOwner(ctx.userId)) return null;
+  if ((await store.countChannels()) >= MAX_CHANNELS) {
+    await answer(ctx, `⛔️ سقف ${fa(MAX_CHANNELS)} کانال پر است.`, true);
+    return limitScreen(ctx);
   }
-  if (chat?.startsWith('@')) link = `https://t.me/${chat.slice(1)}`;
-  return chat ? { chat, link } : null;
+  await store.setState(ctx.userId, 'admin_add');
+  return show(ctx, 'admin_add_prompt',
+    '➕ <b>افزودن کانال</b>\n\nیوزرنیم یا لینک کانال را بفرستید:\n<code>@mychannel</code>\n<code>https://t.me/mychannel</code>\n\n'
+    + '⚠️ قبل از آن، ربات را در کانال <b>ادمین</b> کنید.',
+    [[btn('❌ انصراف', 'a')]]);
 }
 
-export async function addChannel(ctx, input) {
-  if (!input) return { ok: false, text: '❗️ ورودی نامعتبر است.\n\n' + ADD_CHANNEL_PROMPT };
-  const channels = await Q.listChannels(ctx.db);
-  if (channels.length >= MAX_CHANNELS) return { ok: false, text: `⛔️ حداکثر ${fa(MAX_CHANNELS)} کانال قابل تنظیم است. اول یکی را حذف کنید.` };
-  if (channels.some((c) => c.chat.toLowerCase() === input.chat.toLowerCase())) return { ok: false, text: `ℹ️ کانال <code>${esc(input.chat)}</code> از قبل در لیست هست.` };
-
-  const info = await ctx.api.call('getChat', { chat_id: input.chat });
-  let { chat, link } = input;
-  let title = null;
-  if (info.ok) {
-    title = info.result.title || null;
-    if (info.result.username) {
-      chat = `@${info.result.username}`;
-      link = link || `https://t.me/${info.result.username}`;
-      if (channels.some((c) => c.chat.toLowerCase() === chat.toLowerCase())) return { ok: false, text: `ℹ️ کانال <code>${esc(chat)}</code> از قبل در لیست هست.` };
-    }
-    if (!link) link = info.result.invite_link || null;
-    if (!link) {
-      const created = await ctx.api.call('createChatInviteLink', { chat_id: chat, name: 'todo-bot join' });
-      if (created.ok) link = created.result.invite_link;
-    }
-  } else if (!chat.startsWith('@')) {
-    return { ok: false, text: '❌ ربات به این کانال دسترسی ندارد. اول ربات را در کانال ادمین کنید و دوباره امتحان کنید.' };
+/**
+ * @username, username, t.me/username or https://t.me/s/username -> { username }.
+ * Invite links (t.me/+..., t.me/joinchat/...) -> { error: 'private' }; anything else -> { error: 'invalid' }.
+ */
+export function parseChannelInput(input) {
+  let s = asciiDigits(String(input)).trim().replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+  const link = s.match(/^(?:t\.me|telegram\.me|telegram\.dog)\/(.*)$/i);
+  if (link) {
+    let path = link[1].split(/[?#]/)[0];
+    if (/^(\+|joinchat\/)/i.test(path)) return { error: 'private' };
+    if (/^s\//i.test(path)) path = path.slice(2);
+    s = path.split('/')[0];
+  } else if (s.startsWith('@')) {
+    s = s.slice(1);
   }
-  if (!link) return { ok: false, text: '❗️ لینک دعوت کانال پیدا نشد. آیدی عددی را همراه لینک دعوت بفرستید:\n<code>-1001234567890 https://t.me/+AbCdEf</code>' };
-
-  const me = await ctx.api.call('getChatMember', { chat_id: chat, user_id: await ctx.api.botId() });
-  const isAdmin = me.ok && ['administrator', 'creator'].includes(me.result.status);
-
-  await Q.addChannel(ctx.db, chat, title, link, ctx.now);
-  const warn = isAdmin ? '' : '\n⚠️ ربات در این کانال ادمین نیست؛ تا وقتی ادمین نشود، عضویت در این کانال بررسی نمی‌شود.';
-  return { ok: true, text: `✅ کانال <b>${esc(title || chat)}</b> اضافه شد.${warn}\n` };
+  return /^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(s) ? { username: s } : { error: 'invalid' };
 }
 
-export async function removeChannel(ctx, id) {
-  const ch = await Q.getChannel(ctx.db, id);
-  if (!ch) return null;
-  await Q.removeChannel(ctx.db, id);
-  return ch;
-}
-
-async function resolveChannelRef(ctx, ref) {
-  const channels = await Q.listChannels(ctx.db);
-  const r = normalizeInput(ref);
-  if (/^\d+$/.test(r)) return channels[Number(r) - 1] || null;
-  const name = r.replace(/^(?:https?:\/\/)?(?:t\.me|telegram\.me)\//, '@').replace(/\/$/, '');
-  return channels.find((c) => c.chat.toLowerCase() === name || c.chat.toLowerCase() === `@${name}`) || null;
-}
-
-export async function statusReport(ctx) {
-  const channels = await Q.listChannels(ctx.db);
-  const botId = await ctx.api.botId();
-  const renamed = [];
-  const lines = await Promise.all(
-    channels.map(async (c, i) => {
-      const [info, me] = await Promise.all([
-        ctx.api.call('getChat', { chat_id: c.chat }),
-        ctx.api.call('getChatMember', { chat_id: c.chat, user_id: botId }),
-      ]);
-      if (info.ok && info.result.title && info.result.title !== c.title) renamed.push([c.id, info.result.title]);
-      const name = esc((info.ok && info.result.title) || c.title || c.chat);
-      if (!info.ok) return `${fa(i + 1)}. ❌ <b>${name}</b> — کانال پیدا نشد یا ربات به آن دسترسی ندارد`;
-      if (me.ok && ['administrator', 'creator'].includes(me.result.status)) return `${fa(i + 1)}. ✅ <b>${name}</b> — ربات ادمین است`;
-      return `${fa(i + 1)}. ⚠️ <b>${name}</b> — ربات ادمین نیست (عضویت بررسی نمی‌شود)`;
-    }),
-  );
-  // One D1 call for all title changes: with 10 channels this check already makes 20 Telegram calls.
-  if (renamed.length) await Q.setChannelTitles(ctx.db, renamed);
-  return lines.length ? `🔄 <b>وضعیت کانال‌ها:</b>\n${lines.join('\n')}\n` : '';
-}
-
-// ---------- stats & broadcast ----------
-
-export async function statsView(ctx) {
-  const s = await Q.botStats(ctx.db, ctx.now);
-  const b = await Q.activeBroadcast(ctx.db);
-  const health = await healthLines(ctx);
-  return {
-    text: [
-      '📊 <b>آمار ربات</b>',
-      '',
-      `👥 کل کاربران: ${fa(s.users)}`,
-      `🆕 کاربران جدید (۲۴ ساعت): ${fa(s.new_day)}`,
-      `🟢 فعال در ۲۴ ساعت: ${fa(s.active_day)}`,
-      `📆 فعال در ۷ روز: ${fa(s.active_week)}`,
-      `🚫 ربات را بلاک کرده‌اند: ${fa(s.blocked)}`,
-      '',
-      `📝 کل کارها: ${fa(s.tasks)}`,
-      `✅ کارهای انجام‌شده: ${fa(s.done)}`,
-      b ? `\n📣 ارسال همگانی در حال اجرا: ${fa(b.sent)} ارسال‌شده، ${fa(b.failed)} ناموفق` : '',
-      '',
-      '🩺 <b>وضعیت سرورلس</b>',
-      ...health,
-      '',
-      `<i>🕓 ${formatDate(ctx.now, { now: ctx.now })}</i>`,
-    ].join('\n'),
-    kb: inline([[btn('🔄 بروزرسانی', 'A|st'), btn('🔙 پنل مدیریت', 'A|h')]]),
-  };
-}
-
-/** What the old web status page showed: webhook delivery and when reminders last ran. */
-async function healthLines(ctx) {
-  const lines = [];
-  const info = await ctx.api.call('getWebhookInfo');
-  if (info.ok) {
-    const w = info.result;
-    lines.push(`📨 پیام‌های در صف تلگرام: ${fa(w.pending_update_count || 0)}`);
-    if (w.last_error_message) {
-      const ago = Math.max(0, Math.floor((ctx.now - w.last_error_date * 1000) / 60_000));
-      lines.push(`⚠️ آخرین خطای تحویل (${fa(ago)} دقیقه پیش): ${esc(w.last_error_message)}`);
-    } else lines.push('✅ تحویل پیام‌ها بدون خطا');
+/** The owner sent a channel while the panel waits for one: validate it with Telegram, then save. */
+export async function addChannelInput(ctx, text) {
+  if (!isOwner(ctx.userId)) return null;
+  const retry = [[btn('❌ انصراف', 'a')]];
+  const parsed = parseChannelInput(text);
+  if (parsed.error === 'private') {
+    return send(ctx, 'admin_add_invalid',
+      '⚠️ لینک دعوت خصوصی قابل بررسی نیست. یوزرنیم عمومی کانال را بفرستید، مثل <code>@mychannel</code>', retry);
   }
-  const last = Number(await Q.getSetting(ctx.db, 'last_tick')) || 0;
-  lines.push(
-    last
-      ? `⏰ آخرین پردازش یادآورها: ${fa(Math.max(0, Math.floor((ctx.now - last) / 60_000)))} دقیقه پیش`
-      : '⏰ یادآورها هنوز پردازش نشده‌اند',
-  );
-  lines.push('<i>یادآورها و خلاصه‌ها با هر پیام یا دکمه‌ای که به ربات می‌رسد (حداکثر دقیقه‌ای یک‌بار) ارسال می‌شوند.</i>');
-  return lines;
+  if (parsed.error) {
+    return send(ctx, 'admin_add_invalid',
+      '⚠️ یوزرنیم یا لینک معتبر نیست.\nنمونه: <code>@mychannel</code> یا <code>https://t.me/mychannel</code>', retry);
+  }
+  const { username } = parsed;
+
+  if ((await store.countChannels()) >= MAX_CHANNELS) {
+    await store.clearState(ctx.userId);
+    return limitScreen(ctx);
+  }
+  if (await store.findChannelByName(username)) {
+    await store.clearState(ctx.userId);
+    return showChannels(ctx, `ℹ️ کانال @${esc(username)} از قبل در لیست هست.`);
+  }
+
+  let chat;
+  try {
+    chat = await call(ctx, 'getChat', { chat_id: `@${username}` });
+  } catch {
+    return send(ctx, 'admin_add_not_found', `⚠️ کانالی با یوزرنیم @${esc(username)} پیدا نشد. یوزرنیم را بررسی کنید و دوباره بفرستید:`, retry);
+  }
+  if (chat.type !== 'channel' && chat.type !== 'supergroup') {
+    return send(ctx, 'admin_add_not_channel', `⚠️ @${esc(username)} کانال نیست. یوزرنیم یک کانال را بفرستید:`, retry);
+  }
+  const title = chat.title || username;
+  let member = null;
+  try {
+    member = await call(ctx, 'getChatMember', { chat_id: chat.id, user_id: await botId(ctx) });
+  } catch {
+    member = null;
+  }
+  if (!isAdminStatus(member)) {
+    return send(ctx, 'admin_add_not_admin',
+      `⚠️ ربات در «${esc(title)}» ادمین نیست، پس نمی‌تواند عضویت کاربران را بررسی کند.\nاول ربات را در کانال ادمین کنید، بعد دوباره یوزرنیم را بفرستید:`,
+      retry);
+  }
+
+  const saved = await store.insertChannel({ username: chat.username || username, chatId: chat.id, title });
+  await store.clearState(ctx.userId);
+  if (!saved) return showChannels(ctx, `ℹ️ کانال @${esc(username)} از قبل در لیست هست.`);
+  return showChannels(ctx, `✅ کانال «${esc(title)}» (@${esc(chat.username || username)}) اضافه شد.`);
 }
 
-export async function prepareBroadcast(ctx, msg) {
-  await Q.setState(ctx.db, ctx.uid, null);
-  const count = await Q.countActiveUsers(ctx.db);
-  return ctx.api.send(ctx.chatId, `📣 این پیام برای <b>${fa(count)}</b> کاربر ارسال شود؟`, {
-    reply_parameters: { message_id: msg.message_id, allow_sending_without_reply: true },
-    reply_markup: inline([[btn('✅ بله، ارسال کن', `A|bcy|${msg.message_id}`), btn('❌ لغو', 'A|bcn')]]),
-  });
+export async function confirmRemoveChannel(ctx, channelId) {
+  if (!isOwner(ctx.userId)) return null;
+  const ch = await store.getChannel(channelId);
+  if (!ch) {
+    await answer(ctx, '⚠️ این کانال در لیست نیست.', true);
+    return showChannels(ctx);
+  }
+  return show(ctx, 'admin_remove_confirm', `❌ کانال @${esc(ch.username)} از عضویت اجباری حذف شود؟`,
+    [[btn('✅ بله، حذف کن', `ary:${ch.id}`), btn('❌ نه', 'al')]]);
 }
 
-async function showBroadcastProgress(ctx) {
-  const b = await Q.activeBroadcast(ctx.db);
-  if (!b) return ctx.show('✅ ارسال همگانی تمام شد؛ گزارش برایتان ارسال شد.', null);
-  return ctx.show(
-    `📣 ارسال همگانی در جریان است: ${fa(b.sent)} ارسال‌شده، ${fa(b.failed)} ناموفق.\nبقیه با فعالیت ربات خودکار ارسال می‌شود، یا با دکمه‌ی زیر سریع‌تر.`,
-    inline([[btn('▶️ ارسال دسته‌ی بعدی', 'A|bcgo')]]),
-  );
+export async function removeChannel(ctx, channelId) {
+  if (!isOwner(ctx.userId)) return null;
+  const ch = await store.getChannel(channelId);
+  const ok = ch ? await store.deleteChannel(ch.id) : false;
+  // Once the owner edits the list, the defaults must never come back on their own.
+  await store.setSetting('seeded', '1');
+  await answer(ctx, ok ? '🗑 کانال حذف شد' : '⚠️ این کانال در لیست نیست.', !ok);
+  return showChannels(ctx, ok ? `🗑 کانال @${esc(ch.username)} حذف شد.` : undefined);
 }
 
-// ---------- entry points ----------
-
-export async function onAdminCommand(ctx, cmd, arg) {
-  if (cmd === '/admin') {
-    const v = await homeView(ctx);
-    return ctx.api.send(ctx.chatId, v.text, { reply_markup: v.kb });
-  }
-  if (cmd === '/channels') {
-    const v = await channelsView(ctx);
-    return ctx.api.send(ctx.chatId, v.text, { reply_markup: v.kb });
-  }
-  if (cmd === '/addchannel') {
-    if (!arg) {
-      await Q.setState(ctx.db, ctx.uid, { a: 'addch' });
-      return ctx.api.send(ctx.chatId, ADD_CHANNEL_PROMPT, { reply_markup: inline([[btn('❌ لغو', 'A|ch')]]) });
-    }
-    const res = await addChannel(ctx, parseChannelInput({ text: arg }));
-    const v = await channelsView(ctx, res.text);
-    return ctx.api.send(ctx.chatId, res.ok ? v.text : res.text, { reply_markup: res.ok ? v.kb : undefined });
-  }
-  if (cmd === '/delchannel') {
-    const ch = arg ? await resolveChannelRef(ctx, arg) : null;
-    if (!ch) return ctx.api.send(ctx.chatId, '❗️ کانال پیدا نشد. نمونه: <code>/delchannel @username</code> یا <code>/delchannel 2</code> (شماره در لیست /channels)');
-    await removeChannel(ctx, ch.id);
-    const v = await channelsView(ctx, `🗑 کانال <b>${esc(ch.title || ch.chat)}</b> حذف شد.\n`);
-    return ctx.api.send(ctx.chatId, v.text, { reply_markup: v.kb });
-  }
-  return null;
-}
-
-export async function onAdminState(ctx, msg) {
-  if (ctx.state.a === 'addch') {
-    const res = await addChannel(ctx, parseChannelInput(msg));
-    if (!res.ok) return ctx.api.send(ctx.chatId, res.text, { reply_markup: inline([[btn('❌ لغو', 'A|ch')]]) });
-    await Q.setState(ctx.db, ctx.uid, null);
-    const v = await channelsView(ctx, res.text);
-    return ctx.api.send(ctx.chatId, v.text, { reply_markup: v.kb });
-  }
-  if (ctx.state.a === 'bc') {
-    if (msg.media_group_id) {
-      // An album arrives as several messages and copyMessage would copy only one of them.
-      if (ctx.state.g === msg.media_group_id) return null;
-      await Q.setState(ctx.db, ctx.uid, { a: 'bc', g: msg.media_group_id });
-      return ctx.api.send(ctx.chatId, '❗️ آلبوم (چند عکس یا ویدیو با هم) پشتیبانی نمی‌شود. یک پیام تکی بفرستید، مثلاً یک عکس با کپشن.', {
-        reply_markup: inline([[btn('🔙 لغو و بازگشت', 'A|h')]]),
-      });
-    }
-    return prepareBroadcast(ctx, msg);
-  }
-  return null;
-}
-
-export async function onAdminCallback(ctx, parts) {
-  const [action, arg] = parts;
-  if (action !== 'ca' && action !== 'bc' && ctx.state) await Q.setState(ctx.db, ctx.uid, null);
-
-  switch (action) {
-    case 'h': {
-      const v = await homeView(ctx);
-      return ctx.show(v.text, v.kb);
-    }
-    case 'ch': {
-      const v = await channelsView(ctx);
-      return ctx.show(v.text, v.kb);
-    }
-    case 'full':
-      return ctx.toast(`⛔️ حداکثر ${fa(MAX_CHANNELS)} کانال؛ اول یکی را حذف کنید.`, true);
-    case 'ca': {
-      const channels = await Q.listChannels(ctx.db);
-      if (channels.length >= MAX_CHANNELS) return ctx.toast(`⛔️ حداکثر ${fa(MAX_CHANNELS)} کانال؛ اول یکی را حذف کنید.`, true);
-      await Q.setState(ctx.db, ctx.uid, { a: 'addch' });
-      return ctx.show(ADD_CHANNEL_PROMPT, inline([[btn('🔙 لغو و بازگشت', 'A|ch')]]));
-    }
-    case 'cd': {
-      const ch = await Q.getChannel(ctx.db, Number(arg));
-      if (!ch) return ctx.toast('این کانال قبلاً حذف شده.', true);
-      return ctx.show(
-        `🗑 کانال <b>${esc(ch.title || ch.chat)}</b> از جوین اجباری حذف شود؟`,
-        inline([[btn('✅ بله، حذف شود', `A|cdy|${ch.id}`), btn('❌ نه', 'A|ch')]]),
-      );
-    }
-    case 'cdy': {
-      const ch = await removeChannel(ctx, Number(arg));
-      const v = await channelsView(ctx, ch ? `🗑 کانال <b>${esc(ch.title || ch.chat)}</b> حذف شد.\n` : '');
-      await ctx.toast(ch ? '🗑 حذف شد' : 'قبلاً حذف شده بود');
-      return ctx.show(v.text, v.kb);
-    }
-    case 'ck': {
-      await ctx.toast('⏳ در حال بررسی...');
-      const report = await statusReport(ctx);
-      const v = await channelsView(ctx, report);
-      return ctx.show(v.text, v.kb);
-    }
-    case 'st': {
-      const v = await statsView(ctx);
-      return ctx.show(v.text, v.kb);
-    }
-    case 'bc': {
-      await Q.setState(ctx.db, ctx.uid, { a: 'bc' });
-      return ctx.show(
-        '📣 <b>پیام همگانی</b>\n\nپیامی که می‌خواهید برای همه کاربران ارسال شود را بفرستید (متن، عکس، ویدیو، فایل یا فوروارد؛ آلبوم چندتایی نه).',
-        inline([[btn('🔙 لغو و بازگشت', 'A|h')]]),
-      );
-    }
-    case 'bcy': {
-      if (await Q.activeBroadcast(ctx.db)) return ctx.toast('⏳ یک ارسال همگانی دیگر در حال اجراست.', true);
-      await Q.createBroadcast(ctx.db, ctx.chatId, Number(arg), ctx.now);
-      await ctx.toast('📣 ارسال شروع شد');
-      await runBroadcast(ctx);
-      return showBroadcastProgress(ctx);
-    }
-    case 'bcgo': {
-      // There is no background scheduler: each press (and each tick) sends the next batch.
-      if (!(await Q.activeBroadcast(ctx.db))) return ctx.show('✅ ارسال همگانی تمام شده است.', null);
-      await runBroadcast(ctx);
-      return showBroadcastProgress(ctx);
-    }
-    case 'bcn':
-      return ctx.show('❌ ارسال همگانی لغو شد.', null);
-    default:
-      return ctx.toast('دستور نامعتبر');
-  }
+export async function toggleJoin(ctx) {
+  if (!isOwner(ctx.userId)) return null;
+  const settings = await store.getSettings();
+  const next = settings.join === '0' ? '1' : '0';
+  await store.setSetting('join', next);
+  await answer(ctx, next === '1' ? '✅ عضویت اجباری روشن شد' : '⛔️ عضویت اجباری خاموش شد');
+  return showPanel(ctx);
 }

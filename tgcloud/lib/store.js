@@ -1,302 +1,316 @@
-// Queries for the bot. Tables are declared in ../schema.js and created by `tgcloud migrate`.
-import { DEFAULT_CHANNELS, PAGE_SIZE } from './config.js';
-import { DAY, startOfLocalDay } from './time.js';
+// All database access. Every query on user data is filtered by user_id and served by an index
+// (tasks: idx_tasks_user / idx_tasks_user_cat, categories: uq_categories_user_name), and every
+// list is LIMITed, so no update ever scans a whole table. Raw SQL rows come back unconverted:
+// integers as numbers, 0/1 flags as numbers.
+import { db } from 'sdk';
+import { sql } from 'sdk/db';
+import { DEFAULT_CHANNELS, MAX_CHANNELS, MAX_CATEGORIES, PAGE_SIZE } from './config.js';
 
-/** Seeds the initial mandatory channels exactly once; afterwards only the owner changes them. */
-export async function ensureSeeded(db, now) {
-  const seeded = await db.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES ('seeded', '1')`).run();
-  if (!seeded.meta.changes) return;
-  await db.batch(
-    DEFAULT_CHANNELS.map((chat) =>
-      db.prepare(`INSERT OR IGNORE INTO channels (chat, link, created_at) VALUES (?, ?, ?)`).bind(chat, `https://t.me/${chat.slice(1)}`, now),
-    ),
-  );
-}
+export const nowSec = () => Math.floor(Date.now() / 1000);
 
-export async function getSetting(db, key) {
-  const row = await db.prepare(`SELECT value FROM settings WHERE key = ?`).bind(key).first();
-  return row ? row.value : null;
-}
+// ---------- users & state ----------
 
-export function setSetting(db, key, value) {
-  return db
-    .prepare(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value`)
-    .bind(key, value)
-    .run();
-}
-
-// ---------- users ----------
-
-export async function touchUser(db, from, now) {
-  const user = await db.prepare(`SELECT * FROM users WHERE id = ?`).bind(from.id).first();
-  const name = from.first_name || '';
-  const username = from.username || null;
-  if (!user) {
-    await db
-      .prepare(`INSERT INTO users (id, first_name, username, created_at, last_seen) VALUES (?, ?, ?, ?, ?)`)
-      .bind(from.id, name, username, now, now)
-      .run();
-    return { id: from.id, first_name: name, username, created_at: now, last_seen: now, task_seq: 0, state: null, digest_hour: null, digest_next: null, blocked: 0, isNew: true };
+/** The user's row plus any pending state, in one query; null for a new user. */
+export async function loadUser(userId) {
+  const row = await db.get(sql`
+    SELECT u.id, u.sort, u.last_search, s.state, s.data, s.updated_at AS state_at
+    FROM users u LEFT JOIN user_state s ON s.user_id = u.id
+    WHERE u.id = ${userId}`);
+  if (!row) return null;
+  let data = null;
+  if (row.data) {
+    try {
+      data = JSON.parse(row.data);
+    } catch {
+      data = null;
+    }
   }
-  if (user.first_name !== name || user.username !== username || user.blocked || now - user.last_seen > 10 * 60_000) {
-    await db
-      .prepare(`UPDATE users SET first_name = ?, username = ?, last_seen = ?, blocked = 0 WHERE id = ?`)
-      .bind(name, username, now, from.id)
-      .run();
+  return {
+    id: Number(row.id),
+    sort: row.sort || 'p',
+    lastSearch: row.last_search || null,
+    state: row.state || null,
+    stateData: data || {},
+    stateAt: Number(row.state_at || 0),
+  };
+}
+
+export async function createUser(userId, firstName) {
+  const r = await db.run(sql`
+    INSERT OR IGNORE INTO users (id, first_name, sort, created_at)
+    VALUES (${userId}, ${firstName || null}, 'p', ${nowSec()})`);
+  if (r.rowsAffected > 0) {
+    await db.run(sql`
+      INSERT INTO settings (key, value) VALUES ('users', '1')
+      ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)`);
   }
-  return user;
+  return { id: userId, sort: 'p', lastSearch: null, state: null, stateData: {}, stateAt: 0 };
 }
 
-export function parseState(user) {
-  try {
-    return user.state ? JSON.parse(user.state) : null;
-  } catch {
-    return null;
-  }
+export async function setSort(userId, sort) {
+  await db.run(sql`UPDATE users SET sort = ${sort} WHERE id = ${userId}`);
 }
 
-export function setState(db, userId, state) {
-  return db
-    .prepare(`UPDATE users SET state = ? WHERE id = ?`)
-    .bind(state ? JSON.stringify(state) : null, userId)
-    .run();
+export async function setLastSearch(userId, query) {
+  await db.run(sql`UPDATE users SET last_search = ${query} WHERE id = ${userId}`);
 }
 
-export function setDigest(db, userId, hour, next) {
-  return db.prepare(`UPDATE users SET digest_hour = ?, digest_next = ? WHERE id = ?`).bind(hour, next, userId).run();
+export async function setState(userId, state, data = {}) {
+  await db.run(sql`
+    INSERT INTO user_state (user_id, state, data, updated_at)
+    VALUES (${userId}, ${state}, ${JSON.stringify(data)}, ${nowSec()})
+    ON CONFLICT(user_id) DO UPDATE SET state = excluded.state, data = excluded.data, updated_at = excluded.updated_at`);
 }
 
-export function markBlocked(db, userId) {
-  return db.prepare(`UPDATE users SET blocked = 1 WHERE id = ?`).bind(userId).run();
+export async function clearState(userId) {
+  await db.run(sql`DELETE FROM user_state WHERE user_id = ${userId}`);
 }
 
-// ---------- tasks ----------
+// ---------- settings ----------
 
-const EDITABLE = new Set(['text', 'note', 'priority', 'category', 'due_at', 'due_time', 'remind_at', 'repeat', 'done', 'done_at']);
-
-export async function addTask(db, userId, fields, now) {
-  const seq = await db.prepare(`UPDATE users SET task_seq = task_seq + 1 WHERE id = ? RETURNING task_seq`).bind(userId).first();
-  const num = seq.task_seq;
-  await db
-    .prepare(
-      `INSERT INTO tasks (user_id, num, text, note, priority, category, due_at, due_time, remind_at, repeat, done, done_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .bind(
-      userId,
-      num,
-      fields.text,
-      fields.note ?? null,
-      fields.priority ?? 2,
-      fields.category ?? null,
-      fields.due_at ?? null,
-      fields.due_time ?? 0,
-      fields.remind_at ?? null,
-      fields.repeat ?? null,
-      fields.done ?? 0,
-      fields.done_at ?? null,
-      now,
-    )
-    .run();
-  return getTask(db, userId, num);
+export async function getSettings() {
+  const rows = await db.all(sql`SELECT key, value FROM settings WHERE key IN ('join', 'seeded', 'users')`);
+  const out = {};
+  for (const r of rows) out[r.key] = r.value;
+  return out;
 }
 
-export function getTask(db, userId, num) {
-  return db.prepare(`SELECT * FROM tasks WHERE user_id = ? AND num = ?`).bind(userId, num).first();
-}
-
-export function updateTask(db, userId, num, fields) {
-  const keys = Object.keys(fields).filter((k) => EDITABLE.has(k));
-  if (!keys.length) return null;
-  return db
-    .prepare(`UPDATE tasks SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE user_id = ? AND num = ?`)
-    .bind(...keys.map((k) => fields[k] ?? null), userId, num)
-    .run();
-}
-
-export function deleteTask(db, userId, num) {
-  return db.prepare(`DELETE FROM tasks WHERE user_id = ? AND num = ?`).bind(userId, num).run();
-}
-
-const PENDING_ORDER = `priority ASC, due_at IS NULL, due_at ASC, num ASC`;
-
-function filterSql(filter, now) {
-  if (filter === 'd') return { where: `done = 1`, order: `done_at DESC`, args: [] };
-  if (filter === 't') return { where: `done = 0 AND due_at IS NOT NULL AND due_at < ?`, order: `due_at ASC, priority ASC`, args: [startOfLocalDay(now) + DAY] };
-  if (filter === 'a') return { where: `1 = 1`, order: `done ASC, ${PENDING_ORDER}`, args: [] };
-  if (filter.startsWith('c')) return { where: `category = ?`, order: `done ASC, ${PENDING_ORDER}`, args: [filter.slice(1)] };
-  return { where: `done = 0`, order: PENDING_ORDER, args: [] };
-}
-
-export async function listTasks(db, userId, filter, page, now) {
-  const f = filterSql(filter, now);
-  const [count, rows] = await db.batch([
-    db.prepare(`SELECT COUNT(*) AS n FROM tasks WHERE user_id = ? AND ${f.where}`).bind(userId, ...f.args),
-    db
-      .prepare(`SELECT * FROM tasks WHERE user_id = ? AND ${f.where} ORDER BY ${f.order} LIMIT ? OFFSET ?`)
-      .bind(userId, ...f.args, PAGE_SIZE, page * PAGE_SIZE),
-  ]);
-  return { total: count.results[0].n, rows: rows.results };
-}
-
-export async function searchTasks(db, userId, query) {
-  const like = `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-  const { results } = await db
-    .prepare(
-      `SELECT * FROM tasks WHERE user_id = ?1 AND (text LIKE ?2 ESCAPE '\\' OR note LIKE ?2 ESCAPE '\\' OR category LIKE ?2 ESCAPE '\\')
-       ORDER BY done ASC, ${PENDING_ORDER} LIMIT 10`,
-    )
-    .bind(userId, like)
-    .all();
-  return results;
-}
-
-export async function listCategories(db, userId) {
-  const { results } = await db
-    .prepare(
-      `SELECT category, SUM(done = 0) AS pending, COUNT(*) AS total FROM tasks
-       WHERE user_id = ? AND category IS NOT NULL GROUP BY category ORDER BY pending DESC, category LIMIT 30`,
-    )
-    .bind(userId)
-    .all();
-  return results;
-}
-
-export async function userStats(db, userId, now) {
-  const today = startOfLocalDay(now);
-  const row = await db
-    .prepare(
-      `SELECT COUNT(*) AS total,
-         COALESCE(SUM(done = 1), 0) AS done,
-         COALESCE(SUM(done = 0), 0) AS pending,
-         COALESCE(SUM(done = 0 AND due_at IS NOT NULL AND due_at < ?2), 0) AS overdue,
-         COALESCE(SUM(done = 0 AND due_at >= ?3 AND due_at < ?4), 0) AS today,
-         COALESCE(SUM(done = 1 AND done_at >= ?5), 0) AS week,
-         COALESCE(SUM(done = 1 AND done_at >= ?3), 0) AS done_today,
-         COALESCE(SUM(done = 0 AND priority = 1), 0) AS p1,
-         COALESCE(SUM(done = 0 AND priority = 2), 0) AS p2,
-         COALESCE(SUM(done = 0 AND priority = 3), 0) AS p3,
-         COALESCE(SUM(done = 0 AND repeat IS NOT NULL), 0) AS recurring,
-         COALESCE(SUM(done = 0 AND remind_at IS NOT NULL), 0) AS reminders
-       FROM tasks WHERE user_id = ?1`,
-    )
-    .bind(userId, now, today, today + DAY, now - 7 * DAY)
-    .first();
-  return row;
-}
-
-// Keeps one export small enough for a single invocation; pending tasks come first.
-export const EXPORT_LIMIT = 500;
-
-export async function allTasks(db, userId) {
-  const { results } = await db
-    .prepare(`SELECT * FROM tasks WHERE user_id = ? ORDER BY done ASC, ${PENDING_ORDER} LIMIT ?`)
-    .bind(userId, EXPORT_LIMIT)
-    .all();
-  return results;
-}
-
-export function clearDone(db, userId) {
-  return db.prepare(`DELETE FROM tasks WHERE user_id = ? AND done = 1`).bind(userId).run();
+export async function setSetting(key, value) {
+  await db.run(sql`
+    INSERT INTO settings (key, value) VALUES (${key}, ${value})
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
 }
 
 // ---------- channels ----------
 
-export async function listChannels(db) {
-  const { results } = await db.prepare(`SELECT * FROM channels ORDER BY id`).all();
-  return results;
+function channelRow(r) {
+  return {
+    id: Number(r.id),
+    username: r.username,
+    chatId: r.chat_id === null || r.chat_id === undefined ? null : Number(r.chat_id),
+    title: r.title || null,
+    warnedAt: Number(r.warned_at || 0),
+  };
 }
 
-export function addChannel(db, chat, title, link, now) {
-  return db.prepare(`INSERT OR IGNORE INTO channels (chat, title, link, created_at) VALUES (?, ?, ?, ?)`).bind(chat, title, link, now).run();
+/**
+ * The mandatory channels. On the very first run (empty table, never seeded) the default
+ * channels are inserted first. Once seeded, an empty list stays empty (the owner removed them all).
+ */
+export async function getChannels(settings) {
+  const rows = await db.all(sql`SELECT * FROM channels ORDER BY id LIMIT ${MAX_CHANNELS + 5}`);
+  if (rows.length || settings.seeded === '1') return rows.map(channelRow);
+  const now = nowSec();
+  for (const username of DEFAULT_CHANNELS) {
+    await db.run(sql`
+      INSERT OR IGNORE INTO channels (uname, username, created_at)
+      VALUES (${username.toLowerCase()}, ${username}, ${now})`);
+  }
+  await setSetting('seeded', '1');
+  settings.seeded = '1';
+  const seeded = await db.all(sql`SELECT * FROM channels ORDER BY id LIMIT ${MAX_CHANNELS + 5}`);
+  return seeded.map(channelRow);
 }
 
-export function removeChannel(db, id) {
-  return db.prepare(`DELETE FROM channels WHERE id = ?`).bind(id).run();
+export async function getChannel(id) {
+  const r = await db.get(sql`SELECT * FROM channels WHERE id = ${id}`);
+  return r ? channelRow(r) : null;
 }
 
-export function getChannel(db, id) {
-  return db.prepare(`SELECT * FROM channels WHERE id = ?`).bind(id).first();
+export async function findChannelByName(username) {
+  const r = await db.get(sql`SELECT * FROM channels WHERE uname = ${username.toLowerCase()}`);
+  return r ? channelRow(r) : null;
 }
 
-export function setChannelTitles(db, pairs) {
-  return db.batch(pairs.map(([id, title]) => db.prepare(`UPDATE channels SET title = ? WHERE id = ?`).bind(title, id)));
+export async function countChannels() {
+  const r = await db.get(sql`SELECT count(*) AS n FROM channels`);
+  return Number((r && r.n) || 0);
 }
 
-// ---------- tick queries (reminders, digests) ----------
-
-export async function dueReminders(db, now, limit) {
-  const { results } = await db
-    .prepare(
-      `SELECT t.*, u.blocked AS blocked FROM tasks t JOIN users u ON u.id = t.user_id
-       WHERE t.remind_at IS NOT NULL AND t.remind_at <= ?
-       ORDER BY t.remind_at LIMIT ?`,
-    )
-    .bind(now, limit)
-    .all();
-  return results;
+/** Inserts a channel; false if it is already in the list. */
+export async function insertChannel({ username, chatId, title }) {
+  const r = await db.run(sql`
+    INSERT OR IGNORE INTO channels (uname, username, chat_id, title, created_at)
+    VALUES (${username.toLowerCase()}, ${username}, ${chatId}, ${title || null}, ${nowSec()})`);
+  return r.rowsAffected > 0;
 }
 
-export async function digestCandidates(db, now, limit) {
-  const { results } = await db
-    .prepare(`SELECT * FROM users WHERE digest_next IS NOT NULL AND digest_next <= ? ORDER BY digest_next LIMIT ?`)
-    .bind(now, limit)
-    .all();
-  return results;
+export async function deleteChannel(id) {
+  const r = await db.run(sql`DELETE FROM channels WHERE id = ${id}`);
+  return r.rowsAffected > 0;
 }
 
-export async function pendingForDigest(db, userId, now) {
-  const end = startOfLocalDay(now) + DAY;
-  const { results } = await db
-    .prepare(
-      `SELECT * FROM tasks WHERE user_id = ? AND done = 0
-       ORDER BY (due_at IS NOT NULL AND due_at < ?) DESC, ${PENDING_ORDER} LIMIT 10`,
-    )
-    .bind(userId, end)
-    .all();
-  return results;
+/** Claims the right to warn the owner about a channel; false if someone did within `intervalSec`. */
+export async function claimChannelWarning(id, intervalSec) {
+  const now = nowSec();
+  const r = await db.run(sql`
+    UPDATE channels SET warned_at = ${now}
+    WHERE id = ${id} AND warned_at <= ${now - intervalSec}`);
+  return r.rowsAffected > 0;
 }
 
-// ---------- broadcasts & bot stats ----------
+// ---------- tasks ----------
 
-export function activeBroadcast(db) {
-  return db.prepare(`SELECT * FROM broadcasts WHERE status = 'running' ORDER BY id LIMIT 1`).first();
+function taskRow(r) {
+  return {
+    id: Number(r.id),
+    text: r.text,
+    done: Number(r.done) === 1,
+    priority: Number(r.priority) || 2,
+    dueDate: r.due_date || null,
+    categoryId: r.category_id === null || r.category_id === undefined ? null : Number(r.category_id),
+    category: r.category || null,
+    createdAt: Number(r.created_at || 0),
+  };
 }
 
-export function createBroadcast(db, fromChat, messageId, now) {
-  return db.prepare(`INSERT INTO broadcasts (from_chat, message_id, created_at) VALUES (?, ?, ?)`).bind(fromChat, messageId, now).run();
+export async function countTasks(userId) {
+  const r = await db.get(sql`SELECT count(*) AS n FROM tasks WHERE user_id = ${userId}`);
+  return Number((r && r.n) || 0);
 }
 
-export async function broadcastTargets(db, cursor, limit) {
-  const { results } = await db.prepare(`SELECT id FROM users WHERE id > ? AND blocked = 0 ORDER BY id LIMIT ?`).bind(cursor, limit).all();
-  return results.map((r) => r.id);
+export async function addTask(userId, text) {
+  const r = await db.run(sql`
+    INSERT INTO tasks (user_id, text, done, priority, created_at)
+    VALUES (${userId}, ${text}, 0, 2, ${nowSec()})
+    RETURNING id`);
+  return Number(r.rows[0].id);
 }
 
-export function updateBroadcast(db, id, cursor, sent, failed, status) {
-  return db
-    .prepare(`UPDATE broadcasts SET cursor = ?, sent = sent + ?, failed = failed + ?, status = ? WHERE id = ?`)
-    .bind(cursor, sent, failed, status, id)
-    .run();
+/** One task, only if it belongs to the user. */
+export async function getTask(userId, taskId) {
+  const r = await db.get(sql`
+    SELECT t.*, c.name AS category
+    FROM tasks t LEFT JOIN categories c ON c.id = t.category_id AND c.user_id = t.user_id
+    WHERE t.id = ${taskId} AND t.user_id = ${userId}`);
+  return r ? taskRow(r) : null;
 }
 
-export function getBroadcast(db, id) {
-  return db.prepare(`SELECT * FROM broadcasts WHERE id = ?`).bind(id).first();
+const ORDER = {
+  // open first, then high priority first, then the nearest due date, then newest
+  p: sql.raw('done ASC, priority ASC, due_date IS NULL, due_date ASC, id DESC'),
+  d: sql.raw('done ASC, due_date IS NULL, due_date ASC, priority ASC, id DESC'),
+  n: sql.raw('done ASC, id DESC'),
+};
+
+export async function countList(userId, categoryId) {
+  const r = categoryId
+    ? await db.get(sql`SELECT count(*) AS n FROM tasks WHERE user_id = ${userId} AND category_id = ${categoryId}`)
+    : await db.get(sql`SELECT count(*) AS n FROM tasks WHERE user_id = ${userId}`);
+  return Number((r && r.n) || 0);
 }
 
-export async function botStats(db, now) {
-  const [u, t] = await db.batch([
-    db
-      .prepare(
-        `SELECT COUNT(*) AS users, COALESCE(SUM(last_seen >= ?), 0) AS active_day, COALESCE(SUM(last_seen >= ?), 0) AS active_week,
-           COALESCE(SUM(blocked = 1), 0) AS blocked, COALESCE(SUM(created_at >= ?), 0) AS new_day FROM users`,
-      )
-      .bind(now - DAY, now - 7 * DAY, now - DAY),
-    db.prepare(`SELECT COUNT(*) AS tasks, COALESCE(SUM(done = 1), 0) AS done FROM tasks`),
-  ]);
-  return { ...u.results[0], ...t.results[0] };
+export async function listTasks(userId, { categoryId = 0, sort = 'p', page = 0 }) {
+  const order = ORDER[sort] || ORDER.p;
+  const offset = page * PAGE_SIZE;
+  const rows = categoryId
+    ? await db.all(sql`
+        SELECT * FROM tasks WHERE user_id = ${userId} AND category_id = ${categoryId}
+        ORDER BY ${order} LIMIT ${PAGE_SIZE} OFFSET ${offset}`)
+    : await db.all(sql`
+        SELECT * FROM tasks WHERE user_id = ${userId}
+        ORDER BY ${order} LIMIT ${PAGE_SIZE} OFFSET ${offset}`);
+  return rows.map(taskRow);
 }
 
-export async function countActiveUsers(db) {
-  const row = await db.prepare(`SELECT COUNT(*) AS n FROM users WHERE blocked = 0`).first();
-  return row.n;
+/** Flips done/undone; returns the new state, or null if the task isn't the user's. */
+export async function toggleTask(userId, taskId) {
+  const r = await db.run(sql`
+    UPDATE tasks
+    SET done = 1 - done, done_at = CASE WHEN done = 0 THEN ${nowSec()} ELSE NULL END
+    WHERE id = ${taskId} AND user_id = ${userId}
+    RETURNING done`);
+  return r.rows.length ? Number(r.rows[0].done) === 1 : null;
+}
+
+export async function updateTaskText(userId, taskId, text) {
+  const r = await db.run(sql`UPDATE tasks SET text = ${text} WHERE id = ${taskId} AND user_id = ${userId}`);
+  return r.rowsAffected > 0;
+}
+
+export async function setPriority(userId, taskId, priority) {
+  const r = await db.run(sql`UPDATE tasks SET priority = ${priority} WHERE id = ${taskId} AND user_id = ${userId}`);
+  return r.rowsAffected > 0;
+}
+
+export async function setDueDate(userId, taskId, isoDate) {
+  const r = await db.run(sql`UPDATE tasks SET due_date = ${isoDate} WHERE id = ${taskId} AND user_id = ${userId}`);
+  return r.rowsAffected > 0;
+}
+
+export async function setTaskCategory(userId, taskId, categoryId) {
+  const r = await db.run(sql`UPDATE tasks SET category_id = ${categoryId} WHERE id = ${taskId} AND user_id = ${userId}`);
+  return r.rowsAffected > 0;
+}
+
+export async function deleteTask(userId, taskId) {
+  const r = await db.run(sql`DELETE FROM tasks WHERE id = ${taskId} AND user_id = ${userId}`);
+  return r.rowsAffected > 0;
+}
+
+export async function stats(userId, todayIso) {
+  const r = await db.get(sql`
+    SELECT count(*) AS total,
+           coalesce(sum(done), 0) AS done,
+           coalesce(sum(CASE WHEN done = 0 AND due_date IS NOT NULL AND due_date < ${todayIso} THEN 1 ELSE 0 END), 0) AS overdue
+    FROM tasks WHERE user_id = ${userId}`);
+  const total = Number(r.total || 0);
+  const done = Number(r.done || 0);
+  return { total, done, open: total - done, overdue: Number(r.overdue || 0) };
+}
+
+export async function clearDone(userId) {
+  const r = await db.run(sql`DELETE FROM tasks WHERE user_id = ${userId} AND done = 1`);
+  return r.rowsAffected;
+}
+
+// Case-insensitive for Latin letters (lower() is ASCII-only in SQLite; Persian has no case).
+export async function countSearch(userId, query) {
+  const r = await db.get(sql`
+    SELECT count(*) AS n FROM tasks WHERE user_id = ${userId} AND instr(lower(text), lower(${query})) > 0`);
+  return Number((r && r.n) || 0);
+}
+
+export async function searchTasks(userId, query, page) {
+  const rows = await db.all(sql`
+    SELECT * FROM tasks WHERE user_id = ${userId} AND instr(lower(text), lower(${query})) > 0
+    ORDER BY done ASC, priority ASC, id DESC LIMIT ${PAGE_SIZE} OFFSET ${page * PAGE_SIZE}`);
+  return rows.map(taskRow);
+}
+
+// ---------- categories ----------
+
+/** The user's categories with their number of open tasks. */
+export async function listCategories(userId) {
+  const rows = await db.all(sql`
+    SELECT c.id, c.name,
+           (SELECT count(*) FROM tasks t WHERE t.user_id = c.user_id AND t.category_id = c.id AND t.done = 0) AS open
+    FROM categories c WHERE c.user_id = ${userId}
+    ORDER BY c.name LIMIT ${MAX_CATEGORIES}`);
+  return rows.map((r) => ({ id: Number(r.id), name: r.name, open: Number(r.open || 0) }));
+}
+
+export async function getCategory(userId, categoryId) {
+  const r = await db.get(sql`SELECT id, name FROM categories WHERE id = ${categoryId} AND user_id = ${userId}`);
+  return r ? { id: Number(r.id), name: r.name } : null;
+}
+
+export async function countCategories(userId) {
+  const r = await db.get(sql`SELECT count(*) AS n FROM categories WHERE user_id = ${userId}`);
+  return Number((r && r.n) || 0);
+}
+
+/** Creates a category; returns { id, created } (created = false when the name already existed). */
+export async function addCategory(userId, name) {
+  const r = await db.run(sql`
+    INSERT OR IGNORE INTO categories (user_id, name, created_at) VALUES (${userId}, ${name}, ${nowSec()})`);
+  const row = await db.get(sql`SELECT id FROM categories WHERE user_id = ${userId} AND name = ${name}`);
+  return { id: Number(row.id), created: r.rowsAffected > 0 };
+}
+
+/** Deletes a category; its tasks are kept and become uncategorized (children first, no FKs). */
+export async function deleteCategory(userId, categoryId) {
+  await db.run(sql`UPDATE tasks SET category_id = NULL WHERE user_id = ${userId} AND category_id = ${categoryId}`);
+  const r = await db.run(sql`DELETE FROM categories WHERE id = ${categoryId} AND user_id = ${userId}`);
+  return r.rowsAffected > 0;
 }

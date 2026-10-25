@@ -1,19 +1,20 @@
-// The bot owner: the only account that sees the admin panel and manages the mandatory channels.
+// The bot's single owner, by numeric Telegram id. Usernames are never trusted.
 export const OWNER_ID = 5557901897;
-export const MAX_CHANNELS = 10;
-// Seeded once, on the bot's first update; afterwards only the owner changes the list.
-export const DEFAULT_CHANNELS = ['@HIDE_i_SEEK', '@Nepenthw_ir', '@wangerBots'];
 
-// Iran Standard Time (UTC+03:30, no DST since 2022).
-export const TZ_OFFSET_MINUTES = 210;
+// Seeded into the channels table on first run, only while it has never been seeded.
+export const DEFAULT_CHANNELS = ['HIDE_i_SEEK', 'Nepenthw_ir', 'wangerBots'];
+export const MAX_CHANNELS = 10;
+// A channel whose membership check fails is skipped; the owner hears about it at most this often.
+export const WARN_INTERVAL_SEC = 3 * 3600;
 
 export const PAGE_SIZE = 8;
-export const MAX_TASK_LEN = 300;
-export const MAX_NOTE_LEN = 1000;
-export const MAX_CATEGORY_LEN = 20;
+export const MAX_TASK_LEN = 500;
+export const MAX_TASKS = 500;
+export const MAX_CATEGORIES = 20;
+export const MAX_CATEGORY_LEN = 30;
+export const MAX_SEARCH_LEN = 50;
+// A pending "send me ..." prompt older than this is dropped, so a stale prompt can't swallow a new task.
+export const STATE_TTL_SEC = 30 * 60;
 
-// Telegram Serverless has no scheduler, so reminders, daily digests and broadcasts are processed by a
-// "tick" that piggybacks on incoming updates, at most once per TICK_INTERVAL_MS.
-export const TICK_INTERVAL_MS = 60_000;
-// Upper bounds per tick, so one update never does an unbounded amount of extra work.
-export const TICK_BUDGET = { reminders: 10, digests: 5, broadcast: 15 };
+// Iran Standard Time, UTC+03:30 (no DST since 2022). "Overdue" is judged by the local date.
+export const TZ_OFFSET_MIN = 210;

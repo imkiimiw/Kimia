@@ -1,63 +1,61 @@
-// Database tables. Deploy with `npx tgcloud push`, then create/update the tables with `npx tgcloud migrate`.
-// Queries are in lib/store.js and use these SQL column names. Times are unix milliseconds.
-import { table, integer, text, index, uniqueIndex, sql } from 'sdk/db';
+// Database tables. Deploy with `npx tgcloud push`, then create them with `npx tgcloud migrate`.
+// No foreign keys (the platform forbids them): every user-owned row carries user_id, and
+// lib/store.js filters every query by it. Times are unix seconds.
+import { table, integer, text, index, uniqueIndex } from 'sdk/db';
 
 export const users = table('users', {
   id: integer('id').primaryKey(), // Telegram user id
   firstName: text('first_name'),
-  username: text('username'),
+  sort: text('sort').notNull().default('p'), // list order: p = priority, d = due date, n = newest
+  lastSearch: text('last_search'), // the last /search query, for paging its results
   createdAt: integer('created_at').notNull(),
-  lastSeen: integer('last_seen').notNull(),
-  taskSeq: integer('task_seq').notNull().default(0), // last per-user task number
-  state: text('state'), // JSON: what the bot is waiting for (new task text, a date, ...)
-  digestHour: integer('digest_hour'), // local hour of the daily digest, null = off
-  digestNext: integer('digest_next'), // when the next digest is due
-  blocked: integer('blocked').notNull().default(0), // 1 = the user blocked the bot
-}, (t) => ({
-  digest: index('idx_users_digest').on(t.digestNext).where(sql`digest_next IS NOT NULL`),
-}));
+});
 
 export const tasks = table('tasks', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   userId: integer('user_id').notNull(),
-  num: integer('num').notNull(), // number shown to the user, unique per user
   text: text('text').notNull(),
-  note: text('note'),
+  done: integer('done').notNull().default(0), // 0 / 1
   priority: integer('priority').notNull().default(2), // 1 high, 2 medium, 3 low
-  category: text('category'),
-  dueAt: integer('due_at'),
-  dueTime: integer('due_time').notNull().default(0), // 1 = the due date has a time of day
-  remindAt: integer('remind_at'),
-  repeat: text('repeat'), // d / w / m
-  done: integer('done').notNull().default(0),
-  doneAt: integer('done_at'),
+  dueDate: text('due_date'), // Gregorian YYYY-MM-DD, compared as text
+  categoryId: integer('category_id'), // categories.id of the same user, or null
   createdAt: integer('created_at').notNull(),
+  doneAt: integer('done_at'),
 }, (t) => ({
-  userNum: uniqueIndex('uq_tasks_user_num').on(t.userId, t.num),
-  userDone: index('idx_tasks_user').on(t.userId, t.done),
-  remind: index('idx_tasks_remind').on(t.remindAt).where(sql`remind_at IS NOT NULL`),
+  byUser: index('idx_tasks_user').on(t.userId, t.done, t.priority),
+  byCategory: index('idx_tasks_user_cat').on(t.userId, t.categoryId),
 }));
 
+export const categories = table('categories', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  name: text('name').notNull(),
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  userName: uniqueIndex('uq_categories_user_name').on(t.userId, t.name),
+}));
+
+// Mandatory-join channels (at most 10, managed from the owner panel).
 export const channels = table('channels', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  chat: text('chat').notNull().unique(), // @username or -100… id
+  uname: text('uname').notNull().unique(), // lowercase username, for duplicate checks
+  username: text('username').notNull(), // as Telegram spells it, without @
+  chatId: integer('chat_id'), // numeric id, once known
   title: text('title'),
-  link: text('link').notNull(),
+  warnedAt: integer('warned_at').notNull().default(0), // last "membership check failed" warning to the owner
   createdAt: integer('created_at').notNull(),
 });
 
+// Bot-wide key/value settings: join (1/0), seeded (1), users (count).
 export const settings = table('settings', {
   key: text('key').primaryKey(),
   value: text('value'),
 });
 
-export const broadcasts = table('broadcasts', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  fromChat: integer('from_chat').notNull(),
-  messageId: integer('message_id').notNull(),
-  cursor: integer('cursor').notNull().default(0), // last user id already handled
-  sent: integer('sent').notNull().default(0),
-  failed: integer('failed').notNull().default(0),
-  status: text('status').notNull().default('running'),
-  createdAt: integer('created_at').notNull(),
+// What the bot is waiting for from a user (task text, a date, a channel username, ...).
+export const userState = table('user_state', {
+  userId: integer('user_id').primaryKey(),
+  state: text('state').notNull(),
+  data: text('data'), // JSON
+  updatedAt: integer('updated_at').notNull(),
 });

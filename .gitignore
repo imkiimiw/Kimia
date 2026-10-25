@@ -2,3 +2,5 @@ node_modules/
 # tgcloud CLI state, including the saved access token: never commit
 .tgcloud/
 *.log
+# output of test/cloud/run-tests.mjs (raw `tgcloud run` logs)
+test/cloud/output/

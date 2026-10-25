@@ -6,12 +6,14 @@
   "scripts": {
     "deploy": "tgcloud push && tgcloud migrate --safe",
     "status": "tgcloud status",
-    "run": "tgcloud run",
-    "test": "node --import ./test/sdk/register.mjs --test test/unit.mjs && node --import ./test/sdk/register.mjs test/e2e.mjs",
-    "test:unit": "node --import ./test/sdk/register.mjs --test test/unit.mjs"
+    "test": "node --no-warnings --import ./test/sdk/register.mjs --test test/unit.mjs && node --no-warnings --import ./test/sdk/register.mjs test/e2e.mjs",
+    "test:unit": "node --no-warnings --import ./test/sdk/register.mjs --test test/unit.mjs",
+    "test:cloud": "node test/cloud/run-tests.mjs",
+    "test:cloud:local": "node --no-warnings test/cloud/local-harness.mjs"
   },
   "devDependencies": {
-    "@tgcloud/cli": "^0.2.0"
+    "@tgcloud/cli": "^0.2.0",
+    "json5": "^2.2.3"
   },
   "description": "Persian todo-list Telegram bot with mandatory channel join, for Telegram Serverless (tgcloud)"
 }

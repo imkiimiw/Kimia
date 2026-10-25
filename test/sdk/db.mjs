@@ -94,15 +94,16 @@ export const index = (name) => new Index(name, false);
 export const uniqueIndex = (name) => new Index(name, true);
 
 export function table(name, columns, extras) {
-  const t = { __table: true, name, columns: [], indexes: [] };
+  // Like Drizzle, the table's own fields stay out of the way of column names (a column may be called "name").
+  const t = { __table: true, __name: name, __columns: [], __indexes: [] };
   const refs = {};
   for (const [key, col] of Object.entries(columns)) {
     col.name = col.name || key;
-    t.columns.push(col);
+    t.__columns.push(col);
     refs[key] = { __column: true, table: name, name: col.name };
     t[key] = refs[key];
   }
-  if (extras) t.indexes = Object.values(extras(refs));
+  if (extras) t.__indexes = Object.values(extras(refs));
   return t;
 }
 
@@ -116,7 +117,7 @@ function literal(v) {
 export function ddl(schema) {
   const out = [];
   for (const t of Object.values(schema).filter((x) => x && x.__table)) {
-    const cols = t.columns.map((c) => {
+    const cols = t.__columns.map((c) => {
       let s = `"${c.name}" ${c.type}`;
       if (c.mods.pk) s += ' PRIMARY KEY' + (c.mods.autoIncrement ? ' AUTOINCREMENT' : '');
       if (c.mods.notNull) s += ' NOT NULL';
@@ -124,12 +125,12 @@ export function ddl(schema) {
       if ('def' in c.mods) s += ` DEFAULT ${literal(c.mods.def)}`;
       return s;
     });
-    out.push(`CREATE TABLE "${t.name}" (${cols.join(', ')})`);
-    for (const ix of t.indexes) {
+    out.push(`CREATE TABLE "${t.__name}" (${cols.join(', ')})`);
+    for (const ix of t.__indexes) {
       const on = ix.cols.map((c) => `"${c.name}"`).join(', ');
       const where = ix.cond ? ` WHERE ${ix.cond.render().text}` : '';
       if (ix.cond && Object.keys(ix.cond.render().params).length) throw new Error(`Index ${ix.name}: parameters are not allowed in DDL`);
-      out.push(`CREATE ${ix.unique ? 'UNIQUE ' : ''}INDEX "${ix.name}" ON "${t.name}" (${on})${where}`);
+      out.push(`CREATE ${ix.unique ? 'UNIQUE ' : ''}INDEX "${ix.name}" ON "${t.__name}" (${on})${where}`);
     }
   }
   return out;
@@ -139,10 +140,15 @@ export function ddl(schema) {
 
 let database = null;
 
-/** Creates a fresh in-memory database with the tables of `schema` (what `tgcloud migrate` does). */
-export function setupDatabase(schema) {
-  database = new DatabaseSync(':memory:');
-  for (const stmt of ddl(schema)) database.exec(stmt);
+/**
+ * Opens the database and creates the tables of `schema` (what `tgcloud migrate` does).
+ * In memory by default; with a file path the tables are created once and the data persists
+ * between processes (used by test/cloud/local-cli.mjs).
+ */
+export function setupDatabase(schema, file = ':memory:') {
+  database = new DatabaseSync(file);
+  const exists = database.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table'").get().n > 0;
+  if (!exists) for (const stmt of ddl(schema)) database.exec(stmt);
   return database;
 }
 

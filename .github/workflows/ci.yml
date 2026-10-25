@@ -1,5 +1,6 @@
 name: CI
 
+# Local checks only (the bot itself runs on Telegram Serverless, never here).
 on:
   push:
   pull_request:
@@ -15,3 +16,4 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: npm run test:cloud:local
