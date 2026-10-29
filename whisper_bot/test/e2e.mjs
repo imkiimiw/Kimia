@@ -773,6 +773,10 @@ await scenario('anti-spam: flood gap, 5 per person per 10 min, 30 per hour, dupl
   rawDatabase().prepare("DELETE FROM anon_msgs WHERE id LIKE 'rate%'").run();
   advance(11 * 60);
   await say(U.mina, '/cancel');
+  // the previous message stamped by a machine whose clock runs a minute ahead: not a flood
+  rawDatabase().prepare('UPDATE users SET last_anon_at = ? WHERE user_id = ?').run(nowSec() + 60, U.mina.id);
+  await say(U.mina, `/start a_${code}`);
+  assert.match((await say(U.mina, 'ساعت سرورها یکی نیست')).text, /پیامت ناشناس فرستاده شد/, 'clock skew is not a flood');
 });
 
 await scenario('filters: offensive words, links, own words → "filtered" folder (not delivered, sender not told); text only; silent', async () => {

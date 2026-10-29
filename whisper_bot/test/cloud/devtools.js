@@ -114,7 +114,9 @@ export default async function (input) {
     case 'age_whisper': {
       const w = await db.get(sql`SELECT sender_id FROM whispers WHERE id = ${input.id}`);
       testUser(w && w.sender_id);
-      await db.run(sql`UPDATE whispers SET expires_at = ${now - 1} WHERE id = ${input.id}`);
+      // Well in the past: the machine that runs this endpoint and the one that runs the next handler
+      // call can disagree about the time by about a minute.
+      await db.run(sql`UPDATE whispers SET expires_at = ${now - 600} WHERE id = ${input.id}`);
       return true;
     }
     case 'age_drafts': {

@@ -15,7 +15,10 @@ import { nowSec } from './util.js';
 export async function spamCheck(sender, toId, hash) {
   const now = nowSec();
   if (sender.restrictedUntil > now) return { code: 'restricted', until: sender.restrictedUntil };
-  if (now - sender.lastAnonAt < ANON_MIN_GAP_SEC) return { code: 'flood' };
+  // A negative gap means the previous message was stamped by a machine whose clock runs ahead (the
+  // platform's clocks differ by up to about a minute): that's not a flood.
+  const gap = now - sender.lastAnonAt;
+  if (gap >= 0 && gap < ANON_MIN_GAP_SEC) return { code: 'flood' };
   if ((await countSent(sender.id, now - 3600, ANON_PER_HOUR)) >= ANON_PER_HOUR) return { code: 'hour' };
   if ((await countSent(sender.id, now - 600, ANON_PER_TARGET_10MIN, toId)) >= ANON_PER_TARGET_10MIN) return { code: 'target' };
   if (hash && (await isDuplicate(sender.id, toId, hash, now - DUPLICATE_WINDOW_SEC))) return { code: 'duplicate' };

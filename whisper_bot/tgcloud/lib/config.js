@@ -60,7 +60,7 @@ export const GC_BATCH = 20;
 // Broadcasts: a button press sends one batch; other updates send a small chunk on the side.
 export const BC_BATCH = 25;
 export const BC_CHUNK = 5;
-export const BC_LOCK_SEC = 90;
+export const BC_LOCK_SEC = 180; // a batch takes seconds; this only outlives a crashed one, with room for clock skew
 export const BC_PROGRESS_EVERY_SEC = 20;
 
 // Iran Standard Time, UTC+03:30 — "whispers today" counts by the local date.
