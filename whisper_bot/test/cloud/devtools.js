@@ -1,0 +1,196 @@
+// Test-only endpoint for test/cloud/run-tests.mjs. The script copies it to
+// tgcloud/endpoints/zz_devtools.js for the duration of the run (`npx tgcloud run` executes local
+// files without deploying them) and deletes it afterwards, so it is never pushed.
+// It reads and writes only test users (ids 990000001-990000999), the bot account used for the 403
+// test (BotFather, 93372553), fake channels (zz_fake_*), broadcasts the run created, and — to restore
+// the starting state — a channel row and settings the script saved before the test.
+import { db } from 'sdk';
+import { sql } from 'sdk/db';
+
+const OWNER_ID = 5557901897;
+const BOT_403 = 93372553;
+const TABLES = ['users', 'kv', 'channels', 'drafts', 'whispers', 'whisper_rcpts', 'snoops', 'blocks', 'user_state', 'broadcasts'];
+const isTestUser = (id) => Number.isInteger(id) && ((id >= 990000001 && id <= 990000999) || id === BOT_403);
+
+function testUser(id) {
+  const n = Number(id);
+  if (!isTestUser(n)) throw new Error(`not a test user: ${id}`);
+  return n;
+}
+
+function list(values) {
+  let acc = null;
+  for (const v of values) acc = acc ? sql`${acc}, ${v}` : sql`${v}`;
+  return acc;
+}
+
+async function bump(key, delta) {
+  await db.run(sql`
+    INSERT INTO kv (key, value) VALUES (${key}, '0')
+    ON CONFLICT(key) DO UPDATE SET value = CAST(max(0, CAST(value AS INTEGER) + ${delta}) AS TEXT)`);
+}
+
+async function testWhisperIds(users) {
+  const rows = await db.all(sql`SELECT id FROM whispers WHERE sender_id IN (${list(users)}) LIMIT 500`);
+  return rows.map((r) => r.id);
+}
+
+export default async function (input) {
+  const now = Math.floor(Date.now() / 1000);
+  switch (input.op) {
+    case 'tables': {
+      const out = {};
+      for (const t of TABLES) {
+        try {
+          await db.get(sql.raw(`SELECT 1 AS x FROM ${t} LIMIT 1`));
+          out[t] = 'ok';
+        } catch (err) {
+          out[t] = `missing: ${err.message}`;
+        }
+      }
+      return out;
+    }
+    case 'snapshot':
+      return {
+        channels: await db.all(sql`SELECT * FROM channels ORDER BY id LIMIT 20`),
+        kv: await db.all(sql`SELECT key, value FROM kv WHERE key IN ('join', 'chv', 'seeded', 'bc', 'bot_username', 'n_users', 'n_active', 'n_whispers', 'day')`),
+        maxBroadcast: (await db.get(sql`SELECT max(id) AS m FROM broadcasts`) || {}).m || 0,
+      };
+    case 'real_reachable': {
+      // Real users a test broadcast would reach (besides the owner): the runner skips the broadcast if any.
+      const rows = await db.all(sql`
+        SELECT user_id FROM users WHERE started = 1 AND active = 1 AND banned = 0 AND user_id > 0
+          AND (user_id < 990000001 OR user_id > 990000999) AND user_id != ${OWNER_ID} AND user_id != ${BOT_403}
+        ORDER BY user_id LIMIT 5`);
+      return rows.map((r) => r.user_id);
+    }
+    case 'join_cache': {
+      const chv = Number(((await db.get(sql`SELECT value FROM kv WHERE key = 'chv'`)) || {}).value || 0);
+      for (const id of input.users.map(testUser)) {
+        await db.run(sql`UPDATE users SET join_ok = 1, join_until = ${now + 3600}, join_ver = ${chv} WHERE user_id = ${id}`);
+      }
+      return chv;
+    }
+    case 'drop_join_cache':
+      for (const id of input.users.map(testUser)) await db.run(sql`UPDATE users SET join_until = 0 WHERE user_id = ${id}`);
+      return true;
+    case 'user':
+      return db.get(sql`SELECT * FROM users WHERE user_id = ${testUser(input.user)}`);
+    case 'draft_count':
+      return (await db.get(sql`SELECT count(*) AS n FROM drafts WHERE sender_id = ${testUser(input.user)}`)).n;
+    case 'whisper_count':
+      return (await db.get(sql`SELECT count(*) AS n FROM whispers WHERE sender_id = ${testUser(input.user)}`)).n;
+    case 'whisper': {
+      const w = await db.get(sql`SELECT * FROM whispers WHERE id = ${input.id}`);
+      if (!w || !isTestUser(Number(w.sender_id))) return null;
+      return {
+        ...w,
+        rcpts: await db.all(sql`SELECT slot, rid, runame, label, seen_at FROM whisper_rcpts WHERE whisper_id = ${input.id} ORDER BY slot`),
+        snoopers: await db.all(sql`SELECT user_id, username FROM snoops WHERE whisper_id = ${input.id} ORDER BY at LIMIT 50`),
+      };
+    }
+    case 'age_whisper': {
+      const w = await db.get(sql`SELECT sender_id FROM whispers WHERE id = ${input.id}`);
+      testUser(w && w.sender_id);
+      await db.run(sql`UPDATE whispers SET expires_at = ${now - 1} WHERE id = ${input.id}`);
+      return true;
+    }
+    case 'age_drafts': {
+      for (const id of input.users.map(testUser)) {
+        await db.run(sql`UPDATE drafts SET updated_at = ${now - 25 * 3600} WHERE sender_id = ${id}`);
+      }
+      await db.run(sql`UPDATE kv SET value = '0' WHERE key = 'gc_at'`);
+      return true;
+    }
+    case 'seed_bot_user': // the account whose copyMessage answers 403 (a bot can't message bots)
+      await db.run(sql`
+        INSERT INTO users (user_id, username, username_lc, first_name, first_seen, last_seen, active, started)
+        VALUES (${BOT_403}, 'BotFather', 'botfather', 'BotFather', ${now}, ${now}, 1, 1)
+        ON CONFLICT(user_id) DO UPDATE SET active = 1, started = 1, banned = 0`);
+      return true;
+    case 'state': {
+      const id = Number(input.user);
+      if (!isTestUser(id) && id !== OWNER_ID) throw new Error('not allowed');
+      return db.get(sql`SELECT state, data FROM user_state WHERE user_id = ${id}`);
+    }
+    case 'clear_owner_state':
+      await db.run(sql`DELETE FROM user_state WHERE user_id = ${OWNER_ID}`);
+      return true;
+    case 'channels':
+      return db.all(sql`SELECT id, uname, username, chat_id FROM channels ORDER BY id LIMIT 20`);
+    case 'fill_channels': {
+      // Fake channels up to the limit, already "warned" so the owner gets no warnings about them.
+      const { n } = await db.get(sql`SELECT count(*) AS n FROM channels`);
+      const added = [];
+      for (let i = Number(n) + 1; i <= input.to; i += 1) {
+        const name = `zz_fake_${i}`;
+        await db.run(sql`INSERT INTO channels (uname, username, warned_at, created_at) VALUES (${name}, ${name}, ${now}, ${now}) ON CONFLICT(uname) DO NOTHING`);
+        added.push(name);
+      }
+      return added;
+    }
+    case 'drop_fake_channels':
+      return (await db.run(sql`DELETE FROM channels WHERE uname LIKE 'zz_fake_%'`)).rowsAffected;
+    case 'restore_channel': {
+      const c = input.channel;
+      const r = await db.run(sql`
+        INSERT INTO channels (uname, username, chat_id, title, warned_at, created_at)
+        VALUES (${c.uname}, ${c.username}, ${c.chat_id ?? null}, ${c.title ?? null}, ${c.warned_at ?? 0}, ${c.created_at ?? now})
+        ON CONFLICT(uname) DO NOTHING`);
+      return r.rowsAffected;
+    }
+    case 'restore_kv':
+      for (const { key, value } of input.kv) {
+        if (!['join', 'chv'].includes(key)) continue;
+        await db.run(sql`INSERT INTO kv (key, value) VALUES (${key}, ${value}) ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
+      }
+      return true;
+    case 'bump_chv':
+      await bump('chv', 1);
+      return true;
+    case 'drop_broadcasts': {
+      // Only broadcasts this run created (ids above the starting maximum), never a running real one.
+      const rows = await db.all(sql`SELECT id, status FROM broadcasts WHERE id > ${Number(input.after)} AND from_chat = ${OWNER_ID} LIMIT 20`);
+      for (const b of rows) {
+        await db.run(sql`DELETE FROM broadcasts WHERE id = ${b.id}`);
+        await db.run(sql`UPDATE kv SET value = NULL WHERE key = 'bc' AND value = ${String(b.id)}`);
+      }
+      return rows.length;
+    }
+    case 'cleanup': {
+      const users = input.users.map(testUser);
+      const wids = await testWhisperIds(users);
+      for (const id of wids) {
+        await db.run(sql`DELETE FROM whisper_rcpts WHERE whisper_id = ${id}`);
+        await db.run(sql`DELETE FROM snoops WHERE whisper_id = ${id}`);
+        await db.run(sql`DELETE FROM whispers WHERE id = ${id}`);
+      }
+      let removed = 0;
+      let reachable = 0;
+      for (const id of users) {
+        await db.run(sql`DELETE FROM drafts WHERE sender_id = ${id}`);
+        await db.run(sql`DELETE FROM blocks WHERE user_id = ${id} OR blocked_id = ${id}`);
+        await db.run(sql`DELETE FROM user_state WHERE user_id = ${id}`);
+        await db.run(sql`DELETE FROM snoops WHERE user_id = ${id}`);
+        const u = await db.get(sql`SELECT first_seen, started, active FROM users WHERE user_id = ${id}`);
+        if (u) {
+          if (Number(u.first_seen) > 0) removed += 1;
+          if (Number(u.started) === 1 && Number(u.active) === 1) reachable += 1;
+          await db.run(sql`DELETE FROM users WHERE user_id = ${id}`);
+        }
+      }
+      if (removed) await bump('n_users', -removed);
+      if (reachable) await bump('n_active', -reachable);
+      if (wids.length) {
+        await bump('n_whispers', -wids.length);
+        // they were all made today: take them off today's counter too ("YYYYMMDD:n")
+        await db.run(sql`
+          UPDATE kv SET value = substr(value, 1, 9) || max(0, CAST(substr(value, 10) AS INTEGER) - ${wids.length})
+          WHERE key = 'day' AND length(value) > 9`);
+      }
+      return { removedUsers: removed, removedWhispers: wids.length };
+    }
+    default:
+      throw new Error(`unknown op ${input.op}`);
+  }
+}
