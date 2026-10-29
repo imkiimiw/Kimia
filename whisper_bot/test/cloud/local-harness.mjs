@@ -27,6 +27,7 @@ const child = spawn(process.execPath, ['test/cloud/run-tests.mjs'], {
     ...process.env,
     TG_MOCK_URL: `http://127.0.0.1:${port}`,
     MOCK_DB_FILE: path.join(dir, 'db.sqlite'),
+    LOCAL_RATE_LIMIT_EVERY: '25', // exercises the runner's wait-and-retry on the platform's rate limit
     TGCLOUD_CLI_ARGS: JSON.stringify(['--no-warnings', '--import', './test/sdk/register.mjs', 'test/cloud/local-cli.mjs']),
   },
 });

@@ -16,6 +16,17 @@ if (cmd === 'webhook') {
   process.exit(0);
 }
 if (cmd !== 'run') throw new Error('only "run" and "webhook" are emulated');
+// Like the platform's rate limit: every Nth call is refused before anything runs.
+if (process.env.LOCAL_RATE_LIMIT_EVERY && process.env.MOCK_DB_FILE) {
+  const counter = `${process.env.MOCK_DB_FILE}.calls`;
+  const n = (fs.existsSync(counter) ? Number(fs.readFileSync(counter, 'utf8')) : 0) + 1;
+  fs.writeFileSync(counter, String(n));
+  if (n % Number(process.env.LOCAL_RATE_LIMIT_EVERY) === 0) {
+    console.log(`> ${moduleName.split('/').pop()}(${args})`);
+    console.log('✗ Too many requests: retry after 1');
+    process.exit(1);
+  }
+}
 setupDatabase(schema, process.env.MOCK_DB_FILE);
 const mod = await import(pathToFileURL(path.join(ROOT, 'tgcloud', `${moduleName}.js`)).href);
 const started = Date.now();

@@ -86,17 +86,32 @@ function cli(args, { allowFail = false } = {}) {
   }
 }
 
+// The platform rate-limits `tgcloud run` ("✗ Too many requests: retry after 8"). A refused call never
+// ran (the CLI got a RATE_LIMITED error back), so it is retried after the wait the platform asks for.
+const RATE_LIMITED = /Too many requests: retry after (\d+)/;
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+let rateWait = 0; // seconds spent waiting for the platform's rate limit
+
 function tgcloudRun(module, args, ctx) {
   const argv = ['run', module, JSON.stringify(args)];
   if (ctx) argv.push('--ctx', JSON.stringify(ctx));
-  runs += 1;
   let out;
-  let exitOk = true;
-  try {
-    out = cli(argv);
-  } catch (e) {
-    exitOk = false;
-    out = `${e.stdout || ''}${e.stderr || ''}`;
+  let exitOk;
+  for (let attempt = 0; ; attempt += 1) {
+    runs += 1;
+    exitOk = true;
+    try {
+      out = cli(argv);
+    } catch (e) {
+      exitOk = false;
+      out = `${e.stdout || ''}${e.stderr || ''}`;
+    }
+    const limited = !exitOk && RATE_LIMITED.exec(out);
+    if (!limited || attempt >= 10) break;
+    const wait = Math.min(Number(limited[1]), 60) + 1;
+    log(`\n$ npx tgcloud run ${module} … → rate limited; waiting ${wait}s and retrying (the refused call did not run)`);
+    rateWait += wait;
+    pause(wait * 1000);
   }
   log(`\n$ npx tgcloud run ${module} '${JSON.stringify(args)}'${ctx ? ' --ctx …' : ''}\n${out.trimEnd()}`);
   const line = out.split('\n').reverse().find((l) => l.startsWith('< '));
@@ -821,7 +836,7 @@ const counts = results.reduce((a, r) => ({ ...a, [r.status]: (a[r.status] || 0) 
 const summary = [
   `# Cloud test run — ${new Date().toISOString()}`,
   '',
-  `${runs} \`tgcloud run\` invocations, ${Math.round((Date.now() - started) / 1000)}s. ` + Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', '),
+  `${runs} \`tgcloud run\` invocations, ${Math.round((Date.now() - started) / 1000)}s${rateWait ? ` (${rateWait}s of it waiting for the platform's rate limit)` : ''}. ` + Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', '),
   info.botUsername ? `Bot: @${info.botUsername}` : '',
   '',
   '| # | Scenario | Result | Detail |',
@@ -830,5 +845,5 @@ const summary = [
   '',
 ].join('\n');
 fs.writeFileSync(path.join(OUT_DIR, 'summary.md'), summary);
-console.log(`\n${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ')} — ${runs} runs; log: test/cloud/output/run.log, summary: test/cloud/output/summary.md`);
+console.log(`\n${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ')} — ${runs} runs${rateWait ? `, ${rateWait}s rate-limit waits` : ''}; log: test/cloud/output/run.log, summary: test/cloud/output/summary.md`);
 process.exit(counts.FAIL ? 1 : 0);
