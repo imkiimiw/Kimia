@@ -2,16 +2,17 @@
 // tgcloud/endpoints/zz_devtools.js for the duration of the run (`npx tgcloud run` executes local
 // files without deploying them) and deletes it afterwards, so it is never pushed.
 // It reads and writes only test users (ids 990000001-990000999), the bot account used for the 403
-// test (BotFather, 93372553), fake channels (zz_fake_*), broadcasts the run created, and — to restore
+// test (the @telegram channel's id: the bot isn't a member there, so copyMessage gets a real 403),
+// fake channels (zz_fake_*), broadcasts the run created, and — to restore
 // the starting state — a channel row and settings the script saved before the test.
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
 
 const OWNER_ID = 5557901897;
-const BOT_403 = 93372553;
+const TARGET_403 = -1001005640892; // @telegram
 const TABLES = ['users', 'kv', 'channels', 'drafts', 'whispers', 'whisper_rcpts', 'snoops', 'blocks', 'user_state', 'broadcasts', 'anon_msgs', 'anon_blocks'];
 const TEST_IDS = [990000001, 990000002, 990000003, 990000004, 990000005, 990000009];
-const isTestUser = (id) => Number.isInteger(id) && ((id >= 990000001 && id <= 990000999) || id === BOT_403);
+const isTestUser = (id) => Number.isInteger(id) && ((id >= 990000001 && id <= 990000999) || id === TARGET_403);
 
 function testUser(id) {
   const n = Number(id);
@@ -61,7 +62,7 @@ export default async function (input) {
       // Real users a test broadcast would reach (besides the owner): the runner skips the broadcast if any.
       const rows = await db.all(sql`
         SELECT user_id FROM users WHERE started = 1 AND active = 1 AND banned = 0 AND user_id > 0
-          AND (user_id < 990000001 OR user_id > 990000999) AND user_id != ${OWNER_ID} AND user_id != ${BOT_403}
+          AND (user_id < 990000001 OR user_id > 990000999) AND user_id != ${OWNER_ID}
         ORDER BY user_id LIMIT 5`);
       return rows.map((r) => r.user_id);
     }
@@ -103,12 +104,24 @@ export default async function (input) {
       await db.run(sql`UPDATE kv SET value = '0' WHERE key = 'gc_at'`);
       return true;
     }
-    case 'seed_bot_user': // the account whose copyMessage answers 403 (a bot can't message bots)
+    case 'seed_403_target': {
+      // A queue entry whose copyMessage Telegram answers with a real 403. Counted like a real user, so
+      // markInactive's decrement and the cleanup at the end leave the counters exact.
+      await db.run(sql`DELETE FROM users WHERE user_id = ${TARGET_403}`);
       await db.run(sql`
-        INSERT INTO users (user_id, username, username_lc, first_name, first_seen, last_seen, active, started)
-        VALUES (${BOT_403}, 'BotFather', 'botfather', 'BotFather', ${now}, ${now}, 1, 1)
-        ON CONFLICT(user_id) DO UPDATE SET active = 1, started = 1, banned = 0`);
+        INSERT INTO users (user_id, username, first_name, first_seen, last_seen, active, started)
+        VALUES (${TARGET_403}, NULL, 'zz 403 target', ${now}, ${now}, 1, 1)`);
+      await bump('n_users', 1);
+      await bump('n_active', 1);
       return true;
+    }
+    case 'bc_start_below': {
+      // Lets the draft broadcast's queue start below the (negative) 403 target, so it is sent first.
+      const r = await db.run(sql`
+        UPDATE broadcasts SET last_user = ${TARGET_403 - 1}
+        WHERE id = ${Number(input.id)} AND status = 'draft' AND from_chat = ${OWNER_ID} AND id > ${Number(input.after)}`);
+      return r.rowsAffected;
+    }
     case 'state': {
       const id = Number(input.user);
       if (!isTestUser(id) && id !== OWNER_ID) throw new Error('not allowed');

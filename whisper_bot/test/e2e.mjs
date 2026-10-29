@@ -132,9 +132,10 @@ async function press(u, data, { inlineId = null, chatId = null } = {}) {
   const r = track(await onCallback(cq, { update: { update_id: seq++, callback_query: cq } }));
   const calls = since();
   const answers = calls.filter((c) => c.method === 'answerCallbackQuery');
-  assert.equal(answers.length, 1, `answerCallbackQuery called ${answers.length} times for ${data}`);
-  assert.ok(answers[0].result.ok, `answerCallbackQuery rejected: ${JSON.stringify(answers[0].result)}`);
-  return { ...analyse(r, calls, inlineId ? null : chatId || u.id), answer: answers[0].params };
+  const accepted = answers.filter((c) => c.result.ok);
+  assert.equal(accepted.length, 1, `answerCallbackQuery accepted ${accepted.length} times for ${data}: ${JSON.stringify(answers.map((c) => c.result))}`);
+  assert.ok(answers.length === 1 || (answers.length === 2 && /URL_INVALID/.test(answers[0].result.description)), `retried for ${data} without a url error`);
+  return { ...analyse(r, calls, inlineId ? null : chatId || u.id), answer: accepted[0].params };
 }
 
 function lastBotMessage(chat) {
@@ -209,6 +210,16 @@ await scenario('forced join in PM: non-member gets the lock screen with link but
   mock.setMember('wangerBots', U.joe.id, { status: 'kicked' });
   const r2 = await press(U.joe, 'j');
   assert.deepEqual(buttons(r2.kb).map((b) => b.url).filter(Boolean), ['https://t.me/Nepenthw_ir', 'https://t.me/wangerBots']);
+});
+
+await scenario('forced join: "member not found" (never in the channel) counts as not joined, not as a broken channel', async () => {
+  const stranger = person(760000001, 'never_member');
+  mock.state.unknownUsers.add(stranger.id);
+  const inl = await inline(stranger, 'سلام @Sara_T');
+  assert.equal(inl.results.length, 0);
+  assert.equal(inl.button.start_parameter, 'join');
+  assert.equal(sentTo(inl.calls, OWNER).length, 0, 'the owner is not warned about healthy channels');
+  assert.ok(inl.calls.filter((c) => c.method === 'getChatMember').every((c) => /member not found/.test(c.result.description)));
 });
 
 await scenario('forced join in inline mode: non-member gets NO whispers, only the "join" button', async () => {
@@ -432,6 +443,10 @@ await scenario('long whisper (>200 chars): deep link button; recipient reads it 
   const { inlineId } = await post(U.ali, inl, res.id);
   const p = await press(U.sara, `s:${id}`, { inlineId });
   assert.equal(p.answer.url, `https://t.me/${BOT}?start=w_${id}`, 'the button opens the bot');
+  mock.state.rejectUrlOnce = true; // if Telegram refuses the url, the press is still answered, once more without it
+  const fallback = await press(U.sara, `s:${id}`, { inlineId });
+  assert.equal(fallback.answer.url, undefined);
+  assert.match(fallback.answer.text, /طولانی است/);
   assert.ok(!String(p.answer.text).includes('طولانی است.'));
   const stranger = await say(U.nima, `/start w_${id}`);
   assert.match(stranger.text, /این نجوا مال تو نیست 😏/);

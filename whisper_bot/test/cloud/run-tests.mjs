@@ -28,7 +28,7 @@ const DEVTOOLS_DST = path.join(DEVTOOLS_DIR, 'zz_devtools.js');
 const OUT_DIR = path.join(ROOT, 'test/cloud/output');
 
 const OWNER = 5557901897;
-const BOT_403 = 93372553; // @BotFather: copyMessage to a bot answers 403
+const TARGET_403 = -1001005640892; // @telegram channel: the bot isn't a member, so copyMessage gets a real 403
 const T = {
   sender: 990000001, // zzw_t1
   rcpt: 990000002, // zzw_t2, recipient by @username
@@ -38,7 +38,7 @@ const T = {
   outsider: 990000009, // never a channel member, no join cache
 };
 const MEMBERS = [T.sender, T.rcpt, T.byId, T.snoop, T.third];
-const TEST_USERS = [...MEMBERS, T.outsider, BOT_403];
+const TEST_USERS = [...MEMBERS, T.outsider, TARGET_403];
 const uname = (id) => `zzw_t${id % 10}`;
 let W1 = null; // whisper to @zzw_t2
 let W2 = null; // whisper to the numeric id
@@ -511,21 +511,24 @@ async function main() {
       const real = devtools({ op: 'real_reachable' });
       if (real.length) return { status: 'WARN', detail: `skipped: ${real.length}+ real users would receive a test broadcast (${real.join(', ')}). Test it from /admin in Telegram instead.` };
       if (!PANEL_MID) return { status: 'WARN', detail: 'skipped: the owner has not started the bot, so there is no real message to copy. Send /start to the bot from the owner account and re-run.' };
-      devtools({ op: 'seed_bot_user' });
+      devtools({ op: 'seed_403_target' });
       ok(pressPm(OWNER, 'a:bc', PANEL_MID), { view: 'broadcast_ask', callback: true });
       const msg = ok(sendText(OWNER, 'zz broadcast test (the panel message is copied)', PANEL_MID));
       expect(msg.view === 'broadcast_confirm', `confirm screen: ${msg.view} ${msg.text}`);
       const id = Number((msg.data.find((d) => d.startsWith('a:bcy:')) || '').split(':')[2]);
       expect(id > 0, `broadcast id from ${JSON.stringify(msg.data)}`);
+      expect(devtools({ op: 'bc_start_below', id, after: maxBroadcast }) === 1, 'queue start set');
       const go = ok(pressPm(OWNER, `a:bcy:${id}`, msg.last.mid), { callback: true });
       const copies = go.trace.filter((t) => t.m === 'copyMessage');
-      const to403 = copies.find((t) => t.chat === BOT_403);
-      expect(to403 && /^403/.test(to403.err || ''), `copy to ${BOT_403}: ${JSON.stringify(to403)}`);
-      const bot = devtools({ op: 'user', user: BOT_403 });
-      expect(bot.active === 0, '403 → marked inactive');
+      const to403 = copies.find((t) => t.chat === TARGET_403);
+      expect(to403 && /^403/.test(to403.err || ''), `copy to ${TARGET_403}: ${JSON.stringify(to403)}`);
+      const target = devtools({ op: 'user', user: TARGET_403 });
+      expect(target.active === 0, '403 → marked inactive, not retried');
+      const again = ok(pressPm(OWNER, `a:bcc:${id}`, msg.last.mid), { callback: true });
+      expect(!again.trace.some((t) => t.m === 'copyMessage' && t.chat === TARGET_403), 'no retry after 403');
       const report = byView(go, 'broadcast_report')[0];
       expect(report && report.chat === OWNER, `final report ${JSON.stringify(byView(go, 'broadcast_report'))}`);
-      return { detail: `${copies.length} copies; report: ${report.text.replace(/\n+/g, ' / ')}` };
+      return { detail: `${copies.length} copies, ${TARGET_403} → ${to403.err}; report: ${report.text.replace(/\n+/g, ' / ')}` };
     });
 
     await scenario('14b. anonymous chat: personal link, anonymous delivery to the owner, reply, block without revealing who', () => {

@@ -176,6 +176,10 @@ handlers delegate to `lib/router.js`, which documents the order of checks and ev
   `test/mock-telegram.mjs`), `npm run test:cloud` (real platform via `tgcloud run`; it temporarily adds
   `tgcloud/endpoints/zz_devtools.js` — never push while it runs), `npm run test:cloud:local`
   (the cloud runner against a local stand-in of the CLI).
+- **Behind an HTTPS proxy** (e.g. a Claude Code cloud session), run the CLI with `NODE_USE_ENV_PROXY=1`:
+  Node's built-in fetch ignores `HTTPS_PROXY` otherwise and every command says it can't reach the server.
+- Platform facts learned by testing: a never-member gets `400 member not found` from getChatMember;
+  `tgcloud run` can't return objects with integer-like keys (use arrays).
 - **Project root**: the CLI uses the nearest folder with `.tgcloud/`. If the repository root has its
   own `.tgcloud/` (the to-do bot), make sure `whisper_bot/.tgcloud/` exists before any command here,
   or the command acts on the parent project.

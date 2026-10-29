@@ -15,7 +15,7 @@ const mock = createMockTelegram({ botId: 7000000001, botUsername: 'whisper_local
 for (const name of ['HIDE_i_SEEK', 'Nepenthw_ir', 'wangerBots']) mock.addChat(name, { title: name });
 // Fake test ids are unknown to Telegram: "chat not found" for messages, "user not found" for members.
 for (let id = 990000001; id <= 990000009; id += 1) mock.state.unknownUsers.add(id);
-mock.state.blocked.add(93372553); // stands in for "bot can't send messages to bots" (403)
+mock.state.forbidden.add(-1001005640892); // @telegram: "bot is not a member of the channel chat" (403)
 mock.state.privateChats.add(OWNER);
 const port = await mock.listen();
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tgcloud-local-'));

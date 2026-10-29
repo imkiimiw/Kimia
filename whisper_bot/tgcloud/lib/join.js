@@ -24,8 +24,9 @@ export function isMember(m) {
   }
 }
 
-// Errors about the *user* (unknown or invalid id) mean "not a member", not a broken channel.
-const USER_ERROR = /user not found|participant_id_invalid|user_id_invalid|user_not_participant/i;
+// Errors about the *user* mean "not a member", not a broken channel. Telegram answers
+// "Bad Request: member not found" for someone who was never in the channel.
+export const USER_ERROR = /member not found|user not found|participant_id_invalid|user_id_invalid|user_not_participant/i;
 
 export const channelRef = (ch) => ch.chatId || `@${ch.username}`;
 export const channelUrl = (ch) => `https://t.me/${ch.username}`;

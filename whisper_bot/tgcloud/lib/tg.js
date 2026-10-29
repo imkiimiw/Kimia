@@ -168,7 +168,7 @@ export async function answer(ctx, text, { alert = false, secret = false, url = n
     await call(ctx, 'answerCallbackQuery', params, null, { secret, meta });
   } catch (err) {
     console.warn(`answerCallbackQuery failed: ${describeError(err)}`);
-    if (url) {
+    if (url && isApiError(err) && /url/i.test(err.description)) {
       // A rejected url must not leave the button spinning: answer again without it.
       ctx.answered = false;
       await answer(ctx, text, { alert, secret });

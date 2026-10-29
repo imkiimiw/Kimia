@@ -78,6 +78,7 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
     answeredInline: new Set(),
     copied: [], // { chat_id, from_chat_id, message_id, reply_markup, new_id }
     uncopyable: new Set(), // `${chat}:${message_id}` that copyMessage refuses (like a service message)
+    forbidden: new Set(), // chats the bot isn't a member of (403)
     deleted: [],
   };
 
@@ -128,6 +129,10 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
       if (state.answeredCallbacks.has(p.callback_query_id)) return err(400, 'Bad Request: query is too old and response timeout expired or query ID is invalid');
       if (p.text && p.text.length > 200) return err(400, 'Bad Request: MESSAGE_TOO_LONG');
       if (p.url && !/^https:\/\/t\.me\/[A-Za-z0-9_]+\?start=[A-Za-z0-9_-]{1,64}$/.test(p.url)) return err(400, 'Bad Request: URL_INVALID');
+      if (state.rejectUrlOnce && p.url) {
+        state.rejectUrlOnce = false;
+        return err(400, 'Bad Request: URL_INVALID');
+      }
       state.answeredCallbacks.add(p.callback_query_id);
       return ok(true);
     },
@@ -160,7 +165,8 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
       if (!state.chats.has(k)) return err(400, 'Bad Request: chat not found');
       if (Number(p.user_id) === botId) return ok({ status: state.botAdmin.has(k) ? 'administrator' : 'left', user: { id: botId } });
       if (!state.botAdmin.has(k)) return err(400, 'Bad Request: member list is inaccessible');
-      if (state.unknownUsers.has(Number(p.user_id))) return err(400, 'Bad Request: user not found');
+      // the wording the real platform uses for someone who was never in the channel
+      if (state.unknownUsers.has(Number(p.user_id))) return err(400, 'Bad Request: member not found');
       const m = state.members.get(`${k}:${p.user_id}`) || { status: 'left' };
       return ok({ ...m, user: { id: Number(p.user_id) } });
     },
@@ -180,6 +186,7 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
         state.rateLimitOnce.delete(chat);
         return err(429, `Too Many Requests: retry after ${wait}`, { retry_after: wait });
       }
+      if (state.forbidden.has(chat)) return err(403, 'Forbidden: bot is not a member of the channel chat');
       if (Number(p.chat_id) > 0 && state.blocked.has(chat)) return err(403, 'Forbidden: bot was blocked by the user');
       const r = reachable(chat);
       if (r) return r;
