@@ -7,7 +7,7 @@ import {
 import { botInfo } from './bot.js';
 import { channelUrl, checkJoin } from './join.js';
 import {
-  addBlock, clearState, getRcpts, getUser, getUserByUsername, getWhisper, listBlocks, listSnoops, rcptsFor,
+  addBlock, clearState, getRcpts, getUser, getUserByUsername, getWhisper, listAnonBlocks, listBlocks, listSnoops, rcptsFor,
   receivedHistory, removeBlock, sentHistory, setDefExpiry, setReceipts, setState,
 } from './store.js';
 import { MAIN_HINT, helpText, welcomeText } from './texts.js';
@@ -25,6 +25,7 @@ export function mainMenu() {
   return [
     [inlineBtn('✍️ ارسال نجوا')],
     [btn('📤 ارسالی‌ها', 'h:s:0'), btn('📥 دریافتی‌ها', 'h:r:0')],
+    [btn('💬 لینک ناشناس من', 'an')],
     [btn('⚙️ تنظیمات', 'st'), btn('🚫 لیست بلاک', 'bl')],
     [btn('❓ راهنما', 'hp')],
   ];
@@ -51,15 +52,15 @@ export async function requireJoin(ctx, user, kv, opts = {}) {
   return false;
 }
 
-/** "✅ عضو شدم": a fresh check. */
-export async function recheckJoin(ctx, user, kv) {
+/** "✅ عضو شدم": a fresh check; once joined, `onJoined` (default: the welcome) continues. */
+export async function recheckJoin(ctx, user, kv, onJoined = (c, u, k) => showWelcome(c, u, k, true)) {
   const j = await checkJoin(ctx, user, kv, { fresh: true });
   if (!j.ok) {
     await answer(ctx, '❌ هنوز عضو همه‌ی کانال‌ها نیستی.', { alert: true });
     return showJoin(ctx, j.missing);
   }
   await answer(ctx, '✅ عضویت تأیید شد!');
-  return showWelcome(ctx, user, kv, true);
+  return onJoined(ctx, user, kv);
 }
 
 // ---------- welcome / help ----------
@@ -249,14 +250,20 @@ export async function setExpiry(ctx, user, sec) {
 
 export async function showBlocks(ctx, user, note = '') {
   const list = await listBlocks(user.id);
+  const anon = await listAnonBlocks(user.id);
   const kb = list.map((b) => [btn(`🔓 آنبلاک ${b.username ? `@${b.username}` : b.firstName || b.id}`.slice(0, 60), `ub:${b.id}`)]);
+  anon.forEach((b, i) => kb.push([btn(`🔓 آنبلاک ناشناس #${fa(i + 1)}`, `uba:${b.ref}`)]));
   kb.push([btn('➕ بلاک با آیدی یا یوزرنیم', 'bl:add')]);
   kb.push(back());
   const lines = list.map((b, i) => `${fa(i + 1)}. ${b.username ? `@${esc(b.username)}` : esc(b.firstName || '—')} — <code>${b.id}</code>`);
   const body = list.length ? lines.join('\n') : 'لیست بلاک خالی است.';
+  // Anonymous senders are listed by number and date only: blocking must not reveal who they were.
+  const anonPart = anon.length
+    ? `\n\n🕶 <b>فرستنده‌های ناشناس بلاک‌شده</b> (${fa(anon.length)})\n${anon.map((b, i) => `${fa(i + 1)}. ناشناس — ${faAgo(b.createdAt)}`).join('\n')}`
+    : '';
   return show(ctx, 'blocks',
     `${note ? `${note}\n\n` : ''}🚫 <b>لیست بلاک</b> (${fa(list.length)} از ${fa(MAX_BLOCKS)})\n`
-    + 'کسانی که اینجا هستند نمی‌توانند برایت نجوا بسازند.\n\n' + body, kb);
+    + 'کسانی که اینجا هستند نمی‌توانند برایت نجوا بسازند یا پیام ناشناس بفرستند.\n\n' + body + anonPart, kb);
 }
 
 export async function blockUser(ctx, user, targetId) {

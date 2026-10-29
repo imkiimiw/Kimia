@@ -243,6 +243,7 @@ async function main() {
   devtools({ op: 'cleanup', users: TEST_USERS });
   devtools({ op: 'drop_fake_channels' });
   const maxBroadcast = start.maxBroadcast;
+  const ownerAnon = devtools({ op: 'owner_anon' });
   console.log(`channels at start: ${originalChannels.map((c) => `@${c.username}`).join(', ') || '(none yet — the first update seeds them)'}\n`);
 
   let botUsername = (startKv.find((k) => k.key === 'bot_username') || {}).value || null;
@@ -527,6 +528,36 @@ async function main() {
       return { detail: `${copies.length} copies; report: ${report.text.replace(/\n+/g, ' / ')}` };
     });
 
+    await scenario('14b. anonymous chat: personal link, anonymous delivery to the owner, reply, block without revealing who', () => {
+      if (!PANEL_MID) return { status: 'WARN', detail: 'skipped: the owner has not started the bot, so nothing can be delivered for real. Send /start to the bot from the owner account and re-run.' };
+      devtools({ op: 'join_cache', users: [T.sender] });
+      const link = ok(pressPm(OWNER, 'an', PANEL_MID), { view: 'anon_link', callback: true });
+      const code = (link.text.match(/start=a_([0-9A-Za-z]{10})/) || [])[1];
+      expect(code, `no link in ${link.text}`);
+      ok(sendText(T.sender, `/start a_${code}`), { view: 'anon_prompt' });
+      const sent = ok(sendText(T.sender, 'zz anonymous cloud test'), { view: 'anon_sent' });
+      const delivered = byView(sent, 'anon_deliver').find((t) => t.chat === OWNER);
+      expect(delivered && delivered.ok, `delivery to the owner: ${JSON.stringify(delivered)}`);
+      const seen = JSON.stringify(byView(sent, 'anon_deliver'));
+      expect(!seen.includes(String(T.sender)) && !seen.includes(uname(T.sender)), `sender identity in what the owner got: ${seen}`);
+      const ref = ((delivered.kb || []).flat().join(' ').match(/\[ar:([0-9A-Za-z]{10})\]/) || [])[1];
+      expect(ref, `reply button ${JSON.stringify(delivered.kb)}`);
+      ok(pressPm(OWNER, `ar:${ref}`, delivered.mid), { view: 'anon_reply_prompt', callback: true });
+      const reply = ok(sendText(OWNER, 'zz owner reply'));
+      const back = byView(reply, 'anon_deliver').find((t) => t.chat === T.sender);
+      expect(back, `reply relayed to the sender: ${JSON.stringify(reply.trace.map((t) => [t.m, t.view, t.chat]))}`);
+      expect(/hidden/.test(back.text), `the reply's text is kept out of the trace: ${back.text}`);
+      const blk = ok(pressPm(OWNER, `ab:${ref}`, delivered.mid), { callback: true });
+      expect(/بلاک شد/.test(blk.answer.text), JSON.stringify(blk.answer));
+      expect(devtools({ op: 'anon_blocks_of_owner' }) === 1, 'blocked');
+      ok(sendText(T.sender, `/start a_${code}`), { view: 'anon_refused' });
+      const list = ok(sendText(OWNER, '/blocks'), { view: 'blocks' });
+      expect(/ناشناس/.test(list.text) && !list.text.includes(String(T.sender)) && !list.text.includes(uname(T.sender)), `block list: ${list.text}`);
+      ok(pressPm(OWNER, `ab:${ref}`, delivered.mid), { callback: true });
+      expect(devtools({ op: 'anon_blocks_of_owner' }) === 0, 'unblocked');
+      return { detail: `link a_${code}; delivered to the owner (message ${delivered.mid}); reply → ${back.ok ? 'ok' : back.err}; block/unblock ok` };
+    });
+
     await scenario('15. lazy cleanup: an unsent draft older than 24h is deleted on a later update', () => {
       devtools({ op: 'join_cache', users: [T.third, T.sender] });
       ok(inlineQuery(T.third, 'zz draft to age @zzw_t2'));
@@ -546,6 +577,7 @@ async function main() {
       for (const c of originalChannels) if (!now.some((x) => x.uname === c.uname)) devtools({ op: 'restore_channel', channel: c });
       devtools({ op: 'restore_kv', kv: startKv });
       devtools({ op: 'drop_broadcasts', after: maxBroadcast });
+      devtools({ op: 'restore_owner_anon', value: ownerAnon });
       const removed = devtools({ op: 'cleanup', users: TEST_USERS });
       console.log(`\nrestored: channels, join setting; removed ${removed.removedUsers} test users and ${removed.removedWhispers} test whispers`);
     } catch (err) {

@@ -4,24 +4,31 @@
 //
 // Order of checks for a private message:
 //   1. /start w_<id> (read a whisper)   — no forced join, no ban check: reading is always allowed
-//   2. /cancel, then a pending state     — owner: add_channel / ban / unban / bc_wait; user: block_add
+//   2. /cancel, then a pending state     — owner: add_channel / ban / unban / bc_wait;
+//                                          user: block_add, anon_send / anon_reply (anonymous chat)
 //   3. banned users stop here            — the owner can't be banned
-//   4. /admin                            — owner only (numeric id), private chat only
-//   5. forced join                       — everyone but the owner
-//   6. /start, /help, /history, /settings, /blocks
+//   4. /start a_<code> (anonymous link)  — remembers the target first, so it survives the join screen
+//   5. /admin                            — owner only (numeric id), private chat only
+//   6. forced join                       — everyone but the owner
+//   7. /start, /help, /history, /settings, /blocks, /link
 //
 // callback_data (all ASCII, ≤ 64 bytes):
 //   s:<id>            show a whisper (inline message)       j        re-check forced join
 //   m / hp            main menu / help                      h:s:<p>  sent history page, h:r:<p> received
 //   d:<id>            whisper details                       n:<id>   snoopers (sender only)
 //   st, st:r, st:e:<s> settings, receipts, default expiry  bl, bl:add, bk:<uid>, ub:<uid>  block list
+//   an, an:t, an:new  my anonymous link, on/off, new link   as:<code> write again through a link
+//   ar:<ref>, ab:<ref> reply to / (un)block an anonymous chat message   uba:<ref> unblock from the list
 //   a…                owner panel: a, a:x, a:ch, a:add, a:rm:<id>, a:rmy:<id>, a:j, a:ban, a:unban,
 //                     a:st, a:bc, a:bcy:<id>, a:bcn:<id>, a:bcc:<id>, a:bcs:<id>, a:bcp:<id>
 import { OWNER_ID } from './config.js';
 import * as admin from './admin.js';
+import * as anon from './anon.js';
 import { afterUpdate } from './maint.js';
 import * as pm from './pm.js';
-import { clearState, getState, loadKv, touchUser } from './store.js';
+import {
+  clearState, getState, getUser, loadKv, touchUser,
+} from './store.js';
 import {
   answer, call, createCtx, describeError, send,
 } from './tg.js';
@@ -87,6 +94,10 @@ async function routeMessage(ctx, message, user, kv) {
       if (user.banned) return send(ctx, 'banned', '⛔ شما مسدود شده‌اید.');
       if (!(await pm.requireJoin(ctx, user, kv))) return null;
       return pm.onBlockInput(ctx, user, message.text);
+    } else if (st.state === 'anon_send' || st.state === 'anon_reply') {
+      if (user.banned && !isOwner) return send(ctx, 'banned', '⛔ شما مسدود شده‌اید.');
+      if (!isOwner && !(await pm.requireJoin(ctx, user, kv))) return null;
+      return anon.onAnonMessage(ctx, user, message, st);
     } else {
       await clearState(user.id);
     }
@@ -94,6 +105,13 @@ async function routeMessage(ctx, message, user, kv) {
 
   if (user.banned && !isOwner) {
     return send(ctx, 'banned', '⛔ شما از استفاده از ربات مسدود شده‌اید. (نجواهایی که برایتان فرستاده‌اند را هنوز می‌توانید بخوانید.)');
+  }
+
+  if (c && c.cmd === 'start' && /^a_/.test(c.arg)) {
+    const target = await anon.openLink(ctx, user, c.arg.slice(2));
+    if (!target) return null;
+    if (!isOwner && !(await pm.requireJoin(ctx, user, kv))) return null; // the target waits in user_state
+    return anon.promptSend(ctx, target);
   }
 
   if (c && c.cmd === 'admin') {
@@ -114,6 +132,8 @@ async function routeMessage(ctx, message, user, kv) {
       return pm.showSettings(ctx, user);
     case 'blocks':
       return pm.showBlocks(ctx, user);
+    case 'link':
+      return anon.showAnonLink(ctx, user, kv);
     default:
       return pm.showHint(ctx);
   }
@@ -162,9 +182,10 @@ async function routeCallback(ctx, data, user, kv, isPrivate) {
   }
   if (!isPrivate) return answer(ctx, '⚠️ این دکمه فقط در پی‌وی ربات کار می‌کند.');
   if (user.banned && user.id !== OWNER_ID) return answer(ctx, '⛔ شما از استفاده از ربات مسدود شده‌اید.', { alert: true });
-  if (head === 'j') return pm.recheckJoin(ctx, user, kv);
+  if (head === 'j') return pm.recheckJoin(ctx, user, kv, afterJoin);
   // Blocking a sender is protection, so it works even before joining the channels.
   if (head === 'bk') return pm.blockUser(ctx, user, a1);
+  if (head === 'ab') return anon.toggleBlock(ctx, user, a1);
 
   if (user.id !== OWNER_ID && !(await pm.requireJoin(ctx, user, kv))) return answer(ctx, '🔒 اول عضو کانال‌ها شو.');
 
@@ -190,9 +211,31 @@ async function routeCallback(ctx, data, user, kv, isPrivate) {
       return pm.showBlocks(ctx, user);
     case 'ub':
       return pm.unblockUser(ctx, user, a1);
+    case 'uba':
+      await anon.unblockRef(ctx, user, a1);
+      return pm.showBlocks(ctx, user);
+    case 'an':
+      if (a1 === 't') return anon.toggleAnon(ctx, user, kv);
+      if (a1 === 'new') return anon.newAnonLink(ctx, user, kv);
+      await clearState(user.id);
+      return anon.showAnonLink(ctx, user, kv);
+    case 'as':
+      return anon.sendAnother(ctx, user, a1);
+    case 'ar':
+      return anon.startReply(ctx, user, a1);
     default:
       return answer(ctx, '⚠️ این دکمه قدیمی است؛ /start را بزن.');
   }
+}
+
+/** After "✅ عضو شدم": continue an anonymous message started from a link, else the welcome. */
+async function afterJoin(ctx, user, kv) {
+  const st = await getState(user.id);
+  if (st && st.state === 'anon_send') {
+    const owner = await getUser(Number(st.data.to));
+    if (owner && owner.anonOn) return anon.promptSend(ctx, owner);
+  }
+  return pm.showWelcome(ctx, user, kv, true);
 }
 
 async function routeAdmin(ctx, user, kv, action, arg) {

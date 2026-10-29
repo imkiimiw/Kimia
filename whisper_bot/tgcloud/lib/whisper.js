@@ -5,6 +5,7 @@
 // Ids: a draft has an 8-character id. The main inline result is that whisper; quick results (recent
 // recipients) are the same id plus a digit 1-3. callback_data is "s:<id>", the deep link "w_<id>".
 import { ALERT_MAX, MAX_RECIPIENTS } from './config.js';
+import { anonArticle } from './anon.js';
 import { botInfo, startLink } from './bot.js';
 import { checkJoin } from './join.js';
 import { parseQuery } from './parse.js';
@@ -181,7 +182,11 @@ export async function handleInline(ctx, q, user, kv) {
   const help = article('h.format', '❓ نجوا را چطور بفرستم؟', 'متن نجوا، بعد @یوزرنیم یا آیدی عددی گیرنده', formatMessage(bot.username));
   const c = await compose(user, query, bot.username);
   if (c.error) {
-    if (c.error === 'empty') return answerInline(ctx, q, [help]);
+    if (c.error === 'empty') {
+      // Nothing typed yet: the format, and the user's anonymous-chat link to share in this chat.
+      const share = await anonArticle(user, bot.username);
+      return answerInline(ctx, q, share ? [help, share] : [help]);
+    }
     const [title, desc] = ERRORS[c.error] || ERRORS.no_recipient;
     const description = c.error === 'blocked' ? `${c.who} — نمی‌شود برایش نجوا ساخت` : desc;
     return answerInline(ctx, q, [article(`h.${c.error}`, title, description, formatMessage(bot.username)), help]);

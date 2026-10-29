@@ -4,9 +4,11 @@
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
 import {
-  DEFAULT_CHANNELS, GC_BATCH, MAX_BLOCKS, MAX_CHANNELS, STATE_TTL_SEC,
+  ANON_TTL_SEC, DEFAULT_CHANNELS, GC_BATCH, MAX_BLOCKS, MAX_CHANNELS, STATE_TTL_SEC,
 } from './config.js';
-import { localDay, nowSec, parseJson } from './util.js';
+import {
+  localDay, nowSec, parseJson, randomId,
+} from './util.js';
 
 /** `a, b, c` as SQL parameters, for IN (...). */
 function list(values) {
@@ -88,11 +90,14 @@ function toUser(r) {
     joinUntil: num(r.join_until),
     joinOk: num(r.join_ok) === 1,
     joinVer: num(r.join_ver),
+    anonCode: r.anon_code || null,
+    anonOn: num(r.anon_on) === 1,
+    anonCount: num(r.anon_count),
   };
 }
 
 const USER_COLS = sql`user_id, username, username_lc, first_name, first_seen, last_seen, active, started, banned,
-  receipts, def_expiry, recent, join_until, join_ok, join_ver`;
+  receipts, def_expiry, recent, join_until, join_ok, join_ver, anon_code, anon_on, anon_count`;
 
 export async function getUser(id) {
   return toUser(await db.get(sql`SELECT ${USER_COLS} FROM users WHERE user_id = ${Number(id)}`));
@@ -503,6 +508,86 @@ export async function listBlocks(userId) {
   return rows.map((r) => ({ id: num(r.blocked_id), username: r.username || null, firstName: r.first_name || '' }));
 }
 
+// ---------- anonymous chat ----------
+
+export async function getUserByAnonCode(code) {
+  return toUser(await db.get(sql`SELECT ${USER_COLS} FROM users WHERE anon_code = ${code}`));
+}
+
+/** Sets the user's link code; false if the code is taken (unique index). */
+export async function setAnonCode(id, code) {
+  if (await db.get(sql`SELECT user_id FROM users WHERE anon_code = ${code}`)) return false;
+  return (await db.run(sql`UPDATE users SET anon_code = ${code} WHERE user_id = ${id}`)).rowsAffected > 0;
+}
+
+export async function setAnonOn(id, on) {
+  await db.run(sql`UPDATE users SET anon_on = ${on ? 1 : 0} WHERE user_id = ${id}`);
+}
+
+function toAnonMsg(r) {
+  if (!r) return null;
+  return {
+    id: r.id,
+    fromId: num(r.from_id),
+    toId: num(r.to_id),
+    anon: num(r.anon) === 1,
+    fromMsg: r.from_msg == null ? null : num(r.from_msg),
+    toMsg: r.to_msg == null ? null : num(r.to_msg),
+    createdAt: num(r.created_at),
+  };
+}
+
+/** Records a relayed message (who → whom only) and counts it. */
+export async function createAnonMsg({ id, fromId, toId, anon, fromMsg, toMsg }) {
+  await db.run(sql`
+    INSERT INTO anon_msgs (id, from_id, to_id, anon, from_msg, to_msg, created_at)
+    VALUES (${id}, ${fromId}, ${toId}, ${anon ? 1 : 0}, ${fromMsg}, ${toMsg}, ${nowSec()})`);
+  if (anon) await db.run(sql`UPDATE users SET anon_count = anon_count + 1 WHERE user_id = ${toId}`);
+  await bump('n_anon', 1);
+}
+
+export async function getAnonMsg(id) {
+  return toAnonMsg(await db.get(sql`
+    SELECT id, from_id, to_id, anon, from_msg, to_msg, created_at FROM anon_msgs WHERE id = ${id}`));
+}
+
+/** How many messages `fromId` sent since `since`, counting at most `cap` (index range, LIMITed). */
+export async function countAnonFrom(fromId, since, cap) {
+  const r = await db.get(sql`
+    SELECT count(*) AS n FROM (SELECT 1 FROM anon_msgs WHERE from_id = ${fromId} AND created_at >= ${since} LIMIT ${cap})`);
+  return num(r && r.n);
+}
+
+export async function isAnonBlocked(ownerId, senderId) {
+  return !!(await db.get(sql`SELECT ref FROM anon_blocks WHERE owner_id = ${ownerId} AND blocked_id = ${senderId}`));
+}
+
+/** Blocks an anonymous sender: 'ok' | 'dup' | 'full'. */
+export async function addAnonBlock(ownerId, blockedId) {
+  if (await isAnonBlocked(ownerId, blockedId)) return 'dup';
+  const r = await db.run(sql`
+    INSERT INTO anon_blocks (owner_id, blocked_id, ref, created_at)
+    SELECT ${ownerId}, ${blockedId}, ${randomId(10)}, ${nowSec()}
+    WHERE (SELECT count(*) FROM (SELECT 1 FROM anon_blocks WHERE owner_id = ${ownerId} LIMIT ${MAX_BLOCKS})) < ${MAX_BLOCKS}
+    ON CONFLICT(owner_id, blocked_id) DO NOTHING`);
+  return r.rowsAffected > 0 ? 'ok' : 'full';
+}
+
+export async function removeAnonBlock(ownerId, blockedId) {
+  return (await db.run(sql`DELETE FROM anon_blocks WHERE owner_id = ${ownerId} AND blocked_id = ${blockedId}`)).rowsAffected > 0;
+}
+
+export async function removeAnonBlockByRef(ownerId, ref) {
+  return (await db.run(sql`DELETE FROM anon_blocks WHERE owner_id = ${ownerId} AND ref = ${ref}`)).rowsAffected > 0;
+}
+
+/** The owner's anonymous blocks — refs and dates only, never who. */
+export async function listAnonBlocks(ownerId) {
+  const rows = await db.all(sql`
+    SELECT ref, created_at FROM anon_blocks WHERE owner_id = ${ownerId} ORDER BY created_at DESC LIMIT ${MAX_BLOCKS}`);
+  return rows.map((r) => ({ ref: r.ref, createdAt: num(r.created_at) }));
+}
+
 // ---------- user_state ----------
 
 /** The pending state, or null (a state older than STATE_TTL_SEC is dropped). */
@@ -528,7 +613,7 @@ export async function clearState(userId) {
 
 // ---------- lazy cleanup ----------
 
-/** Deletes up to GC_BATCH unsent drafts older than `ttlSec` and up to GC_BATCH stale states. */
+/** Deletes up to GC_BATCH each: unsent drafts older than `ttlSec`, stale states, old anonymous-chat refs. */
 export async function gcBatch(draftTtlSec) {
   const now = nowSec();
   const d = await db.run(sql`
@@ -537,7 +622,10 @@ export async function gcBatch(draftTtlSec) {
   const s = await db.run(sql`
     DELETE FROM user_state WHERE user_id IN (
       SELECT user_id FROM user_state WHERE updated_at < ${now - STATE_TTL_SEC} ORDER BY updated_at LIMIT ${GC_BATCH})`);
-  return { drafts: d.rowsAffected, states: s.rowsAffected };
+  const a = await db.run(sql`
+    DELETE FROM anon_msgs WHERE id IN (
+      SELECT id FROM anon_msgs WHERE created_at < ${now - ANON_TTL_SEC} ORDER BY created_at LIMIT ${GC_BATCH})`);
+  return { drafts: d.rowsAffected, states: s.rowsAffected, anon: a.rowsAffected };
 }
 
 // ---------- broadcasts ----------
@@ -636,7 +724,7 @@ export async function reachableAfter(afterId, limit) {
 // ---------- stats ----------
 
 export async function stats() {
-  const kv = await getKv(['n_users', 'n_active', 'n_whispers', 'day']);
+  const kv = await getKv(['n_users', 'n_active', 'n_whispers', 'n_anon', 'day']);
   const banned = await db.get(sql`SELECT count(*) AS n FROM users WHERE banned = 1`);
   const day = localDay();
   const [d, n] = String(kv.day || '').split(':');
@@ -644,6 +732,7 @@ export async function stats() {
     users: num(kv.n_users),
     active: num(kv.n_active),
     whispers: num(kv.n_whispers),
+    anon: num(kv.n_anon),
     today: d === day ? num(n) : 0,
     banned: num(banned && banned.n),
     channels: await countChannels(),

@@ -21,15 +21,19 @@ export const users = table('users', {
   joinUntil: integer('join_until').notNull().default(0), // forced-join check cached until then
   joinOk: integer('join_ok').notNull().default(0), // the cached result
   joinVer: integer('join_ver').notNull().default(0), // channel-list version the cache was made for
+  anonCode: text('anon_code'), // personal anonymous-chat link: t.me/<bot>?start=a_<code>
+  anonOn: integer('anon_on').notNull().default(1), // accepts new anonymous messages through the link
+  anonCount: integer('anon_count').notNull().default(0), // anonymous messages received
 }, (t) => ({
   byUsername: index('idx_users_username').on(t.usernameLc),
+  byAnonCode: uniqueIndex('uq_users_anon_code').on(t.anonCode),
   // The broadcast queue walks this index in user_id order, so a batch reads only its own rows.
   reachable: index('idx_users_reachable').on(t.userId).where(sql`started = 1 AND active = 1 AND banned = 0`),
   banned: index('idx_users_banned').on(t.userId).where(sql`banned = 1`),
 }));
 
 // Bot-wide values: join (1/0), chv (channel-list version), seeded, bot_id, bot_username, bc (running
-// broadcast id), gc_at (last lazy cleanup) and the counters n_users, n_active, n_whispers, day.
+// broadcast id), gc_at (last lazy cleanup) and the counters n_users, n_active, n_whispers, n_anon, day.
 export const kv = table('kv', {
   key: text('key').primaryKey(),
   value: text('value'),
@@ -112,6 +116,34 @@ export const blocks = table('blocks', {
 }, (t) => ({
   pair: uniqueIndex('uq_blocks').on(t.userId, t.blockedId),
   byUser: index('idx_blocks_user').on(t.userId, t.createdAt),
+}));
+
+// Anonymous chat: one row per relayed message, so the "↩️ پاسخ" / "🚫 بلاک" buttons under it carry an
+// opaque id instead of a user id. The content is never stored — it goes straight to the other person.
+export const anonMsgs = table('anon_msgs', {
+  id: text('id').primaryKey(), // random, in callback_data
+  fromId: integer('from_id').notNull(),
+  toId: integer('to_id').notNull(),
+  anon: integer('anon').notNull().default(1), // 1 = the sender is the anonymous side of this chat
+  fromMsg: integer('from_msg'), // the message in the sender's chat (a reply quotes it)
+  toMsg: integer('to_msg'), // the delivered copy in the recipient's chat
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  bySender: index('idx_anon_msgs_from').on(t.fromId, t.createdAt), // rate limit
+  byAge: index('idx_anon_msgs_created').on(t.createdAt), // lazy cleanup
+}));
+
+// owner_id no longer receives anonymous messages from blocked_id. Shown to the owner only by ref,
+// never by id or name, so blocking doesn't reveal who the anonymous sender was.
+export const anonBlocks = table('anon_blocks', {
+  ownerId: integer('owner_id').notNull(),
+  blockedId: integer('blocked_id').notNull(),
+  ref: text('ref').notNull(),
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  pair: uniqueIndex('uq_anon_blocks').on(t.ownerId, t.blockedId),
+  byRef: uniqueIndex('uq_anon_blocks_ref').on(t.ref),
+  byOwner: index('idx_anon_blocks_owner').on(t.ownerId, t.createdAt),
 }));
 
 // What the bot is waiting for from a user (a channel to add, an id to ban, a broadcast message, ...).

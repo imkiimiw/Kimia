@@ -76,7 +76,9 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
     inline: new Map(), // inline_message_id -> { text, markup }
     answeredCallbacks: new Set(),
     answeredInline: new Set(),
-    copied: [], // { chat_id, from_chat_id, message_id }
+    copied: [], // { chat_id, from_chat_id, message_id, reply_markup, new_id }
+    uncopyable: new Set(), // `${chat}:${message_id}` that copyMessage refuses (like a service message)
+    deleted: [],
   };
 
   const key = (chatId) => {
@@ -168,7 +170,7 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
       const c = checkText(p);
       if (c) return c;
       const message_id = state.nextMessageId++;
-      state.messages.set(`${p.chat_id}:${message_id}`, { text: p.text, markup: JSON.stringify(p.reply_markup || null) });
+      state.messages.set(`${p.chat_id}:${message_id}`, { text: p.text, markup: JSON.stringify(p.reply_markup || null), reply_to: p.reply_parameters ? p.reply_parameters.message_id : null });
       return ok({ message_id, chat: { id: p.chat_id }, text: p.text });
     },
     copyMessage: (p) => {
@@ -182,8 +184,31 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
       const r = reachable(chat);
       if (r) return r;
       if (!p.from_chat_id || !p.message_id) return err(400, 'Bad Request: message to copy not found');
-      state.copied.push({ chat_id: chat, from_chat_id: p.from_chat_id, message_id: p.message_id });
-      return ok({ message_id: state.nextMessageId++ });
+      if (state.uncopyable.has(`${p.from_chat_id}:${p.message_id}`)) return err(400, "Bad Request: message can't be copied");
+      const m = checkMarkup(p.reply_markup);
+      if (m) return err(400, `Bad Request: ${m}`);
+      const message_id = state.nextMessageId++;
+      state.copied.push({ chat_id: chat, from_chat_id: p.from_chat_id, message_id: p.message_id, reply_markup: p.reply_markup, new_id: message_id });
+      state.messages.set(`${chat}:${message_id}`, { text: `<copy of ${p.from_chat_id}:${p.message_id}>`, markup: JSON.stringify(p.reply_markup || null) });
+      return ok({ message_id });
+    },
+    editMessageReplyMarkup: (p) => {
+      const k = `${p.chat_id}:${p.message_id}`;
+      const m = state.messages.get(k);
+      if (!m) return err(400, 'Bad Request: message to edit not found');
+      const bad = checkMarkup(p.reply_markup);
+      if (bad) return err(400, `Bad Request: ${bad}`);
+      const markup = JSON.stringify(p.reply_markup || null);
+      if (m.markup === markup) return err(400, 'Bad Request: message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message');
+      state.messages.set(k, { ...m, markup });
+      return ok(true);
+    },
+    deleteMessage: (p) => {
+      const k = `${p.chat_id}:${p.message_id}`;
+      if (!state.messages.has(k)) return err(400, 'Bad Request: message to delete not found');
+      state.messages.delete(k);
+      state.deleted.push(k);
+      return ok(true);
     },
     editMessageText: (p) => {
       const c = checkText(p);

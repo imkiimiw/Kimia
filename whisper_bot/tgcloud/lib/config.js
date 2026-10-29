@@ -20,6 +20,11 @@ export const HISTORY_LIMIT = 20;
 export const HISTORY_PAGE = 10;
 export const DEFAULT_EXPIRY_CHOICES = [0, 30 * 60, 3600, 6 * 3600, 86400];
 
+// Anonymous chat: link code length, messages a sender may send per hour, how long reply buttons work.
+export const ANON_CODE_LEN = 10;
+export const ANON_PER_HOUR = 30;
+export const ANON_TTL_SEC = 30 * 86400;
+
 // Lazy cleanup (there is no scheduler): at most once per GC_INTERVAL_SEC, delete up to GC_BATCH
 // drafts older than DRAFT_TTL_SEC and states older than STATE_TTL_SEC.
 export const DRAFT_TTL_SEC = 24 * 3600;

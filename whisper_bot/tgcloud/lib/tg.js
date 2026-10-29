@@ -137,6 +137,20 @@ export async function editInline(ctx, view, inlineMessageId, text, kb) {
   }
 }
 
+/** Replaces only the buttons of a message in a private chat. Never throws. */
+export async function editMarkup(ctx, view, chatId, messageId, kb) {
+  if (!chatId || !messageId) return false;
+  try {
+    await call(ctx, 'editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, ...markup(kb) }, view);
+    return true;
+  } catch (err) {
+    if (!/message is not modified/i.test(isApiError(err) ? err.description : '')) {
+      console.warn(`editMessageReplyMarkup(${view}) failed: ${describeError(err)}`);
+    }
+    return false;
+  }
+}
+
 /**
  * Answers the pressed button, once per update. `text` is cut to Telegram's 200-character limit.
  * `secret` keeps the text out of the trace. With `url`, Telegram opens that t.me link instead.

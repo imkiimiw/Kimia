@@ -162,6 +162,9 @@ handlers delegate to `lib/router.js`, which documents the order of checks and ev
 - **Owner = numeric id `5557901897`** (`lib/config.js`), checked on every admin command and callback.
 - **Content lives only in the db** (`whispers.body`): never in callback_data, the posted message, or
   the handler trace (`secret: true` in `lib/tg.js`). The owner's stats are counts only.
+- **Anonymous chat** (`lib/anon.js`): personal link `start=a_<code>`; content is relayed, never stored;
+  `anon_msgs` keeps only who-wrote-to-whom so buttons carry an opaque id; blocks are listed by ref only.
+  Nothing sent to a recipient may contain the anonymous sender's id, username or name.
 - **One draft row per sender** (`drafts`), overwritten on every inline keystroke; its id changes when
   the query changes. `chosen_inline_result` (needs BotFather `/setinlinefeedback`) turns it into a
   whisper; the first button press does it if that update never came.

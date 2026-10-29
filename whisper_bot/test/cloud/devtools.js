@@ -9,7 +9,8 @@ import { sql } from 'sdk/db';
 
 const OWNER_ID = 5557901897;
 const BOT_403 = 93372553;
-const TABLES = ['users', 'kv', 'channels', 'drafts', 'whispers', 'whisper_rcpts', 'snoops', 'blocks', 'user_state', 'broadcasts'];
+const TABLES = ['users', 'kv', 'channels', 'drafts', 'whispers', 'whisper_rcpts', 'snoops', 'blocks', 'user_state', 'broadcasts', 'anon_msgs', 'anon_blocks'];
+const TEST_IDS = [990000001, 990000002, 990000003, 990000004, 990000005, 990000009];
 const isTestUser = (id) => Number.isInteger(id) && ((id >= 990000001 && id <= 990000999) || id === BOT_403);
 
 function testUser(id) {
@@ -113,6 +114,18 @@ export default async function (input) {
       if (!isTestUser(id) && id !== OWNER_ID) throw new Error('not allowed');
       return db.get(sql`SELECT state, data FROM user_state WHERE user_id = ${id}`);
     }
+    case 'owner_anon': // the owner's anonymous-link fields, saved before the run and restored after it
+      return db.get(sql`SELECT anon_code, anon_on, anon_count FROM users WHERE user_id = ${OWNER_ID}`);
+    case 'restore_owner_anon': {
+      const o = input.value;
+      if (!o) return false;
+      await db.run(sql`
+        UPDATE users SET anon_code = ${o.anon_code ?? null}, anon_on = ${o.anon_on ?? 1}, anon_count = ${o.anon_count ?? 0}
+        WHERE user_id = ${OWNER_ID}`);
+      return true;
+    }
+    case 'anon_blocks_of_owner':
+      return (await db.get(sql`SELECT count(*) AS n FROM anon_blocks WHERE owner_id = ${OWNER_ID} AND blocked_id IN (${list(TEST_IDS)})`)).n;
     case 'clear_owner_state':
       await db.run(sql`DELETE FROM user_state WHERE user_id = ${OWNER_ID}`);
       return true;
@@ -165,6 +178,11 @@ export default async function (input) {
         await db.run(sql`DELETE FROM snoops WHERE whisper_id = ${id}`);
         await db.run(sql`DELETE FROM whispers WHERE id = ${id}`);
       }
+      // anonymous chat: messages the test users sent, and blocks by or of them (incl. the owner's)
+      const anon = await db.run(sql`DELETE FROM anon_msgs WHERE from_id IN (${list(users)})`);
+      if (anon.rowsAffected) await bump('n_anon', -anon.rowsAffected);
+      await db.run(sql`DELETE FROM anon_blocks WHERE owner_id IN (${list(users)})`);
+      await db.run(sql`DELETE FROM anon_blocks WHERE owner_id = ${OWNER_ID} AND blocked_id IN (${list(users)})`);
       let removed = 0;
       let reachable = 0;
       for (const id of users) {

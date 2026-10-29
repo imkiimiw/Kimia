@@ -554,7 +554,7 @@ await scenario('block list: blocked sender cannot create whispers to them; unblo
 });
 
 await scenario('input validation: no recipient, no text, self, the bot, empty query', async () => {
-  assert.deepEqual((await inline(U.ali, '')).results.map((r) => r.id), ['h.format']);
+  assert.deepEqual((await inline(U.ali, '')).results.map((r) => r.id), ['h.format', 'h.anon']);
   assert.equal((await inline(U.ali, '@Sara_T')).results[0].id, 'h.no_text');
   assert.equal((await inline(U.ali, 'hi @ali_t')).results[0].id, 'h.self');
   assert.equal((await inline(U.ali, 'hi 710000001')).results[0].id, 'h.self');
@@ -793,6 +793,196 @@ await scenario('broadcast: preview + confirm, batches of 25, 403 → inactive, 4
   assert.match((await press(U.owner, `a:bcn:${thirdId}`)).text, /لغو شد/);
 });
 
+
+// ---------- anonymous chat ----------
+
+let anonCode; // sara's link code
+let anonRef; // the anonymous message ali sent sara
+const ANON_TEXT = 'سلام، حدس بزن کی‌ام 😄';
+const linkRe = new RegExp(`https://t\\.me/${BOT}\\?start=a_([0-9A-Za-z]{10})`);
+/**
+ * Nothing that identifies `who` in what `chat` can see: texts, captions, buttons, callback_data.
+ * (copyMessage's from_chat_id is part of the request only — a copy carries no link to the original.)
+ */
+function noTrace(calls, chat, who) {
+  const toChat = calls.filter((c) => Number(c.params.chat_id) === chat);
+  const blob = JSON.stringify(toChat.map(({ params: { from_chat_id, ...visible } }) => visible));
+  for (const s of [String(who.id), who.username, who.first_name].filter(Boolean)) {
+    assert.ok(!blob.includes(s), `"${s}" leaked to ${chat}: ${blob.slice(0, 300)}`);
+  }
+}
+function dbHas(text) {
+  for (const { name } of rows("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")) {
+    if (JSON.stringify(rows(`SELECT * FROM "${name}"`)).includes(text)) return name;
+  }
+  return null;
+}
+
+await scenario('anonymous link: /link and the menu button give a personal link; a new link revokes the old', async () => {
+  const r = await say(U.sara, '/link');
+  assert.match(r.text, /لینک پیام ناشناس تو/);
+  const m = linkRe.exec(r.text);
+  assert.ok(m, r.text);
+  assert.equal(row('SELECT anon_code FROM users WHERE user_id = ?', U.sara.id).anon_code, m[1]);
+  assert.ok(buttons(r.kb).some((b) => b.url && b.url.startsWith('https://t.me/share/url?url=https%3A%2F%2Ft.me%2F')), 'share button');
+  const again = await press(U.sara, 'an');
+  assert.equal(linkRe.exec(again.text)[1], m[1], 'the same link until renewed');
+  const renewed = await press(U.sara, 'an:new');
+  anonCode = linkRe.exec(renewed.text)[1];
+  assert.notEqual(anonCode, m[1]);
+  assert.match(renewed.text, /لینک قبلی دیگر کار نمی‌کند/);
+  const old = await say(U.ali, `/start a_${m[1]}`);
+  assert.match(old.text, /معتبر نیست/);
+  assert.match((await say(U.ali, '/start a_short')).text, /معتبر نیست/);
+  const menu = await say(U.sara, '/start');
+  assert.ok(dataOf(menu.kb).includes('an'), 'main menu has the link button');
+});
+
+await scenario('anonymous message: relayed without the sender\'s identity, text and media, never stored', async () => {
+  const open = await say(U.ali, `/start a_${anonCode}`);
+  assert.match(open.text, new RegExp(`پیامت را برای <b>${U.sara.first_name}</b> بفرست`));
+  assert.equal(row('SELECT state FROM user_state WHERE user_id = ?', U.ali.id).state, 'anon_send');
+  const sent = await say(U.ali, ANON_TEXT);
+  const delivered = sentTo(sent.calls, U.sara.id);
+  assert.equal(delivered.length, 1);
+  assert.equal(delivered[0].params.text, `📨 <b>پیام ناشناس جدید</b>\n\n${ANON_TEXT}`);
+  const kb = delivered[0].params.reply_markup.inline_keyboard[0];
+  assert.deepEqual(kb.map((b) => b.text), ['↩️ پاسخ', '🚫 بلاک']);
+  anonRef = kb[0].callback_data.slice(3);
+  assert.match(anonRef, /^[0-9A-Za-z]{10}$/);
+  assert.equal(kb[1].callback_data, `ab:${anonRef}`);
+  noTrace(sent.calls, U.sara.id, U.ali);
+  assert.match(sent.text, /پیامت ناشناس فرستاده شد/);
+  assert.ok(dataOf(sent.kb).includes(`as:${anonCode}`));
+  assert.deepEqual({ ...row('SELECT from_id, to_id, anon FROM anon_msgs WHERE id = ?', anonRef) }, { from_id: U.ali.id, to_id: U.sara.id, anon: 1 });
+  assert.equal(row('SELECT anon_count FROM users WHERE user_id = ?', U.sara.id).anon_count, 1);
+  assert.equal(dbHas(ANON_TEXT), null, 'content is not stored anywhere');
+  assert.equal(row('SELECT count(*) AS n FROM user_state WHERE user_id = ?', U.ali.id).n, 0, 'state cleared');
+  // "✍️ پیام دیگر" + a photo: a header, then an exact copy with the buttons
+  await press(U.ali, `as:${anonCode}`);
+  const photo = await say(U.ali, undefined, { photo: [{ file_id: 'AgACanon', file_unique_id: 'u9', width: 90, height: 90 }], caption: 'این عکس منه؟' });
+  const head = sentTo(photo.calls, U.sara.id);
+  assert.equal(head[0].params.text, '📨 <b>پیام ناشناس جدید</b> 👇');
+  const copy = photo.calls.find((c) => c.method === 'copyMessage' && Number(c.params.chat_id) === U.sara.id);
+  assert.ok(copy && copy.result.ok);
+  assert.match(copy.params.reply_markup.inline_keyboard[0][0].callback_data, /^ar:[0-9A-Za-z]{10}$/);
+  noTrace(photo.calls, U.sara.id, U.ali);
+  // the trace never shows the anonymous text either
+  assert.ok(!JSON.stringify(sent.r).includes(ANON_TEXT));
+});
+
+await scenario('reply both ways: the owner answers, the visitor answers back and stays anonymous', async () => {
+  const p = await press(U.sara, `ar:${anonRef}`);
+  assert.match(p.text, /پاسخت را بفرست/);
+  assert.equal(p.calls.filter((c) => c.method === 'editMessageText').length, 0, 'the anonymous message is never replaced');
+  const aliOriginal = row('SELECT from_msg FROM anon_msgs WHERE id = ?', anonRef).from_msg;
+  const r = await say(U.sara, 'تو کی هستی؟');
+  const toAli = sentTo(r.calls, U.ali.id)[0];
+  assert.equal(toAli.params.text, '↩️ <b>پاسخ @Sara_T</b>\n\nتو کی هستی؟');
+  assert.equal(toAli.params.reply_parameters.message_id, aliOriginal, 'threads under the visitor\'s own message');
+  const ref2 = toAli.params.reply_markup.inline_keyboard[0][0].callback_data.slice(3);
+  assert.equal(row('SELECT anon FROM anon_msgs WHERE id = ?', ref2).anon, 0);
+  const back = await press(U.ali, `ar:${ref2}`);
+  assert.match(back.text, /ناشناس می‌رسد/);
+  const r2 = await say(U.ali, 'نمی‌گم 😉');
+  const toSara = sentTo(r2.calls, U.sara.id)[0];
+  assert.equal(toSara.params.text, '📨 <b>پیام ناشناس جدید</b>\n\nنمی‌گم 😉');
+  assert.ok(toSara.params.reply_parameters, 'threads under sara\'s reply');
+  noTrace(r2.calls, U.sara.id, U.ali);
+  const stranger = await press(U.nima, `ar:${anonRef}`);
+  assert.match(stranger.answer.text, /قابل پاسخ نیست/);
+  const strangerBlock = await press(U.nima, `ab:${anonRef}`);
+  assert.match(strangerBlock.answer.text, /در دسترس نیست/);
+});
+
+await scenario('block an anonymous sender without learning who; unblock from the message or the list', async () => {
+  const deliveredId = sentTo(mock.state.calls, U.sara.id).find((c) => c.params.reply_markup && JSON.stringify(c.params.reply_markup).includes(`ab:${anonRef}`)).result.result.message_id;
+  since();
+  const cq = { id: `cb${seq++}`, from: U.sara, chat_instance: '1', data: `ab:${anonRef}`, message: { message_id: deliveredId, chat: { id: U.sara.id, type: 'private' }, date: nowSec() } };
+  track(await onCallback(cq, {}));
+  const calls = since();
+  assert.match(calls.find((c) => c.method === 'answerCallbackQuery').params.text, /بلاک شد/);
+  const markup = calls.find((c) => c.method === 'editMessageReplyMarkup');
+  assert.deepEqual(markup.params.reply_markup.inline_keyboard[0].map((b) => b.text), ['↩️ پاسخ', '🔓 آنبلاک']);
+  assert.ok(markup.result.ok);
+  const refused = await say(U.ali, `/start a_${anonCode}`);
+  assert.match(refused.text, /پیام‌های تو را نمی‌پذیرد/);
+  const list = await say(U.sara, '/blocks');
+  assert.match(list.text, /فرستنده‌های ناشناس بلاک‌شده/);
+  noTrace(list.calls, U.sara.id, U.ali);
+  const uba = dataOf(list.kb).find((d) => d.startsWith('uba:'));
+  assert.match(uba, /^uba:[0-9A-Za-z]{10}$/);
+  const un = await press(U.sara, uba);
+  assert.match(un.answer.text, /آنبلاک شد/);
+  assert.ok(!/ناشناس —/.test(un.text));
+  assert.match((await say(U.ali, `/start a_${anonCode}`)).text, /پیامت را برای/);
+  await say(U.ali, '/cancel');
+  // the button toggles too
+  since();
+  track(await onCallback({ ...cq, id: `cb${seq++}` }, {}));
+  track(await onCallback({ ...cq, id: `cb${seq++}` }, {}));
+  assert.equal(count(`SELECT count(*) AS n FROM anon_blocks WHERE owner_id = ${U.sara.id}`), 0, 'block + unblock');
+});
+
+await scenario('anonymous chat rules: own link, link off, join kept, banned, rate limit, 403, uncopyable', async () => {
+  assert.match((await say(U.sara, `/start a_${anonCode}`)).text, /این لینک خودت است/);
+  await press(U.sara, 'an:t');
+  assert.equal(row('SELECT anon_on FROM users WHERE user_id = ?', U.sara.id).anon_on, 0);
+  assert.match((await say(U.ali, `/start a_${anonCode}`)).text, /معتبر نیست یا صاحبش دریافت پیام را خاموش کرده/);
+  assert.deepEqual((await inline(U.sara, '')).results.map((r) => r.id), ['h.format'], 'no share result while off');
+  await press(U.sara, 'an:t');
+  // a non-member: the join screen first, the target kept, then straight to writing
+  const out = person(750000001, 'anon_out');
+  const lock = await say(out, `/start a_${anonCode}`);
+  assert.match(lock.text, /عضو این کانال‌ها شو/);
+  for (const ch of ['HIDE_i_SEEK', 'Nepenthw_ir', 'wangerBots']) mock.setMember(ch, out.id, { status: 'member' });
+  const joined = await press(out, 'j');
+  assert.match(joined.text, /پیامت را برای/);
+  const viaJoin = await say(out, 'از طرف یک عضو جدید');
+  assert.equal(sentTo(viaJoin.calls, U.sara.id).length, 1);
+  noTrace(viaJoin.calls, U.sara.id, out);
+  // banned users can't write
+  rawDatabase().prepare('UPDATE users SET banned = 1 WHERE user_id = ?').run(U.newbie.id);
+  assert.match((await say(U.newbie, `/start a_${anonCode}`)).text, /مسدود شده‌اید/);
+  rawDatabase().prepare('UPDATE users SET banned = 0 WHERE user_id = ?').run(U.newbie.id);
+  // 30 per hour
+  const ins = rawDatabase().prepare('INSERT INTO anon_msgs (id, from_id, to_id, anon, created_at) VALUES (?, ?, ?, 1, ?)');
+  for (let i = 0; i < 30; i += 1) ins.run(`rate${String(i).padStart(6, '0')}`, U.reza.id, U.mina.id, nowSec() - 60);
+  await say(U.reza, `/start a_${anonCode}`);
+  assert.match((await say(U.reza, 'پیام سی‌ویکم')).text, /حداکثر ۳۰ پیام/);
+  rawDatabase().prepare("DELETE FROM anon_msgs WHERE id LIKE 'rate%'").run();
+  assert.equal(sentTo((await say(U.reza, 'حالا رسید')).calls, U.sara.id).length, 1, 'state kept after the limit');
+  // the recipient blocked the bot: 403 → inactive, and the sender is told
+  rawDatabase().prepare("UPDATE users SET anon_code = 'BLOCKERxyz' WHERE user_id = ?").run(U.blocker.id);
+  rawDatabase().prepare('UPDATE users SET active = 1 WHERE user_id = ?').run(U.blocker.id);
+  await say(U.mina, '/start a_BLOCKERxyz');
+  const r403 = await say(U.mina, 'سلام');
+  assert.match(r403.text, /گیرنده ربات را بلاک کرده/);
+  assert.equal(row('SELECT active FROM users WHERE user_id = ?', U.blocker.id).active, 0);
+  // a message that can't be copied: refused, the header removed, and the user may try again
+  await say(U.mina, `/start a_${anonCode}`);
+  const mid = 50000 + seq;
+  mock.state.uncopyable.add(`${U.mina.id}:${mid}`);
+  const bad = await say(U.mina, undefined, { dice: { emoji: '🎲', value: 3 } });
+  assert.match(bad.text, /این نوع پیام را نمی‌شود فرستاد/);
+  assert.equal(mock.state.deleted.length, 1, 'dangling header deleted');
+  assert.equal(sentTo((await say(U.mina, 'پس متن')).calls, U.sara.id).length, 1);
+});
+
+await scenario('inline: an empty query also offers the anonymous link to share; stats count it', async () => {
+  const inl = await inline(U.sara, '');
+  const share = inl.results.find((r) => r.id === 'h.anon');
+  assert.equal(share.reply_markup.inline_keyboard[0][0].url, `https://t.me/${BOT}?start=a_${anonCode}`);
+  assert.ok(!share.input_message_content.message_text.includes('Sara'));
+  const created = inline(U.newbie, '');
+  const r = await created;
+  assert.ok(r.results.some((x) => x.id === 'h.anon'), 'a link is made on first use');
+  assert.match(row('SELECT anon_code FROM users WHERE user_id = ?', U.newbie.id).anon_code, /^[0-9A-Za-z]{10}$/);
+  const st = await press(U.owner, 'a:st');
+  assert.match(st.text, /پیام‌های ناشناس: [۱-۹]/);
+  assert.equal(dbHas(ANON_TEXT), null);
+});
+
 await scenario('lazy cleanup: unsent drafts older than 24h are deleted in batches of 20', async () => {
   for (let i = 0; i <= 100; i += 1) for (const ch of ['HIDE_i_SEEK', 'Nepenthw_ir', 'wangerBots']) mock.setMember(ch, 730000000 + i, { status: 'member' });
   for (let i = 0; i < 25; i += 1) await inline(person(730000000 + i, `d${i}`), `پیش‌نویس ${i} @Sara_T`);
@@ -802,8 +992,10 @@ await scenario('lazy cleanup: unsent drafts older than 24h are deleted in batche
   await inline(fresh, 'تازه @Sara_T'); // a recent draft, must survive
   const stale = count(`SELECT count(*) AS n FROM drafts WHERE updated_at < ${nowSec() - 86400}`);
   assert.ok(stale >= 25);
+  rawDatabase().prepare('UPDATE anon_msgs SET created_at = ? WHERE id = ?').run(nowSec() - 31 * 86400, anonRef);
   const r1 = await say(U.ali, '/help');
   assert.equal(r1.r.gc.drafts, 20);
+  assert.equal(r1.r.gc.anon, 1, 'anonymous-chat refs older than 30 days');
   const r2 = await say(U.ali, '/help');
   assert.equal(r2.r.gc, undefined, 'at most once per 10 minutes');
   advance(11 * 60);
@@ -861,7 +1053,8 @@ await scenario('security: whisper text never in callback_data, posted messages, 
   const rejected = mock.state.calls.filter((c) => !c.result.ok && !['getChatMember', 'copyMessage', 'sendMessage', 'answerCallbackQuery', 'getChat'].includes(c.method)
     && !/message is not modified/.test(c.result.description));
   assert.deepEqual(rejected.map((c) => `${c.method}: ${c.result.description}`), [], 'Telegram rejected a call');
-  const badSends = mock.state.calls.filter((c) => (c.method === 'sendMessage' || c.method === 'copyMessage') && !c.result.ok && c.result.error_code === 400);
+  const badSends = mock.state.calls.filter((c) => (c.method === 'sendMessage' || c.method === 'copyMessage') && !c.result.ok && c.result.error_code === 400
+    && !/can't be copied/.test(c.result.description)); // the uncopyable-message test
   assert.deepEqual(badSends.map((c) => `${c.method}: ${c.result.description}`), []);
 });
 
