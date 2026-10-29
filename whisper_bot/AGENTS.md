@@ -155,16 +155,24 @@ The platform manages the bot's webhook for you, derived from your deployed
 
 ## This bot
 
-A Persian whisper (نجوا) bot: `@bot text @username` in any chat posts "🔒 یک نجوا برای @username"
-with a "👁 نمایش نجوا" button; only the recipients (up to 3) and the sender can read it. The four
-handlers delegate to `lib/router.js`, which documents the order of checks and every `callback_data`.
+@Wanger_Shadowbot, in three languages (fa / en / ru: `lib/i18n.js`, dictionaries in `lib/i18n/*.js` with
+identical keys — `npm test` checks it). The first `/start` asks for the language; then two sections:
+**whispers** (`@bot text @username` in any chat posts "🔒 یک نجوا برای @username"; only the recipients,
+up to 3, and the sender can read it) and **anonymous messages** (a personal link `start=a_<code>`).
+The four handlers delegate to `lib/router.js`, which documents the order of checks and every `callback_data`.
 
 - **Owner = numeric id `5557901897`** (`lib/config.js`), checked on every admin command and callback.
-- **Content lives only in the db** (`whispers.body`): never in callback_data, the posted message, or
-  the handler trace (`secret: true` in `lib/tg.js`). The owner's stats are counts only.
-- **Anonymous chat** (`lib/anon.js`): personal link `start=a_<code>`; content is relayed, never stored;
-  `anon_msgs` keeps only who-wrote-to-whom so buttons carry an opaque id; blocks are listed by ref only.
-  Nothing sent to a recipient may contain the anonymous sender's id, username or name.
+- **Whisper content lives only in the db** (`whispers.body`): never in callback_data, the posted message,
+  or the handler trace (`secret: true` in `lib/tg.js`). The owner's stats are counts only. Every open by
+  a recipient is announced to the sender with its count; people who press without being a recipient
+  are "کنجکاو" (never «فضول») and only the sender and the recipients may see who they were.
+- **Anonymous messages** (`lib/anon.js`, `lib/astore.js`, `lib/inbox.js`): the content is stored for the
+  recipient's inbox only; the sender's id is kept for reply/block/report/anti-spam and is never shown
+  to anyone — not the recipient, not in block lists, not in the owner's report review. Buttons carry
+  only an opaque 10-character ref. Filtered messages (`lib/filter.js`) go to folder 2 undelivered and the
+  sender sees the usual confirmation. Limits are in `lib/config.js`, the checks in `lib/spam.js`.
+- **Mini App** (`webapp/`, served as static files; endpoints `cardData` / `cardSend` via `lib/card.js`)
+  draws image cards in the user's client and posts the JPEG to the caller's own chat.
 - **One draft row per sender** (`drafts`), overwritten on every inline keystroke; its id changes when
   the query changes. `chosen_inline_result` (needs BotFather `/setinlinefeedback`) turns it into a
   whisper; the first button press does it if that update never came.
@@ -173,13 +181,14 @@ handlers delegate to `lib/router.js`, which documents the order of checks and ev
 - **Every query is index-backed and LIMITed** (`lib/store.js`); totals are kv counters, never COUNT(*).
 - Handlers return `{ trace }` — every Bot API call with its view name — for `npx tgcloud run`.
 - Tests: `npm test` (static checks + local emulation in `test/sdk/`, strict mock in
-  `test/mock-telegram.mjs`), `npm run test:cloud` (real platform via `tgcloud run`; it temporarily adds
-  `tgcloud/endpoints/zz_devtools.js` — never push while it runs), `npm run test:cloud:local`
-  (the cloud runner against a local stand-in of the CLI).
+  `test/mock-telegram.mjs`), `node test/webapp.mjs` (the Mini App in Chromium), `npm run test:cloud`
+  (real platform via `tgcloud run`; it temporarily adds `tgcloud/endpoints/zz_devtools.js` — never push
+  while it runs), `npm run test:cloud:local` (the cloud runner against a local stand-in of the CLI).
 - **Behind an HTTPS proxy** (e.g. a Claude Code cloud session), run the CLI with `NODE_USE_ENV_PROXY=1`:
   Node's built-in fetch ignores `HTTPS_PROXY` otherwise and every command says it can't reach the server.
 - Platform facts learned by testing: a never-member gets `400 member not found` from getChatMember;
-  `tgcloud run` can't return objects with integer-like keys (use arrays).
+  `tgcloud run` can't return objects with integer-like keys (use arrays); copyMessage to a channel the
+  bot isn't in gives a real `403` (the cloud test's broadcast target).
 - **Project root**: the CLI uses the nearest folder with `.tgcloud/`. If the repository root has its
   own `.tgcloud/` (the to-do bot), make sure `whisper_bot/.tgcloud/` exists before any command here,
   or the command acts on the parent project.

@@ -74,9 +74,40 @@ for (const file of files) {
   if (/handlers\//.test(path.relative(TG, file)) && !/export default/.test(code)) fail(file, 'handler without export default');
 }
 
+// ---------- i18n: same keys and placeholders in every language, and every key the code uses exists ----------
+const dicts = {};
+for (const lang of ['fa', 'en', 'ru']) dicts[lang] = (await import(path.join(TG, 'lib/i18n', `${lang}.js`))).default;
+const i18nFile = path.join(TG, 'lib/i18n');
+const keysOf = (d) => Object.keys(d).sort();
+const holes = (v) => (typeof v === 'string' ? [...v.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',') : `list:${v.length}`);
+for (const lang of ['en', 'ru']) {
+  const a = new Set(keysOf(dicts.fa));
+  const b = new Set(keysOf(dicts[lang]));
+  for (const k of a) if (!b.has(k)) fail(i18nFile, `${lang}.js is missing "${k}"`);
+  for (const k of b) if (!a.has(k)) fail(i18nFile, `${lang}.js has extra "${k}"`);
+  for (const k of a) if (b.has(k) && holes(dicts.fa[k]) !== holes(dicts[lang][k])) fail(i18nFile, `"${k}": placeholders differ in ${lang} (${holes(dicts.fa[k])} vs ${holes(dicts[lang][k])})`);
+}
+const DYNAMIC = {
+  kind: ['text', 'photo', 'video', 'animation', 'voice', 'audio', 'document', 'sticker', 'video_note'],
+  cat: ['q', 'c', 'o', 'f', 'h', 'g', 'd'],
+  'a.spam': ['restricted', 'flood', 'hour', 'target', 'duplicate'],
+  'bc.s_': ['draft', 'running', 'done', 'stopped', 'cancelled'],
+  'adm.rp_status_': ['open', 'banned', 'restricted', 'dismissed'],
+  cmd: ['start', 'whisper', 'anon', 'link', 'inbox', 'profile', 'lang', 'help', 'privacy'],
+};
+const used = new Set();
+for (const [prefix, names] of Object.entries(DYNAMIC)) for (const n of names) used.add(prefix.endsWith('_') ? `${prefix}${n}` : `${prefix}.${n}`);
+for (const code of ['no_recipient', 'no_text', 'too_many', 'bad_expiry', 'self', 'bot', 'blocked']) for (const part of ['title', 'desc']) used.add(`w.err.${code}.${part}`);
+for (const file of files.filter((f) => !f.includes(`${path.sep}i18n${path.sep}`))) {
+  const code = stripComments(fs.readFileSync(file, 'utf8'));
+  for (const m of code.matchAll(/'((?:w|wh|wd|wc|wst|bl|a|in|q|cd|fs|fw|as|dd|pf|adm|bc|main|ws|help|privacy|join|lang|btn|common|e|time|cat|kind|cmd|bot)\.[a-z_][\w.]*)'/g)) used.add(m[1]);
+}
+for (const k of used) if (!(k in dicts.fa)) fail(i18nFile, `key "${k}" is used but missing from the dictionaries`);
+if (dicts.fa.qotd.length < 30) fail(i18nFile, 'the question-of-the-day pool is too small');
+
 const count = files.length;
 if (failures) {
   console.log(`\nstatic checks: ${failures} problem(s) in ${count} modules`);
   process.exit(1);
 }
-console.log(`✔ static checks: ${count} modules — syntax, imports, isolate globals, layout`);
+console.log(`✔ static checks: ${count} modules — syntax, imports, isolate globals, layout; i18n: ${keysOf(dicts.fa).length} keys × 3 languages, ${used.size} used`);

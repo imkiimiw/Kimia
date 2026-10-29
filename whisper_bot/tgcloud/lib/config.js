@@ -20,10 +20,34 @@ export const HISTORY_LIMIT = 20;
 export const HISTORY_PAGE = 10;
 export const DEFAULT_EXPIRY_CHOICES = [0, 30 * 60, 3600, 6 * 3600, 86400];
 
-// Anonymous chat: link code length, messages a sender may send per hour, how long reply buttons work.
+// Languages of the bot's UI. NULL in users.lang = not chosen yet: detected from language_code.
+export const LANGS = ['fa', 'en', 'ru'];
+
+// Anonymous chat.
 export const ANON_CODE_LEN = 10;
+export const ANON_MAX_LEN = 3500; // characters of text/caption accepted from a sender
+export const INBOX_CAP = 1000; // a user keeps at most this many messages; the oldest go first
+export const INBOX_PAGE = 8;
+export const FILTERED_TTL_SEC = 30 * 86400; // the filtered folder empties itself after this
+export const MAX_WORDS = 30; // a user's own blocked words
+export const NAME_MAX = 32;
+export const BIO_MAX = 160;
+export const QUESTION_MAX = 200;
+// Message categories the sender can pick (code → emoji; names are in lib/i18n/*.js as cat.<code>).
+// 'd' marks an answer to the link's question; 'g' is the default.
+export const CATEGORIES = { q: '❓', c: '💌', o: '💬', f: '😂', h: '❤️', g: '📝', d: '🌟' };
+export const PICKABLE_CATEGORIES = ['q', 'c', 'o', 'f', 'h', 'g'];
+
+// Anti-spam for anonymous senders. Limits are per sender; strikes come from recipients blocking or
+// reporting them, and enough strikes in STRIKE_WINDOW_SEC restrict them from sending for a while.
 export const ANON_PER_HOUR = 30;
-export const ANON_TTL_SEC = 30 * 86400;
+export const ANON_PER_TARGET_10MIN = 5;
+export const ANON_MIN_GAP_SEC = 3;
+export const DUPLICATE_WINDOW_SEC = 24 * 3600;
+export const STRIKE_WINDOW_SEC = 7 * 86400;
+export const STRIKES_TO_RESTRICT = 3;
+export const RESTRICT_SEC = 24 * 3600;
+export const RESTRICT_LONG_SEC = 7 * 86400; // from the owner's moderation, or 6+ strikes
 
 // Lazy cleanup (there is no scheduler): at most once per GC_INTERVAL_SEC, delete up to GC_BATCH
 // drafts older than DRAFT_TTL_SEC and states older than STATE_TTL_SEC.

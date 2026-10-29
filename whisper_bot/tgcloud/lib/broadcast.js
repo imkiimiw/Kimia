@@ -8,43 +8,41 @@
 import {
   BC_CHUNK, BC_LOCK_SEC, BC_PROGRESS_EVERY_SEC, OWNER_ID,
 } from './config.js';
+import { dur, langOf, num, t } from './i18n.js';
 import {
-  getBroadcast, lockBroadcast, markInactive, reachableAfter, saveBroadcastProgress, setBroadcastStatus,
+  getBroadcast, getUser, lockBroadcast, markInactive, reachableAfter, saveBroadcastProgress, setBroadcastStatus,
   setKv, touchBroadcastProgress, unlockBroadcast,
 } from './store.js';
 import {
   btn, call, describeError, isApiError, send,
 } from './tg.js';
-import { fa, faDuration, nowSec } from './util.js';
-
-const STATUS = {
-  draft: '📝 پیش‌نویس',
-  running: '⏳ در حال ارسال',
-  done: '✅ تمام شد',
-  stopped: '⛔ متوقف شد',
-  cancelled: '❌ لغو شد',
-};
+import { nowSec } from './util.js';
 
 const processed = (b) => b.sent + b.failed + b.blocked;
 
-export function progressView(b) {
+/** The progress message, in the owner's language. */
+export function progressView(b, lang) {
   const now = nowSec();
+  const N = (n) => num(lang, n);
   const remaining = b.status === 'running' ? Math.max(0, b.total - processed(b)) : 0;
   const lines = [
-    `📢 <b>پیام سراسری #${fa(b.id)}</b>`,
-    `وضعیت: ${STATUS[b.status] || b.status}`,
+    t(lang, 'bc.p_title', { id: N(b.id) }),
+    t(lang, 'bc.p_status', { s: t(lang, `bc.s_${b.status}`) }),
     '',
-    `✅ ارسال‌شده: ${fa(b.sent)}`,
-    `❌ ناموفق: ${fa(b.failed + b.blocked)}${b.blocked ? ` (🚫 ربات را بلاک کرده: ${fa(b.blocked)})` : ''}`,
-    `⏳ باقی‌مانده: ${fa(remaining)}`,
+    t(lang, 'bc.p_sent', { n: N(b.sent) }),
+    t(lang, 'bc.p_failed', { n: N(b.failed + b.blocked) }) + (b.blocked ? ` ${t(lang, 'bc.p_blocked', { n: N(b.blocked) })}` : ''),
+    t(lang, 'bc.p_left', { n: N(remaining) }),
   ];
-  if (b.status === 'running' && b.nextAt > now) lines.push('', `⏸ محدودیت سرعت تلگرام: ${fa(b.nextAt - now)} ثانیه‌ی دیگر ادامه بده.`);
-  if (b.status === 'running') lines.push('', 'هر بار «▶️ ادامه ارسال» حدود ۲۵ نفر را می‌فرستد؛ استفاده‌ی بقیه از ربات هم کم‌کم جلو می‌بردش.');
+  if (b.status === 'running' && b.nextAt > now) lines.push('', t(lang, 'bc.p_wait', { n: N(b.nextAt - now) }));
+  if (b.status === 'running') lines.push('', t(lang, 'bc.p_hint'));
+  const panel = [btn(t(lang, 'adm.btn_panel'), 'a')];
   const kb = b.status === 'running'
-    ? [[btn('▶️ ادامه ارسال', `a:bcc:${b.id}`), btn('⛔ توقف', `a:bcs:${b.id}`)], [btn('🔙 پنل', 'a')]]
-    : [[btn('🔙 پنل', 'a')]];
+    ? [[btn(t(lang, 'bc.btn_continue'), `a:bcc:${b.id}`), btn(t(lang, 'bc.btn_stop'), `a:bcs:${b.id}`)], panel]
+    : [panel];
   return { text: lines.join('\n'), kb };
 }
+
+const ownerLang = async () => langOf(await getUser(OWNER_ID));
 
 /**
  * Sends up to `limit` messages of a running broadcast. Returns
@@ -105,7 +103,7 @@ export async function processBatch(ctx, id, limit) {
 /** Edits the progress message (the one with the ▶️/⛔ buttons). */
 export async function updateProgress(ctx, b) {
   if (!b.progressChat || !b.progressMsg) return;
-  const { text, kb } = progressView(b);
+  const { text, kb } = progressView(b, await ownerLang());
   try {
     await call(ctx, 'editMessageText', {
       chat_id: b.progressChat,
@@ -124,13 +122,12 @@ export async function updateProgress(ctx, b) {
 
 /** The final report, as a new message so the owner is notified. */
 export async function finalReport(ctx, b) {
-  const took = b.finishedAt && b.createdAt ? `\n⏱ مدت: ${faDuration(b.finishedAt - b.createdAt)}` : '';
-  await send(ctx, 'broadcast_report',
-    `🏁 <b>گزارش نهایی پیام سراسری #${fa(b.id)}</b> — ${STATUS[b.status] || b.status}\n\n`
-    + `✅ ارسال‌شده: ${fa(b.sent)}\n`
-    + `❌ ناموفق: ${fa(b.failed)}\n`
-    + `🚫 ربات را بلاک کرده (غیرفعال شدند): ${fa(b.blocked)}${took}`,
-    [[btn('🔙 پنل', 'a')]], OWNER_ID);
+  const lang = await ownerLang();
+  const N = (n) => num(lang, n);
+  const took = b.finishedAt && b.createdAt ? `\n${t(lang, 'bc.r_took', { d: dur(lang, b.finishedAt - b.createdAt) })}` : '';
+  await send(ctx, 'broadcast_report', t(lang, 'bc.report', {
+    id: N(b.id), s: t(lang, `bc.s_${b.status}`), sent: N(b.sent), failed: N(b.failed), blocked: N(b.blocked),
+  }) + took, [[btn(t(lang, 'adm.btn_panel'), 'a')]], OWNER_ID);
 }
 
 /** A small chunk on the side of another update; never throws. */

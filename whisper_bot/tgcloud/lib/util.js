@@ -1,5 +1,6 @@
 // Small helpers with no platform dependencies. The runtime is a bare V8 isolate: no Buffer,
-// TextEncoder, URL, Intl or timers, so everything here is plain ECMAScript.
+// TextEncoder, URL, Intl, atob or timers, so everything here is plain ECMAScript.
+// Language-aware formatting (digits, durations, "5 minutes ago") is in lib/i18n.js.
 import { TZ_OFFSET_MIN } from './config.js';
 
 export const nowSec = () => Math.floor(Date.now() / 1000);
@@ -31,13 +32,6 @@ export function esc(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-const FA_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
-
-/** A number with Persian digits. */
-export function fa(n) {
-  return String(n).replace(/[0-9]/g, (d) => FA_DIGITS[Number(d)]);
-}
-
 /** Persian and Arabic-Indic digits → ASCII. */
 export function toAsciiDigits(s) {
   return String(s)
@@ -65,36 +59,16 @@ export function utf8Length(s) {
   return n;
 }
 
-/** "1h30m"-style duration in Persian words: ۱ ساعت و ۳۰ دقیقه. */
-export function faDuration(sec) {
-  let s = Math.max(0, Math.round(sec));
-  const d = Math.floor(s / 86400);
-  s -= d * 86400;
-  const h = Math.floor(s / 3600);
-  s -= h * 3600;
-  const m = Math.floor(s / 60);
-  const parts = [];
-  if (d) parts.push(`${fa(d)} روز`);
-  if (h) parts.push(`${fa(h)} ساعت`);
-  if (m) parts.push(`${fa(m)} دقیقه`);
-  if (!parts.length) parts.push('کمتر از یک دقیقه');
-  return parts.join(' و ');
-}
-
-/** "۵ دقیقه پیش" for a past unix time. */
-export function faAgo(at, now = nowSec()) {
-  const diff = Math.max(0, now - at);
-  if (diff < 60) return 'همین الان';
-  if (diff < 3600) return `${fa(Math.floor(diff / 60))} دقیقه پیش`;
-  if (diff < 86400) return `${fa(Math.floor(diff / 3600))} ساعت پیش`;
-  return `${fa(Math.floor(diff / 86400))} روز پیش`;
-}
-
 /** Local (Tehran) date as YYYYMMDD, for the "whispers today" counter. */
 export function localDay(sec = nowSec()) {
   const d = new Date((sec + TZ_OFFSET_MIN * 60) * 1000);
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}`;
+}
+
+/** Days since 1970-01-01 in Tehran time: the question of the day changes at local midnight. */
+export function localDayIndex(sec = nowSec()) {
+  return Math.floor((sec + TZ_OFFSET_MIN * 60) / 86400);
 }
 
 /** JSON.parse that returns `fallback` instead of throwing. */
@@ -108,10 +82,48 @@ export function parseJson(s, fallback) {
   }
 }
 
-/** A user's display name for HTML: "@username" if any, else the first name, else the id. */
-export function displayName(u) {
-  if (!u) return '';
-  if (u.username) return `@${u.username}`;
-  if (u.first_name || u.firstName) return u.first_name || u.firstName;
-  return String(u.id || u.user_id || '');
+/** 32-bit FNV-1a of a string, as a non-negative integer (duplicate detection). */
+export function hash32(s) {
+  let h = 0x811c9dc5;
+  const str = String(s);
+  for (let i = 0; i < str.length; i += 1) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const B64_INDEX = (() => {
+  const m = new Int16Array(128).fill(-1);
+  for (let i = 0; i < B64.length; i += 1) m[B64.charCodeAt(i)] = i;
+  m['-'.charCodeAt(0)] = 62; // base64url too
+  m['_'.charCodeAt(0)] = 63;
+  return m;
+})();
+
+/** Decodes base64 (or a data: URL) to bytes; null if it isn't valid base64. */
+export function base64ToBytes(input) {
+  let s = String(input || '');
+  const comma = s.startsWith('data:') ? s.indexOf(',') : -1;
+  if (comma >= 0) s = s.slice(comma + 1);
+  s = s.replace(/[\s=]+/g, '');
+  if (s.length % 4 === 1) return null;
+  const out = new Uint8Array(Math.floor((s.length * 3) / 4));
+  let buf = 0;
+  let bits = 0;
+  let j = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    const c = s.charCodeAt(i);
+    const v = c < 128 ? B64_INDEX[c] : -1;
+    if (v < 0) return null;
+    buf = (buf << 6) | v;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out[j] = (buf >> bits) & 0xff;
+      j += 1;
+    }
+  }
+  return out.subarray(0, j);
 }

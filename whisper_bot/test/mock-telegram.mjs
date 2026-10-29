@@ -52,8 +52,9 @@ function checkMarkup(markup) {
     if (!Array.isArray(row) || !row.length) return 'keyboard row is empty';
     for (const b of row) {
       if (!b.text) return 'button text is empty';
-      const kinds = ['callback_data', 'url', 'switch_inline_query'].filter((k) => b[k] !== undefined);
+      const kinds = ['callback_data', 'url', 'switch_inline_query', 'switch_inline_query_current_chat', 'web_app', 'copy_text'].filter((k) => b[k] !== undefined);
       if (kinds.length !== 1) return `button "${b.text}" must have exactly one action`;
+      if (b.web_app && !/^https:\/\//.test(String(b.web_app.url || ''))) return 'BUTTON_URL_INVALID: web_app url must be https';
       if (b.callback_data !== undefined && (Buffer.byteLength(b.callback_data, 'utf8') > 64 || !b.callback_data)) return 'BUTTON_DATA_INVALID';
       if (b.url !== undefined && !/^(https:\/\/t\.me\/|tg:\/\/)\S+$/.test(b.url)) return `bad button url ${b.url}`;
     }
@@ -80,6 +81,7 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
     uncopyable: new Set(), // `${chat}:${message_id}` that copyMessage refuses (like a service message)
     forbidden: new Set(), // chats the bot isn't a member of (403)
     deleted: [],
+    media: [], // { chat_id, field, file, caption, upload: { filename, type, size, head } }
   };
 
   const key = (chatId) => {
@@ -123,7 +125,39 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
     return null;
   }
 
+  /** A media send (by file_id, or an uploaded file): caption ≤ 1024 visible characters. */
+  function media(field, captionable) {
+    return (p) => {
+      const r = reachable(p.chat_id);
+      if (r) return r;
+      if (!p[field]) return err(400, `Bad Request: there is no ${field} in the request`);
+      if (p.caption !== undefined) {
+        if (!captionable) return err(400, 'Bad Request: caption is not allowed');
+        const h = p.parse_mode === 'HTML' ? parseHtml(p.caption) : { plain: p.caption };
+        if (h.error) return err(400, `Bad Request: ${h.error}`);
+        if (h.plain.length > 1024) return err(400, 'Bad Request: message caption is too long');
+      }
+      const m = checkMarkup(p.reply_markup);
+      if (m) return err(400, `Bad Request: ${m}`);
+      const message_id = state.nextMessageId++;
+      state.messages.set(`${p.chat_id}:${message_id}`, { text: `<${field}>`, markup: JSON.stringify(p.reply_markup || null) });
+      state.media.push({ chat_id: Number(p.chat_id), field, file: p[field], caption: p.caption, upload: p.__upload || null });
+      return ok({ message_id, chat: { id: p.chat_id } });
+    };
+  }
+
   const handlers = {
+    sendPhoto: media('photo', true),
+    sendVideo: media('video', true),
+    sendAnimation: media('animation', true),
+    sendVoice: media('voice', true),
+    sendAudio: media('audio', true),
+    sendDocument: media('document', true),
+    sendSticker: media('sticker', false),
+    sendVideoNote: media('video_note', false),
+    setMyCommands: (p) => (Array.isArray(p.commands) && p.commands.every((c) => /^[a-z0-9_]{1,32}$/.test(c.command) && c.description) ? ok(true) : err(400, 'Bad Request: BOT_COMMAND_INVALID')),
+    setMyDescription: (p) => (String(p.description || '').length <= 512 ? ok(true) : err(400, 'Bad Request: description is too long')),
+    setMyShortDescription: (p) => (String(p.short_description || '').length <= 120 ? ok(true) : err(400, 'Bad Request: short description is too long')),
     getMe: () => ok({ id: botId, is_bot: true, first_name: 'Whisper', username: botUsername }),
     answerCallbackQuery: (p) => {
       if (state.answeredCallbacks.has(p.callback_query_id)) return err(400, 'Bad Request: query is too old and response timeout expired or query ID is invalid');
@@ -237,12 +271,41 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
     },
   };
 
+  /** Minimal multipart/form-data reader: fields as strings (JSON-decoded when possible), files as uploads. */
+  function parseMultipart(body, type) {
+    const boundary = /boundary=([^;]+)/.exec(type)[1];
+    const params = {};
+    const sep = Buffer.from(`--${boundary}`);
+    let pos = body.indexOf(sep);
+    while (pos >= 0) {
+      const next = body.indexOf(sep, pos + sep.length);
+      if (next < 0) break;
+      const part = body.subarray(pos + sep.length + 2, next - 2);
+      const headEnd = part.indexOf('\r\n\r\n');
+      const head = part.subarray(0, headEnd).toString('utf8');
+      const data = part.subarray(headEnd + 4);
+      const name = /name="([^"]+)"/.exec(head)[1];
+      const file = /filename="([^"]*)"/.exec(head);
+      if (file) {
+        params[name] = `attach://${file[1]}`;
+        params.__upload = { filename: file[1], type: (/Content-Type: (\S+)/i.exec(head) || [])[1], size: data.length, head: [...data.subarray(0, 4)] };
+      } else {
+        const v = data.toString('utf8');
+        try { params[name] = JSON.parse(v); } catch { params[name] = v; }
+      }
+      pos = next;
+    }
+    return params;
+  }
+
   const server = http.createServer((req, res) => {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => {
       const m = req.url.match(/^\/bot([^/]+)\/(\w+)/);
-      const params = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+      const raw = Buffer.concat(chunks);
+      const type = req.headers['content-type'] || '';
+      const params = type.startsWith('multipart/') ? parseMultipart(raw, type) : JSON.parse(raw.toString('utf8') || '{}');
       const method = m && m[2];
       const handler = handlers[method];
       const result = handler ? handler(params) : err(404, `Not Found: method ${method} not mocked`);

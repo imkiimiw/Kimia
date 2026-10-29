@@ -4,13 +4,17 @@
 // It reads and writes only test users (ids 990000001-990000999), the bot account used for the 403
 // test (the @telegram channel's id: the bot isn't a member there, so copyMessage gets a real 403),
 // fake channels (zz_fake_*), broadcasts the run created, and — to restore
-// the starting state — a channel row and settings the script saved before the test.
+// the starting state — a channel row, the join setting and the owner's anonymous-section settings the
+// script saved before the test (plus the owner's inbox counters for messages the test users sent them).
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
 
 const OWNER_ID = 5557901897;
 const TARGET_403 = -1001005640892; // @telegram
-const TABLES = ['users', 'kv', 'channels', 'drafts', 'whispers', 'whisper_rcpts', 'snoops', 'blocks', 'user_state', 'broadcasts', 'anon_msgs', 'anon_blocks'];
+const TABLES = ['users', 'kv', 'channels', 'drafts', 'whispers', 'whisper_rcpts', 'snoops', 'blocks', 'user_state', 'broadcasts',
+  'anon_msgs', 'anon_blocks', 'anon_words', 'ratings', 'reports'];
+// The owner's own anonymous-section fields: saved before the run, restored after it.
+const OWNER_FIELDS = ['anon_code', 'anon_on', 'a_filter', 'a_links', 'a_text', 'a_silent', 'q_mode', 'q_text'];
 const TEST_IDS = [990000001, 990000002, 990000003, 990000004, 990000005, 990000009];
 const isTestUser = (id) => Number.isInteger(id) && ((id >= 990000001 && id <= 990000999) || id === TARGET_403);
 
@@ -87,7 +91,7 @@ export default async function (input) {
       if (!w || !isTestUser(Number(w.sender_id))) return null;
       return {
         ...w,
-        rcpts: await db.all(sql`SELECT slot, rid, runame, label, seen_at FROM whisper_rcpts WHERE whisper_id = ${input.id} ORDER BY slot`),
+        rcpts: await db.all(sql`SELECT slot, rid, runame, label, seen_at, opens FROM whisper_rcpts WHERE whisper_id = ${input.id} ORDER BY slot`),
         snoopers: await db.all(sql`SELECT user_id, username FROM snoops WHERE whisper_id = ${input.id} ORDER BY at LIMIT 50`),
       };
     }
@@ -127,15 +131,47 @@ export default async function (input) {
       if (!isTestUser(id) && id !== OWNER_ID) throw new Error('not allowed');
       return db.get(sql`SELECT state, data FROM user_state WHERE user_id = ${id}`);
     }
-    case 'owner_anon': // the owner's anonymous-link fields, saved before the run and restored after it
-      return db.get(sql`SELECT anon_code, anon_on, anon_count FROM users WHERE user_id = ${OWNER_ID}`);
+    case 'owner_anon': // the owner's anonymous-section settings, saved before the run and restored after it
+      return db.get(sql.raw(`SELECT ${OWNER_FIELDS.join(', ')} FROM users WHERE user_id = ${OWNER_ID}`));
+    case 'owner_anon_on': // the owner's link must accept messages for the delivery test
+      await db.run(sql`UPDATE users SET anon_on = 1, a_text = 0 WHERE user_id = ${OWNER_ID}`);
+      return true;
     case 'restore_owner_anon': {
       const o = input.value;
       if (!o) return false;
       await db.run(sql`
-        UPDATE users SET anon_code = ${o.anon_code ?? null}, anon_on = ${o.anon_on ?? 1}, anon_count = ${o.anon_count ?? 0}
+        UPDATE users SET anon_code = ${o.anon_code ?? null}, anon_on = ${o.anon_on ?? 1}, a_filter = ${o.a_filter ?? 1},
+          a_links = ${o.a_links ?? 0}, a_text = ${o.a_text ?? 0}, a_silent = ${o.a_silent ?? 0},
+          q_mode = ${o.q_mode ?? 0}, q_text = ${o.q_text ?? null}
         WHERE user_id = ${OWNER_ID}`);
       return true;
+    }
+    case 'unflood': // lets the next anonymous message through the 3-second gap (each `tgcloud run` takes ~1-2 s)
+      for (const id of input.users.map(testUser)) await db.run(sql`UPDATE users SET last_anon_at = 0 WHERE user_id = ${id}`);
+      return true;
+    case 'anon_msgs_to': {
+      const id = testUser(input.user);
+      return db.all(sql`
+        SELECT id, from_id, anon, kind, cat, q, folder, unread, to_msg FROM anon_msgs
+        WHERE to_id = ${id} ORDER BY created_at DESC LIMIT 20`);
+    }
+    case 'ratings_of':
+      return db.get(sql`SELECT rating_sum, rating_count FROM users WHERE user_id = ${testUser(input.user)}`);
+    case 'reports_by': {
+      const id = testUser(input.user);
+      return db.all(sql`SELECT id, msg_id, status FROM reports WHERE reporter_id = ${id} ORDER BY id LIMIT 20`);
+    }
+    case 'kv_get':
+      return db.all(sql`SELECT key, value FROM kv WHERE key IN (${list(input.keys)})`);
+    case 'restore_n_anon': {
+      // The run's anonymous messages counted in n_anon: put it back to the starting value plus the real
+      // messages sent since then (by anyone but the test users).
+      const real = await db.get(sql`
+        SELECT count(*) AS n FROM anon_msgs WHERE folder IN (0, 1, 2) AND created_at >= ${Number(input.since)}
+          AND from_id NOT IN (${list(TEST_IDS)}) LIMIT 1`);
+      const value = Number(input.value || 0) + Number(real.n || 0);
+      await db.run(sql`INSERT INTO kv (key, value) VALUES ('n_anon', ${String(value)}) ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
+      return value;
     }
     case 'anon_blocks_of_owner':
       return (await db.get(sql`SELECT count(*) AS n FROM anon_blocks WHERE owner_id = ${OWNER_ID} AND blocked_id IN (${list(TEST_IDS)})`)).n;
@@ -191,11 +227,27 @@ export default async function (input) {
         await db.run(sql`DELETE FROM snoops WHERE whisper_id = ${id}`);
         await db.run(sql`DELETE FROM whispers WHERE id = ${id}`);
       }
-      // anonymous chat: messages the test users sent, and blocks by or of them (incl. the owner's)
-      const anon = await db.run(sql`DELETE FROM anon_msgs WHERE from_id IN (${list(users)})`);
-      if (anon.rowsAffected) await bump('n_anon', -anon.rowsAffected);
-      await db.run(sql`DELETE FROM anon_blocks WHERE owner_id IN (${list(users)})`);
-      await db.run(sql`DELETE FROM anon_blocks WHERE owner_id = ${OWNER_ID} AND blocked_id IN (${list(users)})`);
+      // Anonymous messages from test users to a real user (the owner): take them off that user's counters.
+      const toReal = await db.all(sql`
+        SELECT to_id, count(*) AS n, sum(unread) AS u, sum(anon) AS a FROM anon_msgs
+        WHERE from_id IN (${list(users)}) AND to_id NOT IN (${list(users)}) GROUP BY to_id LIMIT 20`);
+      for (const r of toReal) {
+        await db.run(sql`
+          UPDATE users SET inbox_size = max(0, inbox_size - ${Number(r.n)}), anon_unread = max(0, anon_unread - ${Number(r.u || 0)}),
+            anon_count = max(0, anon_count - ${Number(r.a || 0)})
+          WHERE user_id = ${r.to_id}`);
+      }
+      await db.run(sql`DELETE FROM anon_msgs WHERE from_id IN (${list(users)})`);
+      await db.run(sql`DELETE FROM anon_msgs WHERE to_id IN (${list(users)})`);
+      await db.run(sql`DELETE FROM anon_blocks WHERE owner_id IN (${list(users)}) OR blocked_id IN (${list(users)})`);
+      await db.run(sql`DELETE FROM anon_words WHERE user_id IN (${list(users)})`);
+      // ratings given by test users to real users: take them off that user's totals
+      const given = await db.all(sql`SELECT target_id, stars FROM ratings WHERE rater_id IN (${list(users)}) AND target_id NOT IN (${list(users)}) LIMIT 50`);
+      for (const g of given) {
+        await db.run(sql`UPDATE users SET rating_sum = max(0, rating_sum - ${Number(g.stars)}), rating_count = max(0, rating_count - 1) WHERE user_id = ${g.target_id}`);
+      }
+      await db.run(sql`DELETE FROM ratings WHERE rater_id IN (${list(users)}) OR target_id IN (${list(users)})`);
+      await db.run(sql`DELETE FROM reports WHERE reporter_id IN (${list(users)}) OR sender_id IN (${list(users)})`);
       let removed = 0;
       let reachable = 0;
       for (const id of users) {

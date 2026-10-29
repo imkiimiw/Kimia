@@ -5,8 +5,11 @@
 import {
   JOIN_CACHE_SEC, JOIN_NEG_CACHE_SEC, OWNER_ID, WARN_INTERVAL_SEC,
 } from './config.js';
+import { langOf, t } from './i18n.js';
 import { call, describeError, isApiError, send } from './tg.js';
-import { claimChannelWarning, getChannels, setJoinCache } from './store.js';
+import {
+  claimChannelWarning, getChannels, getUser, setJoinCache,
+} from './store.js';
 import { esc, nowSec } from './util.js';
 
 /** member / administrator / creator count as joined; restricted only while still a member. */
@@ -85,11 +88,7 @@ async function warnOwner(ctx, skipped) {
     if (await claimChannelWarning(ch.id, WARN_INTERVAL_SEC)) fresh.push(ch);
   }
   if (!fresh.length) return;
+  const lang = langOf(await getUser(OWNER_ID));
   const lines = fresh.map((ch) => `• @${esc(ch.username)} — <code>${esc(ch.error)}</code>`).join('\n');
-  await send(ctx, 'owner_warning',
-    '⚠️ <b>هشدار عضویت اجباری</b>\n\n'
-    + `بررسی عضویت در این کانال‌ها خطا داد و فعلاً برای کاربران نادیده گرفته می‌شوند:\n${lines}\n\n`
-    + 'احتمالاً ربات در کانال ادمین نیست، یا کانال حذف شده یا یوزرنیمش عوض شده. '
-    + 'از /admin ← «📋 کانال‌ها» وضعیت را ببینید. (این هشدار حداکثر هر ۳ ساعت یک‌بار تکرار می‌شود.)',
-    null, OWNER_ID);
+  await send(ctx, 'owner_warning', t(lang, 'join.owner_warning', { list: lines }), null, OWNER_ID);
 }

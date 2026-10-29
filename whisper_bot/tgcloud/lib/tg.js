@@ -5,9 +5,9 @@ import { api, BotApiError } from 'sdk';
 import { ALERT_MAX } from './config.js';
 import { truncate, utf8Length } from './util.js';
 
-/** Per-update context: who we talk to, where, and what we have sent so far. */
-export function createCtx({ userId = null, chatId = null, messageId = null, callbackId = null } = {}) {
-  return { userId, chatId, messageId, callbackId, answered: false, trace: [] };
+/** Per-update context: who we talk to, where, in which language, and what we have sent so far. */
+export function createCtx({ userId = null, chatId = null, messageId = null, callbackId = null, lang = 'fa' } = {}) {
+  return { userId, chatId, messageId, callbackId, lang, answered: false, trace: [] };
 }
 
 function keyboardSummary(markup) {
@@ -43,6 +43,7 @@ export async function call(ctx, method, params, view, { secret = false, meta = n
   if (params.user_id !== undefined) entry.user = params.user_id;
   if (params.inline_message_id !== undefined) entry.inline = params.inline_message_id;
   if (params.text !== undefined) entry.text = secret ? `<${String(params.text).length} chars, hidden>` : params.text;
+  if (params.caption !== undefined) entry.caption = secret ? `<${String(params.caption).length} chars, hidden>` : params.caption;
   if (params.show_alert) entry.alert = true;
   if (params.url !== undefined) entry.url = params.url;
   const kb = keyboardSummary(params.reply_markup);
@@ -77,15 +78,55 @@ const markup = (kb) => (kb ? { reply_markup: { inline_keyboard: kb } } : {});
 /** Sends a new HTML message. Failures are recorded and logged, not thrown; returns null then. */
 export async function send(ctx, view, text, kb, chatId = ctx.chatId, opts = {}) {
   try {
+    const extra = {};
+    if (opts.silent) extra.disable_notification = true;
+    if (opts.replyTo) extra.reply_parameters = { message_id: opts.replyTo, allow_sending_without_reply: true };
     return await call(ctx, 'sendMessage', {
       chat_id: chatId,
       text,
       parse_mode: 'HTML',
       link_preview_options: { is_disabled: true },
       ...markup(kb),
+      ...extra,
     }, view, opts);
   } catch (err) {
     console.warn(`sendMessage(${view}) failed: ${describeError(err)}`);
+    if (opts.rethrow) throw err;
+    return null;
+  }
+}
+
+// Bot API method and file field for each kind of stored media.
+const MEDIA = {
+  photo: ['sendPhoto', 'photo', true],
+  video: ['sendVideo', 'video', true],
+  animation: ['sendAnimation', 'animation', true],
+  voice: ['sendVoice', 'voice', true],
+  audio: ['sendAudio', 'audio', true],
+  document: ['sendDocument', 'document', true],
+  sticker: ['sendSticker', 'sticker', false],
+  video_note: ['sendVideoNote', 'video_note', false],
+};
+
+export const isMediaKind = (kind) => Object.prototype.hasOwnProperty.call(MEDIA, kind);
+
+/**
+ * Sends stored media again by file_id, with an HTML caption where the kind allows one (a sticker or
+ * a round video gets the caption as a separate message first). Returns the result or null.
+ */
+export async function sendMedia(ctx, view, kind, fileId, caption, kb, chatId = ctx.chatId, opts = {}) {
+  const [method, field, captionable] = MEDIA[kind] || MEDIA.document;
+  try {
+    if (!captionable && caption) await send(ctx, `${view}_caption`, caption, null, chatId, opts);
+    const params = { chat_id: chatId, [field]: fileId, ...markup(kb) };
+    if (captionable && caption) {
+      params.caption = caption;
+      params.parse_mode = 'HTML';
+    }
+    if (opts.silent) params.disable_notification = true;
+    return await call(ctx, method, params, view, opts);
+  } catch (err) {
+    console.warn(`${method}(${view}) failed: ${describeError(err)}`);
     if (opts.rethrow) throw err;
     return null;
   }
@@ -191,4 +232,9 @@ export function urlBtn(text, url) {
 /** Opens the chat picker with "@bot " typed, ready for a whisper. */
 export function inlineBtn(text, query = '') {
   return { text, switch_inline_query: query };
+}
+
+/** Opens the bot's Mini App (private chats only). */
+export function webAppBtn(text, url) {
+  return { text, web_app: { url } };
 }
