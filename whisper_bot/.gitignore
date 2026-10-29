@@ -2,3 +2,7 @@
 node_modules/
 test/cloud/output/
 *.log
+
+# The cloud tests' temporary endpoint (test/cloud/run-tests.mjs copies it in for a run and deletes it
+# afterwards). Never commit it, and never `tgcloud push` while it exists.
+tgcloud/endpoints/zz_devtools.js
