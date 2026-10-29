@@ -15,11 +15,19 @@
 //   owner: a panel · al channels · aa add · ar / ary:<id> remove (ask / yes) · at join on/off
 import { STATE_TTL_SEC } from './config.js';
 import { checkJoin } from './join.js';
-import { answer, createCtx, send, show } from './tg.js';
+import { answer, createCtx, describeError, send, show } from './tg.js';
+import { esc, short } from './text.js';
 import { ERROR_TEXT, joinScreen, menuBtn } from './ui.js';
 import * as admin from './admin.js';
 import * as store from './store.js';
 import * as todo from './todo.js';
+
+// Users only ever see the friendly text. The owner also sees the technical reason, so a problem on
+// the platform (e.g. tables not created yet) can be diagnosed from Telegram itself.
+function errorText(ctx, err) {
+  if (!admin.isOwner(ctx.userId)) return ERROR_TEXT;
+  return `${ERROR_TEXT}\n\n🛠 <b>جزئیات فنی (فقط برای مدیر):</b>\n<code>${esc(short(describeError(err), 300))}</code>`;
+}
 
 const int = (s) => (/^\d{1,15}$/.test(s || '') ? Number(s) : -1);
 
@@ -127,7 +135,7 @@ export async function handleMessage(message) {
     }
   } catch (err) {
     console.error('message handler failed:', err);
-    await send(ctx, 'error', ERROR_TEXT);
+    await send(ctx, 'error', errorText(ctx, err));
   }
   return { trace: ctx.trace };
 }
@@ -233,7 +241,7 @@ export async function handleCallback(cq) {
     await dispatchCallback(ctx, cq);
   } catch (err) {
     console.error('callback_query handler failed:', err);
-    await answer(ctx, ERROR_TEXT, true);
+    await answer(ctx, admin.isOwner(ctx.userId) ? short(`⚠️ ${describeError(err)}`, 190) : ERROR_TEXT, true);
   } finally {
     await answer(ctx); // every callback is answered exactly once
   }

@@ -741,6 +741,25 @@ await step('a database error shows a friendly message, never the raw error', asy
   assert.doesNotMatch(JSON.stringify(p.calls), /SQLITE/);
 });
 
+await step('tables not created yet (migration not applied): the owner sees the reason, users never do', async () => {
+  await db.run(sql`ALTER TABLE users RENAME TO users_hidden`);
+  const logged = errors.length;
+  const owner = await say(OWNER, '/start');
+  const user = await say(U1, '/start');
+  const press1 = await press(OWNER, 'm');
+  await db.run(sql`ALTER TABLE users_hidden RENAME TO users`);
+  assert.equal(errors.length, logged + 3, 'logged for the developer');
+  errors.length = logged;
+  const o = screen(owner.calls, OWNER).text;
+  assert.match(o, /مشکلی پیش آمد/);
+  assert.match(o, /فقط برای مدیر/);
+  assert.match(o, /no such table: users/);
+  const u = screen(user.calls, U1).text;
+  assert.match(u, /مشکلی پیش آمد/);
+  assert.doesNotMatch(u, /no such table|مدیر/);
+  assert.match(press1.answer.text, /no such table: users/);
+});
+
 await step('a user who blocked the bot does not crash the handler', async () => {
   mock.state.blocked.add(U2);
   const r = await say(U2, '/list');
