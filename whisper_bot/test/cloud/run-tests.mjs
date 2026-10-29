@@ -644,7 +644,13 @@ async function main() {
       expect(/ناشناس/.test(list.text) && !list.text.includes(String(T.sender)) && !list.text.includes(uname(T.sender)), `block list: ${list.text}`);
       ok(pressPm(OWNER, `ab:${ref}`, delivered.mid), { callback: true });
       expect(devtools({ op: 'anon_blocks_of_owner' }) === 0, 'unblocked');
-      return { detail: `link a_${code}; delivered to the owner (message ${delivered.mid}); reply → ${back.ok ? 'ok' : back.err}; block/unblock ok` };
+      // blocking the same sender again is still one strike: one person can't get anyone restricted
+      ok(pressPm(OWNER, `ab:${ref}`, delivered.mid), { callback: true });
+      const struck = devtools({ op: 'user', user: T.sender });
+      expect(struck.strikes === 1 && struck.restricted_until === 0, `strikes ${struck.strikes}, restricted_until ${struck.restricted_until}`);
+      ok(pressPm(OWNER, `ab:${ref}`, delivered.mid), { callback: true });
+      expect(devtools({ op: 'anon_blocks_of_owner' }) === 0, 'unblocked again');
+      return { detail: `link a_${code}; delivered to the owner (message ${delivered.mid}); reply → ${back.ok ? 'ok' : back.err}; block/unblock/block = 1 strike` };
     });
 
     await scenario('14c. anonymous features: profile, ratings + average on the card, question of the day, filters (shadow), inbox, search, archive', () => {
