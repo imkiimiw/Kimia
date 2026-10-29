@@ -109,7 +109,7 @@ npm run test:cloud
 
 | دستور | چه می‌کند |
 |---|---|
-| `npm test` | بررسی ایستا (import ها، globals ممنوع در V8، ساختار، کلیدهای ترجمه‌ی سه زبان) + ۴۸ سناریو روی شبیه‌ساز محلی SDK و یک Bot API سخت‌گیر |
+| `npm test` | بررسی ایستا (import ها، globals ممنوع در V8، ساختار، کلیدهای ترجمه‌ی سه زبان) + ۴۹ سناریو روی شبیه‌ساز محلی SDK و یک Bot API سخت‌گیر |
 | `node test/webapp.mjs` | مینی‌اپ کارت در Chromium: سه کارت (فارسی/روسی/انگلیسی) کشیده و JPEG واقعی فرستاده می‌شود |
 | `npm run test:cloud:local` | خود اسکریپت تست ابری روی شبیه‌ساز CLI |
 | `npm run test:cloud` | سناریوها با `npx tgcloud run` روی **خود سرورلس تلگرام**؛ خروجی در `test/cloud/output/` |
