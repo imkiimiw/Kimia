@@ -231,9 +231,15 @@ function ok(res, { view, callback = false } = {}) {
   return res;
 }
 
+// ONLY=0,1a,7,14b runs just those scenarios (by the number before the first "."), e.g. to re-check a fix
+// without a full run; include what they build on (1a starts the test users, 11 gets the owner's panel
+// for 14*, 14c makes what 14d reports). The restore at the end always runs.
+const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(',').map((x) => x.trim()).filter(Boolean)) : null;
+
 async function scenario(name, fn) {
   await new Promise((resolve) => setImmediate(resolve)); // lets a pending SIGINT handler run
   if (aborted) throw new Aborted('interrupted');
+  if (ONLY && !ONLY.has(name.split('.')[0])) return;
   log(`\n======== ${name} ========`);
   let status = 'PASS';
   let detail = '';
