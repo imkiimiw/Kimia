@@ -33,6 +33,10 @@
 - **مالک فقط آیدی عددی `5557901897`** است (یوزرنیم هیچ‌جا بررسی نمی‌شود). `/admin` فقط برای مالک و فقط در پی‌وی:
   لیست کانال‌ها با وضعیت ادمین بودن ربات، افزودن (یوزرنیم یا لینک t.me؛ با `getChat` و `getChatMember` بررسی
   می‌شود که کانال وجود دارد و ربات ادمین است)، حذف با تأیید، سقف **۱۰ کانال**، و خاموش/روشن کردن عضویت اجباری.
+- **📣 پیام همگانی** (پنل مالک): هر نوع پیام (متن، عکس، ویدیو، فایل، فوروارد؛ آلبوم نه) بعد از تأیید برای همه‌ی
+  کاربران کپی می‌شود. چون سرورلس زمان‌بند ندارد، ارسال دسته‌ای است: هر بار زدن «▶️ ارسال دسته‌ی بعدی» برای ۲۵
+  کاربر بعدی می‌فرستد و پیشرفت (ارسال‌شده / ناموفق) را نشان می‌دهد. اگر تلگرام سرعت را محدود کند، دسته همان‌جا
+  می‌ایستد و دفعه‌ی بعد از همان کاربر ادامه می‌دهد، پس به کسی دو بار نمی‌رسد.
 
 ## 🚀 راه‌اندازی
 
@@ -47,7 +51,7 @@ BotFather ← ربات ← Serverless. هر فایل را **به همین ترت
 
 | # | بخش در BotFather | نام | فایل |
 |---|---|---|---|
-| 1 | Database | — | `tgcloud/schema.js` (بعد از Save تغییرات را اعمال کنید: ۶ جدول) |
+| 1 | Database | — | `tgcloud/schema.js` (بعد از Save، در Migration «Start Migration»: ۷ جدول) |
 | 2 | Library | `config` | `tgcloud/lib/config.js` |
 | 3 | Library | `text` | `tgcloud/lib/text.js` |
 | 4 | Library | `tg` | `tgcloud/lib/tg.js` |
@@ -71,7 +75,7 @@ npx tgcloud login              # توکن: BotFather ← ربات ← Serverless
 npx tgcloud status && npx tgcloud diff
 npx tgcloud push               # آپلود کد
 npx tgcloud migrate --dry-run  # دیدن تغییرات دیتابیس
-npx tgcloud migrate --safe     # ساخت ۶ جدول: users, tasks, categories, channels, settings, user_state
+npx tgcloud migrate --safe     # ساخت ۷ جدول: users, tasks, categories, channels, settings, user_state, broadcasts
 npx tgcloud webhook            # باید in sync باشد؛ وگرنه: npx tgcloud webhook sync
 ```
 
@@ -80,7 +84,7 @@ npx tgcloud webhook            # باید in sync باشد؛ وگرنه: npx tgc
 ## 🧪 تست
 
 ```bash
-npm test                  # تست واحد + ۴۲ سناریوی سرتاسری روی شبیه‌ساز محلی sdk
+npm test                  # تست واحد + ۴۸ سناریوی سرتاسری روی شبیه‌ساز محلی sdk
 npm run test:cloud        # همه‌ی سناریوها روی خود Telegram Serverless با `npx tgcloud run`
 npm run test:cloud:local  # بررسی خود اسکریپت تست ابری روی شبیه‌ساز (بدون توکن)
 ```
@@ -100,7 +104,7 @@ tgcloud/
   lib/
     router.js   ترتیب بررسی‌ها و جدول کدهای callback_data
     todo.js     ۱۰ قابلیت تودو
-    admin.js    پنل مالک
+    admin.js    پنل مالک و پیام همگانی
     join.js     عضویت اجباری
     store.js    همه‌ی کوئری‌های دیتابیس
     tg.js       فراخوانی Bot API + ردگیری (trace) برای خروجی tgcloud run

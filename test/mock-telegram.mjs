@@ -11,6 +11,7 @@ export function createMockTelegram({ botId }) {
     members: new Map(), // `${chatKey}:${userId}` -> ChatMember fields ({ status, is_member })
     unknownUsers: new Set(), // user ids Telegram doesn't know ("user not found")
     blocked: new Set(), // chat ids that blocked the bot
+    rateLimitOnce: new Set(), // chat ids whose next copyMessage gets a 429
   };
 
   const key = (chatId) => {
@@ -50,6 +51,13 @@ export function createMockTelegram({ botId }) {
     sendMessage: (p) => {
       if (state.blocked.has(Number(p.chat_id))) return err(403, 'Forbidden: bot was blocked by the user');
       return ok({ message_id: state.nextMessageId++, chat: { id: p.chat_id }, text: p.text });
+    },
+    copyMessage: (p) => {
+      const chat = Number(p.chat_id);
+      if (state.rateLimitOnce.delete(chat)) return { ok: false, error_code: 429, description: 'Too Many Requests: retry after 3', parameters: { retry_after: 3 } };
+      if (state.blocked.has(chat)) return err(403, 'Forbidden: bot was blocked by the user');
+      if (state.unknownUsers.has(chat)) return err(400, 'Bad Request: chat not found');
+      return ok({ message_id: state.nextMessageId++ });
     },
     editMessageText: (p) => ok({ message_id: p.message_id, chat: { id: p.chat_id }, text: p.text }),
   };

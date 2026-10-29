@@ -59,3 +59,18 @@ export const userState = table('user_state', {
   data: text('data'), // JSON
   updatedAt: integer('updated_at').notNull(),
 });
+
+// Owner broadcasts. The platform has no scheduler, so one goes out in batches, one batch per press
+// of "next batch". Users are walked in id order (their primary key), so a batch reads only its rows.
+export const broadcasts = table('broadcasts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  fromChat: integer('from_chat').notNull(), // where the message to copy is
+  messageId: integer('message_id').notNull(),
+  status: text('status').notNull().default('draft'), // draft / running / done / stopped
+  total: integer('total').notNull().default(0), // users when it was created, owner excluded
+  lastUser: integer('last_user').notNull().default(0), // last user id handled
+  sent: integer('sent').notNull().default(0),
+  failed: integer('failed').notNull().default(0),
+  lockedUntil: integer('locked_until').notNull().default(0), // a batch is being sent until then
+  createdAt: integer('created_at').notNull(),
+});

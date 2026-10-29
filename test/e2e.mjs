@@ -576,7 +576,7 @@ await step('/admin from the owner opens the panel', async () => {
   const users = (await q`SELECT count(*) AS n FROM users`).n;
   assert.ok(users >= 5);
   assert.ok(s.text.includes(`کاربران: ${fa(users)}`), 'user count kept in settings matches the table');
-  assert.deepEqual(s.data, ['al', 'aa', 'at', 'm']);
+  assert.deepEqual(s.data, ['al', 'aa', 'ab', 'at', 'm']);
 });
 
 await step('/admin from anyone else is an unknown command, and owner buttons are refused', async () => {
@@ -585,7 +585,7 @@ await step('/admin from anyone else is an unknown command, and owner buttons are
   assert.doesNotMatch(s.text, /پنل مدیریت/);
   s = screen((await say(9999, '/admin')).calls); // not joined: the join screen
   assert.match(s.text, /عضویت اجباری/);
-  for (const data of ['a', 'al', 'aa', 'ar:1', 'ary:1', 'at']) {
+  for (const data of ['a', 'al', 'aa', 'ar:1', 'ary:1', 'at', 'ab', 'bs:1', 'bn:1', 'bx:1']) {
     const p = await press(U1, data);
     assert.match(p.answer.text, /دسترسی ندارید/, data);
     assert.equal(p.calls.filter((c) => c.method !== 'answerCallbackQuery').length, 0, `${data}: nothing else happens`);
@@ -708,6 +708,120 @@ await step('forced join can be turned off and on', async () => {
   assert.match(p.answer.text, /روشن شد/);
   r = await say(U3, '/list');
   assert.match(screen(r.calls).text, /عضویت اجباری/);
+});
+
+// ---------- broadcast ----------
+console.log('broadcast');
+
+const copiesTo = (calls) => calls.filter((c) => c.method === 'copyMessage').map((c) => Number(c.params.chat_id));
+
+await step('broadcast: prompt, any kind of message, confirmation before anything is sent', async () => {
+  // 30 more users, so the broadcast needs two batches; one blocked the bot, one is gone
+  for (let i = 0; i < 30; i += 1) {
+    await db.run(sql`INSERT INTO users (id, first_name, sort, created_at) VALUES (${3000 + i}, 'bulk', 'p', 0)`);
+  }
+  await db.run(sql`UPDATE settings SET value = CAST(CAST(value AS INTEGER) + 30 AS TEXT) WHERE key = 'users'`);
+  mock.state.blocked.add(3005);
+  mock.state.unknownUsers.add(3006);
+  let p = await press(OWNER, 'ab');
+  assert.match(screen(p.calls).text, /پیام همگانی/);
+  assert.equal((await q`SELECT state FROM user_state WHERE user_id = ${OWNER}`).state, 'admin_bc');
+  // an album is refused and the bot keeps waiting
+  let r = await say(OWNER, undefined, { photo: [{ file_id: 'a', file_unique_id: 'a', width: 1, height: 1 }], media_group_id: 'g1' });
+  assert.match(screen(r.calls).text, /آلبوم پشتیبانی نمی‌شود/);
+  assert.equal((await q`SELECT state FROM user_state WHERE user_id = ${OWNER}`).state, 'admin_bc');
+  // a photo with a caption is accepted
+  r = await say(OWNER, undefined, { photo: [{ file_id: 'p', file_unique_id: 'p', width: 1, height: 1 }], caption: 'خبر مهم' });
+  const users = (await q`SELECT count(*) AS n FROM users`).n;
+  const s = screen(r.calls);
+  assert.ok(s.text.includes(`برای ${fa(users - 1)} کاربر فرستاده شود`), s.text);
+  const bc = await q`SELECT * FROM broadcasts ORDER BY id DESC LIMIT 1`;
+  assert.equal(bc.status, 'draft');
+  assert.equal(bc.from_chat, OWNER);
+  assert.equal(bc.message_id, messageId - 1);
+  assert.equal(bc.total, users - 1);
+  assert.deepEqual(s.data, [`bs:${bc.id}`, `bx:${bc.id}`]);
+  assert.equal(copiesTo(r.calls).length, 0, 'nothing sent before confirming');
+  assert.equal(await q`SELECT state FROM user_state WHERE user_id = ${OWNER}`, null);
+});
+
+await step('broadcast: batches of 25 until every user got it exactly once; blocked users count as failed', async () => {
+  const bc = await q`SELECT * FROM broadcasts ORDER BY id DESC LIMIT 1`;
+  const all = (await qa`SELECT id FROM users ORDER BY id`).map((r) => r.id).filter((id) => id !== OWNER);
+  const received = [];
+  let p = await press(OWNER, `bs:${bc.id}`);
+  received.push(...copiesTo(p.calls));
+  assert.equal(copiesTo(p.calls).length, 25);
+  assert.equal((await q`SELECT status FROM broadcasts WHERE id = ${bc.id}`).status, 'running');
+  let s = screen(p.calls);
+  assert.match(s.text, /در حال ارسال/);
+  assert.ok(s.data.includes(`bn:${bc.id}`));
+  // the panel shows it as in progress
+  assert.match(screen((await press(OWNER, 'a')).calls).text, /پیام همگانی در حال ارسال/);
+  for (let i = 0; i < 5 && (await q`SELECT status FROM broadcasts WHERE id = ${bc.id}`).status === 'running'; i += 1) {
+    p = await press(OWNER, `bn:${bc.id}`);
+    received.push(...copiesTo(p.calls));
+  }
+  const row = await q`SELECT * FROM broadcasts WHERE id = ${bc.id}`;
+  assert.equal(row.status, 'done');
+  assert.deepEqual([...received].sort((a, b) => a - b), all, 'each user exactly once, owner excluded');
+  assert.equal(row.failed, 2 + 1, 'blocked 3005, gone 3006 and the unknown user 4040');
+  assert.equal(row.sent, all.length - 3);
+  s = screen(p.calls);
+  assert.match(s.text, /تمام شد/);
+  assert.match(s.text, /۱۰۰٪/);
+  p = await press(OWNER, `bn:${bc.id}`);
+  assert.equal(copiesTo(p.calls).length, 0, 'a finished broadcast sends nothing more');
+});
+
+await step('broadcast: a 429 stops the batch at that user and the next press resumes there (no duplicates)', async () => {
+  await press(OWNER, 'ab');
+  await say(OWNER, 'اطلاعیه‌ی دوم');
+  const bc = await q`SELECT * FROM broadcasts ORDER BY id DESC LIMIT 1`;
+  mock.state.rateLimitOnce.add(3002);
+  let p = await press(OWNER, `bs:${bc.id}`);
+  const first = copiesTo(p.calls);
+  assert.equal(p.answer.show_alert, true);
+  assert.match(p.answer.text, /محدود کرد/);
+  assert.equal(first[first.length - 1], 3002, 'stopped at the limited user');
+  p = await press(OWNER, `bn:${bc.id}`);
+  const second = copiesTo(p.calls);
+  assert.equal(second[0], 3002, 'resumes with the limited user');
+  const got = [...first.slice(0, -1), ...second];
+  assert.equal(new Set(got).size, got.length, 'nobody twice');
+});
+
+await step('broadcast: a double tap while a batch is going out sends nothing', async () => {
+  const bc = await q`SELECT * FROM broadcasts ORDER BY id DESC LIMIT 1`;
+  await db.run(sql`UPDATE broadcasts SET locked_until = ${Math.floor(clock / 1000) + 60} WHERE id = ${bc.id}`);
+  const p = await press(OWNER, `bn:${bc.id}`);
+  assert.equal(copiesTo(p.calls).length, 0);
+  assert.match(p.answer.text, /هنوز در حال ارسال/);
+  await db.run(sql`UPDATE broadcasts SET locked_until = 0 WHERE id = ${bc.id}`);
+});
+
+await step('broadcast: stop, and cancel a draft', async () => {
+  let bc = await q`SELECT * FROM broadcasts ORDER BY id DESC LIMIT 1`;
+  let p = await press(OWNER, 'ab');
+  assert.match(screen(p.calls).text, /یک پیام همگانی در حال ارسال است/, 'one at a time');
+  p = await press(OWNER, `bx:${bc.id}`);
+  assert.match(p.answer.text, /متوقف شد/);
+  assert.equal((await q`SELECT status FROM broadcasts WHERE id = ${bc.id}`).status, 'stopped');
+  p = await press(OWNER, `bn:${bc.id}`);
+  assert.equal(copiesTo(p.calls).length, 0, 'a stopped broadcast sends nothing');
+  await press(OWNER, 'ab');
+  await say(OWNER, 'پیش‌نویس');
+  bc = await q`SELECT * FROM broadcasts ORDER BY id DESC LIMIT 1`;
+  p = await press(OWNER, `bx:${bc.id}`);
+  assert.match(p.answer.text, /لغو شد/);
+  assert.equal((await q`SELECT status FROM broadcasts WHERE id = ${bc.id}`).status, 'stopped');
+  assert.match(screen(p.calls).text, /پنل مدیریت/);
+  // a command while the bot waits for the broadcast message cancels the prompt
+  await press(OWNER, 'ab');
+  await say(OWNER, '/start');
+  assert.equal(await q`SELECT state FROM user_state WHERE user_id = ${OWNER}`, null);
+  await db.run(sql`DELETE FROM users WHERE id >= 3000 AND id < 3030`);
+  await db.run(sql`UPDATE settings SET value = CAST(CAST(value AS INTEGER) - 30 AS TEXT) WHERE key = 'users'`);
 });
 
 // ---------- robustness ----------

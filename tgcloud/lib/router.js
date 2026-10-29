@@ -13,6 +13,7 @@
 //   d / dy:<id>:<b> delete task (ask / yes) · s search · sr:<page> results
 //   st stats · cc / ccy clear completed (ask / yes)
 //   owner: a panel · al channels · aa add · ar / ary:<id> remove (ask / yes) · at join on/off
+//          ab broadcast · bs:<id> start · bn:<id> next batch · bx:<id> stop / cancel
 import { STATE_TTL_SEC } from './config.js';
 import { checkJoin } from './join.js';
 import { answer, createCtx, describeError, send, show } from './tg.js';
@@ -126,6 +127,8 @@ export async function handleMessage(message) {
         user.state = null;
       }
       await runCommand(ctx, user, cmd);
+    } else if (user.state === 'admin_bc' && admin.isOwner(user.id)) {
+      await admin.broadcastInput(ctx, message); // any kind of message: text, photo, video, file, ...
     } else if (text === null) {
       await send(ctx, 'text_only', '✍️ لطفاً فقط پیام متنی بفرستید.', [[menuBtn()]]);
     } else if (user.state) {
@@ -175,6 +178,10 @@ const ROUTES = {
   ar: (ctx, user, [id]) => admin.confirmRemoveChannel(ctx, int(id)),
   ary: (ctx, user, [id]) => admin.removeChannel(ctx, int(id)),
   at: (ctx) => admin.toggleJoin(ctx),
+  ab: (ctx) => admin.promptBroadcast(ctx),
+  bs: (ctx, user, [id]) => admin.beginBroadcast(ctx, int(id)),
+  bn: (ctx, user, [id]) => admin.sendBatch(ctx, int(id)),
+  bx: (ctx, user, [id]) => admin.stopBroadcast(ctx, int(id)),
 };
 
 async function recheckJoin(ctx, user) {

@@ -314,3 +314,76 @@ export async function deleteCategory(userId, categoryId) {
   const r = await db.run(sql`DELETE FROM categories WHERE id = ${categoryId} AND user_id = ${userId}`);
   return r.rowsAffected > 0;
 }
+
+// ---------- broadcasts ----------
+
+function broadcastRow(r) {
+  return {
+    id: Number(r.id),
+    fromChat: Number(r.from_chat),
+    messageId: Number(r.message_id),
+    status: r.status,
+    total: Number(r.total || 0),
+    lastUser: Number(r.last_user || 0),
+    sent: Number(r.sent || 0),
+    failed: Number(r.failed || 0),
+  };
+}
+
+/** The newest broadcast. Only the newest one can still be a draft or running. */
+export async function latestBroadcast() {
+  const r = await db.get(sql`SELECT * FROM broadcasts ORDER BY id DESC LIMIT 1`);
+  return r ? broadcastRow(r) : null;
+}
+
+export async function getBroadcast(id) {
+  const r = await db.get(sql`SELECT * FROM broadcasts WHERE id = ${id}`);
+  return r ? broadcastRow(r) : null;
+}
+
+/** Creates a draft (stopping any previous unfinished one) and returns its id. */
+export async function createBroadcast(fromChat, messageId, total) {
+  const prev = await latestBroadcast();
+  if (prev && (prev.status === 'draft' || prev.status === 'running')) {
+    await db.run(sql`UPDATE broadcasts SET status = 'stopped', locked_until = 0 WHERE id = ${prev.id}`);
+  }
+  const r = await db.run(sql`
+    INSERT INTO broadcasts (from_chat, message_id, status, total, last_user, sent, failed, locked_until, created_at)
+    VALUES (${fromChat}, ${messageId}, 'draft', ${total}, 0, 0, 0, 0, ${nowSec()})
+    RETURNING id`);
+  return Number(r.rows[0].id);
+}
+
+export async function startBroadcast(id) {
+  const r = await db.run(sql`UPDATE broadcasts SET status = 'running' WHERE id = ${id} AND status = 'draft'`);
+  return r.rowsAffected > 0;
+}
+
+export async function stopBroadcast(id) {
+  const r = await db.run(sql`
+    UPDATE broadcasts SET status = 'stopped', locked_until = 0 WHERE id = ${id} AND status IN ('draft', 'running')`);
+  return r.rowsAffected > 0;
+}
+
+/** Claims the next batch, so a double tap can't send it twice; false while another batch is going out. */
+export async function lockBroadcast(id) {
+  const now = nowSec();
+  const r = await db.run(sql`
+    UPDATE broadcasts SET locked_until = ${now + 120}
+    WHERE id = ${id} AND status = 'running' AND locked_until < ${now}`);
+  return r.rowsAffected > 0;
+}
+
+export async function saveBroadcastProgress(id, { lastUser, sent, failed, done }) {
+  await db.run(sql`
+    UPDATE broadcasts
+    SET last_user = ${lastUser}, sent = ${sent}, failed = ${failed}, locked_until = 0,
+        status = CASE WHEN ${done ? 1 : 0} = 1 AND status = 'running' THEN 'done' ELSE status END
+    WHERE id = ${id}`);
+}
+
+/** Users with an id above `afterId`, in id order (a primary-key range: reads only these rows). */
+export async function usersAfter(afterId, limit) {
+  const rows = await db.all(sql`SELECT id FROM users WHERE id > ${afterId} ORDER BY id LIMIT ${limit}`);
+  return rows.map((r) => Number(r.id));
+}

@@ -242,7 +242,7 @@ async function main() {
 
     await scenario('A6 owner-panel buttons pressed by a normal user → "⛔️ دسترسی ندارید", nothing changes', () => {
       const before = devtools({ op: 'snapshot' });
-      for (const data of ['a', 'al', 'aa', 'at', `ary:${before.channels[0] ? before.channels[0].id : 1}`]) {
+      for (const data of ['a', 'al', 'aa', 'at', 'ab', 'bn:1', 'bx:1', `ary:${before.channels[0] ? before.channels[0].id : 1}`]) {
         const r = press(TU3, data);
         expect(!r.handlerError, `${data}: handler error`);
         expect(r.answers.length === 1 && (r.answers[0].text || '').includes('دسترسی ندارید'), `${data}: not refused`);

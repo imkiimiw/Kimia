@@ -1,15 +1,16 @@
-// Owner panel: mandatory channels (list / add / remove, at most 10) and the join on/off switch.
+// Owner panel: mandatory channels (list / add / remove, at most 10), the join on/off switch and
+// broadcasts to every user.
 // The router lets only OWNER_ID (by numeric from.id) reach these functions, and every one of
 // them checks again, so a forged callback or a stale state can never act for someone else.
 import { MAX_CHANNELS, OWNER_ID } from './config.js';
 import { channelRef } from './join.js';
-import { answer, btn, call, describeError, send, show } from './tg.js';
+import { answer, btn, call, describeError, isApiError, send, show } from './tg.js';
 import { asciiDigits, esc, fa, short } from './text.js';
 import { menuBtn } from './ui.js';
 import * as store from './store.js';
 
 /** callback_data actions that belong to the owner panel. */
-export const ADMIN_ACTIONS = new Set(['a', 'al', 'aa', 'ar', 'ary', 'at']);
+export const ADMIN_ACTIONS = new Set(['a', 'al', 'aa', 'ar', 'ary', 'at', 'ab', 'bs', 'bn', 'bx']);
 
 export const isOwner = (userId) => userId === OWNER_ID;
 
@@ -27,12 +28,16 @@ export async function showPanel(ctx, notice) {
   const settings = await store.getSettings();
   const channels = await store.getChannels(settings);
   const joinOn = settings.join !== '0';
+  const bc = await store.latestBroadcast();
+  const running = !!bc && bc.status === 'running';
   const text = '👑 <b>پنل مدیریت</b>\n\n'
     + `🔒 عضویت اجباری: ${joinOn ? '✅ روشن' : '⛔️ خاموش'}\n`
     + `📢 کانال‌ها: ${fa(channels.length)} از ${fa(MAX_CHANNELS)}\n`
-    + `👥 کاربران: ${fa(Number(settings.users || 0))}`;
+    + `👥 کاربران: ${fa(Number(settings.users || 0))}`
+    + (running ? `\n📣 پیام همگانی در حال ارسال: ${fa(bc.sent + bc.failed)} از ${fa(bc.total)}` : '');
   return show(ctx, 'admin_panel', withNotice(notice, text), [
     [btn('📢 کانال‌ها', 'al'), btn('➕ افزودن کانال', 'aa')],
+    [btn(running ? '📣 ادامه‌ی پیام همگانی' : '📣 پیام همگانی', 'ab')],
     [btn(joinOn ? '⛔️ خاموش کردن عضویت اجباری' : '✅ روشن کردن عضویت اجباری', 'at')],
     [menuBtn()],
   ]);
@@ -185,4 +190,149 @@ export async function toggleJoin(ctx) {
   await store.setSetting('join', next);
   await answer(ctx, next === '1' ? '✅ عضویت اجباری روشن شد' : '⛔️ عضویت اجباری خاموش شد');
   return showPanel(ctx);
+}
+
+// ---------- broadcast to every user ----------
+// There is no scheduler, so a broadcast is sent in batches: each press of "next batch" copies the
+// message to the next BROADCAST_BATCH users (in user-id order) and saves where it stopped.
+
+const BROADCAST_BATCH = 25; // well under Telegram's ~30 messages per second
+
+const BROADCAST_STATUS = {
+  draft: '📝 منتظر تأیید',
+  running: '⏳ در حال ارسال',
+  done: '✅ تمام شد',
+  stopped: '⛔️ متوقف شد',
+};
+
+export async function showBroadcast(ctx, bc, notice) {
+  if (!isOwner(ctx.userId)) return null;
+  const handled = bc.sent + bc.failed;
+  const pct = bc.total ? Math.min(100, Math.round((handled * 100) / bc.total)) : (bc.status === 'done' ? 100 : 0);
+  const filled = Math.round(pct / 10);
+  const text = '📣 <b>پیام همگانی</b>\n\n'
+    + `وضعیت: ${BROADCAST_STATUS[bc.status] || bc.status}\n`
+    + `✅ ارسال‌شده: ${fa(bc.sent)}\n`
+    + `❌ ناموفق: ${fa(bc.failed)}\n`
+    + `👥 کل کاربران: ${fa(bc.total)}\n`
+    + `پیشرفت: ${'▰'.repeat(filled)}${'▱'.repeat(10 - filled)} ${fa(pct)}٪\n\n`
+    + '<i>ناموفق یعنی کاربر ربات را بلاک کرده یا حسابش حذف شده است.</i>';
+  let kb;
+  if (bc.status === 'running') {
+    kb = [
+      [btn(`▶️ ارسال دسته‌ی بعدی (${fa(BROADCAST_BATCH)} نفر)`, `bn:${bc.id}`)],
+      [btn('⛔️ توقف ارسال', `bx:${bc.id}`), btn('🔙 پنل', 'a')],
+    ];
+  } else if (bc.status === 'draft') {
+    kb = [[btn('✅ شروع ارسال', `bs:${bc.id}`), btn('❌ لغو', `bx:${bc.id}`)]];
+  } else {
+    kb = [[btn('📣 پیام همگانی جدید', 'ab'), btn('🔙 پنل', 'a')]];
+  }
+  return show(ctx, 'admin_broadcast', withNotice(notice, text), kb);
+}
+
+export async function promptBroadcast(ctx) {
+  if (!isOwner(ctx.userId)) return null;
+  const bc = await store.latestBroadcast();
+  if (bc && bc.status === 'running') {
+    return showBroadcast(ctx, bc, 'ℹ️ یک پیام همگانی در حال ارسال است. ادامه‌اش بدهید یا متوقفش کنید، بعد پیام جدید بفرستید.');
+  }
+  await store.setState(ctx.userId, 'admin_bc');
+  return show(ctx, 'admin_bc_prompt',
+    '📣 <b>پیام همگانی</b>\n\nپیامی را که می‌خواهید برای همه‌ی کاربران فرستاده شود همین‌جا بفرستید: '
+    + 'متن، عکس، ویدیو، فایل، صدا یا یک پیام فورواردی.\n\n'
+    + '• آلبوم (چند عکس با هم) پشتیبانی نمی‌شود.\n'
+    + '• متن نباید با / شروع شود.\n'
+    + '• پیام فورواردی بدون نام فرستنده‌ی اصلی کپی می‌شود.',
+    [[btn('❌ انصراف', 'a')]]);
+}
+
+/** The owner sent the message to broadcast: save it as a draft and ask for confirmation. */
+export async function broadcastInput(ctx, message) {
+  if (!isOwner(ctx.userId)) return null;
+  if (message.media_group_id) {
+    return send(ctx, 'admin_bc_album', '⚠️ آلبوم پشتیبانی نمی‌شود. یک پیام تکی بفرستید:', [[btn('❌ انصراف', 'a')]]);
+  }
+  const settings = await store.getSettings();
+  const total = Math.max(0, Number(settings.users || 0) - 1); // everyone but the owner
+  await store.clearState(ctx.userId);
+  if (!total) return showPanel(ctx, 'ℹ️ هنوز کاربری غیر از شما ندارید که پیام برایش فرستاده شود.');
+  const id = await store.createBroadcast(message.chat.id, message.message_id, total);
+  return send(ctx, 'admin_bc_confirm',
+    `📣 پیام بالا برای ${fa(total)} کاربر فرستاده شود؟\n\n`
+    + `ارسال دسته‌ای است: با هر بار زدن «▶️ ارسال دسته‌ی بعدی»، برای ${fa(BROADCAST_BATCH)} کاربر بعدی فرستاده می‌شود.`,
+    [[btn('✅ بله، شروع کن', `bs:${id}`), btn('❌ لغو', `bx:${id}`)]]);
+}
+
+async function broadcastGone(ctx) {
+  await answer(ctx, '⚠️ این پیام همگانی پیدا نشد.', true);
+  return showPanel(ctx);
+}
+
+export async function beginBroadcast(ctx, id) {
+  if (!isOwner(ctx.userId)) return null;
+  const bc = await store.getBroadcast(id);
+  if (!bc) return broadcastGone(ctx);
+  if (bc.status === 'draft') await store.startBroadcast(id);
+  return sendBatch(ctx, id);
+}
+
+/** Sends the next batch. Users who blocked the bot count as failed; a 429 or a network error stops
+ *  the batch at that user, so the next press resumes there and nobody gets the message twice. */
+export async function sendBatch(ctx, id) {
+  if (!isOwner(ctx.userId)) return null;
+  let bc = await store.getBroadcast(id);
+  if (!bc) return broadcastGone(ctx);
+  if (bc.status !== 'running') {
+    await answer(ctx, `این پیام همگانی ${BROADCAST_STATUS[bc.status] || bc.status}.`);
+    return showBroadcast(ctx, bc);
+  }
+  if (!(await store.lockBroadcast(id))) {
+    await answer(ctx, '⏳ دسته‌ی قبلی هنوز در حال ارسال است؛ چند ثانیه بعد دوباره بزنید.', true);
+    return null;
+  }
+  bc = await store.getBroadcast(id); // re-read under the lock
+  const users = await store.usersAfter(bc.lastUser, BROADCAST_BATCH + 1);
+  const batch = users.slice(0, BROADCAST_BATCH);
+  let { lastUser, sent, failed } = bc;
+  let interrupted = false;
+  let retryAfter = 0;
+  for (const uid of batch) {
+    if (uid !== OWNER_ID) {
+      try {
+        await call(ctx, 'copyMessage', { chat_id: uid, from_chat_id: bc.fromChat, message_id: bc.messageId });
+        sent += 1;
+      } catch (err) {
+        if (isApiError(err) && err.code === 429) {
+          retryAfter = Number((err.parameters && err.parameters.retry_after) || 5);
+          interrupted = true;
+          break;
+        }
+        if (!isApiError(err)) {
+          console.warn(`broadcast to ${uid} failed: ${describeError(err)}`);
+          interrupted = true;
+          break;
+        }
+        failed += 1; // blocked, deactivated, chat not found: this user can't receive it
+      }
+    }
+    lastUser = uid;
+  }
+  const done = !interrupted && users.length <= BROADCAST_BATCH;
+  await store.saveBroadcastProgress(id, { lastUser, sent, failed, done });
+  const thisBatch = (sent + failed) - (bc.sent + bc.failed);
+  if (retryAfter) await answer(ctx, `⏳ تلگرام سرعت ارسال را محدود کرد. ${fa(retryAfter)} ثانیه صبر کنید و دوباره بزنید.`, true);
+  else if (interrupted) await answer(ctx, '⚠️ ارسال این دسته نیمه‌کاره ماند؛ دوباره بزنید تا از همان‌جا ادامه دهد.', true);
+  else await answer(ctx, done ? '✅ ارسال پیام همگانی تمام شد' : `✅ این دسته: ${fa(thisBatch)} کاربر`);
+  return showBroadcast(ctx, await store.getBroadcast(id));
+}
+
+export async function stopBroadcast(ctx, id) {
+  if (!isOwner(ctx.userId)) return null;
+  const bc = await store.getBroadcast(id);
+  if (!bc) return broadcastGone(ctx);
+  const stopped = await store.stopBroadcast(id);
+  await answer(ctx, stopped ? (bc.status === 'draft' ? '❌ لغو شد' : '⛔️ ارسال متوقف شد') : 'این پیام همگانی قبلاً تمام یا متوقف شده است.');
+  if (stopped && bc.status === 'draft') return showPanel(ctx, '❌ پیام همگانی لغو شد.');
+  return showBroadcast(ctx, await store.getBroadcast(id));
 }
