@@ -16,6 +16,7 @@ function keyboardSummary(markup) {
   return rows.map((row) => row.map((b) => {
     if (b.url) return `${b.text} -> ${b.url}`;
     if (b.switch_inline_query !== undefined) return `${b.text} <inline>`;
+    if (b.web_app) return `${b.text} <web_app ${b.web_app.url}>`;
     return `${b.text} [${b.callback_data}]`;
   }));
 }

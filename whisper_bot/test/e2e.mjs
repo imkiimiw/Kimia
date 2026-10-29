@@ -942,6 +942,24 @@ await scenario('a non-member visitor: the join screen first, then straight to th
   assert.equal(sentTo((await say(out, 'از طرف یک عضو جدید')).calls, U.sara.id).length, 1);
 });
 
+await scenario('a visitor whose first contact is the link (no language chosen) gets everything in their Telegram language, replies too', async () => {
+  const olya = person(750000002, 'olya_t', 'ru', 'Оля');
+  join(olya);
+  advance(5);
+  const open = await say(olya, `/start a_${code}`);
+  assert.match(open.calls.find((c) => c.method === 'sendPhoto').params.caption, /Вы пишете анонимное сообщение для <b>سارا 🌸<\/b>/);
+  const sent = await say(olya, 'Привет, это тест');
+  ANON_SECRETS.add('Привет, это тест');
+  const delivered = sentTo(sent.calls, U.sara.id)[0];
+  assert.match(delivered.params.text, /^📨 <b>پیام ناشناس جدید<\/b>/, 'the recipient reads it in her own language');
+  const ref = delivered.params.reply_markup.inline_keyboard[0][0].callback_data.slice(3);
+  await press(U.sara, `ar:${ref}`);
+  const r = await say(U.sara, 'سلام اولیا');
+  assert.match(sentTo(r.calls, olya.id)[0].params.text, /^↩️ <b>Ответ от سارا 🌸<\/b>/, 'a reply sent from someone else\'s update');
+  assert.deepEqual([userRow(olya).lang, userRow(olya).tg_lang], [null, 'ru'], 'no language chosen; the Telegram one is remembered');
+  assert.match((await say(olya, '/start')).text, /Choose the bot's language/, 'the picker still comes on a plain /start');
+});
+
 await scenario('delete my data: inbox, profile, photo, words, ratings erased; a fresh link', async () => {
   const ask = await press(U.sara, 'dd');
   assert.match(ask.text, /برگشت‌پذیر نیست/);

@@ -38,7 +38,9 @@ export function detectLang(code) {
 /** The language to talk to `user` (a users row) or a raw Telegram `from` in. */
 export function langOf(user, from) {
   if (user && isLang(user.lang)) return user.lang;
-  return detectLang(from && from.language_code);
+  if (from && from.language_code) return detectLang(from.language_code);
+  if (user && isLang(user.tgLang)) return user.tgLang; // their Telegram language, seen on an earlier update
+  return detectLang(null);
 }
 
 const FA_DIGITS = '۰۱۲۳۴۵۶۷۸۹';

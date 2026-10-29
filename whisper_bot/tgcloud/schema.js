@@ -16,6 +16,8 @@ export const users = table('users', {
   started: integer('started').notNull().default(0), // 1 once they opened the bot's private chat
   banned: integer('banned').notNull().default(0),
   lang: text('lang'), // fa / en / ru once chosen; NULL = not chosen yet (detected from language_code)
+  tgLang: text('tg_lang'), // fa / en / ru from their Telegram app's language: for messages they get from
+  // someone else's update (a reply, a notification) while they haven't chosen a language
   receipts: integer('receipts').notNull().default(1), // whisper open notifications in PM, on/off
   defExpiry: integer('def_expiry').notNull().default(0), // default whisper lifetime in seconds, 0 = none
   recent: text('recent'), // JSON: the 3 most recent recipients, for quick inline results

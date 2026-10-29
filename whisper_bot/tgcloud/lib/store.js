@@ -6,6 +6,7 @@ import { sql } from 'sdk/db';
 import {
   DEFAULT_CHANNELS, FILTERED_TTL_SEC, GC_BATCH, MAX_BLOCKS, MAX_CHANNELS, STATE_TTL_SEC,
 } from './config.js';
+import { detectLang } from './i18n.js';
 import { localDay, nowSec, parseJson } from './util.js';
 
 /** `a, b, c` as SQL parameters, for IN (...). */
@@ -89,6 +90,7 @@ function toUser(r) {
     joinOk: num(r.join_ok) === 1,
     joinVer: num(r.join_ver),
     lang: r.lang || null,
+    tgLang: r.tg_lang || null,
     anonCode: r.anon_code || null,
     anonOn: num(r.anon_on) === 1,
     anonCount: num(r.anon_count),
@@ -114,7 +116,7 @@ function toUser(r) {
 }
 
 export const USER_COLS = sql`user_id, username, username_lc, first_name, first_seen, last_seen, active, started, banned,
-  lang, receipts, def_expiry, recent, join_until, join_ok, join_ver, anon_code, anon_on, anon_count, anon_unread,
+  lang, tg_lang, receipts, def_expiry, recent, join_until, join_ok, join_ver, anon_code, anon_on, anon_count, anon_unread,
   inbox_size, a_filter, a_links, a_text, a_silent, q_mode, q_text, p_name, p_bio, p_photo, show_rating, rating_sum,
   rating_count, last_anon_at, strikes, strike_at, restricted_until`;
 export { toUser };
@@ -139,13 +141,14 @@ export async function touchUser(from, { started = false } = {}) {
   const username = from.username ? String(from.username) : null;
   const lc = username ? username.toLowerCase() : null;
   const name = String(from.first_name || '').slice(0, 64);
+  const tgLang = from.language_code ? detectLang(from.language_code) : null;
   const now = nowSec();
   const u = await getUser(id);
 
   if (!u) {
     const r = await db.run(sql`
-      INSERT INTO users (user_id, username, username_lc, first_name, first_seen, last_seen, active, started)
-      VALUES (${id}, ${username}, ${lc}, ${name}, ${now}, ${now}, 1, ${started ? 1 : 0})
+      INSERT INTO users (user_id, username, username_lc, first_name, tg_lang, first_seen, last_seen, active, started)
+      VALUES (${id}, ${username}, ${lc}, ${name}, ${tgLang}, ${now}, ${now}, 1, ${started ? 1 : 0})
       ON CONFLICT(user_id) DO NOTHING`);
     if (r.rowsAffected > 0) {
       await bump('n_users', 1);
@@ -168,10 +171,12 @@ export async function touchUser(from, { started = false } = {}) {
     u.started = true;
     u.active = true;
   }
-  if (u.username !== username || u.firstName !== name || now - u.lastSeen >= 60) {
+  if (u.username !== username || u.firstName !== name || (tgLang && u.tgLang !== tgLang) || now - u.lastSeen >= 60) {
     await db.run(sql`
-      UPDATE users SET username = ${username}, username_lc = ${lc}, first_name = ${name}, last_seen = ${now}
+      UPDATE users SET username = ${username}, username_lc = ${lc}, first_name = ${name}, last_seen = ${now},
+        tg_lang = COALESCE(${tgLang}, tg_lang)
       WHERE user_id = ${id}`);
+    if (tgLang) u.tgLang = tgLang;
     if (lc && u.usernameLc !== lc) await releaseUsername(lc, id);
     u.username = username;
     u.usernameLc = lc;

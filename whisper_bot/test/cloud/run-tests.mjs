@@ -279,7 +279,8 @@ async function main() {
         const main = ok(pressPm(id, `L:${lang}`), { view: 'main', callback: true });
         expect(main.data.slice(0, 2).join() === 'ws,an', `main buttons ${JSON.stringify(main.data)}`);
         expect((lang === 'ru' ? /Здесь два раздела/ : /دو بخش داریم/).test(main.text), main.text);
-        expect(devtools({ op: 'user', user: id }).lang === lang, 'language saved');
+        const u = devtools({ op: 'user', user: id });
+        expect(u.lang === lang && u.tg_lang === lang, `language saved: chosen ${u.lang}, Telegram ${u.tg_lang}`);
       }
       return { detail: `channels: ${ch.map((c) => `@${c.username}`).join(', ')}; 4 test users chose fa, 1 ru` };
     });
@@ -308,6 +309,24 @@ async function main() {
       const ru = whisperResult(ok(inlineQuery(T.third, 'zz привет @zzw_t2')));
       expect(ru && ru.message === '🔒 Шёпот для @zzw_t2', `Russian posted message: ${ru && ru.message}`);
       return { detail: `whisper ${w.wid} → rid ${T.byId} (label ${row.rcpts[0].label}); ru: "${ru.message}"` };
+    });
+
+    await scenario('1d. the command menu and descriptions are set in Persian, English and Russian (read back from Telegram)', () => {
+      const texts = devtools({ op: 'bot_texts' });
+      const want = ['start', 'whisper', 'anon', 'link', 'inbox', 'profile', 'lang', 'help', 'privacy'];
+      for (const t of texts) {
+        expect(t.commands.join() === want.join(), `${t.lang} commands ${JSON.stringify(t.commands)}`);
+        expect(t.description && t.short, `${t.lang}: description "${t.description}" / short "${t.short}"`);
+      }
+      const by = (l) => texts.find((t) => t.lang === l);
+      expect(/نجوا/.test(by('fa').short) && /Whispers/.test(by('en').short) && /Шёпот/.test(by('ru').short), `short descriptions ${JSON.stringify(texts.map((t) => t.short))}`);
+      return { detail: texts.map((t) => `${t.lang}: ${t.commands.length} commands, "${t.short}"`).join(' | ') };
+    });
+
+    await scenario('1e. BotFather: inline mode is on (getMe supports_inline_queries)', () => {
+      const me = devtools({ op: 'me' });
+      if (!me.inline) return { status: 'WARN', detail: `@${me.username}: inline mode is OFF — in @BotFather send /setinline, pick the bot, and send a placeholder such as "متن نجوا @username"` };
+      return { detail: `@${me.username} (id ${me.id}): inline on, groups ${me.groups ? 'allowed' : 'not allowed'}` };
     });
 
     await scenario('2. typing many inline queries in a row keeps ONE draft row and creates no whispers', () => {
@@ -683,7 +702,12 @@ async function main() {
       return { detail: `report #${reports[0].id} → restricted 7 days; the reporter's block and the restriction both hold` };
     });
 
-    await scenario('14e. image cards (Mini App endpoints): cardData gives your own link; cardSend posts a real JPEG to your chat', () => {
+    await scenario('14e. image cards (Mini App): Telegram accepts the web_app buttons; cardData gives your own link; cardSend posts a real JPEG', () => {
+      if (PANEL_MID) {
+        const cards = ok(pressPm(OWNER, 'cd', PANEL_MID), { view: 'cards', callback: true });
+        expect(cards.last.ok, `Telegram refused the card screen with Mini App buttons: ${cards.last.err}`);
+        expect(cards.last.kb.flat().filter((b) => /<web_app https:\/\/app\d+\.tgcloud\.ai\/\?k=(link|q)&l=fa>$/.test(b)).length === 2, `Mini App buttons ${JSON.stringify(cards.last.kb)}`);
+      }
       const d = tgcloudRun('endpoints/cardData', { k: 'link' }, { initData: { user: { id: T.byId, first_name: 'Tester3' } } });
       expect(d.exitOk && d.value && /start=a_\w{10}$/.test(d.value.link || ''), `cardData: ${d.out.slice(-500)}`);
       expect(d.value.lang === 'fa' && d.value.labels && d.value.labels.send, `labels ${JSON.stringify(d.value.labels)}`);
@@ -709,7 +733,7 @@ async function main() {
       if (!botId) return { status: 'WARN', detail: 'bot id unknown (kv bot_id)' };
       const base = `https://app${botId}.tgcloud.ai/`;
       const checks = [];
-      for (const [file, re] of [['', /telegram-web-app\.js[\s\S]*app\.js/], ['app.js', /Serverless\.call\('cardSend'/], ['fonts/vazirmatn-arabic-700-normal.woff2', null]]) {
+      for (const [file, re] of [['', /telegram-web-app\.js[\s\S]*app\.js/], ['app.js', /^(?=[\s\S]*Serverless\.call\()(?=[\s\S]*call\('cardData')(?=[\s\S]*call\('cardSend')/], ['fonts/vazirmatn-arabic-700-normal.woff2', null]]) {
         const res = await fetch(base + file);
         const body = re ? await res.text() : '';
         checks.push(`${file || '/'} ${res.status}`);

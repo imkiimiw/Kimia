@@ -6,7 +6,7 @@
 // fake channels (zz_fake_*), broadcasts the run created, and — to restore
 // the starting state — a channel row, the join setting and the owner's anonymous-section settings the
 // script saved before the test (plus the owner's inbox counters for messages the test users sent them).
-import { db } from 'sdk';
+import { api, db } from 'sdk';
 import { sql } from 'sdk/db';
 
 const OWNER_ID = 5557901897;
@@ -44,6 +44,22 @@ async function testWhisperIds(users) {
 export default async function (input) {
   const now = Math.floor(Date.now() / 1000);
   switch (input.op) {
+    case 'me': {
+      const me = await api.getMe();
+      return { id: me.id, username: me.username, inline: !!me.supports_inline_queries, groups: !!me.can_join_groups };
+    }
+    case 'bot_texts': {
+      // What the bot set on its first update (lib/menu.js ensureBotTexts), read back from Telegram.
+      const out = [];
+      for (const lang of ['', 'fa', 'en', 'ru']) {
+        const p = lang ? { language_code: lang } : {};
+        const commands = await api.getMyCommands(p);
+        const { description } = await api.getMyDescription(p);
+        const { short_description: short } = await api.getMyShortDescription(p);
+        out.push({ lang: lang || 'default', commands: commands.map((c) => c.command), description, short });
+      }
+      return out;
+    }
     case 'tables': {
       const out = {};
       for (const t of TABLES) {

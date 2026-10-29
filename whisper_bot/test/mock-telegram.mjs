@@ -82,7 +82,14 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
     forbidden: new Set(), // chats the bot isn't a member of (403)
     deleted: [],
     media: [], // { chat_id, field, file, caption, upload: { filename, type, size, head } }
+    botTexts: new Map(), // language_code ('' = default) -> { commands, description, short_description }
   };
+  const botText = (p) => {
+    const lang = p.language_code || '';
+    if (!state.botTexts.has(lang)) state.botTexts.set(lang, { commands: [], description: '', short_description: '' });
+    return state.botTexts.get(lang);
+  };
+  const ownText = (p) => state.botTexts.get(p.language_code || '') || state.botTexts.get('') || { commands: [], description: '', short_description: '' };
 
   const key = (chatId) => {
     const s = String(chatId);
@@ -155,10 +162,26 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
     sendDocument: media('document', true),
     sendSticker: media('sticker', false),
     sendVideoNote: media('video_note', false),
-    setMyCommands: (p) => (Array.isArray(p.commands) && p.commands.every((c) => /^[a-z0-9_]{1,32}$/.test(c.command) && c.description) ? ok(true) : err(400, 'Bad Request: BOT_COMMAND_INVALID')),
-    setMyDescription: (p) => (String(p.description || '').length <= 512 ? ok(true) : err(400, 'Bad Request: description is too long')),
-    setMyShortDescription: (p) => (String(p.short_description || '').length <= 120 ? ok(true) : err(400, 'Bad Request: short description is too long')),
-    getMe: () => ok({ id: botId, is_bot: true, first_name: 'Whisper', username: botUsername }),
+    setMyCommands: (p) => {
+      if (!Array.isArray(p.commands) || !p.commands.every((c) => /^[a-z0-9_]{1,32}$/.test(c.command) && c.description && c.description.length <= 256)) return err(400, 'Bad Request: BOT_COMMAND_INVALID');
+      botText(p).commands = p.commands;
+      return ok(true);
+    },
+    setMyDescription: (p) => {
+      if (String(p.description || '').length > 512) return err(400, 'Bad Request: description is too long');
+      botText(p).description = p.description || '';
+      return ok(true);
+    },
+    setMyShortDescription: (p) => {
+      if (String(p.short_description || '').length > 120) return err(400, 'Bad Request: short description is too long');
+      botText(p).short_description = p.short_description || '';
+      return ok(true);
+    },
+    // Like Telegram: a language without its own value falls back to the default one.
+    getMyCommands: (p) => ok(ownText(p).commands),
+    getMyDescription: (p) => ok({ description: ownText(p).description }),
+    getMyShortDescription: (p) => ok({ short_description: ownText(p).short_description }),
+    getMe: () => ok({ id: botId, is_bot: true, first_name: 'Whisper', username: botUsername, can_join_groups: true, supports_inline_queries: true }),
     answerCallbackQuery: (p) => {
       if (state.answeredCallbacks.has(p.callback_query_id)) return err(400, 'Bad Request: query is too old and response timeout expired or query ID is invalid');
       if (p.text && p.text.length > 200) return err(400, 'Bad Request: MESSAGE_TOO_LONG');
