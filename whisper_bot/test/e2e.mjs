@@ -816,6 +816,13 @@ await scenario('blocking without learning who; 3 people blocking the same sender
   assert.match(list.text, /فرستنده‌های ناشناس بلاک‌شده/);
   noTrace(list.calls, U.sara.id, U.ali);
   assert.equal(userRow(U.ali).strikes, 1);
+  // the same person unblocking and blocking again is still one strike
+  for (let i = 0; i < 3; i += 1) {
+    assert.match((await press(U.sara, `ab:${firstRef}`, { messageId: deliveredId })).answer.text, /^🔓 آنبلاک شد/);
+    assert.match((await press(U.sara, `ab:${firstRef}`, { messageId: deliveredId })).answer.text, /^🚫 بلاک شد/);
+  }
+  assert.equal(userRow(U.ali).strikes, 1, 'one person = one strike');
+  assert.ok(userRow(U.ali).restricted_until <= nowSec(), 'not restricted by one person');
   // two more people block ali's anonymous messages → restricted for 24h
   for (const victim of [U.mina, U.reza]) {
     const link = linkRe.exec((await say(victim, '/link')).text)[1];
@@ -830,9 +837,11 @@ await scenario('blocking without learning who; 3 people blocking the same sender
   advance(5);
   await say(U.ali, `/start a_${link}`);
   assert.match((await say(U.ali, 'یک پیام دیگر')).text, /چند نفر پیام‌هایت را گزارش یا بلاک کرده‌اند/);
+  assert.equal(userRow(U.ali).strikes, 3);
   rawDatabase().prepare('UPDATE users SET restricted_until = 0, strikes = 0 WHERE user_id = ?').run(U.ali.id);
+  rawDatabase().prepare('DELETE FROM strikes WHERE sender_id = ?').run(U.ali.id);
   await say(U.ali, '/cancel');
-  const uba = dataOf(list.kb).find((d) => d.startsWith('uba:'));
+  const uba = dataOf((await say(U.sara, '/blocks')).kb).find((d) => d.startsWith('uba:'));
   assert.match((await press(U.sara, uba)).answer.text, /آنبلاک/);
 });
 

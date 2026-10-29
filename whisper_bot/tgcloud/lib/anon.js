@@ -283,7 +283,7 @@ export async function toggleBlock(ctx, user, id, { fromInbox = false } = {}) {
   }
   const r = await addAnonBlock(user.id, row.fromId);
   if (r === 'full') return answer(ctx, T(ctx, 'a.block_full'), { alert: true });
-  if (r === 'ok' && row.anon) await addStrike(row.fromId);
+  if (r === 'ok' && row.anon) await addStrike(row.fromId, user.id);
   await answer(ctx, T(ctx, 'a.blocked'), { alert: true });
   return fromInbox ? null : editMarkup(ctx, 'anon_buttons', ctx.chatId, ctx.messageId, deliveredButtons(ctx.lang, row.id, true));
 }
@@ -302,7 +302,8 @@ export async function confirmReport(ctx, user, id) {
   if (!row || row.toId !== user.id) return answer(ctx, T(ctx, 'a.gone'), { alert: true });
   const r = await createReport(row, user.id);
   if (r === 'ok') {
-    if ((await addAnonBlock(user.id, row.fromId)) === 'ok' && row.anon) await addStrike(row.fromId);
+    await addAnonBlock(user.id, row.fromId);
+    if (row.anon) await addStrike(row.fromId, user.id);
     const owner = await getUser(OWNER_ID);
     const lang = langOf(owner);
     await send(ctx, 'owner_report', t(lang, 'adm.report_new'), [[btn(t(lang, 'adm.btn_review'), 'a:rp')]], OWNER_ID);

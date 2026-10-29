@@ -169,17 +169,21 @@ export async function touchSent(userId) {
   await db.run(sql`UPDATE users SET last_anon_at = ${nowSec()} WHERE user_id = ${userId}`);
 }
 
-/** A recipient blocked or reported this sender. Enough strikes within a week restrict them. */
-export async function addStrike(senderId) {
+/**
+ * `byId` blocked or reported this sender. Strikes are distinct people within STRIKE_WINDOW_SEC (a
+ * repeat by the same person in the window counts once); enough of them restrict the sender.
+ */
+export async function addStrike(senderId, byId) {
   const now = nowSec();
+  const since = now - STRIKE_WINDOW_SEC;
   const r = await db.run(sql`
-    UPDATE users SET
-      strikes = CASE WHEN strike_at < ${now - STRIKE_WINDOW_SEC} THEN 1 ELSE strikes + 1 END,
-      strike_at = ${now}
-    WHERE user_id = ${senderId} RETURNING strikes, restricted_until`);
-  const row = r.rows && r.rows[0];
-  if (!row) return;
-  const strikes = num(row.strikes);
+    INSERT INTO strikes (sender_id, by_id, at) VALUES (${senderId}, ${byId}, ${now})
+    ON CONFLICT(sender_id, by_id) DO UPDATE SET at = excluded.at WHERE strikes.at < ${since}`);
+  if (!r.rowsAffected) return; // this person already counted in the window
+  const row = await db.get(sql`
+    SELECT count(*) AS n FROM (SELECT 1 FROM strikes WHERE sender_id = ${senderId} AND at >= ${since} LIMIT ${STRIKES_TO_RESTRICT * 2})`);
+  const strikes = num(row && row.n);
+  await db.run(sql`UPDATE users SET strikes = ${strikes}, strike_at = ${now} WHERE user_id = ${senderId}`);
   if (strikes >= STRIKES_TO_RESTRICT) {
     await restrict(senderId, strikes >= STRIKES_TO_RESTRICT * 2 ? RESTRICT_LONG_SEC : RESTRICT_SEC);
   }

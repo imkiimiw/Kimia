@@ -39,7 +39,8 @@ export const CATEGORIES = { q: '❓', c: '💌', o: '💬', f: '😂', h: '❤�
 export const PICKABLE_CATEGORIES = ['q', 'c', 'o', 'f', 'h', 'g'];
 
 // Anti-spam for anonymous senders. Limits are per sender; strikes come from recipients blocking or
-// reporting them, and enough strikes in STRIKE_WINDOW_SEC restrict them from sending for a while.
+// reporting them (each recipient counts once), and enough strikes in STRIKE_WINDOW_SEC restrict them
+// from sending for a while.
 export const ANON_PER_HOUR = 30;
 export const ANON_PER_TARGET_10MIN = 5;
 export const ANON_MIN_GAP_SEC = 3;

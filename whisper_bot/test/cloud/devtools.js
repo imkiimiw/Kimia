@@ -12,7 +12,7 @@ import { sql } from 'sdk/db';
 const OWNER_ID = 5557901897;
 const TARGET_403 = -1001005640892; // @telegram
 const TABLES = ['users', 'kv', 'channels', 'drafts', 'whispers', 'whisper_rcpts', 'snoops', 'blocks', 'user_state', 'broadcasts',
-  'anon_msgs', 'anon_blocks', 'anon_words', 'ratings', 'reports'];
+  'anon_msgs', 'anon_blocks', 'anon_words', 'ratings', 'reports', 'strikes'];
 // The owner's own anonymous-section fields: saved before the run, restored after it.
 const OWNER_FIELDS = ['anon_code', 'anon_on', 'a_filter', 'a_links', 'a_text', 'a_silent', 'q_mode', 'q_text'];
 const TEST_IDS = [990000001, 990000002, 990000003, 990000004, 990000005, 990000009];
@@ -264,6 +264,7 @@ export default async function (input) {
       }
       await db.run(sql`DELETE FROM ratings WHERE rater_id IN (${list(users)}) OR target_id IN (${list(users)})`);
       await db.run(sql`DELETE FROM reports WHERE reporter_id IN (${list(users)}) OR sender_id IN (${list(users)})`);
+      await db.run(sql`DELETE FROM strikes WHERE sender_id IN (${list(users)}) OR by_id IN (${list(users)})`);
       let removed = 0;
       let reachable = 0;
       for (const id of users) {

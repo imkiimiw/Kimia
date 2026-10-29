@@ -71,6 +71,13 @@ if (fs.existsSync(DEVTOOLS_DST)) {
 
 let runs = 0;
 
+// Ctrl-C (or a SIGINT/SIGTERM to this script) stops the run at the next scenario, but the restore at
+// the end of main() still runs. Everything here is synchronous, so the signal is noticed when a
+// scenario starts (it yields to the event loop) or when it kills the CLI call in progress.
+class Aborted extends Error {}
+let aborted = false;
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { aborted = true; });
+
 function cli(args, { allowFail = false } = {}) {
   try {
     return execFileSync(process.execPath, [...CLI_ARGS, ...args], {
@@ -81,6 +88,10 @@ function cli(args, { allowFail = false } = {}) {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch (e) {
+    if (e.signal === 'SIGINT' || e.signal === 'SIGTERM') {
+      aborted = true;
+      throw new Aborted(`interrupted (${e.signal})`);
+    }
     if (!allowFail) throw e;
     return `${e.stdout || ''}${e.stderr || ''}`;
   }
@@ -103,11 +114,12 @@ function tgcloudRun(module, args, ctx) {
     try {
       out = cli(argv);
     } catch (e) {
+      if (e instanceof Aborted) throw e;
       exitOk = false;
       out = `${e.stdout || ''}${e.stderr || ''}`;
     }
     const limited = !exitOk && RATE_LIMITED.exec(out);
-    if (!limited || attempt >= 10) break;
+    if (!limited || attempt >= 10) break; // retried after an interrupt too: the restore needs it most
     const wait = Math.min(Number(limited[1]), 60) + 1;
     log(`\n$ npx tgcloud run ${module} … → rate limited; waiting ${wait}s and retrying (the refused call did not run)`);
     rateWait += wait;
@@ -220,6 +232,8 @@ function ok(res, { view, callback = false } = {}) {
 }
 
 async function scenario(name, fn) {
+  await new Promise((resolve) => setImmediate(resolve)); // lets a pending SIGINT handler run
+  if (aborted) throw new Aborted('interrupted');
   log(`\n======== ${name} ========`);
   let status = 'PASS';
   let detail = '';
@@ -228,6 +242,7 @@ async function scenario(name, fn) {
     if (out && out.status) status = out.status;
     if (out && out.detail) detail = out.detail;
   } catch (err) {
+    if (err instanceof Aborted) throw err;
     status = 'FAIL';
     detail = err instanceof Fail ? err.message : String(err.stack || err);
   }
@@ -817,20 +832,21 @@ const removeDevtools = () => {
     // best effort
   }
 };
-process.on('SIGINT', () => {
-  removeDevtools();
-  process.exit(130);
-});
 let info = {};
 try {
   info = await main();
 } catch (err) {
-  results.push({ name: 'runner', status: 'FAIL', detail: String(err.stack || err) });
-  console.log(`✘ runner crashed: ${err.stack || err}`);
+  if (err instanceof Aborted) {
+    results.push({ name: 'runner', status: 'FAIL', detail: 'interrupted; the restore ran (see above)' });
+    console.log('\n✘ interrupted — stopped after restoring the starting state');
+  } else {
+    results.push({ name: 'runner', status: 'FAIL', detail: String(err.stack || err) });
+    console.log(`✘ runner crashed: ${err.stack || err}`);
+  }
 } finally {
   removeDevtools();
 }
-if (!process.env.TGCLOUD_SKIP_WEBHOOK) webhookCheck();
+if (!process.env.TGCLOUD_SKIP_WEBHOOK && !aborted) webhookCheck();
 
 const counts = results.reduce((a, r) => ({ ...a, [r.status]: (a[r.status] || 0) + 1 }), {});
 const summary = [
@@ -846,4 +862,4 @@ const summary = [
 ].join('\n');
 fs.writeFileSync(path.join(OUT_DIR, 'summary.md'), summary);
 console.log(`\n${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ')} — ${runs} runs${rateWait ? `, ${rateWait}s rate-limit waits` : ''}; log: test/cloud/output/run.log, summary: test/cloud/output/summary.md`);
-process.exit(counts.FAIL ? 1 : 0);
+process.exit(aborted ? 130 : counts.FAIL ? 1 : 0);

@@ -185,6 +185,17 @@ export const anonBlocks = table('anon_blocks', {
   byOwner: index('idx_anon_blocks_owner').on(t.ownerId, t.createdAt),
 }));
 
+// Who blocked or reported whom (the anonymous side): one row per pair, so each person counts once
+// within STRIKE_WINDOW_SEC however often they block, unblock or report (lib/astore.js addStrike).
+export const strikes = table('strikes', {
+  senderId: integer('sender_id').notNull(),
+  byId: integer('by_id').notNull(),
+  at: integer('at').notNull(),
+}, (t) => ({
+  pair: uniqueIndex('uq_strikes').on(t.senderId, t.byId),
+  bySender: index('idx_strikes_sender').on(t.senderId, t.at),
+}));
+
 // A user's own blocked words: messages containing one go to the filtered folder.
 export const anonWords = table('anon_words', {
   userId: integer('user_id').notNull(),

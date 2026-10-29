@@ -1,5 +1,5 @@
 // Anti-spam for anonymous senders. Checked before a message is stored or delivered:
-//   restricted — recipients blocked/reported this sender STRIKES_TO_RESTRICT times within a week
+//   restricted — STRIKES_TO_RESTRICT different recipients blocked/reported this sender within a week
 //                (lib/astore.js addStrike), or the bot's owner restricted them from a report;
 //   flood      — less than ANON_MIN_GAP_SEC since their previous message;
 //   hour       — more than ANON_PER_HOUR messages in the last hour, to anyone;
