@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { createMockTelegram } from './mock-telegram.mjs';
 import { rawDatabase, setupDatabase } from './sdk/db.mjs';
 import * as schema from '../tgcloud/schema.js';
+import { APP_URL } from '../tgcloud/lib/config.js';
 import * as bgRules from '../tgcloud/lib/games/backgammon.js';
 import * as hokmRules from '../tgcloud/lib/games/hokm.js';
 import * as fusionRules from '../tgcloud/lib/games/fusion.js';
@@ -136,7 +137,7 @@ await scenario('"I\'ve joined": still missing → alert; joined → welcome with
   const welcome = mock.get(U.bea.id, s.result.result.message_id);
   assert.match(welcome.plain, /Bienvenue/);
   const kb = welcome.markup.inline_keyboard.flat();
-  assert.ok(kb.some((b) => b.url === 'https://t.me/game_test_bot/play'));
+  assert.ok(APP_URL ? kb.some((b) => b.web_app && b.web_app.url === APP_URL) : kb.some((b) => b.url === 'https://t.me/game_test_bot/play'), 'Play opens the Mini App');
   assert.ok(kb.some((b) => b.switch_inline_query === ''));
   const checks = (await dm(U.bea, '/start')).filter((c) => c.method === 'getChatMember');
   assert.equal(checks.length, 0, 'membership is cached');
@@ -184,6 +185,7 @@ await scenario('inline: not joined → no games, a button to the bot; joined →
   assert.ok(yes.result.ok, JSON.stringify(yes.result));
   assert.deepEqual(yes.params.results.map((r) => r.id.split('.')[0]), ['ttt', 'bg', 'hokm', 'codeword', 'fusion']);
   assert.match(yes.params.results[0].title, /دوز/);
+  if (APP_URL) assert.equal(yes.params.results[1].thumbnail_url, `${APP_URL}thumbs/bg.png`);
   const url = yes.params.results[0].reply_markup.inline_keyboard[0][0].url;
   const m = /^https:\/\/t\.me\/game_test_bot\/play\?startapp=t_([A-Za-z0-9]{12})$/.exec(url);
   assert.ok(m, url);

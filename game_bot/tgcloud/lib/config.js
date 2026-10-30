@@ -6,7 +6,7 @@
  */
 export const OWNER_ID = 5557901897;
 export const APP_SHORT_NAME = 'play';
-export const APP_URL = '';
+export const APP_URL = 'https://app8740157051.tgcloud.ai/';
 
 export const DEFAULT_CHANNELS = ['HIDE_i_SEEK', 'Nepenthw_ir', 'wangerBots'];
 export const MAX_CHANNELS = 10;
