@@ -37,5 +37,6 @@
   "punish_export": "از مجازات‌ها خروجی گرفت",
   "lists_export": "از یک لیست خروجی گرفت",
   "betrayal": "رخداد ضدخیانت: {target}",
-  "betrayal_unban": "اعضایی را که {target} حذف کرده بود از بن خارج کرد"
+  "betrayal_unban": "اعضایی را که {target} حذف کرده بود از بن خارج کرد",
+  "lock_set": "قفل «{lock}» را تغییر داد"
 }

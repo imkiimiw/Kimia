@@ -67,6 +67,8 @@ export const chats = table('aegis_chats', {
   adminsAt: integer('admins_at').notNull().default(0),
   reminder: integer('reminder').notNull().default(1),
   remindedAt: integer('reminded_at').notNull().default(0),
+  lockNotice: integer('lock_notice').notNull().default(0), /* the last lock notice posted (deleted when the next one comes) */
+  lockNoticeAt: integer('lock_notice_at').notNull().default(0),
 }, (t) => ({
   activeType: index('idx_aegis_chats_active_type').on(t.active, t.type, t.chatId),
   countAt: index('idx_aegis_chats_count_at').on(t.active, t.countAt),
@@ -337,4 +339,44 @@ export const incidents = table('aegis_incidents', {
   undoneAt: integer('undone_at').notNull().default(0),
 }, (t) => ({
   byActor: index('idx_aegis_incidents_actor').on(t.chatId, t.actorId, t.at),
+}));
+
+/*
+ * Group locks (Phase 4): one row per chat and lock that was ever configured; config is JSON
+ * { on, a, d, del, n, txt, log, exT, exM, ex, s, sc } (lib/engines/locks.js validates it).
+ */
+export const locks = table('aegis_locks', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  code: text('code').notNull(),
+  enabled: integer('enabled').notNull().default(0),
+  config: text('config').notNull(),
+  updatedBy: integer('updated_by').notNull().default(0),
+  updatedAt: integer('updated_at').notNull().default(0),
+}, (t) => ({
+  byChat: uniqueIndex('idx_aegis_locks_chat_code').on(t.chatId, t.code),
+  active: index('idx_aegis_locks_active').on(t.chatId).where(sql`enabled = 1`),
+}));
+
+/* When members joined a group (for locks that apply to new members only). Removed when they leave. */
+export const members = table('aegis_members', {
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  joinedAt: integer('joined_at').notNull(),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_members_key').on(t.chatId, t.userId),
+}));
+
+/* Messages a lock caught (kept 7 days): the panel's «recent hits» per lock. */
+export const lockHits = table('aegis_lock_hits', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  code: text('code').notNull(),
+  userId: integer('user_id').notNull().default(0),
+  action: text('action').notNull(), /* deleted, kept, audit */
+  punishment: text('punishment'),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byLock: index('idx_aegis_lock_hits_lock').on(t.chatId, t.code, t.at),
+  byAt: index('idx_aegis_lock_hits_at').on(t.at),
 }));

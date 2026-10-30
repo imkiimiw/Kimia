@@ -37,5 +37,6 @@
   "punish_export": "导出了处罚",
   "lists_export": "导出了名单",
   "betrayal": "防背叛事件：{target}",
-  "betrayal_unban": "解封了被 {target} 移除的成员"
+  "betrayal_unban": "解封了被 {target} 移除的成员",
+  "lock_set": "修改了锁「{lock}」"
 }

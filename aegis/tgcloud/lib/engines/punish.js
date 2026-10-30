@@ -7,7 +7,7 @@
  * step ladder (engines/steps.js) on the member's active warnings.
  *
  * Audit Mode (setting audit): punishments Aegis decides on its own (steps, blacklist on join,
- * anti-betrayal) are only recorded (status 'audit') and reported, never done. A punishment a person
+ * anti-betrayal, locks) are only recorded (status 'audit') and reported, never done. A punishment a person
  * asks for (a command, the panel) is done — it is a human decision.
  *
  * Every punishment is reversible except a kick (the member can simply rejoin): undo() lifts a
@@ -30,7 +30,7 @@ import * as users from './users.js';
 
 export const KINDS = ['warn', 'mute', 'restrict', 'quarantine', 'kick', 'ban', 'blacklist', 'demote'];
 export const TIMED = new Set(['mute', 'restrict', 'quarantine', 'ban']);
-const AUTO = new Set(['step', 'blacklist', 'betrayal']);
+const AUTO = new Set(['step', 'blacklist', 'betrayal', 'lock']);
 const PERMS = ['can_send_messages', 'can_send_audios', 'can_send_documents', 'can_send_photos', 'can_send_videos', 'can_send_video_notes',
   'can_send_voice_notes', 'can_send_polls', 'can_send_other_messages', 'can_add_web_page_previews', 'can_change_info', 'can_invite_users',
   'can_pin_messages', 'can_manage_topics'];

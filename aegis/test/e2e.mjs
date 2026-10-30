@@ -26,7 +26,7 @@ for (const name of ['TextEncoder', 'TextDecoder', 'URL', 'URLSearchParams', 'Blo
   'setTimeout', 'setInterval', 'setImmediate', 'structuredClone', 'atob', 'btoa', 'crypto', 'Buffer', 'Intl']) delete globalThis[name];
 
 const H = {};
-for (const h of ['message', 'callback_query', 'my_chat_member', 'chat_member']) H[h] = (await import(`../tgcloud/handlers/${h}.js`)).default;
+for (const h of ['message', 'edited_message', 'callback_query', 'my_chat_member', 'chat_member']) H[h] = (await import(`../tgcloud/handlers/${h}.js`)).default;
 const bcLive = (await import('../tgcloud/endpoints/bcLive.js')).default;
 
 const errors = [];
@@ -734,7 +734,9 @@ async function botChange(chat, from, oldStatus, newStatus, rights = {}) {
   return run(H.my_chat_member, { chat, from, date: 0, old_chat_member: { status: oldStatus, user: mock.bot }, new_chat_member: neu });
 }
 async function gmsg(chat, from, text, extra = {}) {
-  return run(H.message, { message_id: msgId++, from, chat, date: 0, ...(text !== null ? { text } : {}), ...extra });
+  const id = msgId++;
+  mock.userMessage(chat.id, id, { text, plain: text, from: from || extra.sender_chat || { id: 0 } });
+  return run(H.message, { message_id: id, from, chat, date: 0, ...(text !== null ? { text } : {}), ...extra });
 }
 async function adminChange(chat, from, user, before, after) {
   return run(H.chat_member, { chat, from, date: 0, old_chat_member: { user, ...before }, new_chat_member: { user, ...after } });
@@ -860,7 +862,7 @@ await scenario('phase 2 — the panel: level, rights, outside admins, sections; 
   assert.match(root.plain, /Aegis has every permission it needs/);
   assert.match(root.plain, /Admins not appointed through Aegis: 1/);
   const s = (x) => `g:${ALPHA}:${x}`;
-  assert.deepEqual(dataOf(root), [s('L'), s('P'), s('W'), s('B'), s('U'), s('O'), s('p'), s('a'), s('l'), s('g'), s('r'), s('h'), s('x'), 'cl']);
+  assert.deepEqual(dataOf(root), [s('K'), s('L'), s('P'), s('W'), s('B'), s('U'), s('O'), s('p'), s('a'), s('l'), s('g'), s('r'), s('h'), s('x'), 'cl']);
   await press(P.carol, s('p'), carolPanel);
   const perms = screenOf(P.carol, carolPanel).plain;
   assert.equal((perms.match(/✅/g) || []).length, 7);
@@ -1325,7 +1327,7 @@ await scenario('phase 3 — the panel: 18 lists; add, search, details, note, edi
   const c = await olgaSays('/config');
   olgaPanel = midOf(sent(c)[0]);
   await olga(`g:${BETA}`);
-  assert.deepEqual(dataOf(olgaScreen()).slice(0, 6), [B('L'), B('P'), B('W'), B('B'), B('U'), B('O')]);
+  assert.deepEqual(dataOf(olgaScreen()).slice(0, 7), [B('K'), B('L'), B('P'), B('W'), B('B'), B('U'), B('O')]);
   await olga(B('L'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:L:[a-z]{3}$/.test(d)).length, 18);
   assert.match(olgaScreen().plain, /Each list belongs to this chat only/);
@@ -1660,6 +1662,313 @@ await scenario('phase 3 — a Persian group: commands and notices in Persian, ri
     assert.equal(row(`SELECT count(*) AS n FROM ${t} WHERE chat_id = ?`, OLD).n, 0, t);
     assert.equal(row(`SELECT count(*) AS n FROM ${t} WHERE chat_id = ?`, NEWID).n, 1, t);
   }
+});
+
+// ---------- phase 4: group locks ----------
+
+const P4 = {};
+for (const [i, nm] of ['Lia', 'Sam', 'Ada', 'Newbie', 'Nora'].entries()) {
+  P4[nm.toLowerCase()] = { id: 800000060 + i, is_bot: false, first_name: nm, language_code: 'en', username: `${nm.toLowerCase()}_p4` };
+}
+const K = (x) => B(`K:${x}`);
+const ids = (calls) => sent(calls, 'deleteMessage').map((c) => c.params.message_id);
+const photoOf = (u) => gmsg(betaChat, u, null, { photo: [{ file_id: 'p', file_unique_id: 'p', width: 1, height: 1 }] });
+async function lockOn(code, ...more) {
+  await olga(K(`l:${code}`));
+  if (!/🔒/.test(olgaScreen().plain.split('\n')[0])) await olga(K(`l:${code}:o`));
+  for (const m of more) await olga(K(`l:${code}:${m}`));
+}
+async function lockOff(code) {
+  await olga(K(`l:${code}`));
+  if (/🔒/.test(olgaScreen().plain.split('\n')[0])) await olga(K(`l:${code}:o`));
+}
+
+await scenario('phase 4 — 🔐 locks: 42 in four groups; a member\'s photo is deleted with a notice (one at a time, the old one replaced); admins and VIPs are never caught', async () => {
+  tick(120);
+  for (const u of Object.values(P4)) {
+    beta.members.add(u.id);
+    beta.people.set(u.id, u);
+  }
+  const c = await olgaSays('/config');
+  olgaPanel = midOf(sent(c)[0]);
+  await olga(`g:${BETA}`);
+  await olga(B('K'));
+  const home = olgaScreen().plain;
+  assert.match(home, /🔐 Locks of \u2068Beta\u2069/);
+  for (const [nm, total] of [['🖼 Media', 14], ['🔤 Text and links', 13], ['🧹 Content', 9], ['🚦 Behaviour', 6]]) assert.ok(home.includes(`• ${nm}: 0 of ${total} on`), nm);
+  assert.match(home, /«New members» means joined in the last 1 d/);
+  await olga(K('c:media'));
+  assert.equal(dataOf(olgaScreen()).filter((d) => d.includes(':K:l:')).length, 14);
+  assert.ok(labelsOf(Q.olga, olgaPanel).includes('🔓 🖼 Photos'));
+  await olga(K('l:photo'));
+  assert.match(olgaScreen().plain, /🔓 🖼 Photos — off/);
+  await olga(K('l:photo:o'));
+  assert.match(olgaScreen().plain, /🔒 🖼 Photos — on/);
+  assert.match(olgaScreen().plain, /🗑 The message is deleted/);
+  assert.ok(row("SELECT id FROM aegis_audit WHERE action = 'lock.set' AND chat_id = ? AND target = 'photo'", BETA), 'logged');
+  const first = msgId;
+  const r = await photoOf(P4.lia);
+  assert.deepEqual(ids(r), [first]);
+  assert.ok(!mock.get(BETA, first), 'gone from the chat');
+  assert.match(toChat(r, BETA)[0].params.text, /⛔️ \u2068Lia\u2069: «Photos» is locked here\./);
+  assert.equal(row("SELECT action FROM aegis_lock_hits WHERE chat_id = ? AND code = 'photo' ORDER BY id DESC LIMIT 1", BETA).action, 'deleted');
+  const quick = await photoOf(P4.lia);
+  assert.equal(ids(quick).length, 1, 'deleted again');
+  assert.equal(toChat(quick, BETA).length, 0, 'no second notice within 5 s');
+  tick(10);
+  const later = await photoOf(P4.sam);
+  assert.equal(ids(later).length, 2, 'the message and the previous notice');
+  assert.equal(toChat(later, BETA).length, 1);
+  assert.equal(ids(await photoOf(Q.abe)).length, 0, 'admins are exempt');
+  assert.equal(ids(await photoOf(Q.noa)).length, 0, 'VIPs are exempt');
+  assert.equal(ids(await gmsg(betaChat, P4.lia, 'just text')).length, 0, 'other content is fine');
+});
+
+await scenario('phase 4 — a lock\'s own settings: punishment and duration, custom notice (escaped), log channel, allowed links; undo; keep instead of delete', async () => {
+  tick(10);
+  rawDatabase().prepare("INSERT INTO aegis_chat_settings (chat_id, key, value, updated_by, updated_at) VALUES (?, 'log_chat', ?, 0, 0) ON CONFLICT(chat_id, key) DO UPDATE SET value = excluded.value")
+    .run(BETA, String(LOGS));
+  await lockOn('link', 'a', 'a', 'd', 'd');
+  assert.match(olgaScreen().plain, /⚖️ Punishment: mute · 1 h/);
+  assert.match(olgaScreen().plain, /Exceptions: the «Allowed links» list/);
+  const ask = await olga(K('l:link:t'));
+  assert.match(sent(ask.calls)[0].params.text, /Use \{user\} for the member and \{lock\} for the lock's name/);
+  const saved = await olgaSays('No links here, {user}! <b>');
+  assert.match(sent(saved)[0].params.text, /Notice saved: «No links here, \{user\}! &lt;b&gt;»/);
+  olgaPanel = midOf(sent(saved)[0]);
+  rawDatabase().prepare("INSERT INTO aegis_list_entries (chat_id, list, ekey, value, added_by, added_at, updated_by, updated_at) VALUES (?, 'aln', 'example.org', 'example.org', 0, 0, 0, 0)").run(BETA);
+  const fine = await gmsg(betaChat, P4.lia, 'docs at https://docs.example.org/a', { entities: [{ type: 'url', offset: 8, length: 26 }] });
+  assert.equal(ids(fine).length, 0, 'an allowed domain (and its subdomains)');
+  const id = msgId;
+  const bad = await gmsg(betaChat, P4.lia, 'buy at spam.io now', { entities: [{ type: 'url', offset: 7, length: 7 }] });
+  assert.ok(ids(bad).includes(id));
+  const mute = sent(bad, 'restrictChatMember')[0];
+  assert.deepEqual([mute.params.user_id, mute.params.until_date], [P4.lia.id, nowS() + 3600]);
+  const [nt] = toChat(bad, BETA);
+  assert.match(nt.params.text, /No links here, \u2068Lia\u2069! &lt;b&gt;/);
+  assert.match(nt.params.text, /🔇 Mute · 1 h/);
+  const p = lastPun();
+  assert.deepEqual([p.source, p.reason, p.actor_id, p.kind], ['lock', 'Lock: Links', 0, 'mute']);
+  assert.equal(nt.params.reply_markup.inline_keyboard[0][0].callback_data, `pu:${p.id}`);
+  const logged = toChat(bad, LOGS).map((x) => x.params.text).join('\n');
+  assert.match(logged, /🔐 Deleted a message of \u2068Lia\u2069 — Links/);
+  assert.match(logged, /⚖️ Punishment\n🔇 Mute · \u2068Lia\u2069 · by Aegis · 1 h/, 'the punishment is logged too');
+  const undo = await gpress(Q.abe, BETA, `pu:${p.id}`, midOf(nt));
+  assert.equal(undo.toast, '↩️ Undone.');
+  await olga(K('l:link:x'));
+  assert.match(olgaScreen().plain, /The message is kept/);
+  tick(10);
+  const keptId = msgId;
+  const kept = await gmsg(betaChat, P4.sam, 'see spam.io', { entities: [{ type: 'url', offset: 4, length: 7 }] });
+  assert.ok(!ids(kept).includes(keptId), 'kept');
+  assert.equal(sent(kept, 'restrictChatMember').length, 1, 'still punished');
+  assert.match(toChat(kept, LOGS).map((x) => x.params.text).join('\n'), /Caught a message of \u2068Sam\u2069 \(kept\)/);
+  await olga(K('l:link:x'));
+  await olga(K('l:link:a'));
+  await olga(K('l:link:a'));
+  await olga(K('l:link:a'));
+  await olga(K('l:link:a'));
+  assert.match(olgaScreen().plain, /⚖️ Punishment: none/);
+  tick(10);
+});
+
+await scenario('phase 4 — language locks never delete a mixed message for one foreign word, at any sensitivity; a mostly-English message is caught', async () => {
+  await lockOff('link');
+  await lockOn('lang_latin');
+  assert.match(olgaScreen().plain, /Sensitivity: medium — at least half of the letters/);
+  const mixed = 'سلام دوستان Hello امروز خوبید؟';
+  assert.equal(ids(await gmsg(betaChat, P4.lia, mixed)).length, 0);
+  await olga(K('l:lang_latin:s'));
+  assert.match(olgaScreen().plain, /Sensitivity: high/);
+  assert.equal(ids(await gmsg(betaChat, P4.lia, mixed)).length, 0, 'not even at high sensitivity');
+  assert.equal(ids(await gmsg(betaChat, P4.lia, 'سلام، لینکش اینه example.com', { entities: [{ type: 'url', offset: 17, length: 11 }] })).length, 0,
+    'links are not words');
+  const id = msgId;
+  assert.ok(ids(await gmsg(betaChat, P4.lia, 'Hello everyone, buy my course today')).includes(id));
+  await lockOff('lang_latin');
+  await lockOn('lang_fa');
+  const fa = msgId;
+  assert.ok(ids(await gmsg(betaChat, P4.sam, 'سلام به همه دوستان')).includes(fa));
+  assert.equal(ids(await gmsg(betaChat, P4.sam, 'Good morning all, merci ممنون')).length, 0, 'one Persian word in an English message');
+  await lockOff('lang_fa');
+  tick(10);
+});
+
+await scenario('phase 4 — exceptions: trusted list (switchable), members exempted by hand; «new members only» uses the join time', async () => {
+  rawDatabase().prepare("INSERT INTO aegis_list_entries (chat_id, list, ekey, value, user_id, added_by, added_at, updated_by, updated_at) VALUES (?, 'tru', ?, 'Sam', ?, 0, 0, 0, 0)")
+    .run(BETA, String(P4.sam.id), P4.sam.id);
+  assert.equal(ids(await photoOf(P4.sam)).length, 0, 'trusted members are exempt by default');
+  await olga(K('l:photo:et'));
+  assert.match(olgaScreen().plain, /trusted list: OFF/);
+  assert.ok(ids(await photoOf(P4.sam)).length >= 1, 'not any more');
+  await olga(K('l:photo:et'));
+  await olga(K('l:photo:e'));
+  assert.match(olgaScreen().plain, /Exempt from «Photos»: 0 of 20/);
+  const ask = await olga(K('l:photo:ea'));
+  assert.deepEqual(sent(ask.calls)[0].params.reply_markup.keyboard[0][0].request_users, { request_id: 31, max_quantity: 10 });
+  const add = await olgaSays(null, { users_shared: { request_id: 31, users: [{ user_id: P4.ada.id, first_name: 'Ada' }] } });
+  assert.match(sent(add)[0].params.text, /🙋 1 added/);
+  olgaPanel = midOf(sent(add)[1]);
+  assert.match(olgaScreen().plain, new RegExp(`• ${n('Ada')} — ${P4.ada.id}`));
+  assert.equal(ids(await photoOf(P4.ada)).length, 0, 'exempt by hand');
+  await olga(K(`l:photo:er:${P4.ada.id}`));
+  assert.match(olgaScreen().plain, /is no longer exempt/);
+  tick(10);
+  await lockOn('sticker', 'w');
+  assert.match(olgaScreen().plain, /Applies to: new members only \(joined in the last 1 d\)/);
+  await adminChange(betaChat, P4.newbie, P4.newbie, { status: 'left' }, { status: 'member' });
+  assert.ok(row('SELECT joined_at FROM aegis_members WHERE chat_id = ? AND user_id = ?', BETA, P4.newbie.id));
+  const sticker = (u) => gmsg(betaChat, u, null, { sticker: { file_id: 's', file_unique_id: 's', type: 'regular', width: 1, height: 1, is_animated: false, is_video: false } });
+  assert.equal(ids(await sticker(P4.newbie)).length >= 1, true, 'a new member is caught');
+  assert.equal(ids(await sticker(P4.lia)).length, 0, 'an older member is not');
+  tick(25 * 3600);
+  assert.equal(ids(await sticker(P4.newbie)).length, 0, 'no longer new after a day');
+  await olga(K('w'));
+  assert.match(olgaScreen().plain, /joined in the last 3 d/);
+  assert.ok(ids(await sticker(P4.newbie)).length >= 1, 'the window is a setting');
+  await olga(K('w'));
+  await olga(K('w'));
+  await olga(K('w'));
+  await lockOff('sticker');
+  tick(10);
+});
+
+await scenario('phase 4 — banned words with a warning (the step ladder applies), stretched words, sensitivity «high» and allowed words', async () => {
+  await lockOn('badword', 'a');
+  assert.match(olgaScreen().plain, /⚖️ Punishment: warning · —/);
+  const id = msgId;
+  const w = await gmsg(betaChat, P4.nora, 'this is spaaaam');
+  assert.ok(ids(w).includes(id), 'stretched word, medium sensitivity');
+  assert.match(toChat(w, BETA)[0].params.text, /⚠️ Warnings: 1 of 5/);
+  assert.equal(lastPun().kind, 'warn');
+  tick(10);
+  assert.equal(ids(await gmsg(betaChat, P4.nora, 'antispam tools')).length, 0);
+  await olga(K('l:badword:s'));
+  assert.ok(ids(await gmsg(betaChat, P4.nora, 'antispam tools')).length >= 1, 'high: inside other words');
+  rawDatabase().prepare("INSERT INTO aegis_list_entries (chat_id, list, ekey, value, added_by, added_at, updated_by, updated_at) VALUES (?, 'gwd', 'antispam', 'antispam', 0, 0, 0, 0)").run(BETA);
+  tick(10);
+  assert.equal(ids(await gmsg(betaChat, P4.nora, 'antispam tools')).length, 0, 'an allowed word');
+  await lockOff('badword');
+  tick(10);
+});
+
+await scenario('phase 4 — behaviour locks: service messages, bots added by members (allowed bots stay), edits, commands for other bots, forwards, posting as a channel', async () => {
+  await lockOn('service');
+  const join = msgId;
+  const s = await gmsg(betaChat, P4.lia, null, { new_chat_members: [P4.nora] });
+  assert.deepEqual(ids(s), [join], 'the join notice is deleted');
+  await lockOn('bots');
+  assert.match(olgaScreen().plain, /Exceptions: the «Allowed bots» list/);
+  rawDatabase().prepare("INSERT INTO aegis_list_entries (chat_id, list, ekey, value, added_by, added_at, updated_by, updated_at) VALUES (?, 'bot', 'helper_bot', '@helper_bot', 0, 0, 0, 0)").run(BETA);
+  const spam = { id: 7300000001, is_bot: true, first_name: 'Promo', username: 'spam_promo_bot' };
+  const helper = { id: 7300000002, is_bot: true, first_name: 'Helper', username: 'helper_bot' };
+  tick(10);
+  const b = await gmsg(betaChat, P4.lia, null, { new_chat_members: [spam, helper] });
+  assert.deepEqual(sent(b, 'banChatMember').map((x) => x.params.user_id), [spam.id], 'only the unwanted bot');
+  assert.equal(sent(b, 'unbanChatMember')[0].params.user_id, spam.id);
+  assert.match(toChat(b, BETA)[0].params.text, /\u2068Lia\u2069 added \u2068@spam_promo_bot\u2069: bots can be added only by admins/);
+  const byAdmin = await gmsg(betaChat, Q.abe, null, { new_chat_members: [spam] });
+  assert.equal(sent(byAdmin, 'banChatMember').length, 0, 'admins may add bots');
+  await lockOff('service');
+  await lockOff('bots');
+  tick(10);
+  await lockOn('edit');
+  const e = msgId;
+  await gmsg(betaChat, P4.lia, 'original');
+  const ed = await run(H.edited_message, { message_id: e, from: P4.lia, chat: betaChat, date: 0, edit_date: 1, text: 'changed' });
+  assert.equal(ids(ed)[0], e, 'the edited message (then the previous lock notice)');
+  await lockOff('edit');
+  await lockOn('invite');
+  const e2 = msgId;
+  await gmsg(betaChat, P4.lia, 'hello');
+  tick(10);
+  const ed2 = await run(H.edited_message, { message_id: e2, from: P4.lia, chat: betaChat, date: 0, edit_date: 2, text: 'join t.me/+AbCdEfGh',
+    entities: [{ type: 'url', offset: 5, length: 14 }] });
+  assert.deepEqual(ids(ed2).slice(0, 1), [e2], 'an edit that adds a forbidden link is caught by that lock');
+  await lockOff('invite');
+  tick(10);
+  await lockOn('command');
+  const cm = msgId;
+  assert.ok(ids(await gmsg(betaChat, P4.lia, '/start@other_bot', { entities: [{ type: 'bot_command', offset: 0, length: 16 }] })).includes(cm));
+  assert.equal(ids(await gmsg(betaChat, P4.lia, '/config', { entities: [{ type: 'bot_command', offset: 0, length: 7 }] })).length, 0, 'Aegis\'s own command');
+  await lockOff('command');
+  await lockOn('forward');
+  tick(10);
+  const fw = msgId;
+  assert.ok(ids(await gmsg(betaChat, P4.lia, 'promo', { forward_origin: { type: 'channel', chat: { id: -1007777, type: 'channel', title: 'Promo' }, message_id: 1, date: 0 } }))
+    .includes(fw));
+  assert.equal(ids(await gmsg(betaChat, P4.lia, 'fwd', { forward_origin: { type: 'user', sender_user: P4.sam, date: 0 } })).length, 0, 'medium: a person\'s message is fine');
+  await lockOff('forward');
+  await lockOn('as_channel');
+  tick(10);
+  const ch = msgId;
+  const asCh = await gmsg(betaChat, { id: 136817688, is_bot: true, first_name: 'Channel' }, 'buy', { sender_chat: { id: -1008888, type: 'channel', title: 'Promo' } });
+  assert.ok(ids(asCh).includes(ch));
+  assert.equal(sent(asCh, 'restrictChatMember').length + sent(asCh, 'banChatMember').length, 0, 'the person is hidden: nobody punished');
+  assert.match(toChat(asCh, BETA)[0].params.text, /⛔️ \u2068Promo\u2069: «Posting as a channel» is locked here/);
+  const anon = await gmsg(betaChat, { id: 1087968824, is_bot: true, first_name: 'Group' }, 'admin speaking', { sender_chat: betaChat });
+  assert.equal(ids(anon).length, 0, 'the anonymous admin is never caught');
+  await lockOff('as_channel');
+  tick(10);
+});
+
+await scenario('phase 4 — Audit Mode: a lock only records and logs (nothing deleted, nobody punished, nothing posted in the group)', async () => {
+  await olga(B('U:y'));
+  await olga(K('l:photo:a'));
+  const r = await photoOf(P4.lia);
+  assert.equal(ids(r).length, 0);
+  assert.equal(toChat(r, BETA).length, 0);
+  assert.equal(sent(r, 'restrictChatMember').length, 0);
+  assert.equal(row("SELECT action FROM aegis_lock_hits WHERE chat_id = ? AND code = 'photo' ORDER BY id DESC LIMIT 1", BETA).action, 'audit');
+  assert.deepEqual([lastPun().kind, lastPun().status], ['warn', 'audit']);
+  assert.match(toChat(r, LOGS).map((x) => x.params.text).join('\n'), /Audit Mode — would have acted on a message of \u2068Lia\u2069: Photos/);
+  await olga(K('l:photo'));
+  assert.match(olgaScreen().plain, /Audit Mode is on: locks only record and report/);
+  await olga(B('U:y'));
+  await olga(K('l:photo:a'));
+  await olga(K('l:photo:a'));
+  await olga(K('l:photo:a'));
+  await olga(K('l:photo:a'));
+  await olga(K('l:photo:a'));
+  assert.match(olgaScreen().plain, /Punishment: none/);
+  tick(10);
+});
+
+await scenario('phase 4 — recent catches, levels (View can\'t change locks; stronger punishments need «Ban users»), all locks off with confirmation', async () => {
+  await olga(K('l:photo:h'));
+  assert.match(olgaScreen().plain, /Recent catches — 🖼 Photos/);
+  assert.match(olgaScreen().plain, new RegExp(`${n('Lia')}: deleted`));
+  assert.match(olgaScreen().plain, new RegExp(`${n('Lia')}: audit only · Warning`));
+  const bc = await dm(Q.ben, '/config');
+  const benPanel = midOf(sent(bc)[0]);
+  await press(Q.ben, `g:${BETA}`, benPanel);
+  await press(Q.ben, K('l:photo'), benPanel);
+  const deny = await press(Q.ben, K('l:photo:o'), benPanel);
+  assert.match(deny.toast, /needs access level «Settings»/);
+  rawDatabase().prepare('INSERT INTO aegis_access (chat_id, user_id, level, set_by, set_at) VALUES (?, ?, 2, ?, 0) ON CONFLICT(chat_id, user_id) DO UPDATE SET level = 2')
+    .run(BETA, Q.ben.id, Q.olga.id);
+  await press(Q.ben, K('l:photo:a'), benPanel);
+  const toMute = await press(Q.ben, K('l:photo:a'), benPanel);
+  assert.match(toMute.toast, /need Telegram's «Ban users» right/);
+  assert.match(screenOf(Q.ben, benPanel).plain, /Punishment: none/, 'none → warning → back to none: no mute without the right');
+  await olga(B('K'));
+  assert.match(olgaScreen().plain, /🖼 Media: 1 of 14 on/);
+  await olga(K('z'));
+  assert.match(olgaScreen().plain, /Turn every lock in \u2068Beta\u2069 off\?/);
+  await olga(K('zy'));
+  assert.match(olgaScreen().plain, /🔓 1 locks turned off/);
+  assert.match(olgaScreen().plain, /🖼 Media: 0 of 14 on/);
+  assert.equal(ids(await photoOf(P4.lia)).length, 0);
+});
+
+await scenario('phase 4 — a Persian group: the lock notice in Persian, right-to-left on every line', async () => {
+  const GAMMA = -1009400;
+  rawDatabase().prepare("INSERT INTO aegis_locks (chat_id, code, enabled, config, updated_by, updated_at) VALUES (?, 'photo', 1, ?, 0, 0)")
+    .run(GAMMA, JSON.stringify({ on: 1 }));
+  const gammaChat = { id: GAMMA, type: 'supergroup', title: 'گاما' };
+  const r = await gmsg(gammaChat, U.bea, null, { photo: [{ file_id: 'p', file_unique_id: 'p', width: 1, height: 1 }] });
+  assert.equal(ids(r).length, 1);
+  assert.match(toChat(r, GAMMA)[0].params.text, /⛔️ \u2068Béa\u2069: «عکس» در اینجا قفل است\./);
 });
 
 await scenario('after a deploy with new command menus, they are sent on the next private message (the retry throttle is per revision)', async () => {

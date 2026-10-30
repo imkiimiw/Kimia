@@ -37,5 +37,6 @@
   "punish_export": "выгрузил наказания",
   "lists_export": "выгрузил список",
   "betrayal": "инцидент анти-предательства: {target}",
-  "betrayal_unban": "разбанил участников, удалённых {target}"
+  "betrayal_unban": "разбанил участников, удалённых {target}",
+  "lock_set": "изменил блокировку «{lock}»"
 }

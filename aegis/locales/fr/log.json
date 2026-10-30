@@ -37,5 +37,6 @@
   "punish_export": "a exporté les sanctions",
   "lists_export": "a exporté une liste",
   "betrayal": "incident anti-trahison : {target}",
-  "betrayal_unban": "a débanni les membres retirés par {target}"
+  "betrayal_unban": "a débanni les membres retirés par {target}",
+  "lock_set": "a modifié le verrou « {lock} »"
 }

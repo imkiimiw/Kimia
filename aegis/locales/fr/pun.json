@@ -58,5 +58,6 @@
   "src_blacklist": "liste noire",
   "src_betrayal": "anti-trahison",
   "src_telegram": "dans Telegram",
-  "export_caption": "⚖️ Sanctions de {title} : {n} lignes (heures UTC)."
+  "export_caption": "⚖️ Sanctions de {title} : {n} lignes (heures UTC).",
+  "src_lock": "verrou"
 }

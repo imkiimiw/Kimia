@@ -27,6 +27,7 @@ import * as punish from '../engines/punish.js';
 import * as settings from '../engines/settings.js';
 import * as users from '../engines/users.js';
 import { dur, pickLang, t } from '../i18n/index.js';
+import * as enforce from './enforce.js';
 import { ensureChat, register } from './group.js';
 
 const MOD_ALLOWED = new Set(['warn', 'unwarn', 'warns', 'mute', 'unmute']);
@@ -338,6 +339,7 @@ export async function onMemberChange(ctx, upd) {
   if (target.id === bot.id) return;
   const actorId = upd.from ? upd.from.id : 0;
   const byPerson = !!actorId && actorId !== bot.id && actorId !== target.id;
+  await enforce.memberChange(chat.chat_id, target, inChat(before), inChat(after));
   if (byPerson && after.status === 'kicked' && before.status !== 'kicked') {
     await users.remember(target);
     if (upd.from && !upd.from.is_bot) await users.remember(upd.from);

@@ -1,7 +1,7 @@
 # Decisions taken without the master spec
 
 `docs/SPEC.md` (the Persian master spec, "the source of truth") was not in the repository when
-Phases 1–3 were built (for Phase 3 the owner said to build it without the spec). Where the build instructions did not settle a detail, the choice below
+Phases 1–4 were built (for Phases 3–4 the owner said to build them without the spec). Where the build instructions did not settle a detail, the choice below
 was made. Each is easy to change once the spec says otherwise — nothing here drops, merges or
 renames a feature from the instructions.
 
@@ -52,3 +52,19 @@ renames a feature from the instructions.
 | Telegram-side bans | Recorded as punishments (source «in Telegram»), shown in the Banned list, undoable from the panel; an unban in Telegram closes them. The blacklist entry stays (it is Aegis's own rule). |
 | Names of members | Aegis keeps the name of members it punishes or sees punished, so lists, notices and logs show names instead of ids. |
 | Exports | CSV, UTF-8 with BOM (opens correctly in spreadsheet apps), times in UTC, sent to the person's private chat. Exports are logged. |
+
+## Phase 4
+
+| Topic | Decision |
+|---|---|
+| The 42 locks | **Media 14**: photo, video, GIF, sticker, animated/video sticker, file, music, voice, video message, contact, location/venue, poll, dice/game emoji, story. **Text & links 13**: text messages, links, invite links, hidden (text) links, @usernames, mentions of members without username, hashtags/cashtags, commands for other bots, e-mail, phone numbers, formatting, spoilers, premium emoji. **Content 9**: banned words, blocked sites, emoji flood, long messages, repeated characters/words, Persian/Arabic script, Latin script, Cyrillic script, CJK. **Behaviour 6**: forwards, inline bots, posting as a channel, adding bots, service messages, edited messages. |
+| Defaults | Every lock off; when turned on: delete, no punishment, standard notice, logged, trusted and moderators exempt, sensitivity medium, everyone. |
+| Always exempt | Admins (from the admin list, kept current by Telegram's updates), Aegis, the anonymous admin, the linked channel's own posts, VIP-list members. The service lock applies to every service message regardless of who caused it. |
+| Several locks match | The message is deleted if any of them says delete; the strongest punishment wins (ban > kick > restrict > mute > warning); one notice (the strongest lock's text); one log line naming all of them. |
+| Who may set locks | Settings level; choosing mute, restrict, kick or ban also needs Telegram's «Ban users» (or being the creator). |
+| Language rule | Script share of letters ≥ 70 / 50 / 30 % (low / medium / high) **and** at least two words in that script, or ≥ 90 % of the message; links, usernames, tags, commands, e-mails, phones and code are ignored. One foreign word in a mixed message never triggers. |
+| Sensitivity meanings | Links / blocked sites: clickable only · + typed URLs · + disguised domains. Hidden links: deceptive only · any. Commands: only addressed to other bots · any not Aegis's. Banned words: whole words · + stretched («spaaam») · anywhere. Emoji: > 10 / 6 / 3. Long: > 2000 / 1000 / 500 characters. Repeat: 15/10/6 same characters or 6/4/3 same words in a row. Forwards: channels · + groups and bots · everything. |
+| Notices | Standard text, or the admins' own (≤ 300 characters, `{user}` and `{lock}` filled in, HTML escaped). Each new lock notice deletes the previous one; at most one per 5 s per chat. |
+| Bots lock | Removes bots added by non-admins (kick: ban + unban), except usernames on «Allowed bots»; the lock's punishment applies to the person who added them. |
+| Edits | Every edit is checked against the content locks; the edit lock deletes any edited message. |
+| Audit Mode | Locks are automatic, so in Audit Mode nothing is deleted or punished and nothing is posted in the group; the catch is recorded («audit only») and logged. |

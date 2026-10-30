@@ -9,7 +9,8 @@
 // and channels, needs the bot's can_promote_members, can grant only rights the bot has, and can
 // edit or demote only admins the bot promoted itself (can_be_edited). Restrict/ban/unban need the bot's
 // can_restrict_members, never touch admins (except ones the bot promoted, for bans), restrictions only in
-// supergroups; sendDocument takes a real multipart upload; reply keyboards may ask for users or chats.
+// supergroups; sendDocument takes a real multipart upload; reply keyboards may ask for users or chats;
+// deleteMessage removes a stored message (a member's only with the bot's can_delete_messages).
 import { Buffer } from 'node:buffer';
 import http from 'node:http';
 
@@ -359,6 +360,16 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       if (c.admins.has(id)) return err(400, 'Bad Request: user is an administrator of the chat');
       if (c.banned && c.banned.has(id)) c.banned.delete(id);
       else if (!p.only_if_banned) c.members.delete(id);
+      return ok(true);
+    },
+    deleteMessage: (p) => {
+      const msg = state.messages.get(k(p.chat_id, p.message_id));
+      if (!msg) return err(400, 'Bad Request: message to delete not found');
+      const c = Number(p.chat_id) < 0 ? chat(p.chat_id) : null;
+      if (c && msg.from && msg.from.id !== botId && !(c.botAdmin && (c.botRights || {}).can_delete_messages)) return err(400, "Bad Request: message can't be deleted");
+      state.messages.delete(k(p.chat_id, p.message_id));
+      state.deleted = state.deleted || [];
+      state.deleted.push(k(p.chat_id, p.message_id));
       return ok(true);
     },
     editMessageReplyMarkup: (p) => {

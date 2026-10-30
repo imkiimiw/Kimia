@@ -47,5 +47,11 @@
   "removed": "❌ 已移除日志聊天。",
   "test": "🧪 来自 Aegis 的 {title} 测试消息。",
   "test_ok": "已发送。",
-  "test_failed": "无法在日志聊天中发布。请检查 Aegis 是否仍在其中且可以发布。"
+  "test_failed": "无法在日志聊天中发布。请检查 Aegis 是否仍在其中且可以发布。",
+  "c_locks": "锁",
+  "lock_deleted": "🔐 删除了 {user} 的消息 — {locks}",
+  "lock_kept": "🔐 拦截了 {user} 的消息（保留）— {locks}",
+  "lock_audit": "🕵️ 审计模式 — 本会处理 {user} 的消息：{locks}",
+  "lock_bots": "🦾 移除了 {user} 添加的 {bots}",
+  "lock_bots_audit": "🕵️ 审计模式 — 本会移除 {user} 添加的 {bots}"
 }

@@ -47,5 +47,11 @@
   "removed": "❌ Chat de journal retiré.",
   "test": "🧪 Message de test d'Aegis pour {title}.",
   "test_ok": "Envoyé.",
-  "test_failed": "Impossible de publier dans le chat de journal. Vérifiez qu'Aegis y est toujours et peut publier."
+  "test_failed": "Impossible de publier dans le chat de journal. Vérifiez qu'Aegis y est toujours et peut publier.",
+  "c_locks": "Verrous",
+  "lock_deleted": "🔐 Message de {user} supprimé — {locks}",
+  "lock_kept": "🔐 Message de {user} bloqué (gardé) — {locks}",
+  "lock_audit": "🕵️ Mode audit — aurait agi sur un message de {user} : {locks}",
+  "lock_bots": "🦾 {bots} retiré(s), ajouté(s) par {user}",
+  "lock_bots_audit": "🕵️ Mode audit — aurait retiré {bots}, ajouté(s) par {user}"
 }

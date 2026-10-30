@@ -9,13 +9,50 @@ deployed **now**.
 | 1 | Core: skeleton, config, DB + migrations, webhook, i18n (5 languages), /start, language picker, user tracking, forced join, owner panel (stats, forced-join channels, broadcast) | ✅ deployed |
 | 2 | Adding the bot, configuration & access control: registration + warning, required rights, appoint/edit/remove admins through Aegis, «پیکربندی», access levels, revocation, change log, /shutdown /activate /status | ✅ deployed |
 | 3 | Group lists (18), punishments with undo, warnings and step punishments, anti-betrayal, Audit Mode, log channel | ✅ deployed |
-| 4–10 | Locks, security, advanced settings, channel panel, reports, fun & media, full Super Admin panel | not started |
+| 4 | Group locks: 42 locks, each with its own settings | ✅ deployed |
+| 5–10 | Security, advanced settings, channel panel, reports, fun & media, full Super Admin panel | not started |
 
 Design decisions taken without the master spec (it isn't in the repository yet) are listed in
 [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md).
 
 Features that can't be built for free on this platform, or only partly, are listed in
 [docs/NOT_BUILT.md](docs/NOT_BUILT.md).
+
+## What Phase 4 does
+
+**🔐 Locks** (panel → 🔐 Locks) — 42 locks in four groups:
+- **Media (14)**: photos · videos · GIFs · stickers · animated stickers · files · music · voice ·
+  video messages · contacts · locations · polls · dice & games · stories.
+- **Text and links (13)**: text messages · links · invite links · hidden links · @usernames ·
+  member mentions · hashtags · commands for other bots · e-mails · phone numbers · formatting ·
+  spoilers · premium emoji.
+- **Content (9)**: banned words (the «Banned words» list, «Allowed words» excepted) · blocked sites
+  (the «Blocked links» list) · emoji flood · long messages · repeated characters/words · four
+  language locks — Persian/Arabic, English/Latin, Russian/Cyrillic, Chinese/Japanese/Korean.
+- **Behaviour (6)**: forwards (the «Allowed forward sources» list excepted) · inline bots · posting
+  as a channel · bots added by members (removed; «Allowed bots» excepted) · service messages
+  (join/leave/pin… notices deleted) · edited messages.
+
+**Each lock has its own settings**: on/off · punishment (none, warning — the step ladder applies —,
+mute, restrict, kick, ban) and its duration (10 min, 1 h, 1 d, 7 d, until lifted) · delete or keep
+the message · notice in the group (standard, your own text with `{user}` and `{lock}`, or none) ·
+log channel on/off · exceptions (admins, Aegis and VIPs always; the trusted list and moderators
+switchable; up to 20 members by hand) · sensitivity (low/medium/high, for the 13 locks where it
+means something — e.g. links: clickable only / also typed URLs / also disguised «site . com») ·
+scope: everyone, or only new members (joined within 1 h / 1 d / 3 d / 7 d — a chat setting) ·
+recent catches. «All locks off» asks first and keeps the settings.
+
+**Language locks never delete a mixed-language message because of one foreign word**: a message is
+"in" a script only when that script has the clear majority of its letters (70 / 50 / 30 % by
+sensitivity) **and** at least two words of it (or the whole message is in it). Links, @usernames,
+#tags, commands, e-mails, phone numbers and code don't count as words.
+
+**How a caught message is handled**: delete (if any matching lock says so) → the strongest
+punishment of the matching locks (recorded with source «lock», undo button on the notice) → one
+notice (the previous lock notice is removed; at most one every 5 s, so a raid can't flood the
+group) → log channel (new category «Locks»). Edits are checked again. A message sent as a channel
+can only be deleted (Telegram hides the person). In Audit Mode nothing is deleted or punished and
+nothing is posted in the group — the catch is recorded and logged.
 
 ## What Phase 3 does
 
@@ -214,18 +251,19 @@ Tables (all prefixed `aegis_`): `users`, `chats`, `chat_admins`, `access`, `prom
 aegis/
   tgcloud/
     schema.js                 aegis_* tables
-    handlers/                 message, callback_query, my_chat_member, chat_member  → lib/router.js
+    handlers/                 message, edited_message, callback_query, my_chat_member, chat_member  → lib/router.js
     endpoints/bcLive.js       owner-only: the live broadcast page's batches
     lib/
       router.js               order of checks, callback_data table
       jobs.js                 work on the side of updates (broadcast chunks, housekeeping)
       config.js, env.js       settings; env.js is generated (AEGIS_OWNER_ID)
       core/                   tg (Bot API + trace), kv, dedupe, errors, audit, state, migrations, commands, bot, util,
-                              duration, modparse, csv
+                              duration, modparse, csv, msgscan (what a message contains)
       engines/                users, chats, join, broadcast, buttons, rights, admins, system, settings, lists,
-                              punish, steps, betrayal, admin_actions, logs — one per engine
+                              punish, steps, betrayal, admin_actions, logs, locks, members — one per engine
       ui/                     start, owner, owner_bc, group (in-group messages), moderation (group commands,
-                              undo buttons, bans/joins), panel + panel_mod (a chat's panel), guard, system
+                              undo buttons, bans/joins), enforce (locks at work), panel + panel_mod +
+                              panel_locks (a chat's panel), guard, system
       i18n/                   t(), digits, RTL; strings/ is generated from ../../locales
   locales/<lang>/*.json       fa, en, ru, zh, fr
   webapp/                     the 📡 live broadcast Mini App page (plain HTML/JS)

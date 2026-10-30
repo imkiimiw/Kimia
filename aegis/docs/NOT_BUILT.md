@@ -5,9 +5,9 @@ Updated at the end of each phase. Constraint for all entries: **free only** — 
 or tier; only what Telegram Serverless and the Bot API allow.
 
 > **Note on the spec.** `aegis/docs/SPEC.md` (the Persian master spec) was not in the repository
-> when Phases 1–3 were built (searched the working tree, all branches on GitHub, and the
-> container). They were built from their descriptions in the build instructions (Phase 3 by the
-> owner's decision to go ahead without it); details the spec would normally settle are listed in
+> when Phases 1–4 were built (searched the working tree, all branches on GitHub, and the
+> container). They were built from their descriptions in the build instructions (Phases 3–4 by the
+> owner's decision to go ahead without it — the list of 42 locks is Aegis's own, see ASSUMPTIONS); details the spec would normally settle are listed in
 > [ASSUMPTIONS.md](ASSUMPTIONS.md). They will be re-checked against the spec once it is added.
 
 ## Phase 1 — Core
@@ -58,3 +58,17 @@ or tier; only what Telegram Serverless and the Bot API allow.
 | Punishing a **channel** or the group itself (`banChatSenderChat`) | **Not built** | Only members are punished in this phase; Aegis says so when someone replies to a channel's message. | A later phase if the spec asks for it. |
 | Punishing members by **@username** Aegis has never seen | **Partial** | The Bot API can't resolve usernames; Aegis knows a @username only after meeting that user. Replies, mentions and numeric ids always work. | — (Bot API limitation). |
 | Group notices for **panel** actions | **Partial (by design)** | Adding many members to a punishing list at once would flood the group with notices, so panel actions go to the log channel (and the panel's history) only; commands and automatic actions post notices. | — |
+
+## Phase 4 — Group locks
+
+| Feature | State | Why | What it would need |
+|---|---|---|---|
+| Locks working where Aegis is **not an admin** | **Not possible** | A bot sees every message, and may delete them, only as an admin with «Delete messages» (and «Ban users» to punish). The panel warns when a right is missing. | Make Aegis an admin with those rights. |
+| Punishing the person behind a message **sent as a channel** | **Not possible** | Telegram hides who posted as a channel; such messages can only be deleted. (Banning the channel itself, `banChatSenderChat`, is not in this phase.) | A later phase if the spec asks for it. |
+| Telling **Persian from Arabic** (or English from French …) | **Partial** | Language locks work by script: Arabic script (Persian and Arabic together), Latin, Cyrillic, CJK. Telling languages that share a script apart needs language models/dictionaries. | A free language-identification library small enough for the isolate (none used). |
+| Old messages / messages sent **while Aegis was not there** | **Not possible** | Bots can't read chat history; only new messages and edits are checked. | — (Bot API). |
+| Deleting the bot's own lock notices **after a delay** | **Partial** | There is no scheduler, so a notice can't remove itself later. Instead each new lock notice deletes the previous one, and at most one is posted every 5 s. | A platform scheduler. |
+| «New members only» for people who joined **before** Aegis | **Partial (by design)** | Join times are known only from joins Telegram reported to Aegis; anyone else counts as an old member (never wrongly treated as new). | — |
+| Locks on **channel posts** and the discussion group | **Phase 7** | Channels and their discussion groups get their own protection in the channel panel. Edited channel posts are not handled. | Phase 7. |
+| Native Telegram permissions (`setChatPermissions`) as locks | **Not used** | Locks are enforced by Aegis per message, so they can have exceptions, sensitivity, scope and punishments, which Telegram's chat-wide permissions can't. (Read-only mode and emergency lock in Phase 5 will use them.) | — |
+| Lock catches kept **longer than 7 days** | **Partial** | Kept 7 days for the panel's «recent catches» (database size); punishments from locks are kept like any other. | — |

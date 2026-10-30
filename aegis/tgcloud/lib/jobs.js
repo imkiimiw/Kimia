@@ -4,11 +4,12 @@
  *   progress card is refreshed at most every BC_PROGRESS_EVERY_SEC (always when it finishes);
  *   a queued broadcast starts when nothing else is running;
  * - housekeeping at most once per GC_INTERVAL_SEC: old update ids, expired pending inputs, a few
- *   stale member counts, admin actions older than BETRAY_KEEP_SEC (anti-betrayal only counts recent ones).
+ *   stale member counts, admin actions older than BETRAY_KEEP_SEC (anti-betrayal only counts recent ones),
+ *   lock hits older than LOCK_HITS_KEEP_SEC.
  * While the owner has shut Aegis down, broadcasts don't advance (housekeeping still runs).
  * Never throws: failures are recorded (lib/core/errors.js) and the update's own result stands.
  */
-import { BC_CHUNK, BC_CHUNK_BUDGET_MS, BC_PROGRESS_EVERY_SEC, BETRAY_KEEP_SEC, GC_INTERVAL_SEC, UPDATE_KEEP_SEC } from './config.js';
+import { BC_CHUNK, BC_CHUNK_BUDGET_MS, BC_PROGRESS_EVERY_SEC, BETRAY_KEEP_SEC, GC_INTERVAL_SEC, LOCK_HITS_KEEP_SEC, UPDATE_KEEP_SEC } from './config.js';
 import * as dedupe from './core/dedupe.js';
 import * as errors from './core/errors.js';
 import * as kv from './core/kv.js';
@@ -17,6 +18,7 @@ import { nowSec } from './core/util.js';
 import * as adminActions from './engines/admin_actions.js';
 import * as bc from './engines/broadcast.js';
 import * as chats from './engines/chats.js';
+import * as locks from './engines/locks.js';
 import { afterBatch, refreshPanel } from './ui/owner_bc.js';
 
 async function broadcastChunk(ctx) {
@@ -43,6 +45,7 @@ async function housekeeping(ctx) {
     states: await state.sweep(now),
     staleCounts: await chats.refreshStaleCounts(ctx, 3, 1500),
     adminActions: await adminActions.sweep(now, BETRAY_KEEP_SEC),
+    lockHits: await locks.sweepHits(now, LOCK_HITS_KEEP_SEC),
   };
 }
 

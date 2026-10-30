@@ -47,5 +47,11 @@
   "removed": "❌ Log chat removed.",
   "test": "🧪 Test message from Aegis for {title}.",
   "test_ok": "Sent.",
-  "test_failed": "Couldn't post in the log chat. Check that Aegis is still there and may post."
+  "test_failed": "Couldn't post in the log chat. Check that Aegis is still there and may post.",
+  "c_locks": "Locks",
+  "lock_deleted": "🔐 Deleted a message of {user} — {locks}",
+  "lock_kept": "🔐 Caught a message of {user} (kept) — {locks}",
+  "lock_audit": "🕵️ Audit Mode — would have acted on a message of {user}: {locks}",
+  "lock_bots": "🦾 Removed {bots}, added by {user}",
+  "lock_bots_audit": "🕵️ Audit Mode — would have removed {bots}, added by {user}"
 }

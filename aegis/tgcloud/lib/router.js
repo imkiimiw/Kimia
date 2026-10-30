@@ -12,7 +12,8 @@
  * (owner exempt; this also gates the configuration flow) → /start c_<chat> (a group's «open panel»
  * button; kept across the picker and the join screen) → /help, «پیکربندی» /config (my chats),
  * owner: /panel, /status, /shutdown, /activate → otherwise the main menu.
- * Group message: group → supergroup migration; «پیکربندی» / /config (admins: a button to the
+ * Group message: group → supergroup migration; the locks (ui/enforce.js — admins are exempt; a
+ * message a lock deletes goes no further); «پیکربندی» / /config (admins: a button to the
  * private panel — ordinary members are never blocked or answered); a moderation command
  * (ui/moderation.js: /warn /mute /ban … or «اخطار» «سکوت» «بن» …, from the creator, admins and the
  * «mod» list only); otherwise the occasional reminder about admins not appointed through Aegis.
@@ -28,6 +29,7 @@
  *   op os oj… ob… bc:… ox sy:…   owner panel and global switch (OWNER_ID only; anyone else gets a
  *                 silent answer) — ui/owner.js, ui/owner_bc.js, ui/system.js
  *
+ * edited_message: in a group, the locks again (and the edit lock).
  * my_chat_member: private → the user blocked / unblocked the bot; group/supergroup/channel → the
  * bot's membership and rights there (ui/group.js: registration, warnings).
  * chat_member: someone's admin status changed (cache, revocation, log, reminder); bans and unbans
@@ -50,11 +52,13 @@ import * as system from './engines/system.js';
 import * as users from './engines/users.js';
 import { isLang, pickLang, t } from './i18n/index.js';
 import { afterUpdate } from './jobs.js';
+import * as enforce from './ui/enforce.js';
 import * as group from './ui/group.js';
 import * as moderation from './ui/moderation.js';
 import * as owner from './ui/owner.js';
 import * as ownerBc from './ui/owner_bc.js';
 import * as panel from './ui/panel.js';
+import * as panelLocks from './ui/panel_locks.js';
 import * as panelMod from './ui/panel_mod.js';
 import * as start from './ui/start.js';
 import * as sys from './ui/system.js';
@@ -63,8 +67,8 @@ const OWNER_HEADS = new Set(['op', 'os', 'oj', 'ob', 'bc', 'ox', 'sy']);
 const PANEL_HEADS = new Set(['cl', 'g']);
 const OWNER_INPUTS = new Set(['join_add', 'bc_content', 'bc_buttons']);
 const GROUP_HEADS = new Set(['pu', 'bt']);
-const isUserInput = (kind) => kind === 'adm_pick' || panelMod.INPUTS.has(kind);
-const hasKeyboard = (kind) => kind === 'adm_pick' || panelMod.KEYBOARD_INPUTS.has(kind);
+const isUserInput = (kind) => kind === 'adm_pick' || panelMod.INPUTS.has(kind) || panelLocks.INPUTS.has(kind);
+const hasKeyboard = (kind) => kind === 'adm_pick' || panelMod.KEYBOARD_INPUTS.has(kind) || panelLocks.KEYBOARD_INPUTS.has(kind);
 
 function result(ctx) {
   const out = { trace: ctx.trace };
@@ -125,6 +129,7 @@ async function input(ctx, user, message, pending) {
   const lang = user.lang;
   if (pending.kind === 'adm_pick') return panel.pickInput(ctx, user, message, pending.data);
   if (panelMod.INPUTS.has(pending.kind)) return panelMod.input(ctx, user, message, pending);
+  if (panelLocks.INPUTS.has(pending.kind)) return panelLocks.input(ctx, user, message, pending);
   if (pending.kind === 'join_add') return owner.joinAddInput(ctx, lang, message);
   if (pending.kind === 'bc_content') return ownerBc.contentInput(ctx, lang, message, pending.data);
   if (pending.kind === 'bc_buttons') return ownerBc.buttonsInput(ctx, lang, message, pending.data);
@@ -193,6 +198,7 @@ async function handleGroupMessage(ctx, message) {
   }
   if (ctx.shutdown) return;
   if (message.from) ctx.userId = message.from.id;
+  if (await enforce.check(ctx, await chats.get(chat.id), message)) return; /* deleted by a lock: no command acts on it */
   const cmd = parseCommand(message.text, { aliases: true });
   if (cmd === 'config') {
     const mention = mentionOf(message.text);
@@ -203,6 +209,17 @@ async function handleGroupMessage(ctx, message) {
   if (await moderation.handle(ctx, message)) return;
   const row = await chats.get(chat.id);
   if (row) await group.onActivity(ctx, row);
+}
+
+/* An edited message: in a group the locks look at it again (and the edit lock catches any edit). */
+export function onEditedMessage(message, pctx) {
+  return run('edited_message', pctx, async (ctx) => {
+    const chat = message && message.chat;
+    if (!chat || (chat.type !== 'group' && chat.type !== 'supergroup') || ctx.shutdown) return;
+    ctx.chatId = chat.id;
+    if (message.from) ctx.userId = message.from.id;
+    await enforce.check(ctx, await chats.get(chat.id), message, { edited: true });
+  });
 }
 
 /* ---------- buttons ---------- */

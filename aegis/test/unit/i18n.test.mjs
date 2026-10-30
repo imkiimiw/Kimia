@@ -10,8 +10,10 @@ import { parseHtml } from '../mock-telegram.mjs';
 import { aliasCommand, dur, num, pickLang, t } from '../../tgcloud/lib/i18n/index.js';
 import { parseCommand } from '../../tgcloud/lib/core/commands.js';
 import { LISTS } from '../../tgcloud/lib/engines/lists.js';
+import { LOCKS } from '../../tgcloud/lib/engines/locks.js';
 
 const LIST_CODES = LISTS.map((l) => l.code);
+const LOCK_CODES = LOCKS.map((l) => l.code);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const { dicts, problems } = readLocales();
@@ -126,7 +128,21 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'betray.why_': ['setting', 'creator', 'not_via_aegis', 'unknown', 'failed'],
     'warns.steps_err_': ['empty', 'format', 'action', 'count', 'order', 'duration', 'too_many'],
     'common.dur_': ['d', 'h', 'm', 's'],
+    'locks.n_': LOCK_CODES,
+    'locks.d_': LOCK_CODES,
+    'locks.cat_': ['media', 'text', 'content', 'behavior'],
+    'locks.a_': ['none', 'warn', 'mute', 'restrict', 'kick', 'ban'],
+    'locks.sens_': ['low', 'medium', 'high'],
+    'locks.notice_': ['default', 'custom', 'off'],
+    'locks.allow_': ['aln', 'fwd', 'bot', 'gwd'],
+    'locks.h_': ['deleted', 'kept', 'audit', 'removed'],
+    'locks.l_notice_': ['default', 'off', 'custom'],
+    'logs.c_': ['punish', 'lists', 'locks', 'admin', 'settings'],
+    'pun.src_': ['lock'],
   };
+  for (const fam of ['link', 'masked', 'command', 'badword', 'blocklink', 'emoji', 'long', 'repeat', 'lang', 'forward']) {
+    for (const lv of ['low', 'medium', 'high']) used.add(`locks.s_${fam}_${lv}`);
+  }
   for (const [prefix, names] of Object.entries(families)) for (const n of names) used.add(`${prefix}${n}`);
   used.delete('alias2.');
   const missing = [...used].filter((k) => dicts.en[k] === undefined);

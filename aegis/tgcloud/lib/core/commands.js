@@ -17,6 +17,7 @@ const SLASH = {
   panel: 'panel', admin: 'panel', owner: 'panel', cancel: 'cancel', config: 'config', settings: 'config',
   status: 'status', shutdown: 'shutdown', activate: 'activate',
 };
+export const SLASH_NAMES = Object.keys(SLASH);
 const PUBLIC = ['start', 'config', 'language', 'help'];
 const OWNER = ['start', 'config', 'panel', 'status', 'shutdown', 'activate', 'language', 'help', 'cancel'];
 export const COMMANDS_REV = '2';

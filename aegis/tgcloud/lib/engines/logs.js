@@ -1,6 +1,6 @@
 /*
- * The log channel of a chat (settings log_chat): punishments, list changes, admin/security events
- * and setting changes are posted there, in the chat's language, if the category is switched on.
+ * The log channel of a chat (settings log_chat): punishments, list changes, lock hits, admin/security
+ * events and setting changes are posted there, in the chat's language, if the category is switched on.
  * A failing log channel never breaks the action that is being logged.
  */
 import { send } from '../core/tg.js';
@@ -8,7 +8,7 @@ import { iso } from '../core/util.js';
 import { t } from '../i18n/index.js';
 import * as settings from './settings.js';
 
-export const CATEGORIES = ['punish', 'lists', 'admin', 'settings'];
+export const CATEGORIES = ['punish', 'lists', 'locks', 'admin', 'settings'];
 
 export async function post(ctx, chat, category, text, rows = null) {
   if (ctx.quiet) return false;

@@ -58,5 +58,6 @@
   "src_blacklist": "لیست سیاه",
   "src_betrayal": "ضدخیانت",
   "src_telegram": "در خود تلگرام",
-  "export_caption": "⚖️ مجازات‌های {title}: {n} ردیف (زمان‌ها به UTC)."
+  "export_caption": "⚖️ مجازات‌های {title}: {n} ردیف (زمان‌ها به UTC).",
+  "src_lock": "قفل"
 }

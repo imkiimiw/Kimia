@@ -37,5 +37,6 @@
   "punish_export": "exported the punishments",
   "lists_export": "exported a list",
   "betrayal": "anti-betrayal incident: {target}",
-  "betrayal_unban": "unbanned the members removed by {target}"
+  "betrayal_unban": "unbanned the members removed by {target}",
+  "lock_set": "changed the lock «{lock}»"
 }

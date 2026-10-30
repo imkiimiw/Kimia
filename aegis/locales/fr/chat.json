@@ -96,5 +96,6 @@
   "btn_logs": "📜 Canal de journal",
   "root_audit": "🕵️ Le mode audit est activé : les sanctions automatiques sont seulement signalées.",
   "need_restrict": "Il vous faut le droit Telegram « Bannir des utilisateurs » dans ce chat.",
-  "bot_cant_restrict": "Aegis n'a pas le droit « Bannir des utilisateurs » dans ce chat."
+  "bot_cant_restrict": "Aegis n'a pas le droit « Bannir des utilisateurs » dans ce chat.",
+  "btn_locks": "🔐 Verrous"
 }

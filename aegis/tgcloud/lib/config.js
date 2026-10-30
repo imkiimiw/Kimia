@@ -6,8 +6,8 @@ import { AEGIS_OWNER_ID } from './env.js';
 
 export const OWNER_ID = AEGIS_OWNER_ID;
 export const BOT_NAME = 'Aegis';
-export const VERSION = '0.3.0';
-export const PHASE = 3;
+export const VERSION = '0.4.0';
+export const PHASE = 4;
 
 /* Languages, in picker order. fa is right-to-left. */
 export const LANGS = ['fa', 'en', 'ru', 'zh', 'fr'];
@@ -55,6 +55,14 @@ export const MAX_DURATION_SEC = 366 * 86400; /* Telegram: longer (or under 30 s)
 export const MIN_DURATION_SEC = 60;
 export const MAX_STEPS = 10;
 export const BETRAY_KEEP_SEC = 2 * 86400; /* admin actions older than this are swept */
+
+/* Group locks (Phase 4). */
+export const LOCK_EXEMPT_MAX = 20; /* members exempted from one lock by hand */
+export const LOCK_TEXT_MAX = 300; /* characters of a custom lock notice */
+export const LOCK_NOTICE_GAP_SEC = 5; /* at most one lock notice per chat this often (a raid can't flood the group) */
+export const LOCK_HITS_KEEP_SEC = 7 * 86400;
+export const LOCK_DURATIONS = [600, 3600, 86400, 7 * 86400, 0]; /* punishment durations offered (0 = until lifted) */
+export const NEW_WINDOWS = [3600, 86400, 3 * 86400, 7 * 86400]; /* "new member" = joined less than this ago */
 
 /* Pending inputs (e.g. "send the broadcast message") expire after this. */
 export const STATE_TTL_SEC = 30 * 60;

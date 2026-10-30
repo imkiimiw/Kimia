@@ -3,13 +3,16 @@
  * tgcloud/endpoints/zz_devtools.js for the run (`tgcloud run` executes local files without
  * deploying them) and always deletes it afterwards, so it is never pushed. It reads bot-wide state
  * and reads/deletes ONLY the fake smoke-test users (ids 990000100-990000199) and the fake chat
- * FAKE_CHAT (lists and admin actions, Phase 3). It never touches the audit log.
+ * FAKE_CHAT (lists, admin actions, locks, lock hits, join times). It never touches the audit log.
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
 import { csv, utf8Bytes } from '../lib/core/csv.js';
 import * as adminActions from '../lib/engines/admin_actions.js';
 import * as lists from '../lib/engines/lists.js';
+import * as locks from '../lib/engines/locks.js';
+import * as members from '../lib/engines/members.js';
+import { scan } from '../lib/core/msgscan.js';
 import * as punish from '../lib/engines/punish.js';
 import * as settings from '../lib/engines/settings.js';
 
@@ -50,7 +53,33 @@ export default async function (input) {
     out.csvBytes = utf8Bytes(csv([['a', 'سلام']])).length;
     return out;
   }
+  if (action === 'p4') {
+    /* The Phase 4 SQL and the message scanner on the real platform (regex Unicode properties). */
+    await db.run(sql`INSERT INTO aegis_locks (chat_id, code, enabled, config, updated_by, updated_at) VALUES (${FAKE_CHAT}, 'link', 1, ${JSON.stringify({ on: 1, s: 'high' })}, 0, 0)
+      ON CONFLICT(chat_id, code) DO UPDATE SET enabled = 1, config = excluded.config`);
+    const on = await locks.active(FAKE_CHAT);
+    const env = locks.listEnv(FAKE_CHAT);
+    const bot = { id: 1, username: 'x' };
+    const own = new Set();
+    const hit = await locks.evaluate(scan({ text: 'visit spam . com', entities: [] }), on, { env, bot, own });
+    const mixed = await locks.evaluate(scan({ text: 'سلام دوستان Hello خوبید', entities: [] }),
+      new Map([['lang_latin', locks.normalize({ on: 1, s: 'high' })]]), { env, bot, own });
+    await locks.recordHit(FAKE_CHAT, 'link', LO, 'deleted', null);
+    await members.joined(FAKE_CHAT, LO);
+    return {
+      active: [...on.keys()],
+      hit: hit.map((m) => m.code),
+      mixed: mixed.map((m) => m.code),
+      hits: (await locks.hits(FAKE_CHAT, 'link')).length,
+      hitCount: await locks.hitCount(FAKE_CHAT, 'link', 0),
+      joined: (await members.joinedAt(FAKE_CHAT, LO)) > 0,
+      counts: await locks.countOn(FAKE_CHAT),
+    };
+  }
   if (action === 'cleanup') {
+    await db.run(sql`DELETE FROM aegis_locks WHERE chat_id = ${FAKE_CHAT}`);
+    await db.run(sql`DELETE FROM aegis_lock_hits WHERE chat_id = ${FAKE_CHAT}`);
+    await db.run(sql`DELETE FROM aegis_members WHERE chat_id = ${FAKE_CHAT}`);
     await db.run(sql`DELETE FROM aegis_list_entries WHERE chat_id = ${FAKE_CHAT}`);
     await db.run(sql`DELETE FROM aegis_list_history WHERE chat_id = ${FAKE_CHAT}`);
     await db.run(sql`DELETE FROM aegis_admin_actions WHERE chat_id = ${FAKE_CHAT}`);

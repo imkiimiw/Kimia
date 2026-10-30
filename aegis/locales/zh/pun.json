@@ -58,5 +58,6 @@
   "src_blacklist": "黑名单",
   "src_betrayal": "防背叛",
   "src_telegram": "Telegram 内",
-  "export_caption": "⚖️ {title} 的处罚：{n} 行（时间为 UTC）。"
+  "export_caption": "⚖️ {title} 的处罚：{n} 行（时间为 UTC）。",
+  "src_lock": "锁"
 }
