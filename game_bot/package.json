@@ -1,0 +1,30 @@
+{
+  "name": "game_bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Telegram game bot with a Mini App (tic-tac-toe, backgammon, Hokm, Codeword, Fusion) on Telegram Serverless (tgcloud)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "deploy": "npm run build && tgcloud push && tgcloud migrate --safe",
+    "status": "tgcloud status",
+    "test": "node --no-warnings test/static.mjs && npm run test:unit --silent && npm run test:e2e --silent",
+    "test:unit": "node --no-warnings --import ./test/sdk/register.mjs --test test/unit/*.test.mjs",
+    "test:e2e": "node --no-warnings --import ./test/sdk/register.mjs test/e2e.mjs",
+    "test:ui": "npm run build && node --no-warnings --import ./test/sdk/register.mjs test/ui.mjs",
+    "words": "node scripts/build-words.mjs",
+    "thumbs": "node scripts/thumbs.mjs"
+  },
+  "dependencies": {
+    "preact": "^10.29.8"
+  },
+  "devDependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/vazirmatn": "^5.3.0",
+    "@preact/preset-vite": "^2.10.6",
+    "@tgcloud/cli": "^0.2.0",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.5"
+  }
+}
