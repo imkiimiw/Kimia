@@ -13,5 +13,6 @@
   "can_restrict_members": "封禁与限制用户",
   "can_pin_messages": "置顶消息",
   "can_manage_video_chats": "管理视频聊天",
-  "can_promote_members": "添加新管理员"
+  "can_promote_members": "添加新管理员",
+  "can_manage_direct_messages": "管理私信"
 }

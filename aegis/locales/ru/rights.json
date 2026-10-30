@@ -13,5 +13,6 @@
   "can_restrict_members": "Бан и ограничения",
   "can_pin_messages": "Закрепление сообщений",
   "can_manage_video_chats": "Управление видеочатами",
-  "can_promote_members": "Назначение администраторов"
+  "can_promote_members": "Назначение администраторов",
+  "can_manage_direct_messages": "Управление личными сообщениями"
 }

@@ -3,7 +3,7 @@
 Orientation for AI coding assistants (and humans) working on **Aegis**, a public Telegram group &
 channel management/security bot on **Telegram Serverless**. Keep it short and true. Platform SDK
 reference: [docs/tgcloud-sdk.md](docs/tgcloud-sdk.md). Product spec: `docs/SPEC.md` (Persian, the
-source of truth — it must be added to the repo; it was not present when Phases 1–6 were built, and
+source of truth — it must be added to the repo; it was not present when Phases 1–7 were built, and
 the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
 
 ## Ground rules
@@ -60,6 +60,11 @@ the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
   `ui/panel_topics.js`. Timed jobs (night lock, scheduled cleanup) are rows in `aegis_schedules`
   claimed once by `advanced.sweep()`; message ids for cleanup / self-destruct go to `aegis_msg_log`
   (48 h, Telegram's deletion limit). Times of day are fixed UTC offsets (`core/clock.js`, no Intl).
+- Channels: the work in `ui/channel.js` (posts, edits, join requests, joins, admin alerts, the
+  discussion group, direct messages, sweep), panels in `ui/panel_channel.js` and `ui/panel_posts.js`,
+  the dashboard in `ui/dashboard.js`. Post content is stored and re-published by file_id
+  (`core/content.js`), never by copying a message that may be gone. Channel settings live in the
+  same settings table (`ch_*`, `dg_*` for the discussion group, `dm_*` for direct messages).
 - Multi-step inputs → `lib/core/state.js`; new callback_data codes → document them in the module
   header and in `lib/router.js`; keep callback_data ≤ 64 bytes.
 

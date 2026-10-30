@@ -4,7 +4,8 @@
  * deploying them) and always deletes it afterwards, so it is never pushed. It reads bot-wide state
  * and reads/deletes ONLY the fake smoke-test users (ids 990000100-990000199) and the fake chat
  * FAKE_CHAT (lists, admin actions, locks, lock hits, join times, security memory, message log,
- * schedules, member flags, reports, topics, anonymous commands). It never touches the
+ * schedules, member flags, reports, topics, anonymous commands, join requests, channel stats, invite
+ * links, posts and their versions, the post queue, crises). It never touches the
  * audit log (federations are not created here for that reason).
  */
 import { db } from 'sdk';
@@ -26,6 +27,14 @@ import * as schedules from '../lib/engines/schedules.js';
 import * as gd from '../lib/engines/groupdata.js';
 import { localMinutes, nextTime, parseTimes } from '../lib/core/clock.js';
 import { parseCommand as memberCommand } from '../lib/ui/advanced.js';
+import * as channels from '../lib/engines/channels.js';
+import * as invites from '../lib/engines/invites.js';
+import * as posts from '../lib/engines/posts.js';
+import * as crisis from '../lib/engines/crisis.js';
+import * as backup from '../lib/engines/backup.js';
+import { contentOf, withFooter } from '../lib/core/content.js';
+import { utf8Bytes as bytesOf, utf8Text } from '../lib/core/csv.js';
+import { parseWhen } from '../lib/ui/panel_posts.js';
 
 const LO = 990000100;
 const HI = 990000199;
@@ -148,7 +157,45 @@ export default async function (input) {
       member: [memberCommand('قوانین').cmd, memberCommand('/report@x spam').cmd, memberCommand('hello') === null],
     };
   }
+  if (action === 'p7') {
+    /* Phase 7: join requests decided once, subscribers per day, invite link counts, the post archive with
+       versions, the queue claimed once and due by time, a crisis started once, a backup checked; pure helpers in the isolate. */
+    const now = Math.floor(Date.now() / 1000);
+    const rid = await channels.addRequest(FAKE_CHAT, { id: LO, first_name: 'Smoke' }, 'bio', 'Aegis 1', null);
+    const d1 = await channels.decide(rid, 'approved', 'mode', 0);
+    const d2 = await channels.decide(rid, 'declined', 'mode', 0);
+    await channels.bump(FAKE_CHAT, 'joins');
+    await channels.bump(FAKE_CHAT, 'joins');
+    await channels.bump(FAKE_CHAT, 'leaves');
+    await channels.setMembers(FAKE_CHAT, 42);
+    const flow = await channels.flow(FAKE_CHAT, 1);
+    const lid = await invites.add(FAKE_CHAT, { invite_link: 'https://t.me/+smoke990000100', name: 'Smoke' }, LO);
+    await invites.count(FAKE_CHAT, { invite_link: 'https://t.me/+smoke990000100' }, 'joins');
+    const link = await invites.get(lid);
+    const pid = await posts.save(FAKE_CHAT, 5, 'text', { t: 'one' }, { at: now });
+    await posts.newVersion(await posts.get(pid), { t: 'two' }, 'edit');
+    const vs = await posts.versions(pid);
+    const qid = await posts.enqueue(FAKE_CHAT, 'text', { t: 'q' }, { status: 'scheduled', publishAt: now - 1 });
+    const due = (await posts.due(now, 50)).some((r) => Number(r.id) === qid);
+    const c1 = await posts.claim(qid, 'scheduled', 'publishing');
+    const c2 = await posts.claim(qid, 'scheduled', 'publishing');
+    const k1 = await crisis.start(FAKE_CHAT, LO, { settings: {} });
+    const k2 = await crisis.start(FAKE_CHAT, LO, { settings: {} });
+    const ended = await crisis.end(k1, LO);
+    const file = JSON.stringify(await backup.make({ chat_id: FAKE_CHAT, type: 'channel', title: 'Smoke' }));
+    return {
+      request: [!!d1, !!d2, (await channels.request(rid)).status], flow: [flow.joins, flow.leaves], members: await channels.membersAgo(FAKE_CHAT, 0),
+      link: [Number(link.joins), link.name], post: [Number((await posts.get(pid)).versions), vs.length, posts.unpack(await posts.get(pid)).t],
+      queue: [due, c1, c2], crisis: [k1 > 0, k2 === 0, !!ended], backup: JSON.parse(file).aegis,
+      pure: [contentOf({ photo: [{ file_id: 'a' }, { file_id: 'b' }] }).c.f, withFooter('text', 'x', 'f'), utf8Text(bytesOf('سلام')), parseWhen('2026-01-02 00:00', 1767225600, 0) > 0],
+    };
+  }
   if (action === 'cleanup') {
+    for (const t of ['aegis_join_requests', 'aegis_channel_stats', 'aegis_invite_links', 'aegis_post_queue', 'aegis_crises']) {
+      await db.run(sql`DELETE FROM ${sql.raw(t)} WHERE chat_id = ${FAKE_CHAT}`);
+    }
+    for (const p of await db.all(sql`SELECT id FROM aegis_posts WHERE chat_id = ${FAKE_CHAT} LIMIT 50`)) await db.run(sql`DELETE FROM aegis_post_versions WHERE post_id = ${p.id}`);
+    await db.run(sql`DELETE FROM aegis_posts WHERE chat_id = ${FAKE_CHAT}`);
     for (const t of ['aegis_msg_log', 'aegis_schedules', 'aegis_member_flags', 'aegis_reports', 'aegis_topics', 'aegis_anon_cmds']) {
       await db.run(sql`DELETE FROM ${sql.raw(t)} WHERE chat_id = ${FAKE_CHAT}`);
     }

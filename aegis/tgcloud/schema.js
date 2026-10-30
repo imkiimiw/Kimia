@@ -72,6 +72,11 @@ export const chats = table('aegis_chats', {
   welcomeMsg: integer('welcome_msg').notNull().default(0), /* the last welcome (deleted when the next one comes) */
   isForum: integer('is_forum').notNull().default(0),
   adminCallAt: integer('admin_call_at').notNull().default(0),
+  linkedId: integer('linked_id').notNull().default(0), /* a channel's discussion group, or a discussion group's channel */
+  dmChat: integer('dm_chat').notNull().default(0), /* a channel's direct messages chat, when Aegis has seen it */
+  jrHoldUntil: integer('jr_hold_until').notNull().default(0), /* a channel's join requests are left to the admins until then (a burst) */
+  burstAt: integer('burst_at').notNull().default(0), /* the last «many joins at once» alert */
+  lastPostAt: integer('last_post_at').notNull().default(0), /* a discussion group: when the channel's last post arrived */
 }, (t) => ({
   activeType: index('idx_aegis_chats_active_type').on(t.active, t.type, t.chatId),
   countAt: index('idx_aegis_chats_count_at').on(t.active, t.countAt),
@@ -621,4 +626,145 @@ export const anonCmds = table('aegis_anon_cmds', {
   at: integer('at').notNull(),
 }, (t) => ({
   byChat: index('idx_aegis_anon_cmds_chat').on(t.chatId, t.at),
+}));
+
+/* ---------- Phase 7: channels ---------- */
+
+/* Join requests Aegis received (the Bot API can't list pending requests): what was decided, by whom. */
+export const joinRequests = table('aegis_join_requests', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  name: text('name'),
+  username: text('username'),
+  bio: text('bio'),
+  link: text('link'), /* the invite link's name or its visible part */
+  query: text('query'), /* the join request query id, when Aegis is the chat's guard bot */
+  status: text('status').notNull().default('pending'), /* pending, captcha, approved, declined, expired */
+  reason: text('reason'), /* why Aegis decided: blacklist, name, flood, captcha, mode, admin */
+  byId: integer('by_id').notNull().default(0),
+  at: integer('at').notNull(),
+  decidedAt: integer('decided_at').notNull().default(0),
+}, (t) => ({
+  byChat: index('idx_aegis_join_requests_chat').on(t.chatId, t.status, t.at),
+  byUser: index('idx_aegis_join_requests_user').on(t.chatId, t.userId),
+}));
+
+/* Invite links created through Aegis (bots can't list other links), with what they brought in. */
+export const inviteLinks = table('aegis_invite_links', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  link: text('link').notNull(),
+  name: text('name'),
+  createdBy: integer('created_by').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+  expireAt: integer('expire_at').notNull().default(0),
+  memberLimit: integer('member_limit').notNull().default(0),
+  requests: integer('requests').notNull().default(0), /* 1 = joining needs approval */
+  revoked: integer('revoked').notNull().default(0),
+  joins: integer('joins').notNull().default(0),
+  asked: integer('asked').notNull().default(0), /* join requests through it */
+}, (t) => ({
+  byChat: index('idx_aegis_invite_links_chat').on(t.chatId, t.createdAt),
+  byLink: uniqueIndex('idx_aegis_invite_links_link').on(t.link),
+}));
+
+/* A channel's subscribers per day (count when Aegis looked) and the joins and leaves it saw. */
+export const channelStats = table('aegis_channel_stats', {
+  chatId: integer('chat_id').notNull(),
+  day: integer('day').notNull(), /* days since 1970 (UTC) */
+  members: integer('members').notNull().default(0),
+  joins: integer('joins').notNull().default(0),
+  leaves: integer('leaves').notNull().default(0),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_channel_stats_key').on(t.chatId, t.day),
+}));
+
+/* Channel posts Aegis saw or published (archive), the current content and how many versions. */
+export const posts = table('aegis_posts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  msgId: integer('msg_id').notNull(),
+  kind: text('kind').notNull(), /* text, photo, video, animation, document, audio, voice, other */
+  content: text('content').notNull(), /* JSON: text/caption, entities, file_id */
+  signature: text('signature'),
+  album: text('album'),
+  viaAegis: integer('via_aegis').notNull().default(0),
+  versions: integer('versions').notNull().default(1),
+  postedAt: integer('posted_at').notNull(),
+  editedAt: integer('edited_at').notNull().default(0),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_posts_key').on(t.chatId, t.msgId),
+  byChat: index('idx_aegis_posts_chat').on(t.chatId, t.postedAt),
+}));
+
+/* Every earlier version of a post (edit history); source: edit, restore, revert. */
+export const postVersions = table('aegis_post_versions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  postId: integer('post_id').notNull(),
+  n: integer('n').notNull(),
+  content: text('content').notNull(),
+  source: text('source').notNull().default('edit'),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byPost: index('idx_aegis_post_versions_post').on(t.postId, t.n),
+}));
+
+/* Posts waiting to be published: for approval, or at a set time (no scheduler: published lazily). */
+export const postQueue = table('aegis_post_queue', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  kind: text('kind').notNull(), /* text, photo, … (as in aegis_posts) */
+  content: text('content').notNull(),
+  options: text('options'), /* JSON: silent, protect */
+  authorId: integer('author_id').notNull().default(0),
+  origin: text('origin').notNull().default('aegis'), /* aegis (sent to Aegis), channel (held from the channel) */
+  status: text('status').notNull().default('pending'), /* pending, scheduled, published, rejected, failed */
+  publishAt: integer('publish_at').notNull().default(0),
+  decidedBy: integer('decided_by').notNull().default(0),
+  decidedAt: integer('decided_at').notNull().default(0),
+  resultMsg: integer('result_msg').notNull().default(0),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byChat: index('idx_aegis_post_queue_chat').on(t.chatId, t.status, t.at),
+  due: index('idx_aegis_post_queue_due').on(t.publishAt).where(sql`status = 'scheduled'`),
+}));
+
+/* A channel's crisis mode: what was done and saved so it can be undone. */
+export const crises = table('aegis_crises', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  byId: integer('by_id').notNull(),
+  saved: text('saved').notNull(), /* JSON: settings before, demoted admins with their rights */
+  report: text('report'), /* JSON: what each step did */
+  startedAt: integer('started_at').notNull(),
+  endedAt: integer('ended_at').notNull().default(0),
+  endedBy: integer('ended_by').notNull().default(0),
+}, (t) => ({
+  byChat: index('idx_aegis_crises_chat').on(t.chatId, t.startedAt),
+}));
+
+/* Copying a channel's older posts into its backup chat, a batch at a time. */
+export const backupJobs = table('aegis_backup_jobs', {
+  chatId: integer('chat_id').primaryKey(),
+  target: integer('target').notNull(),
+  nextId: integer('next_id').notNull().default(1),
+  lastId: integer('last_id').notNull().default(0),
+  copied: integer('copied').notNull().default(0),
+  status: text('status').notNull().default('running'), /* running, paused, done, failed */
+  error: text('error'),
+  retryAt: integer('retry_at').notNull().default(0),
+  byId: integer('by_id').notNull().default(0),
+  updatedAt: integer('updated_at').notNull().default(0),
+}, (t) => ({
+  running: index('idx_aegis_backup_jobs_running').on(t.retryAt).where(sql`status = 'running'`),
+}));
+
+/* A channel's direct messages chat (a supergroup Telegram creates for it) → the channel. */
+export const dmChats = table('aegis_dm_chats', {
+  dmChatId: integer('dm_chat_id').primaryKey(),
+  channelId: integer('channel_id').notNull(),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byChannel: index('idx_aegis_dm_chats_channel').on(t.channelId),
 }));

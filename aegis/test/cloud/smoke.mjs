@@ -14,7 +14,9 @@
 // tables, the locks SQL and the message scanner (Unicode regexes) in the isolate, edited messages;
 // Phase 5: the eleven security/federation tables, their SQL and the signals in the isolate, join requests;
 // Phase 6: the six new tables (message log, schedules, member flags, reports, topics, anonymous
-// commands), their SQL, times of day and member commands in the isolate.
+// commands), their SQL, times of day and member commands in the isolate; Phase 7: the nine channel
+// tables and their SQL, post content and UTF-8 decoding in the isolate, the channel_post handlers and
+// the guard bot's Mini App endpoint (joinGuard).
 //
 //   cd aegis && npm run test:cloud      (needs Aegis_BOT_TGCLOUD_TOKEN)
 import { spawnSync } from 'node:child_process';
@@ -51,8 +53,15 @@ fs.copyFileSync(DEV_SRC, DEV_DST);
 try {
   const before = dev('read');
   const tables = before.tables.map((t) => t.name);
-  check('38 aegis_ tables exist', tables.length === 38, tables.join(', '));
-  check('indexes exist', before.indexes.length >= 63, `${before.indexes.length} idx_aegis_*`);
+  check('47 aegis_ tables exist', tables.length === 47, tables.join(', '));
+  check('indexes exist', before.indexes.length >= 76, `${before.indexes.length} idx_aegis_*`);
+  for (const t of ['aegis_join_requests', 'aegis_invite_links', 'aegis_channel_stats', 'aegis_posts', 'aegis_post_versions', 'aegis_post_queue', 'aegis_crises',
+    'aegis_backup_jobs', 'aegis_dm_chats']) check(`Phase 7 table ${t}`, tables.includes(t));
+  const p7 = dev('p7');
+  check('channels on the real platform: requests decided once, joins/leaves per day, link counts, post versions, queue claimed once, one crisis at a time, backup file',
+    p7.request.join() === 'true,false,approved' && p7.flow.join() === '2,1' && p7.members === 42 && p7.link.join() === '1,Smoke' && p7.post.join() === '2,1,two'
+    && p7.queue.join() === 'true,true,false' && p7.crisis.join() === 'true,true,true' && p7.backup === 'backup', JSON.stringify(p7));
+  check('post content, footers, UTF-8 decoding and scheduled times in the isolate', p7.pure.join() === 'b,x\n\nf,سلام,true', JSON.stringify(p7.pure));
   for (const t of ['aegis_msg_log', 'aegis_schedules', 'aegis_reports', 'aegis_member_flags', 'aegis_topics', 'aegis_anon_cmds']) check(`Phase 6 table ${t}`, tables.includes(t));
   const p6 = dev('p6');
   check('advanced settings on the real platform: message log and self-destruct, schedules claimed once, member flags, reports handled once, topics, anonymous commands',
@@ -117,6 +126,14 @@ try {
   check('an edited message (new handler) runs without errors', !r6.error, r6.error || '');
   const r7 = tg(['handlers/chat_join_request', JSON5.stringify({ chat: G, from: user(B, 'en'), user_chat_id: B, date: 0 })]);
   check('a join request (new handler) in an unknown group is ignored without errors', !r7.error && r7.trace.length === 0, JSON.stringify(r7.trace));
+  const CHN = { id: -990000102, type: 'channel', title: 'Smoke channel' };
+  const r8 = tg(['handlers/channel_post', JSON5.stringify({ message_id: 9, chat: CHN, date: 0, text: 'smoke post' })]);
+  check('a post in an unknown channel (new handler) is ignored without errors', !r8.error && r8.trace.length === 0, JSON.stringify(r8.trace));
+  const r9 = tg(['handlers/edited_channel_post', JSON5.stringify({ message_id: 9, chat: CHN, date: 0, edit_date: 1, text: 'smoke edit' })]);
+  check('an edited channel post (new handler) runs without errors', !r9.error, r9.error || '');
+  const g1 = tg(['endpoints/joinGuard', JSON5.stringify({ action: 'get' }), '--ctx',
+    JSON5.stringify({ initData: { user: { id: A, first_name: 'Smoke' }, chat: { id: CHN.id, type: 'channel', title: 'Smoke channel' }, chat_join_request_query_id: 'smoke' } })]);
+  check('the guard bot\'s Mini App endpoint answers (no such request: closed)', g1.done === true && /Smoke channel/.test(g1.title), JSON.stringify(g1));
   check('blocking the bot is recorded', !r3.error && Number(dev('read').users.find((u) => Number(u.user_id) === B).blocked) === 1);
 } finally {
   try {

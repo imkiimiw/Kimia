@@ -13,7 +13,11 @@
 // deleteMessage removes a stored message (a member's only with the bot's can_delete_messages); chat
 // permissions (getChat / setChatPermissions) and join requests (approve / decline, a short DM window);
 // deleteMessages (1-100 ids), setChatTitle and unpinChatMessage need the matching bot right; forum
-// topics exist only in forum chats (isForum) and need the bot's can_manage_topics.
+// topics exist only in forum chats (isForum) and need the bot's can_manage_topics. Channels: posts
+// have no sender (channelPost), editing them needs can_edit_messages; media are sent by file_id;
+// invite links (create / edit / revoke, needs can_invite_users; approval and a member limit can't be
+// combined), copyMessages (skips missing ids), guard-bot join request queries, banChatSenderChat,
+// declineSuggestedPost, getFileContent (files registered with addFile).
 import { Buffer } from 'node:buffer';
 import http from 'node:http';
 
@@ -227,7 +231,131 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     return ok(true);
   }
 
+  const MEDIA = ['photo', 'video', 'animation', 'document', 'audio', 'voice', 'video_note', 'sticker'];
+  function sendMedia(kind) {
+    return (p) => {
+      const bad = reachable(p.chat_id);
+      if (bad) return bad;
+      if (!p[kind] || typeof p[kind] !== 'string') return err(400, `Bad Request: there is no ${kind} in the request`);
+      if (p.caption && p.caption.length > 1024) return err(400, 'Bad Request: message caption is too long');
+      const m = checkMarkup(p.reply_markup, { privateChat: Number(p.chat_id) > 0 });
+      if (m) return err(400, `Bad Request: ${m}`);
+      const id = store(p.chat_id, { kind, caption: p.caption || '', plain: p.caption || '', file: p[kind], markup: markupOf(p) });
+      return ok({ message_id: id, chat: { id: Number(p.chat_id) }, date: 0, ...(p.caption ? { caption: p.caption } : {}) });
+    };
+  }
+  /* A channel post can be edited by an admin bot with can_edit_messages (posts have no sender). */
+  function editable(p, msg) {
+    const c = Number(p.chat_id) < 0 ? chat(p.chat_id) : null;
+    if (msg.from && msg.from.id !== botId) return err(400, "Bad Request: message can't be edited");
+    if (!msg.from && c && c.type === 'channel' && !(c.botAdmin && (c.botRights || {}).can_edit_messages)) return err(400, 'Bad Request: not enough rights to edit the message');
+    return null;
+  }
+  function linkCall(p, fn) {
+    const c = chat(p.chat_id);
+    if (!c) return err(400, 'Bad Request: chat not found');
+    if (!c.botAdmin || !(c.botRights || {}).can_invite_users) return err(400, 'Bad Request: not enough rights to manage chat invite link');
+    if (p.creates_join_request && p.member_limit) return err(400, "Bad Request: member limit can't be specified for links requiring administrator approval");
+    c.links = c.links || new Map();
+    return fn(c);
+  }
+
   const handlers = {
+    ...Object.fromEntries(MEDIA.map((m) => [`send${m === 'video_note' ? 'VideoNote' : m[0].toUpperCase() + m.slice(1)}`, sendMedia(m)])),
+    editMessageCaption: (p) => {
+      const msg = state.messages.get(k(p.chat_id, p.message_id));
+      if (!msg) return err(400, 'Bad Request: message to edit not found');
+      const bad = editable(p, msg);
+      if (bad) return bad;
+      if (msg.kind === 'text') return err(400, 'Bad Request: there is no caption in the message to edit');
+      if ((msg.caption || '') === (p.caption || '')) return err(400, 'Bad Request: message is not modified');
+      msg.caption = p.caption || '';
+      msg.plain = msg.caption;
+      return ok({ message_id: msg.message_id });
+    },
+    editMessageMedia: (p) => {
+      const msg = state.messages.get(k(p.chat_id, p.message_id));
+      if (!msg) return err(400, 'Bad Request: message to edit not found');
+      const bad = editable(p, msg);
+      if (bad) return bad;
+      if (!p.media || !p.media.media) return err(400, 'Bad Request: media is required');
+      msg.kind = p.media.type;
+      msg.file = p.media.media;
+      msg.caption = p.media.caption || '';
+      msg.plain = msg.caption;
+      return ok({ message_id: msg.message_id });
+    },
+    copyMessages: (p) => {
+      const bad = reachable(p.chat_id);
+      if (bad) return bad;
+      if (!Array.isArray(p.message_ids) || !p.message_ids.length || p.message_ids.length > 100) return err(400, 'Bad Request: message_ids must be 1-100 ids');
+      for (let i = 1; i < p.message_ids.length; i += 1) if (p.message_ids[i] <= p.message_ids[i - 1]) return err(400, 'Bad Request: message identifiers must be in increasing order');
+      if (state.floodNextCopies) {
+        state.floodNextCopies = false;
+        return err(429, 'Too Many Requests: retry after 7', { retry_after: 7 });
+      }
+      const out = [];
+      for (const id of p.message_ids) {
+        const src = state.messages.get(k(p.from_chat_id, id));
+        if (!src) continue;
+        out.push({ message_id: store(p.chat_id, { ...src, from: bot, copyOf: k(p.from_chat_id, id) }) });
+      }
+      return ok(out);
+    },
+    createChatInviteLink: (p) => linkCall(p, (c) => {
+      const link = `https://t.me/+L${Math.abs(c.id)}x${c.links.size + 1}`;
+      const obj = { invite_link: link, creator: bot, creates_join_request: !!p.creates_join_request, is_primary: false, is_revoked: false,
+        ...(p.name ? { name: p.name } : {}), ...(p.expire_date ? { expire_date: p.expire_date } : {}), ...(p.member_limit ? { member_limit: p.member_limit } : {}) };
+      c.links.set(link, obj);
+      return ok(obj);
+    }),
+    editChatInviteLink: (p) => linkCall(p, (c) => {
+      const cur = c.links.get(p.invite_link);
+      if (!cur || cur.is_revoked) return err(400, 'Bad Request: INVITE_HASH_EXPIRED');
+      const obj = { ...cur, name: p.name || undefined, expire_date: p.expire_date || undefined, member_limit: p.member_limit || undefined,
+        creates_join_request: !!p.creates_join_request };
+      c.links.set(p.invite_link, obj);
+      return ok(obj);
+    }),
+    revokeChatInviteLink: (p) => linkCall(p, (c) => {
+      const cur = c.links.get(p.invite_link);
+      if (!cur) return err(400, 'Bad Request: INVITE_HASH_EXPIRED');
+      cur.is_revoked = true;
+      return ok(cur);
+    }),
+    banChatSenderChat: (p) => {
+      const c = chat(p.chat_id);
+      if (!c) return err(400, 'Bad Request: chat not found');
+      if (!c.botAdmin || !(c.botRights || {}).can_restrict_members) return err(400, 'Bad Request: not enough rights');
+      c.bannedSenders = c.bannedSenders || new Set();
+      c.bannedSenders.add(Number(p.sender_chat_id));
+      return ok(true);
+    },
+    answerChatJoinRequestQuery: (p) => {
+      if (!['approve', 'decline', 'queue'].includes(p.result)) return err(400, 'Bad Request: invalid result');
+      state.guardAnswers = state.guardAnswers || [];
+      if (state.guardAnswers.some((a) => a.chat_join_request_query_id === p.chat_join_request_query_id && a.result !== 'queue')) return err(400, 'Bad Request: QUERY_ID_INVALID');
+      state.guardAnswers.push(p);
+      return ok(true);
+    },
+    sendChatJoinRequestWebApp: (p) => {
+      if (!/^https:\/\//.test(String(p.web_app_url || ''))) return err(400, 'Bad Request: invalid web app url');
+      state.guardApps = state.guardApps || [];
+      state.guardApps.push(p);
+      return ok(true);
+    },
+    declineSuggestedPost: (p) => {
+      if (p.comment && p.comment.length > 128) return err(400, 'Bad Request: comment is too long');
+      state.declinedSuggested = state.declinedSuggested || [];
+      state.declinedSuggested.push(p);
+      return ok(true);
+    },
+    getFileContent: (p) => {
+      const id = typeof p === 'string' ? p : p.file_id;
+      const bytes = state.files && state.files.get(id);
+      if (!bytes) return err(400, 'Bad Request: invalid file_id');
+      return ok(Array.from(bytes));
+    },
     getMe: () => ok(bot),
     setMyCommands: (p) => {
       if (!Array.isArray(p.commands) || !p.commands.length) return err(400, 'Bad Request: commands must be non-empty');
@@ -269,7 +397,8 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     editMessageText: (p) => {
       const msg = state.messages.get(k(p.chat_id, p.message_id));
       if (!msg) return err(400, 'Bad Request: message to edit not found');
-      if (msg.from && msg.from.id !== botId) return err(400, "Bad Request: message can't be edited");
+      const notMine = editable(p, msg);
+      if (notMine) return notMine;
       if (msg.kind !== 'text') return err(400, 'Bad Request: there is no text in the message to edit');
       const bad = checkText(p);
       if (bad) return bad;
@@ -420,7 +549,8 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     editMessageReplyMarkup: (p) => {
       const msg = state.messages.get(k(p.chat_id, p.message_id));
       if (!msg) return err(400, 'Bad Request: message to edit not found');
-      if (msg.from && msg.from.id !== botId) return err(400, "Bad Request: message can't be edited");
+      const notMine = editable(p, msg);
+      if (notMine) return notMine;
       const m = checkMarkup(p.reply_markup, { privateChat: Number(p.chat_id) > 0 });
       if (m) return err(400, `Bad Request: ${m}`);
       const next = markupOf(p);
@@ -493,7 +623,8 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       const c = chat(p.chat_id);
       if (!c) return err(400, 'Bad Request: chat not found');
       const perms = c.type === 'channel' ? {} : { permissions: c.permissions || { can_send_messages: true, can_send_photos: true, can_send_videos: true, can_invite_users: true } };
-      return ok({ id: c.id, type: c.type, title: c.title, ...(c.isForum ? { is_forum: true } : {}), ...(c.username ? { username: c.username } : {}), ...(c.inviteLink && c.botAdmin ? { invite_link: c.inviteLink } : {}), ...perms });
+      return ok({ id: c.id, type: c.type, title: c.title, ...(c.isForum ? { is_forum: true } : {}), ...(c.linkedId ? { linked_chat_id: c.linkedId } : {}),
+        ...(c.guard ? { guard_bot: bot } : {}), ...(c.parentId ? { is_direct_messages: true, parent_chat: { id: c.parentId, type: 'channel' } } : {}), ...(c.username ? { username: c.username } : {}), ...(c.inviteLink && c.botAdmin ? { invite_link: c.inviteLink } : {}), ...perms });
     },
     getChatMemberCount: (p) => {
       const bad = reachable(p.chat_id);
@@ -555,6 +686,15 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     },
     deleteMessage(chatId, id) {
       state.messages.delete(k(chatId, id));
+    },
+    /** A post in a channel (posts have no sender). */
+    channelPost(chatId, id, fields) {
+      state.messages.set(k(chatId, id), { chat: chatId, message_id: id, kind: 'text', ...fields });
+    },
+    /** A file the bot can download with getFileContent. */
+    addFile(fileId, bytes) {
+      state.files = state.files || new Map();
+      state.files.set(fileId, bytes);
     },
     messageObject(chatId, id) {
       const m = state.messages.get(k(chatId, id));

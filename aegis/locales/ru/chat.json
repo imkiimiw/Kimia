@@ -101,5 +101,19 @@
   "btn_security": "🔰 Безопасность",
   "btn_fed": "🌐 Федерация",
   "btn_adv": "⚙️ Расширенные",
-  "btn_topics": "🗂 Темы"
+  "btn_topics": "🗂 Темы",
+  "btn_ch_join": "🛂 Заявки",
+  "btn_ch_members": "👥 Подписчики",
+  "btn_ch_links": "🔗 Ссылки",
+  "btn_ch_fraud": "🎭 Фейки",
+  "btn_ch_posts": "📝 Посты",
+  "btn_ch_alerts": "🚨 Оповещения",
+  "btn_ch_discussion": "💬 Группа обсуждения",
+  "btn_ch_dms": "✉️ Личные сообщения",
+  "btn_ch_extras": "✨ Дополнительно",
+  "btn_ch_backups": "💾 Резервные копии",
+  "btn_ch_crisis": "🆘 Кризис",
+  "btn_dashboard": "📊 Панель каналов",
+  "root_ch_numbers": "👥 {members} · 📥 ожидающих заявок: {requests} · 📝 ожидающих постов: {waiting}",
+  "root_ch_crisis": "🆘 Режим кризиса ВКЛ."
 }

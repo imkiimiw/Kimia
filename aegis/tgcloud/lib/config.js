@@ -6,8 +6,8 @@ import { AEGIS_OWNER_ID } from './env.js';
 
 export const OWNER_ID = AEGIS_OWNER_ID;
 export const BOT_NAME = 'Aegis';
-export const VERSION = '0.6.0';
-export const PHASE = 6;
+export const VERSION = '0.7.0';
+export const PHASE = 7;
 
 /* Languages, in picker order. fa is right-to-left. */
 export const LANGS = ['fa', 'en', 'ru', 'zh', 'fr'];
@@ -87,6 +87,25 @@ export const WELCOME_MAX = 1000;
 export const GOODBYE_MAX = 500;
 export const REPORT_ADMINS_MAX = 10; /* admins who get a report privately */
 export const TOPIC_NAME_MAX = 128; /* Telegram's limit */
+
+/* Phase 7 — channels */
+export const JR_FLOOD_HOLD_SEC = 30 * 60; /* after a burst of join requests: no automatic approvals this long */
+export const JR_PAGE = 8; /* pending join requests per screen */
+export const JR_KEEP_SEC = 30 * 24 * 3600; /* decided join requests are kept this long */
+export const INVITE_LINKS_MAX = 50; /* live links created through Aegis per channel */
+export const INVITE_NAME_MAX = 32; /* Telegram's limit for a link's name */
+export const POSTS_KEEP_SEC = 90 * 24 * 3600; /* the post archive (and its versions) */
+export const POST_VERSIONS_MAX = 20; /* versions kept per post */
+export const POSTS_PAGE = 8;
+export const QUEUE_PAGE = 6;
+export const QUEUE_MAX = 50; /* posts waiting per channel */
+export const FOOTER_MAX = 200;
+export const FAKES_MAX = 30; /* known fake channels/accounts per channel */
+export const BACKUP_BATCH = 50; /* older posts copied per step (copyMessages takes up to 100) */
+export const BACKUP_FILE_MAX = 200 * 1024; /* a settings backup to restore */
+export const DASH_PAGE = 8;
+export const XPOST_MAX = 10; /* channels in one cross-post */
+export const DM_WINDOW_SEC = 60; /* direct-messages flood window */
 
 /* Pending inputs (e.g. "send the broadcast message") expire after this. */
 export const STATE_TTL_SEC = 30 * 60;

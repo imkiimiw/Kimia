@@ -23,3 +23,9 @@ export async function recent(limit = 20) {
 export async function forChat(chatId, limit = 20) {
   return db.all(sql`SELECT * FROM aegis_audit WHERE chat_id = ${chatId} ORDER BY at DESC, id DESC LIMIT ${limit}`);
 }
+
+/* How often an action happened in a chat since a time (e.g. channel alerts in the last day). */
+export async function countSince(chatId, action, since) {
+  const r = await db.get(sql`SELECT count(*) AS n FROM aegis_audit WHERE chat_id = ${chatId} AND at >= ${since} AND action = ${action}`);
+  return Number(r.n);
+}

@@ -1,4 +1,4 @@
-// End-to-end tests of Phases 1-6: the real handlers and the Mini App endpoint (tgcloud/) against a local
+// End-to-end tests of Phases 1-7: the real handlers and the Mini App endpoint (tgcloud/) against a local
 // emulation of the platform's sdk (test/sdk/: SQLite via node:sqlite) and a strict mock Bot API
 // (test/mock-telegram.mjs). Web/Node globals the isolate lacks are removed first, the clock is fake.
 // Every Persian message is checked for right-to-left marks; every button press must be answered once.
@@ -11,6 +11,7 @@ import { BC_BATCH, BC_CHUNK, JOIN_CACHE_SEC, MAX_JOIN_CHANNELS, OWNER_ID, PHASE,
 import { LATEST } from '../tgcloud/lib/core/migrations.js';
 import { num } from '../tgcloud/lib/i18n/index.js';
 import { fmtTime, localMinutes, TZ_OFFSETS } from '../tgcloud/lib/core/clock.js';
+import { utf8Bytes, utf8Text } from '../tgcloud/lib/core/csv.js';
 
 const BOT_ID = 7200000001;
 const RLM = '\u200F';
@@ -27,7 +28,8 @@ for (const name of ['TextEncoder', 'TextDecoder', 'URL', 'URLSearchParams', 'Blo
   'setTimeout', 'setInterval', 'setImmediate', 'structuredClone', 'atob', 'btoa', 'crypto', 'Buffer', 'Intl']) delete globalThis[name];
 
 const H = {};
-for (const h of ['message', 'edited_message', 'callback_query', 'my_chat_member', 'chat_member', 'chat_join_request']) H[h] = (await import(`../tgcloud/handlers/${h}.js`)).default;
+for (const h of ['message', 'edited_message', 'callback_query', 'my_chat_member', 'chat_member', 'chat_join_request', 'channel_post',
+  'edited_channel_post']) H[h] = (await import(`../tgcloud/handlers/${h}.js`)).default;
 const bcLive = (await import('../tgcloud/endpoints/bcLive.js')).default;
 
 const errors = [];
@@ -2370,7 +2372,7 @@ async function olgaInput(button, text, extra = {}) {
   return { prompt: prompt && prompt.params.text, calls: r, last: sent(r).filter((x) => x.params.chat_id === Q.olga.id).pop() };
 }
 
-await scenario('phase 6 — ⚙️ advanced settings: 26 settings in four groups; join / pin notices deleted, leave notices kept', async () => {
+await scenario('phase 6 — ⚙\uFE0F advanced settings: 26 settings in four groups; join / pin notices deleted, leave notices kept', async () => {
   tick(600);
   zeta = mock.addChat({ id: ZETA, type: 'supergroup', title: 'Zeta', isForum: true, count: 25, botRights: { can_manage_chat: true, can_change_info: true,
     can_delete_messages: true, can_restrict_members: true, can_invite_users: true, can_pin_messages: true, can_promote_members: true, can_manage_topics: true } });
@@ -2848,6 +2850,495 @@ await scenario('phase 6 — in a Persian group the new notices, rules and report
   assert.ok(toChat(usage, ZETA)[0], 'the Persian word «گزارش» is the report command');
   resetAdv('caps');
   rawDatabase().prepare("UPDATE aegis_chats SET lang = 'en' WHERE chat_id = ?").run(ZETA);
+});
+
+// ---------- phase 7: channels ----------
+
+const P7 = {};
+for (const [i, nm] of ['Uma', 'Vic', 'Wes', 'Xen', 'Yas', 'Zoe', 'Ari', 'Bo', 'Cy', 'Di'].entries()) {
+  P7[nm.toLowerCase()] = { id: 800000200 + i, is_bot: false, first_name: nm, language_code: 'en', username: `${nm.toLowerCase()}_p7` };
+}
+const CH = -1009950;
+const CH2 = -1009951;
+const BK = -1009952;
+const DG = -1009953;
+const DMC = -1009954;
+const chanChat = { id: CH, type: 'channel', title: 'Omega News', username: 'omega_news' };
+const chan2Chat = { id: CH2, type: 'channel', title: 'Omega Two' };
+const dgChat = { id: DG, type: 'supergroup', title: 'Omega Talk' };
+const dmChat = { id: DMC, type: 'supergroup', title: 'Omega News', is_direct_messages: true };
+const CH_RIGHTS = { can_manage_chat: true, can_change_info: true, can_post_messages: true, can_edit_messages: true, can_delete_messages: true,
+  can_invite_users: true, can_restrict_members: true, can_promote_members: true, can_manage_direct_messages: true };
+let chan = null;
+let cpanel = null;
+const Cg = (x) => `g:${CH}${x ? `:${x}` : ''}`;
+const cp = (data) => press(Q.olga, data, cpanel);
+const cscreen = () => screenOf(Q.olga, cpanel);
+const toOlga = (calls) => sent(calls).filter((x) => x.params.chat_id === Q.olga.id);
+const chSet = (key, value) => rawDatabase().prepare(`INSERT INTO aegis_chat_settings (chat_id, key, value, updated_by, updated_at) VALUES (?, ?, ?, 0, 0)
+  ON CONFLICT(chat_id, key) DO UPDATE SET value = excluded.value`).run(CH, key, value);
+const chReset = (...keys) => { for (const k of keys) rawDatabase().prepare('DELETE FROM aegis_chat_settings WHERE chat_id = ? AND key = ?').run(CH, k); };
+const chVal = (key) => (row('SELECT value FROM aegis_chat_settings WHERE chat_id = ? AND key = ?', CH, key) || {}).value;
+let postSeq = 600;
+async function chPost(text, msg = {}) {
+  const id = postSeq++;
+  mock.channelPost(CH, id, { text, plain: text });
+  const r = await run(H.channel_post, { message_id: id, chat: chanChat, date: nowS(), ...(text !== null ? { text } : {}), ...msg });
+  return Object.assign(r, { id });
+}
+const chEdit = (id, text, date) => run(H.edited_channel_post, { message_id: id, chat: chanChat, date, edit_date: nowS(), text });
+const jr = (u, extra = {}) => {
+  mock.joinRequest(CH, u.id);
+  return run(H.chat_join_request, { chat: chanChat, from: u, user_chat_id: u.id, date: nowS(), ...extra });
+};
+const joinCh = (u, extra = {}) => {
+  chan.members.add(u.id);
+  chan.people.set(u.id, u);
+  return run(H.chat_member, { chat: chanChat, from: u, date: 0, old_chat_member: { user: u, status: 'left' }, new_chat_member: { user: u, status: 'member' }, ...extra });
+};
+const reqRow = (u) => row('SELECT * FROM aegis_join_requests WHERE chat_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1', CH, u.id);
+/* the screen a draft or a prompt answer opened (a new message to the person) */
+const lastTo = (calls, uid, re) => sent(calls).filter((x) => x.params.chat_id === uid && (!re || re.test(JSON.stringify(x.params.reply_markup || '')))).pop();
+
+await scenario('phase 7 — a channel\'s panel has its own sections (no group locks or security); registered when Aegis is added', async () => {
+  tick(600);
+  chan = mock.addChat({ id: CH, type: 'channel', title: 'Omega News', username: 'omega_news', count: 1200, botRights: CH_RIGHTS });
+  chan.admins.set(Q.olga.id, { status: 'creator', user: Q.olga });
+  chan.admins.set(Q.abe.id, { status: 'administrator', user: Q.abe, rights: { can_manage_chat: true, can_change_info: true, can_post_messages: true, can_edit_messages: true },
+    promotedBy: Q.olga.id });
+  const added = await botChange(chanChat, Q.olga, 'left', 'administrator', CH_RIGHTS);
+  assert.equal(toChat(added, CH).length, 0, 'nothing is posted to the subscribers');
+  assert.ok(toOlga(added).length, 'the warning goes to the person who added Aegis');
+  const c = await olgaSays('/config');
+  cpanel = midOf(sent(c)[0]);
+  assert.ok(dataOf(screenOf(Q.olga, cpanel)).includes('db'), 'the chat list offers the channels dashboard');
+  await cp(Cg());
+  const d = dataOf(cscreen());
+  for (const x of ['J', 'M', 'I', 'Q', 'C', 'A', 'D', 'H', 'E', 'Y', 'Z', 'L', 'B', 'U', 'O', 'a', 'l']) assert.ok(d.includes(Cg(x)), x);
+  for (const x of ['K', 'S', 'W', 'V', 'T', 'F']) assert.ok(!d.includes(Cg(x)), `no ${x} for a channel`);
+  assert.match(cscreen().plain, /👥 1200 · 📥 0 waiting requests · 📝 0 waiting posts/);
+});
+
+await scenario('phase 7 — 📝 every post and edit is kept as a version; edit alerts; late edits put back; restore an earlier version', async () => {
+  await cp(Cg('A'));
+  await cp(Cg('A:s:ch_al_edits'));
+  assert.ok(labelsOf(Q.olga, cpanel).includes('Post edits: ON'));
+  const p1 = await chPost('Hello world');
+  const date = nowS();
+  assert.equal(row('SELECT count(*) AS n FROM aegis_posts WHERE chat_id = ?', CH).n, 1);
+  tick(30);
+  const e1 = await chEdit(p1.id, 'Hello world!!', date);
+  assert.match(toOlga(e1)[0].params.text, /A post was edited: https:\/\/t\.me\/omega_news\/600\nBefore: \u2068Hello world\u2069\nNow: \u2068Hello world!!\u2069/);
+  assert.equal(sent(e1, 'editMessageText').length, 0, 'within the grace time nothing is put back');
+  await cp(Cg('C'));
+  await cp(Cg('C:s:ch_edit_lock'));
+  assert.match(cscreen().plain, /Posts — \u2068Omega News\u2069/);
+  tick(400);
+  const e2 = await chEdit(p1.id, 'Send BTC to win', date);
+  const backEdit = sent(e2, 'editMessageText').find((x) => x.params.chat_id === CH);
+  assert.equal(backEdit.params.text, 'Hello world!!', 'the late edit is put back');
+  assert.match(toOlga(e2).pop().params.text, /A late edit was put back/);
+  assert.equal(mock.get(CH, p1.id).text, 'Hello world!!');
+  const post = row('SELECT * FROM aegis_posts WHERE chat_id = ? AND msg_id = ?', CH, p1.id);
+  assert.equal(post.versions, 4);
+  await cp(Cg('C:a'));
+  assert.match(cscreen().plain, /Archive — \u2068Omega News\u2069 \(1\)/);
+  await cp(Cg(`C:p:${post.id}`));
+  assert.match(cscreen().plain, /Earlier versions \(3\)/);
+  assert.match(cscreen().plain, /v1 — .* \(edited\): \u2068Hello world\u2069/);
+  await cp(Cg(`C:p:${post.id}:r:1`));
+  assert.match(cscreen().plain, /Put the post back to version 1\?/);
+  const rs = await cp(Cg(`C:p:${post.id}:ry:1`));
+  assert.equal(sent(rs.calls, 'editMessageText').find((x) => x.params.chat_id === CH).params.text, 'Hello world');
+  assert.match(cscreen().plain, /Version 1 is back/);
+  chReset('ch_al_edits', 'ch_edit_lock');
+});
+
+await scenario('phase 7 — ✨ footer and buttons on new posts, self-destructing posts, the backup chat gets a copy', async () => {
+  await cp(Cg('E'));
+  await cp(Cg('E:i:footer'));
+  await olgaSays('— @omega_news');
+  assert.equal(chVal('ch_footer'), '— @omega_news');
+  await cp(Cg('E:i:buttons'));
+  await olgaSays('Site - https://example.org');
+  const p2 = await chPost('Big news');
+  assert.equal(sent(p2, 'editMessageText').find((x) => x.params.chat_id === CH).params.text, 'Big news\n\n— @omega_news');
+  assert.equal(sent(p2, 'editMessageReplyMarkup')[0].params.reply_markup.inline_keyboard[0][0].url, 'https://example.org');
+  assert.equal(JSON.parse(row('SELECT content FROM aegis_posts WHERE chat_id = ? AND msg_id = ?', CH, p2.id).content).t, 'Big news\n\n— @omega_news');
+  await cp(Cg('E:s:ch_post_ttl'));
+  assert.match(cscreen().plain + labelsOf(Q.olga, cpanel).join('|'), /Posts vanish after: 1 h/);
+  const p3 = await chPost('Short-lived');
+  tick(3700);
+  assert.ok(bulkIds(await olgaSays('/help')).includes(p3.id), 'the post deleted itself');
+  chReset('ch_footer', 'ch_buttons', 'ch_post_ttl');
+  const bk = mock.addChat({ id: BK, type: 'channel', title: 'Omega Backup', botRights: { can_post_messages: true, can_manage_chat: true } });
+  bk.admins.set(Q.olga.id, { status: 'creator', user: Q.olga });
+  await cp(Cg('Y'));
+  assert.match(cscreen().plain, /Backup chat: not set/);
+  await cp(Cg('Y:m'));
+  const m = await olgaSays(null, { chat_shared: { request_id: 61, chat_id: BK } });
+  assert.match(toChat(m, BK)[0].params.text, /now keeps a copy of the posts of \u2068Omega News\u2069/);
+  assert.equal(chVal('ch_mirror'), String(BK));
+  const p4 = await chPost('Mirrored');
+  assert.deepEqual(sent(p4, 'copyMessage').map((x) => [x.params.chat_id, x.params.from_chat_id, x.params.message_id]), [[BK, CH, p4.id]]);
+});
+
+await scenario('phase 7 — approval before publishing: a direct post is held and sent to the approvers; writing posts through Aegis; scheduled posts', async () => {
+  await cp(Cg('C'));
+  await cp(Cg('C:s:ch_approval'));
+  const h = await chPost('Unapproved post');
+  assert.ok(ids(h).includes(h.id), 'removed from the channel');
+  assert.ok(toOlga(h).some((x) => x.params.text === 'Unapproved post'), 'the approver sees the post itself');
+  const ask = toOlga(h).find((x) => /waits for approval/.test(x.params.text));
+  assert.match(ask.params.text, /Posted in the channel directly/);
+  const qid = row("SELECT id FROM aegis_post_queue WHERE status = 'pending' ORDER BY id DESC LIMIT 1").id;
+  const okp = await press(Q.olga, `pq:${qid}:a`, midOf(ask));
+  assert.equal(okp.toast, '✅ Published.');
+  assert.equal(toChat(okp.calls, CH)[0].params.text, 'Unapproved post');
+  assert.equal(sent(okp.calls, 'copyMessage')[0].params.chat_id, BK, 'published posts are copied to the backup chat too');
+  assert.equal((await press(Q.olga, `pq:${qid}:r`, midOf(ask))).toast, 'Someone already decided on this post.');
+  const h2 = await chPost('Spam post');
+  const ask2 = toOlga(h2).find((x) => /waits for approval/.test(x.params.text));
+  const q2 = row("SELECT id FROM aegis_post_queue WHERE status = 'pending' ORDER BY id DESC LIMIT 1").id;
+  assert.equal((await press(Q.olga, `pq:${q2}:r`, midOf(ask2))).toast, '❌ Rejected.');
+  const ac = await dm(Q.abe, '/config');
+  const abePanel = midOf(sent(ac)[0]);
+  await press(Q.abe, Cg(), abePanel);
+  await press(Q.abe, Cg('C:n'), abePanel);
+  const dr = await dm(Q.abe, 'From Abe');
+  const draft = lastTo(dr, Q.abe.id, /C:d:/);
+  assert.match(draft.params.text, /It will go to the owner and Full admins for approval/);
+  const did = row("SELECT id FROM aegis_post_queue WHERE status = 'draft' AND author_id = ?", Q.abe.id).id;
+  const sub = await press(Q.abe, Cg(`C:d:${did}:p`), midOf(draft));
+  assert.ok(toOlga(sub.calls).some((x) => /From: \u2068Abe\u2069/.test(x.params.text)), 'Olga is asked');
+  assert.equal(row('SELECT status FROM aegis_post_queue WHERE id = ?', did).status, 'pending');
+  await cp(Cg('C:n'));
+  const od = await olgaSays('Scheduled hello');
+  const odraft = lastTo(od, Q.olga.id, /C:d:/);
+  const oid = row("SELECT id FROM aegis_post_queue WHERE status = 'draft' AND author_id = ?", Q.olga.id).id;
+  await press(Q.olga, Cg(`C:d:${oid}:t`), midOf(odraft));
+  const at = (localMinutes(nowS(), 0) + 3) % 1440;
+  const ts = await olgaSays(fmtTime(at));
+  const tdraft = lastTo(ts, Q.olga.id, /C:d:/);
+  assert.match(tdraft.params.text, /Time: \d{4}-\d\d-\d\d \d\d:\d\d UTC/);
+  await press(Q.olga, Cg(`C:d:${oid}:p`), midOf(tdraft));
+  assert.equal(row('SELECT status FROM aegis_post_queue WHERE id = ?', oid).status, 'scheduled');
+  tick(4 * 60);
+  const pub = await olgaSays('/help');
+  assert.equal(toChat(pub, CH)[0].params.text, 'Scheduled hello', 'published by itself on the next update');
+  assert.equal(row('SELECT status FROM aegis_post_queue WHERE id = ?', oid).status, 'published');
+  chReset('ch_approval');
+});
+
+await scenario('phase 7 — 🛂 join requests: rule, look-alike names, blacklist, captcha in private, the guard bot\'s Mini App, bursts, the admins\' list', async () => {
+  const joinGuard = (await import('../tgcloud/endpoints/joinGuard.js')).default;
+  tick(120);
+  const r1 = await jr(P7.uma);
+  assert.equal(sent(r1, 'approveChatJoinRequest').length + sent(r1, 'declineChatJoinRequest').length, 0, 'by default the admins decide');
+  assert.equal(reqRow(P7.uma).status, 'pending');
+  await cp(Cg('J'));
+  await cp(Cg('J:s:ch_jr_mode'));
+  assert.match(labelsOf(Q.olga, cpanel).join('|'), /After the checks: approve/);
+  assert.equal(sent(await jr(P7.vic), 'approveChatJoinRequest')[0].params.user_id, P7.vic.id);
+  const fake = { id: 830000901, is_bot: false, first_name: 'Omega News' };
+  const rf = await jr(fake);
+  assert.equal(sent(rf, 'declineChatJoinRequest')[0].params.user_id, fake.id);
+  assert.equal(reqRow(fake).reason, 'name');
+  rawDatabase().prepare("INSERT INTO aegis_list_entries (chat_id, list, ekey, value, user_id, added_by, added_at, updated_by, updated_at) VALUES (?, 'blk', ?, ?, ?, 0, 0, 0, 0)")
+    .run(CH, String(P7.wes.id), String(P7.wes.id), P7.wes.id);
+  await jr(P7.wes);
+  assert.deepEqual([reqRow(P7.wes).status, reqRow(P7.wes).reason], ['declined', 'blacklist']);
+  await cp(Cg('J:s:ch_jr_captcha'));
+  const rc = await jr(P7.xen);
+  const capMsg = sent(rc).find((x) => x.params.chat_id === P7.xen.id);
+  assert.match(capMsg.params.text, /Omega News/);
+  const cap = row("SELECT * FROM aegis_captchas WHERE chat_id = ? AND user_id = ? AND status = 'pending'", CH, P7.xen.id);
+  const okc = await press(P7.xen, `cp:${cap.id}:${cap.answer}`, midOf(capMsg));
+  assert.equal(sent(okc.calls, 'approveChatJoinRequest')[0].params.user_id, P7.xen.id);
+  assert.deepEqual([reqRow(P7.xen).status, reqRow(P7.xen).reason], ['approved', 'captcha']);
+  const rg = await jr(P7.yas, { query_id: 'Q-yas' });
+  assert.match(sent(rg, 'sendChatJoinRequestWebApp')[0].params.web_app_url, /^https:\/\/app\d+\.tgcloud\.ai\/join$/);
+  const init = { initData: { user: P7.yas, chat: chanChat, chat_join_request_query_id: 'Q-yas' } };
+  const view = await joinGuard({ action: 'get' }, init);
+  assert.equal(view.title, 'Joining Omega News');
+  assert.ok(view.options.length >= 3);
+  const gcap = row("SELECT * FROM aegis_captchas WHERE chat_id = ? AND user_id = ? AND status = 'pending'", CH, P7.yas.id);
+  assert.equal(gcap.kind, 'guard');
+  const wrong = (Number(gcap.answer) + 1) % view.options.length;
+  assert.equal((await joinGuard({ action: 'answer', choice: wrong }, init)).result, 'wrong');
+  const right = await joinGuard({ action: 'answer', choice: Number(gcap.answer) }, init);
+  assert.deepEqual([right.result, right.done], ['right', true]);
+  assert.ok(mock.state.guardAnswers.some((a) => a.chat_join_request_query_id === 'Q-yas' && a.result === 'approve'));
+  assert.equal(reqRow(P7.yas).status, 'approved');
+  assert.equal((await joinGuard({ action: 'get' }, init)).done, true, 'answered: the Mini App says so');
+  await assert.rejects(joinGuard({ action: 'get' }, { initData: { user: P7.yas } }), /Not a join request/);
+  await cp(Cg('J:s:ch_jr_captcha'));
+  await cp(Cg('J:s:ch_jr_mode'));
+  await cp(Cg('J:s:ch_jr_mode'));
+  assert.equal(chVal('ch_jr_mode'), 'manual');
+  tick(120);
+  chSet('ch_jr_flood', '10');
+  let last = null;
+  for (let i = 0; i < 11; i += 1) last = await jr({ id: 830000910 + i, is_bot: false, first_name: `Req${i}`, username: `req${i}_p7` });
+  assert.match(toOlga(last)[0].params.text, /11 join requests in a minute: automatic approvals are paused for 30 min/);
+  await cp(Cg('J'));
+  assert.match(cscreen().plain, /Automatic approvals paused/);
+  await cp(Cg('J:p'));
+  assert.match(cscreen().plain, /Waiting join requests — \u2068Omega News\u2069 \(12\)/);
+  const one = reqRow({ id: 830000920 });
+  const a1 = await cp(Cg(`J:a:${one.id}`));
+  assert.equal(sent(a1.calls, 'approveChatJoinRequest')[0].params.user_id, 830000920);
+  assert.match(cscreen().plain, /\u2068Req10\u2069 approved/);
+  await cp(Cg('J:D'));
+  const dall = await cp(Cg('J:Dy'));
+  assert.equal(sent(dall.calls, 'declineChatJoinRequest').length, 11);
+  assert.match(cscreen().plain, /11 declined/);
+  chReset('ch_jr_flood');
+  rawDatabase().prepare('UPDATE aegis_chats SET jr_hold_until = 0 WHERE chat_id = ?').run(CH);
+});
+
+await scenario('phase 7 — 👥 joins and leaves per day, look-alike subscribers reported or removed, a member found and banned / unbanned', async () => {
+  tick(120);
+  await joinCh(P7.ari);
+  const imp = { id: 830000950, is_bot: false, first_name: 'Omega News' };
+  const ji = await joinCh(imp);
+  assert.match(toOlga(ji)[0].params.text, /A look-alike account joined: \u2068Omega News\u2069 \(<code>830000950<\/code>\) — looks like the channel or an admin/);
+  await cp(Cg('Q'));
+  await cp(Cg('Q:s:ch_imp_action'));
+  const imp2 = { id: 830000951, is_bot: false, first_name: 'Omega  News' };
+  const jr2 = await joinCh(imp2);
+  assert.equal(sent(jr2, 'banChatMember')[0].params.user_id, imp2.id);
+  assert.equal(sent(jr2, 'unbanChatMember')[0].params.user_id, imp2.id, 'removed, not banned');
+  assert.match(toOlga(jr2)[0].params.text, /A look-alike account was removed/);
+  chReset('ch_imp_action');
+  await run(H.chat_member, { chat: chanChat, from: P7.ari, date: 0, old_chat_member: { user: P7.ari, status: 'member' }, new_chat_member: { user: P7.ari, status: 'left' } });
+  const st = row('SELECT * FROM aegis_channel_stats WHERE chat_id = ? ORDER BY day DESC LIMIT 1', CH);
+  assert.ok(st.joins >= 3 && st.leaves >= 1, JSON.stringify(st));
+  await cp(Cg('M'));
+  assert.match(cscreen().plain, /Subscribers now: /);
+  assert.match(cscreen().plain, /Today: \+\d+ joined · −\d+ left/);
+  chan.members.add(P7.cy.id);
+  chan.people.set(P7.cy.id, P7.cy);
+  await cp(Cg('M:f'));
+  const f = await olgaSays(String(P7.cy.id));
+  assert.match(lastTo(f, Q.olga.id).params.text, /👤 <b>\u2068Cy\u2069<\/b> \(<code>800000208<\/code>\)\nStatus: subscriber/);
+  await cp(Cg(`M:u:${P7.cy.id}`));
+  assert.match(cscreen().plain, /Status: subscriber/);
+  const b = await cp(Cg(`M:u:${P7.cy.id}:b`));
+  assert.equal(sent(b.calls, 'banChatMember')[0].params.user_id, P7.cy.id);
+  assert.match(cscreen().plain, /\u2068Cy\u2069 was banned/);
+  const u = await cp(Cg(`M:u:${P7.cy.id}:n`));
+  assert.equal(sent(u.calls, 'unbanChatMember')[0].params.user_id, P7.cy.id);
+});
+
+await scenario('phase 7 — 🔗 invite links: create (expiry, limit, approval), joins and requests counted per link, revoke, a new primary link', async () => {
+  await cp(Cg('I'));
+  assert.match(cscreen().plain, /No links made through Aegis yet/);
+  await cp(Cg('I:n:0:0:0'));
+  await cp(Cg('I:n:2:0:0'));
+  assert.match(cscreen().plain, /Expires: 1 d/);
+  const c1 = await cp(Cg('I:c:2:2:0'));
+  const p = sent(c1.calls, 'createChatInviteLink')[0].params;
+  assert.deepEqual([p.member_limit, p.expire_date > nowS(), p.creates_join_request, p.name], [10, true, undefined, 'Aegis 1']);
+  const l1 = row('SELECT * FROM aegis_invite_links WHERE chat_id = ? ORDER BY id LIMIT 1', CH);
+  await joinCh(P7.di, { invite_link: { invite_link: l1.link, creator: mock.bot } });
+  const c2 = await cp(Cg('I:c:0:2:1'));
+  const p2 = sent(c2.calls, 'createChatInviteLink')[0].params;
+  assert.deepEqual([p2.creates_join_request, p2.member_limit], [true, undefined], 'approval and a member limit can\'t be combined');
+  const l2 = row('SELECT * FROM aegis_invite_links WHERE chat_id = ? ORDER BY id DESC LIMIT 1', CH);
+  await jr({ id: 830000960, is_bot: false, first_name: 'Asker', username: 'asker_p7' }, { invite_link: { invite_link: l2.link } });
+  await cp(Cg('I'));
+  assert.match(cscreen().plain, /Aegis 1\u2069: \+1 joined · 0 requests/);
+  assert.match(cscreen().plain, /Aegis 2\u2069: \+0 joined · 1 requests/);
+  await cp(Cg(`I:l:${l2.id}:x`));
+  const rv = await cp(Cg(`I:l:${l2.id}:xy`));
+  assert.equal(sent(rv.calls, 'revokeChatInviteLink')[0].params.invite_link, l2.link);
+  assert.match(cscreen().plain, /revoked/);
+  await cp(Cg('I:P'));
+  const np = await cp(Cg('I:P:y'));
+  assert.equal(sent(np.calls, 'exportChatInviteLink').length, 1);
+  assert.match(cscreen().plain, /New primary link:/);
+});
+
+await scenario('phase 7 — 🚨 alerts about admins and their rights; the channel\'s title put back', async () => {
+  const pr = await run(H.chat_member, { chat: chanChat, from: Q.abe, date: 0, old_chat_member: { user: P7.bo, status: 'member' },
+    new_chat_member: { user: P7.bo, status: 'administrator', can_be_edited: false, can_post_messages: true, can_promote_members: true } });
+  const al = toOlga(pr)[0].params.text;
+  assert.match(al, /👮 \u2068Bo\u2069 became an admin \(by \u2068Abe\u2069\)\./);
+  assert.match(al, /➕ Rights added: .+/);
+  assert.match(al, /Powerful rights were given/);
+  assert.match(al, /Appointed outside Aegis/);
+  await cp(Cg('A'));
+  await cp(Cg('A:s:ch_title_lock'));
+  assert.equal(chVal('ch_title_locked'), 'Omega News');
+  chan.title = 'Hacked News';
+  const tl = await run(H.channel_post, { message_id: postSeq++, chat: { ...chanChat, title: 'Hacked News' }, date: nowS(), new_chat_title: 'Hacked News' });
+  assert.equal(sent(tl, 'setChatTitle')[0].params.title, 'Omega News');
+  assert.match(toOlga(tl)[0].params.text, /The title was changed to \u2068Hacked News\u2069; Aegis put back \u2068Omega News\u2069/);
+  chan.title = 'Omega News';
+  chReset('ch_title_lock');
+});
+
+await scenario('phase 7 — 💬 the discussion group: comments as other channels, «first comment» bots, non-subscribers, known fakes', async () => {
+  const dg = mock.addChat({ id: DG, type: 'supergroup', title: 'Omega Talk', botRights: { can_manage_chat: true, can_delete_messages: true, can_restrict_members: true,
+    can_invite_users: true, can_pin_messages: true, can_change_info: true } });
+  dg.admins.set(Q.olga.id, { status: 'creator', user: Q.olga });
+  for (const u of [P7.uma, P7.vic]) {
+    dg.members.add(u.id);
+    dg.people.set(u.id, u);
+  }
+  chan.linkedId = DG;
+  await botChange(dgChat, Q.olga, 'left', 'administrator', dg.botRights);
+  rawDatabase().prepare('UPDATE aegis_chats SET reminder = 0 WHERE chat_id = ?').run(DG);
+  await cp(Cg('D'));
+  assert.match(cscreen().plain, /Discussion group: \u2068Omega Talk\u2069\n✅ Aegis is an admin there/);
+  for (const k of ['dg_as_channel', 'dg_first', 'dg_members', 'dg_imp']) await cp(Cg(`D:s:${k}`));
+  await gmsg(dgChat, { id: 777000, is_bot: true, first_name: 'Telegram' }, 'Big news', { sender_chat: chanChat, is_automatic_forward: true });
+  assert.equal(row('SELECT linked_id FROM aegis_chats WHERE chat_id = ?', DG).linked_id, CH);
+  const spamCh = { id: -1009998, type: 'channel', title: 'Spam Ch' };
+  const asCh = msgId;
+  const sc = await gmsg(dgChat, { id: 136817688, is_bot: true, first_name: 'Channel' }, 'promo', { sender_chat: spamCh });
+  assert.ok(ids(sc).includes(asCh));
+  assert.equal(sent(sc, 'banChatSenderChat')[0].params.sender_chat_id, spamCh.id);
+  chan.members.add(P7.vic.id);
+  tick(6);
+  const first = msgId;
+  const fc = await gmsg(dgChat, P7.vic, 'first!');
+  assert.ok(ids(fc).includes(first), 'a new account right after the post');
+  tick(31);
+  assert.equal(ids(await gmsg(dgChat, P7.vic, 'nice post')).length, 0, 'a subscriber later is fine');
+  chan.members.delete(P7.uma.id);
+  tick(6);
+  const nm = msgId;
+  const ns = await gmsg(dgChat, P7.uma, 'I am not subscribed');
+  assert.ok(ids(ns).includes(nm));
+  const note = toChat(ns, DG)[0];
+  assert.match(note.params.text, /only the channel's subscribers can comment/);
+  assert.equal(note.params.reply_markup.inline_keyboard[0][0].url, 'https://t.me/omega_news');
+  await cp(Cg('Q'));
+  await cp(Cg('Q:f'));
+  await olgaSays('@fake_omega');
+  assert.deepEqual(JSON.parse(chVal('ch_fakes')), ['@fake_omega']);
+  tick(6);
+  const fk = msgId;
+  assert.ok(ids(await gmsg(dgChat, P7.vic, 'follow @fake_omega for prizes')).includes(fk));
+  chReset('dg_as_channel', 'dg_first', 'dg_members', 'dg_imp');
+});
+
+await scenario('phase 7 — ✉\uFE0F the channel\'s direct messages: links, blocked senders, suggested posts with links', async () => {
+  mock.addChat({ id: DMC, type: 'supergroup', title: 'Omega News', parentId: CH, botRights: {} });
+  await cp(Cg('H'));
+  assert.match(cscreen().plain, /hasn't seen a direct message yet/);
+  await cp(Cg('H:s:dm_on'));
+  await cp(Cg('H:s:dm_suggest'));
+  const topic = (u) => ({ direct_messages_topic: { topic_id: u.id, user: u } });
+  const l = msgId;
+  const dl = await gmsg(dmChat, P7.uma, 'cheap followers https://spam.example', topic(P7.uma));
+  assert.ok(ids(dl).includes(l));
+  assert.equal(row('SELECT dm_chat FROM aegis_chats WHERE chat_id = ?', CH).dm_chat, DMC);
+  const w = msgId;
+  assert.ok(ids(await gmsg(dmChat, P7.wes, 'hello?', topic(P7.wes))).includes(w), 'a blacklisted sender');
+  const sg = await gmsg(dmChat, P7.vic, 'please post https://promo.example', { ...topic(P7.vic), suggested_post_info: { state: 'pending' } });
+  assert.equal(sent(sg, 'declineSuggestedPost')[0].params.chat_id, DMC);
+  assert.equal(ids(await gmsg(dmChat, P7.vic, 'love the channel!', topic(P7.vic))).length, 0);
+  chReset('dm_on', 'dm_suggest');
+});
+
+await scenario('phase 7 — 🆘 crisis: links revoked, new primary link, requests declined, posts held, Aegis admins demoted, discussion locked — and all put back', async () => {
+  chan.admins.set(P7.zoe.id, { status: 'administrator', user: P7.zoe, rights: { can_manage_chat: true, can_post_messages: true, can_edit_messages: true }, promotedBy: BOT_ID });
+  chan.members.add(P7.zoe.id);
+  await cp(Cg('x'));
+  await cp(Cg('Z'));
+  assert.match(cscreen().plain, /crisis mode does everything at once/);
+  await cp(Cg('Z:s'));
+  const cs = await cp(Cg('Z:sy'));
+  assert.ok(sent(cs.calls, 'revokeChatInviteLink').length >= 1, 'the live Aegis links');
+  assert.equal(sent(cs.calls, 'exportChatInviteLink').length, 1);
+  const dem = sent(cs.calls, 'promoteChatMember').find((x) => x.params.user_id === P7.zoe.id);
+  assert.equal(dem.params.can_post_messages, false);
+  assert.equal(sent(cs.calls, 'setChatPermissions').find((x) => x.params.chat_id === DG).params.permissions.can_send_messages, false);
+  assert.deepEqual([chVal('ch_jr_mode'), chVal('ch_approval'), chVal('ch_edit_lock')], ['decline', '1', '1']);
+  assert.match(cscreen().plain, /Crisis mode is ON/);
+  assert.match(toOlga(cs.calls).find((x) => /Crisis mode was started/.test(x.params.text)).params.text, /admins demoted/);
+  await cp(Cg());
+  assert.match(cscreen().plain, /🆘 Crisis mode is ON\./);
+  await cp(Cg('Z:e'));
+  const ce = await cp(Cg('Z:ey'));
+  const re = sent(ce.calls, 'promoteChatMember').find((x) => x.params.user_id === P7.zoe.id);
+  assert.equal(re.params.can_post_messages, true, 're-appointed with the rights saved');
+  assert.equal(sent(ce.calls, 'setChatPermissions').find((x) => x.params.chat_id === DG).params.permissions.can_send_messages, true);
+  assert.deepEqual([chVal('ch_jr_mode'), chVal('ch_approval'), chVal('ch_edit_lock')], ['manual', '0', '0']);
+  assert.match(cscreen().plain, /Crisis ended; 1 of 1 admins re-appointed/);
+});
+
+await scenario('phase 7 — 💾 backups: export the settings, restore them from the file, copy older posts in batches (waits when Telegram asks)', async () => {
+  chSet('ch_silent', '0');
+  chSet('ch_imp_action', 'remove');
+  await cp(Cg('Y'));
+  const ex = await cp(Cg('Y:x'));
+  const doc = sent(ex.calls, 'sendDocument')[0];
+  const file = mock.get(Q.olga.id, doc.result.result.message_id).document;
+  assert.equal(file.file_name, 'aegis-backup-1009950.json');
+  const data = JSON.parse(utf8Text(file.bytes));
+  assert.equal(data.settings.ch_imp_action, 'remove');
+  assert.deepEqual(data.lists.nam || [], []);
+  assert.ok(!('ch_mirror' in data.settings), 'the backup chat belongs to this channel only');
+  data.settings.ch_silent = '1';
+  data.settings.ch_imp_action = 'alert';
+  mock.addFile('BK-FILE', utf8Bytes(JSON.stringify(data)));
+  await cp(Cg('Y:r'));
+  const sm = await olgaSays(null, { document: { file_id: 'BK-FILE', file_name: 'b.json', file_size: 900 } });
+  const summary = lastTo(sm, Q.olga.id, /Y:ry/);
+  assert.match(summary.params.text, /In the file: \d+ settings/);
+  await press(Q.olga, Cg('Y:ry'), midOf(summary));
+  assert.match(screenOf(Q.olga, midOf(summary)).plain, /Restored: \d+ values/);
+  assert.deepEqual([chVal('ch_silent'), chVal('ch_imp_action')], ['1', 'alert']);
+  mock.addFile('BAD', utf8Bytes('{"hello":1}'));
+  await cp(Cg('Y:r'));
+  assert.match(lastTo(await olgaSays(null, { document: { file_id: 'BAD', file_name: 'x.json', file_size: 11 } }), Q.olga.id).params.text, /isn't an Aegis backup/);
+  await olgaSays('/cancel');
+  await cp(Cg('Y:j'));
+  assert.match(cscreen().plain, /Copy posts 1 … \d+ into the backup chat/);
+  const st = await cp(Cg('Y:jy'));
+  assert.deepEqual(sent(st.calls, 'copyMessages')[0].params.message_ids.slice(0, 2), [1, 2]);
+  assert.match(cscreen().plain, /Copying: up to #51/);
+  mock.state.floodNextCopies = true;
+  await cp(Cg('Y:js'));
+  assert.match(cscreen().plain, /Telegram asks to wait/);
+  const last = row('SELECT last_id FROM aegis_backup_jobs WHERE chat_id = ?', CH).last_id;
+  rawDatabase().prepare('UPDATE aegis_backup_jobs SET next_id = ?, retry_at = 0 WHERE chat_id = ?').run(last - 5, CH);
+  const fin = await cp(Cg('Y:js'));
+  assert.ok(sent(fin.calls, 'copyMessages')[0].params.message_ids.includes(last));
+  assert.match(cscreen().plain, /Finished/);
+  assert.equal(row('SELECT status FROM aegis_backup_jobs WHERE chat_id = ?', CH).status, 'done');
+  chReset('ch_silent', 'ch_imp_action');
+});
+
+await scenario('phase 7 — 📊 the channels dashboard and posting to several channels; the owner hears when Aegis loses rights or is removed', async () => {
+  const c2 = mock.addChat({ id: CH2, type: 'channel', title: 'Omega Two', botRights: CH_RIGHTS });
+  c2.admins.set(Q.olga.id, { status: 'creator', user: Q.olga });
+  c2.admins.set(Q.abe.id, { status: 'administrator', user: Q.abe, rights: { can_manage_chat: true, can_change_info: true, can_post_messages: true }, promotedBy: Q.olga.id });
+  await botChange(chan2Chat, Q.olga, 'left', 'administrator', CH_RIGHTS);
+  const c = await olgaSays('/config');
+  const list = midOf(sent(c)[0]);
+  await press(Q.olga, 'db', list);
+  const dash = screenOf(Q.olga, list).plain;
+  assert.match(dash, /Your channels/);
+  assert.match(dash, /📢 \u2068Omega News\u2069\n {3}👥 1200 · today \+\d+ −\d+ · 📥 \d+ · 📝 \d+ · 🚨 \d+/);
+  assert.match(dash, /Omega Two/);
+  await press(Q.olga, 'xp', list);
+  await press(Q.olga, `xp:t:${CH}`, list);
+  await press(Q.olga, `xp:t:${CH2}`, list);
+  assert.match(screenOf(Q.olga, list).plain, /Chosen: 2/);
+  await press(Q.olga, 'xp:s', list);
+  const xp = await olgaSays('To both channels');
+  assert.equal(toChat(xp, CH)[0].params.text, 'To both channels');
+  assert.equal(toChat(xp, CH2)[0].params.text, 'To both channels');
+  assert.match(lastTo(xp, Q.olga.id).params.text, /\u2068Omega News\u2069: published\n✅ \u2068Omega Two\u2069: published/);
+  const lost = await botChange(chan2Chat, Q.abe, 'administrator', 'administrator', { ...CH_RIGHTS, can_invite_users: false });
+  assert.match(toOlga(lost)[0].params.text, /Aegis's rights in \u2068Omega Two\u2069 changed\. Missing now: /);
+  const gone = await botChange(chan2Chat, Q.abe, 'administrator', 'left');
+  assert.match(toOlga(gone)[0].params.text, /Aegis was removed from \u2068Omega Two\u2069/);
 });
 
 await scenario('after a deploy with new command menus, they are sent on the next private message (the retry throttle is per revision)', async () => {

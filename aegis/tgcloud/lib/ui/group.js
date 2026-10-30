@@ -24,6 +24,7 @@ import * as chats from '../engines/chats.js';
 import { REQUIRED, deepLinkRights } from '../engines/rights.js';
 import * as users from '../engines/users.js';
 import { t } from '../i18n/index.js';
+import * as channel from './channel.js';
 
 export const panelLink = (bot, chatId) => `https://t.me/${bot}?start=c_${chatId}`;
 export const grantLink = (bot, chat) => (chat.type === 'channel'
@@ -95,9 +96,11 @@ export async function register(ctx, chat, actor) {
 
 /* my_chat_member in a group/supergroup/channel. */
 export async function onBotMembership(ctx, upd, lang) {
+  const before = await chats.get(upd.chat.id);
   const r = await chats.onBotMembership(ctx, upd, lang);
   const chatId = upd.chat.id;
   if (!r.active) {
+    if (r.wasActive) await channel.botAlert(ctx, before, [], true);
     await chats.unregister(chatId);
     return;
   }
@@ -111,6 +114,11 @@ export async function onBotMembership(ctx, upd, lang) {
   if (JSON.stringify(prev) === JSON.stringify(missing)) return;
   await audit.log(actor ? actor.id : 0, 'chat.rights', { chatId, details: { missing } });
   if (ctx.quiet) return;
+  if (chat.type === 'channel') {
+    /* the owner hears about it, unless they made the change themselves (they get the notice below) */
+    const creator = (await admins.listRows(chatId)).find((r) => r.status === 'creator');
+    if (!actor || !creator || Number(creator.user_id) !== actor.id) await channel.botAlert(ctx, chat, missing);
+  }
   const notice = (l) => [t(l, missing.length ? 'group.rights_changed_missing' : 'group.rights_changed_ok', { n: missing.length }), ...rightsLines(l, missing)].join('\n');
   const bot = (await me(ctx)).username;
   if (chat.type !== 'channel') {

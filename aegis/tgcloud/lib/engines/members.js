@@ -21,6 +21,11 @@ export async function joinedAt(chatId, userId) {
   return r ? Number(r.joined_at) : 0;
 }
 
+/* The latest joins Aegis saw (newest first). */
+export async function recent(chatId, limit = 10) {
+  return db.all(sql`SELECT user_id, joined_at FROM aegis_members WHERE chat_id = ${chatId} ORDER BY joined_at DESC LIMIT ${limit}`);
+}
+
 export async function migrate(oldId, newId) {
   await db.run(sql`DELETE FROM aegis_members WHERE chat_id = ${newId}`);
   await db.run(sql`UPDATE aegis_members SET chat_id = ${newId} WHERE chat_id = ${oldId}`);

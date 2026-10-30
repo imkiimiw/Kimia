@@ -28,16 +28,23 @@
  *   rk:<id>:y|n   risk alert feedback          ld:<id>:end   end an emergency lock, read-only or raid mode
  *   fj:<chat>     forced join re-check         rp:<id>:d|m|b|x   a member's report: delete/mute/ban/dismiss
  *   an:<id>       a real admin confirms an anonymous admin's command — ui/advanced.js
+ *   pq:<id>:a|r   publish / reject a post waiting for approval — ui/channel.js
  * callback_data (private chat):
  *   lg            language picker            lg:<fa|en|ru|zh|fr>   set language
  *   jc            "✅ I joined" (re-check, no cache)
  *   mm            main menu                  hp                    help
  *   cl… g:…       my chats and a chat's panel (any admin with access) — ui/panel.js
+ *   db… xp…       the channels dashboard and posting to several channels — ui/dashboard.js
  *   op os oj… ob… bc:… ox sy:…   owner panel and global switch (OWNER_ID only; anyone else gets a
  *                 silent answer) — ui/owner.js, ui/owner_bc.js, ui/system.js
  *
  * edited_message: in a group, the locks again (and the edit lock), then the security checks.
- * chat_join_request: the join captcha in the requester's private chat.
+ * channel_post / edited_channel_post: a channel's posts and edits (ui/channel.js).
+ * A message in a channel's direct messages chat: its filters (ui/channel.js), nothing else.
+ * Group messages also pass the discussion-group protection of their channel (ui/channel.js) right
+ * after the locks.
+ * chat_join_request: a channel's requests (ui/channel.js); a group's join captcha in the
+ * requester's private chat (ui/security.js).
  * my_chat_member: private → the user blocked / unblocked the bot; group/supergroup/channel → the
  * bot's membership and rights there (ui/group.js: registration, warnings).
  * chat_member: someone's admin status changed (cache, revocation, log, reminder); bans and unbans
@@ -62,6 +69,8 @@ import * as users from './engines/users.js';
 import { isLang, pickLang, t } from './i18n/index.js';
 import { afterUpdate } from './jobs.js';
 import * as advanced from './ui/advanced.js';
+import * as channel from './ui/channel.js';
+import * as dashboard from './ui/dashboard.js';
 import * as enforce from './ui/enforce.js';
 import * as group from './ui/group.js';
 import * as moderation from './ui/moderation.js';
@@ -70,9 +79,11 @@ import * as owner from './ui/owner.js';
 import * as ownerBc from './ui/owner_bc.js';
 import * as panel from './ui/panel.js';
 import * as panelAdv from './ui/panel_adv.js';
+import * as panelChannel from './ui/panel_channel.js';
 import * as panelFed from './ui/panel_fed.js';
 import * as panelLocks from './ui/panel_locks.js';
 import * as panelMod from './ui/panel_mod.js';
+import * as panelPosts from './ui/panel_posts.js';
 import * as panelTopics from './ui/panel_topics.js';
 import * as start from './ui/start.js';
 import * as sys from './ui/system.js';
@@ -80,8 +91,9 @@ import * as sys from './ui/system.js';
 const OWNER_HEADS = new Set(['op', 'os', 'oj', 'ob', 'bc', 'ox', 'sy']);
 const PANEL_HEADS = new Set(['cl', 'g']);
 const OWNER_INPUTS = new Set(['join_add', 'bc_content', 'bc_buttons']);
-const GROUP_HEADS = new Set(['pu', 'bt', 'cp', 'rk', 'ld', 'fj', 'rp', 'an']);
-const PANELS = [panelMod, panelLocks, panelFed, panelAdv, panelTopics];
+const GROUP_HEADS = new Set(['pu', 'bt', 'cp', 'rk', 'ld', 'fj', 'rp', 'an', 'pq']);
+const DASH_HEADS = new Set(['db', 'xp']);
+const PANELS = [panelMod, panelLocks, panelFed, panelAdv, panelTopics, panelChannel, panelPosts, dashboard];
 const isUserInput = (kind) => kind === 'adm_pick' || PANELS.some((p) => p.INPUTS.has(kind));
 const hasKeyboard = (kind) => kind === 'adm_pick' || PANELS.some((p) => p.KEYBOARD_INPUTS.has(kind));
 
@@ -157,6 +169,9 @@ async function input(ctx, user, message, pending) {
   if (panelFed.INPUTS.has(pending.kind)) return panelFed.input(ctx, user, message, pending);
   if (panelAdv.INPUTS.has(pending.kind)) return panelAdv.input(ctx, user, message, pending);
   if (panelTopics.INPUTS.has(pending.kind)) return panelTopics.input(ctx, user, message, pending);
+  if (panelChannel.INPUTS.has(pending.kind)) return panelChannel.input(ctx, user, message, pending);
+  if (panelPosts.INPUTS.has(pending.kind)) return panelPosts.input(ctx, user, message, pending);
+  if (dashboard.INPUTS.has(pending.kind)) return dashboard.input(ctx, user, message, pending);
   if (pending.kind === 'join_add') return owner.joinAddInput(ctx, lang, message);
   if (pending.kind === 'bc_content') return ownerBc.contentInput(ctx, lang, message, pending.data);
   if (pending.kind === 'bc_buttons') return ownerBc.buttonsInput(ctx, lang, message, pending.data);
@@ -168,6 +183,10 @@ async function handleMessage(ctx, message) {
   const chat = message.chat;
   if (!chat) return;
   ctx.chatId = chat.id;
+  if (chat.is_direct_messages) {
+    if (!ctx.shutdown) await channel.dmMessage(ctx, message);
+    return;
+  }
   if (chat.type === 'group' || chat.type === 'supergroup') {
     await handleGroupMessage(ctx, message);
     return;
@@ -227,6 +246,7 @@ async function handleGroupMessage(ctx, message) {
   if (message.from) ctx.userId = message.from.id;
   const known = await chats.get(chat.id);
   const lockDeleted = await enforce.check(ctx, known, message); /* deleted by a lock: no command acts on it */
+  if (!lockDeleted && await channel.discussion(ctx, known, message)) return;
   if ((await advanced.service(ctx, known, message, { deleted: lockDeleted })) || lockDeleted) return;
   if (await security.onMessage(ctx, known, message)) return;
   if (await advanced.onMessage(ctx, known, message)) return;
@@ -259,13 +279,36 @@ export function onEditedMessage(message, pctx) {
   });
 }
 
-/* A request to join a group: the captcha in the requester's private chat (ui/security.js). */
+/* A request to join: a channel's checks (ui/channel.js), or a group's captcha in the requester's private chat (ui/security.js). */
 export function onJoinRequest(req, pctx) {
   return run('chat_join_request', pctx, async (ctx) => {
-    if (!req || !req.chat || !req.from || ctx.shutdown) return;
+    if (!req || !req.chat || !req.from) return;
     ctx.chatId = req.chat.id;
     ctx.userId = req.from.id;
-    await security.onJoinRequest(ctx, req);
+    if (ctx.shutdown) {
+      /* Aegis is paused: a guard bot's query still needs an answer, so the admins decide */
+      if (req.query_id) await tryCall(ctx, 'answerChatJoinRequestQuery', { chat_join_request_query_id: req.query_id, result: 'queue' }, 'guard-queue');
+      return;
+    }
+    if (req.chat.type === 'channel') await channel.onJoinRequest(ctx, req);
+    else await security.onJoinRequest(ctx, req);
+  });
+}
+
+/* A channel's post, and its edits (ui/channel.js). */
+export function onChannelPost(message, pctx) {
+  return run('channel_post', pctx, async (ctx) => {
+    if (!message || !message.chat || ctx.shutdown) return;
+    ctx.chatId = message.chat.id;
+    await channel.onPost(ctx, message);
+  });
+}
+
+export function onEditedChannelPost(message, pctx) {
+  return run('edited_channel_post', pctx, async (ctx) => {
+    if (!message || !message.chat || ctx.shutdown) return;
+    ctx.chatId = message.chat.id;
+    await channel.onEditedPost(ctx, message);
   });
 }
 
@@ -311,6 +354,7 @@ async function handleCallback(ctx, cq) {
     }
     const parts = String(cq.data).split(':');
     if (advanced.HEADS.has(head0)) return advanced.callback(ctx, cq, parts, { roleOf: moderation.roleOf, security: security.command, moderation: moderation.handle });
+    if (head0 === 'pq') return channel.queueCallback(ctx, cq, parts);
     return security.HEADS.has(head0) ? security.callback(ctx, cq, parts) : moderation.callback(ctx, cq, parts);
   }
   if (msg.chat.type !== 'private') return null;
@@ -359,6 +403,7 @@ async function handleCallback(ctx, cq) {
     return start.joinScreen(ctx, user, j.missing, place);
   }
   if (PANEL_HEADS.has(head)) return panel.callback(ctx, user, parts, place);
+  if (DASH_HEADS.has(head)) return dashboard.callback(ctx, user, parts, place);
   if (head === 'hp') return start.help(ctx, user, place);
   return start.welcome(ctx, user, from, place);
 }
@@ -399,6 +444,7 @@ export function onChatMember(upd, pctx) {
     ctx.quiet = !!ctx.shutdown;
     if (upd.from) ctx.userId = upd.from.id;
     await group.onMemberChange(ctx, upd);
+    if (upd.chat.type === 'channel') await channel.onMemberChange(ctx, upd);
     await moderation.onMemberChange(ctx, upd);
   });
 }

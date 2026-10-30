@@ -5,10 +5,10 @@ Updated at the end of each phase. Constraint for all entries: **free only** — 
 or tier; only what Telegram Serverless and the Bot API allow.
 
 > **Note on the spec.** `aegis/docs/SPEC.md` (the Persian master spec) was not in the repository
-> when Phases 1–6 were built (searched the working tree, all branches on GitHub, and the
-> container). They were built from their descriptions in the build instructions (Phases 3–6 by the
-> owner's decision to go ahead without it — the 42 locks, the security modules and the 26 advanced
-> settings are Aegis's own design, see ASSUMPTIONS); details the spec would normally settle are listed in
+> when Phases 1–7 were built (searched the working tree, all branches on GitHub, and the
+> container). They were built from their descriptions in the build instructions (Phases 3–7 by the
+> owner's decision to go ahead without it — the 42 locks, the security modules, the 26 advanced
+> settings and the channel panel are Aegis's own design, see ASSUMPTIONS); details the spec would normally settle are listed in
 > [ASSUMPTIONS.md](ASSUMPTIONS.md). They will be re-checked against the spec once it is added.
 
 ## Phase 1 — Core
@@ -108,3 +108,23 @@ or tier; only what Telegram Serverless and the Bot API allow.
 | Keeping the title when Aegis **can't change info** | **Not possible** | Putting the title back needs Aegis's «Change group info» right; without it the admins are only told. | Give Aegis the right. |
 | Unpinning / deleting linked-channel posts without the rights | **Not possible** | Needs «Pin messages» / «Delete messages». | Give Aegis the rights. |
 | Night lock and the scheduled cleanup in a **basic group** | **Partial** | Chat permissions can be set only in supergroups, so the night lock works only there (the panel says so); cleanup works in both. | Telegram converts the group. |
+
+## Phase 7 — Channel panel
+
+| Feature | State | Why | What it would need |
+|---|---|---|---|
+| Listing a channel's **subscribers** | **Not possible** | The Bot API can't list a channel's members. Aegis counts the joins and leaves it is told about (chat_member), shows recent joins, and finds a person by account (shared user, forward, id, a @username it has met). | — (Bot API). |
+| Listing **invite links made elsewhere** | **Not possible** | Bots can see only the links they created. Links made through Aegis are listed with their joins and requests; the primary link can be replaced. | — (Bot API). |
+| **Approval before publishing** for posts made directly in the channel | **Partial** | Telegram publishes an admin's post at once (subscribers may already be notified); Aegis removes it within seconds and queues it for approval. Real pre-publish approval works for posts written through Aegis. Albums are held item by item (the grouping is lost); polls, locations and similar posts can't be re-published by a bot and stay. | A Telegram feature for post approval. |
+| **Who** posted or edited a channel post | **Not possible** | Channel posts carry no author — only the signature when «Sign messages» is on. Edits are put back or reported without a name. | — (Bot API). |
+| Noticing **deleted posts** | **Not possible** | Telegram sends bots no update when a message is deleted. | — (Bot API). |
+| Versions of posts from **before Aegis** was added, and the content of old posts | **Partial** | A bot can't read history: versions start when Aegis first sees a post. Older posts can still be **copied** to the backup chat (copyMessages skips missing ids), but not read into the archive. | — (Bot API). |
+| Copying older posts **unattended and fast** | **Partial** | No scheduler, and Telegram limits how fast a bot posts: a batch of 50 is copied per minute on the side of updates (or per button press); a 429 makes it wait. Service messages, paid media and similar posts can't be copied. | A platform scheduler (the rate limit stays). |
+| **Searching Telegram** for fake copies of the channel | **Not possible** | The Bot API has no search. Aegis catches look-alikes who join, ask to join, comment or write directly, and the fakes the admins list. | — (Bot API). |
+| **Reporting** fake channels to Telegram | **Not possible** | There is no Bot API method for reports. | — (users report in the app). |
+| Making Aegis the channel's **guard bot** | **Not possible for the bot** | Only the owner can choose it in Telegram's channel settings; the panel explains how and shows whether it is set. Until then the captcha goes to the requester's private chat (5-minute window). | The owner sets it. |
+| Restoring **revoked links** after a crisis | **Not possible** | A revoked invite link can't be revived; «End crisis» says so. Links made outside Aegis can't be revoked by it (a new primary link replaces the main one). Admins appointed outside Aegis can't be demoted. | — (Bot API). |
+| Scheduled posts and self-destructing posts **exactly on time** | **Partial** | No scheduler: they happen on the first update after their time, checked at most once a minute. Self-destruct is at most 1 day (Telegram deletes only messages younger than 48 h). | A platform scheduler. |
+| Channel **direct messages** where Telegram doesn't deliver them | **Partial** | Aegis can only act on direct messages Telegram sends it (it needs «Manage direct messages»). It deletes or declines; it doesn't write back to the sender. | — |
+| Backups of **punishments and history** | **Not built (by design)** | A backup holds configuration (settings, configuration lists, locks and security of groups). Punishments and logs are records of what happened, not settings to copy. | Phase 10 (global backups) if wanted. |
+| Channel **analytics and health score** | **Phase 8** | Phase 7 counts joins, leaves and subscribers per day for the dashboard; analytics come in Phase 8. | Phase 8. |

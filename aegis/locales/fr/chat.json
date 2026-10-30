@@ -101,5 +101,19 @@
   "btn_security": "🔰 Sécurité",
   "btn_fed": "🌐 Fédération",
   "btn_adv": "⚙️ Avancé",
-  "btn_topics": "🗂 Sujets"
+  "btn_topics": "🗂 Sujets",
+  "btn_ch_join": "🛂 Demandes",
+  "btn_ch_members": "👥 Abonnés",
+  "btn_ch_links": "🔗 Liens",
+  "btn_ch_fraud": "🎭 Faux",
+  "btn_ch_posts": "📝 Posts",
+  "btn_ch_alerts": "🚨 Alertes",
+  "btn_ch_discussion": "💬 Groupe de discussion",
+  "btn_ch_dms": "✉️ Messages directs",
+  "btn_ch_extras": "✨ Extras",
+  "btn_ch_backups": "💾 Sauvegardes",
+  "btn_ch_crisis": "🆘 Crise",
+  "btn_dashboard": "📊 Tableau de bord des canaux",
+  "root_ch_numbers": "👥 {members} · 📥 {requests} demandes en attente · 📝 {waiting} posts en attente",
+  "root_ch_crisis": "🆘 Mode crise ACTIF."
 }

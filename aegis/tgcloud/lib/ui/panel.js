@@ -18,6 +18,9 @@
  *   g:c:K…               locks — ui/panel_locks.js
  *   g:c:S…  g:c:F…       security, federation — ui/panel_security.js, ui/panel_fed.js
  *   g:c:V…  g:c:T…       advanced settings, forum topics — ui/panel_adv.js, ui/panel_topics.js
+ *   channels: g:c:J… M… I… Q… A… D… H… E…   join requests, members, invite links, fraud, alerts,
+ *                        discussion group, direct messages, extras — ui/panel_channel.js
+ *             g:c:C… Z… Y…   posts, crisis, backups — ui/panel_posts.js
  *   g:c:L… g:c:P… g:c:W… g:c:B… g:c:U… g:c:O…   lists, punishments, warnings and steps,
  *                        anti-betrayal, Audit Mode, log channel — ui/panel_mod.js
  * Pending inputs (aegis_states): adm_pick { chat } — the member to appoint (shared user, forwarded
@@ -31,17 +34,22 @@ import * as state from '../core/state.js';
 import { answer, btn, call, describeError, screen, send, urlBtn } from '../core/tg.js';
 import { esc, iso, normalizeWord, nowSec, parseJson, short, toInt } from '../core/util.js';
 import * as admins from '../engines/admins.js';
+import * as channels from '../engines/channels.js';
 import * as chats from '../engines/chats.js';
+import * as crisis from '../engines/crisis.js';
+import * as posts from '../engines/posts.js';
 import * as settings from '../engines/settings.js';
 import { addToChannelUrl, addToGroupUrl, canManageAdmins as typeCanManage, grantable, rightsOf } from '../engines/rights.js';
 import * as users from '../engines/users.js';
-import { dur, has, langFlag, langName, t } from '../i18n/index.js';
+import { dur, has, langFlag, langName, num, t } from '../i18n/index.js';
 import { grantLink, rightsLines } from './group.js';
 import { back, guard, levelName, pairs, removeKeyboard, rowName, typeIcon } from './guard.js';
 import * as advPanel from './panel_adv.js';
+import * as chanPanel from './panel_channel.js';
 import * as fedPanel from './panel_fed.js';
 import * as lockPanel from './panel_locks.js';
 import * as mod from './panel_mod.js';
+import * as postPanel from './panel_posts.js';
 import * as secPanel from './panel_security.js';
 import * as topicPanel from './panel_topics.js';
 
@@ -69,6 +77,7 @@ export async function chatsList(ctx, user, page = 0, place = null) {
     rows.push(nav);
   }
   const bot = (await me(ctx)).username;
+  if (list.some((c) => c.type === 'channel')) rows.push([btn(t(lang, 'chat.btn_dashboard'), 'db')]);
   rows.push([urlBtn(t(lang, 'start.btn_add_group'), addToGroupUrl(bot)), urlBtn(t(lang, 'start.btn_add_channel'), addToChannelUrl(bot))]);
   rows.push(back(lang, 'mm'));
   return screen(ctx, user.user_id, place, text, rows, 'my-chats');
@@ -94,6 +103,7 @@ async function root(ctx, user, g, place, notice = '') {
   if (chat.type === 'group') lines.push('', t(lang, 'group.basic_group'));
   const s = await settings.all(ctx, c);
   if (settings.flag(s, 'audit')) lines.push('', t(lang, 'chat.root_audit'));
+  if (chat.type === 'channel') return channelRoot(ctx, user, g, place, lines, s);
   const rows = [
     [btn(t(lang, 'chat.btn_locks'), `g:${c}:K`), btn(t(lang, 'chat.btn_security'), `g:${c}:S`)],
     [btn(t(lang, 'chat.btn_lists'), `g:${c}:L`), btn(t(lang, 'chat.btn_punish'), `g:${c}:P`)],
@@ -108,6 +118,32 @@ async function root(ctx, user, g, place, notice = '') {
     [btn(t(lang, 'chat.btn_my_chats'), 'cl')],
   ];
   return screen(ctx, user.user_id, place, lines.join('\n'), rows, 'panel');
+}
+
+/* A channel's root: its own sections (Phase 7) and the shared ones that apply to channels. */
+async function channelRoot(ctx, user, g, place, lines, s) {
+  const lang = user.lang;
+  const c = g.chat.chat_id;
+  const pend = (await channels.pending(c, 0)).total;
+  const waiting = await posts.countWaiting(c);
+  lines.push('', t(lang, 'chat.root_ch_numbers', { members: num(lang, Number(g.chat.member_count)), requests: num(lang, pend), waiting: num(lang, waiting) }));
+  if (await crisis.active(c)) lines.push(t(lang, 'chat.root_ch_crisis'));
+  const rows = [
+    [btn(t(lang, 'chat.btn_ch_join'), `g:${c}:J`), btn(t(lang, 'chat.btn_ch_members'), `g:${c}:M`)],
+    [btn(t(lang, 'chat.btn_ch_links'), `g:${c}:I`), btn(t(lang, 'chat.btn_ch_fraud'), `g:${c}:Q`)],
+    [btn(t(lang, 'chat.btn_ch_posts'), `g:${c}:C`), btn(t(lang, 'chat.btn_ch_alerts'), `g:${c}:A`)],
+    [btn(t(lang, 'chat.btn_ch_discussion'), `g:${c}:D`), btn(t(lang, 'chat.btn_ch_dms'), `g:${c}:H`)],
+    [btn(t(lang, 'chat.btn_ch_extras'), `g:${c}:E`), btn(t(lang, 'chat.btn_ch_backups'), `g:${c}:Y`)],
+    [btn(t(lang, 'chat.btn_ch_crisis'), `g:${c}:Z`)],
+    [btn(t(lang, 'chat.btn_lists'), `g:${c}:L`), btn(t(lang, 'chat.btn_punish'), `g:${c}:P`)],
+    [btn(t(lang, 'chat.btn_betray'), `g:${c}:B`), btn(t(lang, settings.flag(s, 'audit') ? 'chat.btn_audit_on' : 'chat.btn_audit_off'), `g:${c}:U`)],
+    [btn(t(lang, 'chat.btn_logs'), `g:${c}:O`)],
+    [btn(t(lang, 'chat.btn_perms'), `g:${c}:p`), btn(t(lang, 'chat.btn_admins'), `g:${c}:a`)],
+    [btn(t(lang, 'chat.btn_access'), `g:${c}:l`), btn(t(lang, 'chat.btn_lang'), `g:${c}:g`)],
+    [btn(t(lang, 'chat.btn_log'), `g:${c}:h`), btn(t(lang, 'chat.btn_recheck'), `g:${c}:x`)],
+    [btn(t(lang, 'chat.btn_dashboard'), 'db'), btn(t(lang, 'chat.btn_my_chats'), 'cl')],
+  ];
+  return screen(ctx, user.user_id, place, lines.join('\n'), rows, 'panel-channel');
 }
 
 async function refreshBotRights(ctx, chat) {
@@ -591,6 +627,9 @@ export async function callback(ctx, user, parts, place) {
     case 'V': return advPanel.callback(ctx, user, g, parts, place);
     case 'T': return topicPanel.callback(ctx, user, g, parts, place);
     case 'L': case 'P': case 'W': case 'B': case 'U': case 'O': return mod.callback(ctx, user, g, parts, place);
+    case 'J': case 'M': case 'I': case 'Q': case 'A': case 'D': case 'H': case 'E':
+      return (await chanPanel.callback(ctx, user, g, parts, place)) || root(ctx, user, g, place);
+    case 'C': case 'Z': case 'Y': return (await postPanel.callback(ctx, user, g, parts, place)) || root(ctx, user, g, place);
     default: return root(ctx, user, g, place);
   }
 }

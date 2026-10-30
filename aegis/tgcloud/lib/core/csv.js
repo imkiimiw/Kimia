@@ -1,5 +1,6 @@
 /*
- * CSV files for list exports, without TextEncoder (the isolate has none): utf8Bytes encodes by hand.
+ * CSV files for list exports, without TextEncoder (the isolate has none): utf8Bytes encodes by hand,
+ * utf8Text decodes (a backup file to restore).
  * The file starts with a byte-order mark so spreadsheet apps read Persian/Chinese text correctly.
  */
 
@@ -21,6 +22,33 @@ export function utf8Bytes(str) {
     else out.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
   }
   return new Uint8Array(out);
+}
+
+/* Bytes → text (UTF-8, by hand: no TextDecoder in the isolate). Bad sequences become U+FFFD; a BOM is dropped. */
+export function utf8Text(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+  let out = '';
+  let i = b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf ? 3 : 0;
+  const cont = (k) => k < b.length && (b[k] & 0xc0) === 0x80;
+  while (i < b.length) {
+    const x = b[i];
+    let c = 0xfffd;
+    let n = 1;
+    if (x < 0x80) c = x;
+    else if (x >= 0xc2 && x < 0xe0 && cont(i + 1)) {
+      c = ((x & 31) << 6) | (b[i + 1] & 63);
+      n = 2;
+    } else if (x >= 0xe0 && x < 0xf0 && cont(i + 1) && cont(i + 2)) {
+      c = ((x & 15) << 12) | ((b[i + 1] & 63) << 6) | (b[i + 2] & 63);
+      n = 3;
+    } else if (x >= 0xf0 && x < 0xf5 && cont(i + 1) && cont(i + 2) && cont(i + 3)) {
+      c = ((x & 7) << 18) | ((b[i + 1] & 63) << 12) | ((b[i + 2] & 63) << 6) | (b[i + 3] & 63);
+      n = 4;
+    }
+    out += String.fromCodePoint(c);
+    i += n;
+  }
+  return out;
 }
 
 const cell = (v) => {

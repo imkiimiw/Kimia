@@ -12,7 +12,9 @@ import { parseCommand } from '../../tgcloud/lib/core/commands.js';
 import { LISTS } from '../../tgcloud/lib/engines/lists.js';
 import { LOCKS } from '../../tgcloud/lib/engines/locks.js';
 import { WEIGHTS } from '../../tgcloud/lib/core/signals.js';
-import { CHOICES } from '../../tgcloud/lib/engines/settings.js';
+import { CHOICES, DEFAULTS } from '../../tgcloud/lib/engines/settings.js';
+
+const DG = ['as_channel', 'fake', 'imp', 'first', 'members'];
 import { GROUPS as ADV_GROUPS } from '../../tgcloud/lib/ui/panel_adv.js';
 
 const LIST_CODES = LISTS.map((l) => l.code);
@@ -180,6 +182,21 @@ test('every locale key the code names exists (literal keys and the dynamic famil
   for (const a of ['c', 'o', 'h', 'u']) used.add(`topics.general_${a}`);
   for (const a of ['rules', 'report', 'admins', 'mywarns']) used.add(`advcmd.${a}`);
   used.add('sec.night_ended'); used.add('sec.night_restored'); used.add('sec.log_night_end');
+  /* Phase 7: channels */
+  const p7 = {
+    'ch.al_admin_': ['promoted', 'demoted', 'changed'], 'ch.dg_rule_': DG, 'ch.dg_stop_': DG, 'ch.dm_rule_': ['blocked', 'suggest', 'fake', 'scam', 'link', 'flood'],
+    'ch.guard_': ['right', 'wrong', 'failed'], 'ch.jr_': ['vip', 'blacklist', 'fake', 'name', 'flood', 'captcha', 'mode'],
+    'ch.q_': ['published', 'scheduled', 'rejected', 'failed', 'done'], 'ch.q_author_': ['published', 'scheduled', 'rejected'],
+    'ch.why_': ['name_link', 'name_invisible', 'name_homoglyph', 'impersonation', 'scam_bio', 'name_pattern', 'fake'],
+    'chp.v_ch_jr_mode_': CHOICES.ch_jr_mode, 'chp.v_ch_imp_action_': CHOICES.ch_imp_action, 'chp.prompt_': ['footer', 'buttons'],
+    'chp.rq_': ['pending', 'captcha', 'approved', 'declined', 'expired'], 'chp.st_': ['creator', 'administrator', 'member', 'restricted', 'left', 'kicked'],
+    'chp.k_': Object.keys(DEFAULTS).filter((k) => /^(ch_|dg_|dm_)/.test(k) && !['ch_fakes', 'ch_title_locked', 'ch_footer', 'ch_buttons', 'ch_mirror'].includes(k)),
+    'dash.xp_': ['published', 'pending', 'failed'], 'post.job_': ['running', 'paused', 'done', 'failed'],
+    'post.restore_err_': ['not_backup', 'version', 'type', 'empty', 'size', 'file'], 'post.src_': ['edit', 'restore', 'revert'],
+    'post.st_': ['draft', 'pending', 'scheduled', 'publishing', 'published', 'rejected', 'failed'], 'post.step_': ['ok', 'done', 'wait', 'failed'],
+    'rights.': ['can_manage_direct_messages'],
+  };
+  for (const [prefix, names] of Object.entries(p7)) for (const x of names) used.add(`${prefix}${x}`);
   for (const [prefix, names] of Object.entries(more)) for (const x of names) used.add(`${prefix}${x}`);
   for (const kind of ['emergency', 'readonly', 'raid']) for (const sfx of ['ended', 'restored']) used.add(`sec.${kind}_${sfx}`);
   for (const kind of ['emergency', 'readonly']) for (const sfx of ['started', 'title', 'intro', 'q', 'done', 'not_on', 'already']) used.add(`sec.${kind}_${sfx}`);

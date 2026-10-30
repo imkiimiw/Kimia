@@ -1,0 +1,19 @@
+{
+  "title": "📊 <b>你的频道</b>",
+  "none": "你还没有用 Aegis 管理频道。",
+  "line": "📢 <b>{title}</b>{marks}\n   👥 {members} · 今天 +{joins} −{leaves} · 📥 {requests} · 📝 {waiting} · 🚨 {alerts}",
+  "legend": "👥 订阅者 · 📥 等待中的申请 · 📝 等待中的帖子 · 🚨 24 小时提醒 · 🆘 危机 · ⚠️ Aegis 缺少权限",
+  "btn_xpost": "✍️ 发到多个频道",
+  "xp_title": "✍️ <b>发到多个频道</b>",
+  "xp_intro": "最多选择 {max} 个频道。你拥有完全权限的频道会直接发布；其他频道会提交给该频道的审批人。",
+  "xp_chosen": "已选择：{n}",
+  "btn_xp_write": "✍️ 写帖子",
+  "xp_max": "最多 {max} 个频道。",
+  "xp_prompt": "发送给 {n} 个频道的帖子。",
+  "xp_done_title": "✍️ <b>已发送</b>",
+  "xp_published": "✅ {title}：已发布",
+  "xp_pending": "📨 {title}：已提交审批",
+  "xp_failed": "⚠️ {title}：发布失败",
+  "xp_no_access": "🚫 {title}：你已没有权限",
+  "btn_back_dash": "📊 频道面板"
+}

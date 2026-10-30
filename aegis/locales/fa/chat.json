@@ -101,5 +101,19 @@
   "btn_security": "🔰 امنیت",
   "btn_fed": "🌐 فدراسیون",
   "btn_adv": "⚙️ پیشرفته",
-  "btn_topics": "🗂 تاپیک‌ها"
+  "btn_topics": "🗂 تاپیک‌ها",
+  "btn_ch_join": "🛂 درخواست‌های عضویت",
+  "btn_ch_members": "👥 اعضا",
+  "btn_ch_links": "🔗 لینک‌های دعوت",
+  "btn_ch_fraud": "🎭 جعلی‌ها",
+  "btn_ch_posts": "📝 پست‌ها",
+  "btn_ch_alerts": "🚨 هشدارها",
+  "btn_ch_discussion": "💬 گروه گفت‌وگو",
+  "btn_ch_dms": "✉️ پیام‌های مستقیم",
+  "btn_ch_extras": "✨ امکانات بیشتر",
+  "btn_ch_backups": "💾 پشتیبان‌ها",
+  "btn_ch_crisis": "🆘 بحران",
+  "btn_dashboard": "📊 داشبورد کانال‌ها",
+  "root_ch_numbers": "👥 {members} · 📥 {requests} درخواست در انتظار · 📝 {waiting} پست در انتظار",
+  "root_ch_crisis": "🆘 حالت بحران روشن است."
 }

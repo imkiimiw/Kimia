@@ -1,0 +1,19 @@
+{
+  "title": "📊 <b>Vos canaux</b>",
+  "none": "Vous ne gérez pas encore de canal avec Aegis.",
+  "line": "📢 <b>{title}</b>{marks}\n   👥 {members} · aujourd'hui +{joins} −{leaves} · 📥 {requests} · 📝 {waiting} · 🚨 {alerts}",
+  "legend": "👥 abonnés · 📥 demandes en attente · 📝 posts en attente · 🚨 alertes sur 24 h · 🆘 crise · ⚠️ il manque des droits à Aegis",
+  "btn_xpost": "✍️ Publier dans plusieurs canaux",
+  "xp_title": "✍️ <b>Publier dans plusieurs canaux</b>",
+  "xp_intro": "Choisissez jusqu'à {max} canaux. Là où vous avez l'accès complet, le post est publié ; ailleurs il va aux approbateurs du canal.",
+  "xp_chosen": "Choisis : {n}",
+  "btn_xp_write": "✍️ Écrire le post",
+  "xp_max": "{max} canaux au plus.",
+  "xp_prompt": "Envoyez le post pour les {n} canaux.",
+  "xp_done_title": "✍️ <b>Envoyé</b>",
+  "xp_published": "✅ {title} : publié",
+  "xp_pending": "📨 {title} : envoyé pour approbation",
+  "xp_failed": "⚠️ {title} : non publié",
+  "xp_no_access": "🚫 {title} : vous n'y avez plus accès",
+  "btn_back_dash": "📊 Tableau de bord"
+}

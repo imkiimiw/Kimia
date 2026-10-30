@@ -12,13 +12,61 @@ deployed **now**.
 | 4 | Group locks: 42 locks, each with its own settings | ✅ deployed |
 | 5 | Group security: anti-link, anti-ads/tabchi, anti-flood, anti-raid, captcha, quarantine, emergency lock, read-only, suspicious content, risk score with feedback, federations | ✅ deployed |
 | 6 | Advanced group settings (26 + extras: welcome/goodbye, forced join/add for members, scheduled cleanup, night lock, time zone, message length, member reports, event channel, linked-channel posts) and forum topics | ✅ deployed |
-| 7–10 | Channel panel, reports & stats, fun & media, full Super Admin panel | not started |
+| 7 | Channel panel: join requests and joins, members, invite links, impersonation and fakes, admin alerts, post protection (approval, versions, edit history), discussion group, direct messages, crisis/SOS, multi-channel dashboard, backups, extras | ✅ deployed |
+| 8–10 | Reports & stats, fun & media, full Super Admin panel | not started |
 
 Design decisions taken without the master spec (it isn't in the repository yet) are listed in
 [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md).
 
 Features that can't be built for free on this platform, or only partly, are listed in
 [docs/NOT_BUILT.md](docs/NOT_BUILT.md).
+
+## What Phase 7 does
+
+A **channel's panel** has its own sections (the group-only ones — locks, security, advanced
+settings, topics — are not shown); the shared ones stay (lists, punishments, anti-betrayal, Audit
+Mode, log channel, admins, access levels, language, change log).
+- **🛂 Join requests** — every request is checked: VIP → approved; blacklist / ban list, known fakes
+  and suspicious names or bios (look-alikes of the channel or its admins, links or invisible
+  characters in the name, scam words in the bio, the «names» list) → declined; a burst (10/30/100 a
+  minute) → automatic approvals pause for 30 min and the owner is told; then a captcha (in the
+  requester's private chat — Telegram allows 5 minutes — or, when the owner made Aegis the
+  channel's **guard bot**, as a Mini App) and the rule (admins decide / approve / decline). Every
+  request is listed for the admins with approve / decline one or all.
+- **👥 Members** — subscribers now, joins and leaves today and in 7 days, recent joins; find
+  someone (shared user, forward, id, @username) and remove, ban or unban them.
+- **🔗 Invite links** — create links with expiry, member limit or approval; joins and requests are
+  counted per link; rename, approval on/off, revoke (asks first); a new primary link.
+- **🎭 Fakes** — look-alikes who join are reported or removed; a list of known fake channels and
+  accounts (blocked in the discussion group and direct messages, declined when they ask to join).
+- **🚨 Alerts** — to the owner (and the log channel): admins appointed / removed / their rights
+  changed (with who did it, powerful rights flagged, «appointed outside Aegis»), title and photo
+  changes, post edits, Aegis's own rights or removal; the title can be locked (put back).
+- **📝 Posts** — an archive with every version of every post; late edits can be put back
+  automatically (after 5 min – 1 h, or always); any earlier version can be restored. **Approval
+  before publishing**: a post made directly in the channel is removed at once and waits for the
+  owner or a Full admin (Publish / Reject in their private chat). Posts **written through Aegis**
+  are published now, at a time (up to 30 days), or sent for approval (Settings level).
+- **💬 Discussion group** — opens the group's own panel (its locks and security are independent),
+  and protects comments: comments sent as other channels (deleted, that channel banned),
+  look-alikes and known fakes, «first comment» bots (new accounts in the 30 s after a post),
+  comments only from subscribers (with a join button).
+- **✉️ Direct messages** — in the channel's direct messages: blocked senders, links, scams and
+  dangerous files, known fakes and floods are removed; suggested posts with links are declined.
+- **✨ Extras** — a footer and link buttons added to every new post, posts that delete themselves
+  after 1 h – 1 day, silent and protected publishing for posts sent through Aegis.
+- **💾 Backups** — the channel's Aegis settings and lists as a JSON file, restored after a check
+  (here or in another channel); a backup chat gets a copy of every new post, and older posts are
+  copied there in batches; the post archive as CSV.
+- **🆘 Crisis** — one button: revokes the links made through Aegis and makes a new primary link,
+  declines new requests, holds every post for approval and puts back late edits, demotes the
+  admins appointed through Aegis, locks the discussion group; «End crisis» puts it all back
+  (re-appoints those admins with their rights). Each step is also a button of its own.
+
+**📊 Channels dashboard** (from «پیکربندی» / the panel) — every channel you manage: subscribers,
+today's joins and leaves, waiting requests and posts, alerts of the last day, crisis and missing
+rights at a glance; **post to several channels** at once (published where you have Full access,
+sent for approval elsewhere).
 
 ## What Phase 6 does
 
@@ -303,17 +351,21 @@ npm run test:cloud            # smoke test on the real platform with fake users 
 - **Make Aegis an admin in every forced-join channel** — Telegram only lets a bot check membership
   where it is an admin. Until then those channels are skipped (⚠️ in the panel).
 - Webhook: managed by the platform (`https://cloud.telegram.org/app<id>/webhook`), refreshed on push
-  from the handlers present (`message`, `edited_message`, `callback_query`, `my_chat_member`,
-  `chat_member`, `chat_join_request`).
+  from the handlers present (`message`, `edited_message`, `channel_post`, `edited_channel_post`,
+  `callback_query`, `my_chat_member`, `chat_member`, `chat_join_request`).
+- In a **channel**, Aegis needs to be an admin with «Post», «Edit» and «Delete messages», «Invite
+  users», «Ban users», «Add new admins» (and «Manage direct messages» for direct messages); for the
+  join-request Mini App, the owner chooses Aegis as the channel's guard bot in Telegram.
 - In groups Aegis should be an **admin**: then Telegram delivers it every message (needed for
   «پیکربندی» as a plain word); without admin rights only `/config` reaches it (privacy mode).
 
 ## Database and migrations
 
-38 tables, all prefixed `aegis_` (core: `users`, `chats`, `chat_admins`, `access`, `promotions`,
+47 tables, all prefixed `aegis_` (core: `users`, `chats`, `chat_admins`, `access`, `promotions`,
 `join_channels`, `kv`, `states`, `updates`, `audit`, `errors`, `broadcasts`; then each phase's own,
-e.g. Phase 6: `msg_log`, `schedules`, `reports`, `member_flags`, `topics`, `anon_cmds`) — see
-`tgcloud/schema.js`.
+e.g. Phase 6: `msg_log`, `schedules`, `reports`, `member_flags`, `topics`, `anon_cmds`; Phase 7:
+`join_requests`, `invite_links`, `channel_stats`, `posts`, `post_versions`, `post_queue`, `crises`,
+`backup_jobs`, `dm_chats`) — see `tgcloud/schema.js`.
 
 - **Schema** changes: edit `tgcloud/schema.js`, then `npm run deploy` (`tgcloud migrate --safe`
   adds tables/columns/indexes; drops only via `.deprecated()`; type changes are manual).
@@ -344,28 +396,32 @@ e.g. Phase 6: `msg_log`, `schedules`, `reports`, `member_flags`, `topics`, `anon
 aegis/
   tgcloud/
     schema.js                 aegis_* tables
-    handlers/                 message, edited_message, callback_query, my_chat_member, chat_member,
-                              chat_join_request  → lib/router.js
+    handlers/                 message, edited_message, channel_post, edited_channel_post, callback_query,
+                              my_chat_member, chat_member, chat_join_request  → lib/router.js
     endpoints/bcLive.js       owner-only: the live broadcast page's batches
+    endpoints/joinGuard.js    the join-request captcha Mini App (Aegis as a chat's guard bot)
     lib/
       router.js               order of checks, callback_data table
-      jobs.js                 work on the side of updates (broadcast chunks, housekeeping, timed jobs)
+      jobs.js                 work on the side of updates (broadcast chunks, housekeeping, timed jobs,
+                              scheduled posts, backup copies)
       config.js, env.js       settings; env.js is generated (AEGIS_OWNER_ID)
       core/                   tg (Bot API + trace), kv, dedupe, errors, audit, state, migrations, commands, bot, util,
                               duration, modparse, csv, msgscan (what a message contains), signals (security),
-                              clock (times of day in a chat's time zone)
+                              clock (times of day in a chat's time zone), content (a post's content:
+                              read, publish, edit back)
       engines/                users, chats, join, broadcast, buttons, rights, admins, system, settings, lists,
                               punish, steps, betrayal, admin_actions, logs, locks, members, guards, feds,
-                              msglog, schedules, groupdata, events
+                              msglog, schedules, groupdata, events, channels, invites, posts, crisis, backup
       ui/                     start, owner, owner_bc, group (in-group messages), moderation (group commands,
                               undo buttons, bans/joins), enforce (locks at work), security (security at
                               work, captcha, lockdowns, federation bans), advanced (advanced settings at
-                              work, member commands, reports, night lock, cleanup), welcome, panel +
-                              panel_mod + panel_locks + panel_security + panel_fed + panel_adv +
-                              panel_topics (a chat's panel), guard, system
+                              work, member commands, reports, night lock, cleanup), welcome, channel
+                              (channels at work), panel + panel_mod + panel_locks + panel_security +
+                              panel_fed + panel_adv + panel_topics + panel_channel + panel_posts (a
+                              chat's panel), dashboard (channels dashboard), guard, system
       i18n/                   t(), digits, RTL; strings/ is generated from ../../locales
   locales/<lang>/*.json       fa, en, ru, zh, fr
-  webapp/                     the 📡 live broadcast Mini App page (plain HTML/JS)
+  webapp/                     Mini App pages (plain HTML/JS): 📡 live broadcast, join-request captcha
   scripts/                    tg.mjs (CLI wrapper), build-locales.mjs, gen-env.mjs
   test/                       static.mjs, unit/, e2e.mjs (sdk emulation + strict mock Bot API), cloud/smoke.mjs
   docs/                       NOT_BUILT.md, ASSUMPTIONS.md, tgcloud-sdk.md (platform SDK reference)

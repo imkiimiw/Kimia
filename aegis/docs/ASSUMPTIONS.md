@@ -1,7 +1,7 @@
 # Decisions taken without the master spec
 
 `docs/SPEC.md` (the Persian master spec, "the source of truth") was not in the repository when
-Phases 1–6 were built (for Phases 3–6 the owner said to build them without the spec). Where the build instructions did not settle a detail, the choice below
+Phases 1–7 were built (for Phases 3–7 the owner said to build them without the spec). Where the build instructions did not settle a detail, the choice below
 was made. Each is easy to change once the spec says otherwise — nothing here drops, merges or
 renames a feature from the instructions.
 
@@ -99,3 +99,20 @@ renames a feature from the instructions.
 | Times | Fixed UTC offsets (no daylight saving); 24 offered; «auto» follows the group's language. Times are entered as «03:00, 15:30» or «۳:۰۰ و ۱۵» (Persian digits and «و» understood); the night window as «23:00 - 07:00» (or «تا»). |
 | Topics | Topics Aegis has seen or created are listed; «read-only» is Aegis's own (members' messages there are deleted), closing uses Telegram's close. Delete asks first. |
 | Audit Mode | Every advanced rule that deletes, removes, locks or restores the title only records and logs. Human actions (reports, «clean now», confirming an anonymous command) still work. |
+
+## Phase 7
+
+| Topic | Decision |
+|---|---|
+| Channel panel | Own sections: join requests, members, invite links, fakes, posts, alerts, discussion group, direct messages, extras, backups, crisis; shared: lists, punishments, anti-betrayal, Audit Mode, log channel, admins, access levels, language, change log. Group-only sections are hidden for channels. A 📊 channels dashboard lists every channel a person manages. |
+| Join requests | Order: VIP (approve) → blacklist / ban list → known fakes → suspicious name or bio → burst limit → captcha → the rule. Defaults: the admins decide, suspicious names declined, burst limit 30 a minute (pause 30 min), captcha off. Captcha mode and time come from the security captcha settings (button by default, 3 min, at most 5 min — Telegram's limit). As guard bot Aegis answers within Telegram's 10 seconds (Mini App, or «queue» to leave it to the admins). In Audit Mode Aegis doesn't decline on its own. |
+| Look-alikes | A name whose letters (after look-alike folding) equal the channel's title or an admin's name, a username that folds to the channel's username, links or invisible characters in the name, look-alike letters, scam words in the bio, a name containing an entry of the «names» list. Joins: reported (default) or removed (kick: the person can come back). |
+| Alerts | To the log channel (category admin / security, when set) and the creator's private chat. Powerful rights: add admins, change info, delete messages, ban users, invite users. Changes made through Aegis's panel are not alerted (they are in the change log). Edit alerts are off by default; admin, info and Aegis-rights alerts on. |
+| Posts | Archive on by default, 90 days, 20 versions per post. Edit lock off by default; when on, an edit later than the grace time (default 5 min) is put back to the version before it. Approval off by default; approvers are the creator and Full admins; Settings admins writing through Aegis need approval. Scheduled posts: up to 30 days ahead, in the channel's time zone. Waiting queue: 50 posts. |
+| Discussion group | Its protections are settings of the channel, applied in the linked group (learned from getChat or the first automatic forward). «First comment» bots: comments within 30 s after a post from accounts that joined the group less than a day ago (or never seen joining). Admins of the group or the channel, VIP and trusted members are exempt. |
+| Direct messages | Rules (when the filter is on): blocked senders (blacklist or ban list), suggested posts with links (declined), known fakes, scams or dangerous files, links, more than 10 messages a minute. Offending messages are deleted; scam alerts go to the owner. |
+| Crisis | Needs Full access (demoting also needs «Add new admins» for the person and Aegis). Saves the request rule, approval, edit lock and grace time, and each demoted admin's rights; «End crisis» restores those and unlocks the discussion group. |
+| Backups | A JSON file of the settings (not the log or backup chats, not locked titles), configuration lists (not punishment lists) and, for groups, locks and security. Restoring needs Full access, checks the kind of chat and the version, validates every value again, and asks first. Copying older posts: 50 ids per step, once a minute or per button. |
+| Members | Remove = kick (ban and unban), ban and unban go through the punishment engine (logged, reversible). Needs Settings level and «Ban users» (or the creator). |
+| Invite links | Named «Aegis N»; expiry never / 1 h / 1 d / 7 d; limit none / 1 / 10 / 100 / 1000; approval and a limit can't be combined (Telegram). 50 live links per channel. |
+| Dashboard | Channels where the person has View access; member counts refreshed when older than an hour (5 per view). Cross-posting: up to 10 channels, each checked live. |

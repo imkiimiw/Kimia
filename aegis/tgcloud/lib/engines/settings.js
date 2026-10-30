@@ -17,12 +17,18 @@
  *   member_cmds reply_private admin_call anon_cmds; join bot_kick jr_mode name_watch title_lock bot_alert;
  *   extras welcome_* goodbye_* fj_chats fa_n clean_* night_* tz min_len max_len reports report_dest
  *   ev_* linked title_locked.
+ * Phase 7 — a channel's settings (ui/channel.js, ui/panel_channel.js, ui/panel_posts.js):
+ *   join requests ch_jr_mode ch_jr_captcha ch_jr_names ch_jr_flood; fraud ch_imp
+ *   ch_imp_action ch_fakes; alerts ch_al_admins ch_al_info ch_al_edits ch_al_bot ch_title_lock
+ *   ch_title_locked; posts ch_archive ch_approval ch_edit_lock ch_edit_grace; the discussion group
+ *   dg_members dg_as_channel dg_imp dg_first; direct messages dm_on dm_links dm_scam dm_fakes
+ *   dm_flood dm_suggest; extras ch_footer ch_buttons ch_post_ttl ch_protect ch_silent; backup ch_mirror.
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
 import * as audit from '../core/audit.js';
 import { nowSec, parseJson } from '../core/util.js';
-import { CLEAN_MAX_TIMES, FJ_MAX_CHANNELS, NEW_WINDOWS } from '../config.js';
+import { CLEAN_MAX_TIMES, FAKES_MAX, FJ_MAX_CHANNELS, FOOTER_MAX, NEW_WINDOWS } from '../config.js';
 import { TZ_OFFSETS } from '../core/clock.js';
 import { DEFAULT_STEPS, validSteps } from './steps.js';
 
@@ -55,6 +61,14 @@ export const DEFAULTS = {
   fj_chats: '[]', fa_n: '0', clean_on: '0', clean_times: '[]', clean_scope: 'all', night_on: '0', night_from: '0', night_to: '420',
   tz: 'auto', min_len: '0', max_len: '0', reports: '1', report_dest: 'admins', ev_chat: '0', ev_join: '1', ev_leave: '1', ev_admin: '1',
   ev_names: '1', linked: 'keep', title_locked: '',
+  /* Phase 7: channels */
+  ch_jr_mode: 'manual', ch_jr_captcha: '0', ch_jr_names: '1', ch_jr_flood: '30',
+  ch_imp: '1', ch_imp_action: 'alert', ch_fakes: '[]',
+  ch_al_admins: '1', ch_al_info: '1', ch_al_edits: '0', ch_al_bot: '1', ch_title_lock: '0', ch_title_locked: '',
+  ch_archive: '1', ch_approval: '0', ch_edit_lock: '0', ch_edit_grace: '300',
+  dg_members: '0', dg_as_channel: '0', dg_imp: '0', dg_first: '0',
+  dm_on: '0', dm_links: '1', dm_scam: '1', dm_fakes: '1', dm_flood: '10', dm_suggest: '0',
+  ch_footer: '', ch_buttons: '', ch_post_ttl: '0', ch_protect: '0', ch_silent: '0', ch_mirror: '0',
 };
 
 /* Allowed values of the Phase 6 settings (flags are '0'/'1'). */
@@ -62,8 +76,11 @@ export const CHOICES = {
   notice_ttl: [0, 60, 300, 900, 3600], slow: [0, 10, 30, 60, 300], max_lines: [0, 10, 20, 50], max_mentions: [0, 3, 5, 10], edit_window: [0, 60, 300, 3600],
   media_ttl: [0, 3600, 21600, 86400], jr_mode: ['manual', 'approve', 'decline'], fa_n: [0, 1, 2, 3, 5, 10], clean_scope: ['all', 'media', 'service'],
   min_len: [0, 2, 3, 5, 10], max_len: [0, 200, 500, 1000, 2000, 4000], report_dest: ['admins', 'log'], linked: ['keep', 'unpin', 'delete'],
+  ch_jr_mode: ['manual', 'approve', 'decline'], ch_jr_flood: [0, 10, 30, 100], ch_imp_action: ['alert', 'remove'], ch_edit_grace: [0, 300, 900, 3600],
+  dm_flood: [0, 5, 10, 20], ch_post_ttl: [0, 3600, 21600, 43200, 86400],
 };
-const TEXTS = { rules: 3000, welcome_text: 1000, welcome_btns: 1000, goodbye_text: 500, title_locked: 128 };
+const TEXTS = { rules: 3000, welcome_text: 1000, welcome_btns: 1000, goodbye_text: 500, title_locked: 128, ch_title_locked: 128, ch_footer: FOOTER_MAX,
+  ch_buttons: 1000 };
 
 export const WARN_TTLS = [0, 86400, 7 * 86400, 30 * 86400];
 export const BETRAY_NS = [3, 5, 10, 20];
@@ -71,7 +88,10 @@ export const BETRAY_SECS = [60, 300, 600, 3600];
 const FLAGS = new Set(['audit', 'notify', 'warn_reset', 'betray_on', 'log_on', 'log_punish', 'log_lists', 'log_admin', 'log_settings', 'log_locks', 'log_security',
   'del_join', 'del_leave', 'del_pin', 'del_chatinfo', 'del_videochat', 'del_cmds', 'del_bots', 'caps', 'junk', 'rules_btn', 'member_cmds', 'reply_private',
   'admin_call', 'anon_cmds', 'bot_kick', 'name_watch', 'title_lock', 'bot_alert', 'welcome_on', 'welcome_clean', 'goodbye_on', 'clean_on', 'night_on', 'reports',
-  'ev_join', 'ev_leave', 'ev_admin', 'ev_names']);
+  'ev_join', 'ev_leave', 'ev_admin', 'ev_names',
+  'ch_jr_captcha', 'ch_jr_names', 'ch_imp', 'ch_al_admins', 'ch_al_info', 'ch_al_edits', 'ch_al_bot', 'ch_title_lock', 'ch_archive',
+  'ch_approval', 'ch_edit_lock', 'dg_members', 'dg_as_channel', 'dg_imp', 'dg_first', 'dm_on', 'dm_links', 'dm_scam', 'dm_fakes', 'dm_suggest',
+  'ch_protect', 'ch_silent']);
 export const isFlag = (key) => FLAGS.has(key);
 
 function valid(key, value) {
@@ -88,7 +108,11 @@ function valid(key, value) {
   if (TEXTS[key] !== undefined) return [...v].length <= TEXTS[key];
   if (key === 'tz') return v === 'auto' || TZ_OFFSETS.includes(Number(v));
   if (key === 'night_from' || key === 'night_to') return /^\d{1,4}$/.test(v) && Number(v) < 1440;
-  if (key === 'ev_chat') return /^-?\d{1,16}$/.test(v);
+  if (key === 'ev_chat' || key === 'ch_mirror') return /^-?\d{1,16}$/.test(v);
+  if (key === 'ch_fakes') {
+    const list = parseJson(v, null);
+    return Array.isArray(list) && list.length <= FAKES_MAX && list.every((x) => typeof x === 'string' && x.length >= 2 && x.length <= 64);
+  }
   if (key === 'fj_chats') {
     const list = parseJson(v, null);
     return Array.isArray(list) && list.length <= FJ_MAX_CHANNELS && list.every((x) => x && Number.isSafeInteger(x.id));
@@ -127,7 +151,7 @@ export async function set(ctx, chatId, key, value, actorId) {
   await db.run(sql`INSERT INTO aegis_chat_settings (chat_id, key, value, updated_by, updated_at) VALUES (${chatId}, ${key}, ${v}, ${actorId}, ${nowSec()})
     ON CONFLICT(chat_id, key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by, updated_at = excluded.updated_at`);
   s[key] = v;
-  const long = TEXTS[key] !== undefined || key === 'fj_chats';
+  const long = TEXTS[key] !== undefined || key === 'fj_chats' || key === 'ch_fakes';
   await audit.log(actorId, 'settings.set', { chatId, target: key, details: long ? { length: [...v].length } : { from: before, to: v } });
   return true;
 }

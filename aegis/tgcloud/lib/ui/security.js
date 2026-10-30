@@ -38,6 +38,7 @@ import { deceptive, domainsOf, hostsOf, linksOf, scan } from '../core/msgscan.js
 import { answer, btn, call, describeError, send, tryCall } from '../core/tg.js';
 import { esc, fullName, iso, normalizeWord, nowSec, parseJson, short, toInt } from '../core/util.js';
 import * as admins from '../engines/admins.js';
+import * as channels from '../engines/channels.js';
 import * as chats from '../engines/chats.js';
 import * as feds from '../engines/feds.js';
 import * as guards from '../engines/guards.js';
@@ -165,14 +166,14 @@ export async function sweep(ctx, chatId = null) {
 
 /* ---------- captcha ---------- */
 
-function captchaRows(lang, id, cap, withAdmin) {
+export function captchaRows(lang, id, cap, withAdmin) {
   const rows = [];
   for (let i = 0; i < cap.options.length; i += 3) rows.push(cap.options.slice(i, i + 3).map((o, j) => btn(o, `cp:${id}:${i + j}`)));
   if (withAdmin) rows.push([btn(t(lang, 'sec.cp_approve'), `cp:${id}:ok`), btn(t(lang, 'sec.cp_remove'), `cp:${id}:no`)]);
   return rows;
 }
 
-const questionText = (lang, cap) => t(lang, cap.kind === 'math' ? 'sec.cp_math' : 'sec.cp_button', { target: cap.target });
+export const questionText = (lang, cap) => t(lang, cap.kind === 'math' ? 'sec.cp_math' : 'sec.cp_button', { target: cap.target });
 
 async function startCaptcha(ctx, chat, user, g) {
   const cfg = g.captcha;
@@ -199,11 +200,23 @@ async function quarantine(ctx, chat, userId, g, joinedAt = nowSec()) {
     use_independent_chat_permissions: true, until_date: until }, 'quarantine');
 }
 
+/* A join request settled by its captcha: in Telegram (directly, or the guard bot's query) and in Aegis's record. */
+async function settleRequest(ctx, chat, uid, approve, byId) {
+  const req = await channels.openRequest(chat.chat_id, uid);
+  const direct = () => tryCall(ctx, approve ? 'approveChatJoinRequest' : 'declineChatJoinRequest', { chat_id: chat.chat_id, user_id: uid },
+    approve ? 'captcha-approve' : 'captcha-decline');
+  if (req && req.query) {
+    const ok = await tryCall(ctx, 'answerChatJoinRequestQuery', { chat_join_request_query_id: req.query, result: approve ? 'approve' : 'decline' }, 'guard-answer');
+    if (!ok) await direct();
+  } else await direct();
+  if (req) await channels.decide(Number(req.id), approve ? 'approved' : 'declined', 'captcha', byId);
+}
+
 async function passCaptcha(ctx, chat, row, byId) {
   if (!(await guards.finishCaptcha(Number(row.id), byId ? 'approved' : 'passed'))) return false;
   const uid = Number(row.user_id);
-  if (row.kind === 'request') {
-    await tryCall(ctx, 'approveChatJoinRequest', { chat_id: chat.chat_id, user_id: uid }, 'captcha-approve');
+  if (row.kind === 'request' || row.kind === 'guard') {
+    await settleRequest(ctx, chat, uid, true, byId);
   } else {
     const g = await guards.all(ctx, chat.chat_id);
     if (g.quarantine.on) await quarantine(ctx, chat, uid, g, (await members.joinedAt(chat.chat_id, uid)) || nowSec());
@@ -227,8 +240,8 @@ async function failCaptcha(ctx, chat, row, status, byId) {
   const uid = Number(row.user_id);
   const g = await guards.all(ctx, chat.chat_id);
   const audited = !byId && await auditOn(ctx, chat.chat_id);
-  if (row.kind === 'request') {
-    await tryCall(ctx, 'declineChatJoinRequest', { chat_id: chat.chat_id, user_id: uid }, 'captcha-decline');
+  if (row.kind === 'request' || row.kind === 'guard') {
+    await settleRequest(ctx, chat, uid, false, byId);
     if (Number(row.msg_id)) {
       const u = await users.get(uid);
       await tryCall(ctx, 'editMessageText', { chat_id: Number(row.msg_chat), message_id: Number(row.msg_id), parse_mode: 'HTML',
@@ -276,6 +289,20 @@ async function captchaPress(ctx, cq, parts) {
   return answer(ctx, t(lang, 'sec.cp_wrong'), true);
 }
 
+/* An answer to a pending captcha by its member (the guard bot's Mini App). Gives right, wrong or failed. */
+export async function answerCaptcha(ctx, chat, row, choice) {
+  if (toInt(choice) === Number(row.answer)) {
+    await passCaptcha(ctx, chat, row, 0);
+    return 'right';
+  }
+  const n = await guards.captchaAttempt(Number(row.id));
+  if (n !== null && n >= CAPTCHA_MAX_ATTEMPTS) {
+    await failCaptcha(ctx, chat, row, 'failed', 0);
+    return 'failed';
+  }
+  return 'wrong';
+}
+
 /* chat_join_request: the captcha goes to the requester's private chat (Telegram allows 5 minutes). */
 export async function onJoinRequest(ctx, req) {
   const chat = await chats.get(req.chat.id);
@@ -283,8 +310,13 @@ export async function onJoinRequest(ctx, req) {
   const user = req.from;
   await users.remember(user);
   const fed = await feds.ofChat(chat.chat_id);
-  if (fed && await feds.banOf(fed.id, user.id)) {
-    await tryCall(ctx, 'declineChatJoinRequest', { chat_id: chat.chat_id, user_id: user.id }, 'fed-decline');
+  const fedBanned = !!fed && !!(await feds.banOf(fed.id, user.id));
+  /* Aegis as the group's guard bot: Telegram wants an answer within 10 s; the rest stays with the admins' queue */
+  if (req.query_id) {
+    await tryCall(ctx, 'answerChatJoinRequestQuery', { chat_join_request_query_id: req.query_id, result: fedBanned ? 'decline' : 'queue' }, 'guard-answer');
+  }
+  if (fedBanned) {
+    if (!req.query_id) await tryCall(ctx, 'declineChatJoinRequest', { chat_id: chat.chat_id, user_id: user.id }, 'fed-decline');
     await logs.post(ctx, chat, 'security', t(chat.lang, 'sec.log_fed_declined', { user: iso(fullName(user)), fed: iso(fed.name) }));
     return;
   }
@@ -294,14 +326,20 @@ export async function onJoinRequest(ctx, req) {
     if (s.jr_mode !== 'manual') await tryCall(ctx, s.jr_mode === 'approve' ? 'approveChatJoinRequest' : 'declineChatJoinRequest', { chat_id: chat.chat_id, user_id: user.id }, `jr-${s.jr_mode}`);
     return;
   }
+  await requestCaptcha(ctx, chat, user, req.user_chat_id, g.captcha);
+}
+
+/* The captcha for a join request, in the requester's private chat (Telegram allows 5 minutes). Gives true if sent. */
+export async function requestCaptcha(ctx, chat, user, userChatId, cfg) {
   const u = await users.get(user.id);
   const lang = u && Number(u.lang_set) ? u.lang : pickLang(user.language_code);
-  const cap = makeCaptcha(g.captcha.mode);
-  const to = Math.min(g.captcha.to, 300);
+  const cap = makeCaptcha(cfg.mode);
+  const to = Math.min(cfg.to, 300);
   const id = await guards.newCaptcha(chat.chat_id, user.id, 'request', cap, cap.target, nowSec() + to);
   const text = [t(lang, 'sec.cp_request', { title: iso(chat.title || '', 48) }), questionText(lang, cap), t(lang, 'sec.cp_time', { time: dur(lang, to) })].join('\n');
-  const m = await send(ctx, req.user_chat_id, text, captchaRows(lang, id, cap, false), 'captcha-request');
-  if (m) await guards.setCaptchaMessage(id, req.user_chat_id, m.message_id);
+  const m = await send(ctx, userChatId, text, captchaRows(lang, id, cap, false), 'captcha-request');
+  if (m) await guards.setCaptchaMessage(id, userChatId, m.message_id);
+  return !!m;
 }
 
 /* ---------- risk ---------- */

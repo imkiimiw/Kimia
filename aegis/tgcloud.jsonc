@@ -1,6 +1,7 @@
 {
-  // Aegis. The Mini App in webapp/ (plain HTML/JS, no build step) is the owner's live broadcast
-  // page, served at https://app<app id>.tgcloud.ai/ and opened from the owner panel.
+  // Aegis. The Mini App in webapp/ (plain HTML/JS, no build step), served at
+  // https://app<app id>.tgcloud.ai/: the owner's live broadcast page (index.html, opened from the
+  // owner panel) and the join-request captcha Telegram opens when Aegis is a chat's guard bot (join.html).
   "$schema": "./node_modules/@tgcloud/cli/schema/tgcloud.json",
   "static": {
     "source": "webapp"

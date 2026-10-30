@@ -13,5 +13,6 @@
   "can_restrict_members": "Bannir et restreindre",
   "can_pin_messages": "Épingler des messages",
   "can_manage_video_chats": "Gérer les chats vidéo",
-  "can_promote_members": "Ajouter des administrateurs"
+  "can_promote_members": "Ajouter des administrateurs",
+  "can_manage_direct_messages": "Gérer les messages directs"
 }

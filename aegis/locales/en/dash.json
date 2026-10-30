@@ -1,0 +1,19 @@
+{
+  "title": "📊 <b>Your channels</b>",
+  "none": "You don't manage a channel with Aegis yet.",
+  "line": "📢 <b>{title}</b>{marks}\n   👥 {members} · today +{joins} −{leaves} · 📥 {requests} · 📝 {waiting} · 🚨 {alerts}",
+  "legend": "👥 subscribers · 📥 join requests waiting · 📝 posts waiting · 🚨 alerts in 24 h · 🆘 crisis · ⚠️ Aegis lacks rights",
+  "btn_xpost": "✍️ Post to several channels",
+  "xp_title": "✍️ <b>Post to several channels</b>",
+  "xp_intro": "Choose up to {max} channels. Where you have Full access the post is published; elsewhere it goes to that channel's approvers.",
+  "xp_chosen": "Chosen: {n}",
+  "btn_xp_write": "✍️ Write the post",
+  "xp_max": "At most {max} channels.",
+  "xp_prompt": "Send the post for the {n} channels.",
+  "xp_done_title": "✍️ <b>Posted</b>",
+  "xp_published": "✅ {title}: published",
+  "xp_pending": "📨 {title}: sent for approval",
+  "xp_failed": "⚠️ {title}: couldn't be published",
+  "xp_no_access": "🚫 {title}: you no longer have access",
+  "btn_back_dash": "📊 Dashboard"
+}

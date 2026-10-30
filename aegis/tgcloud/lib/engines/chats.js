@@ -14,6 +14,7 @@ import * as audit from '../core/audit.js';
 import { call, describeError, isApiError } from '../core/tg.js';
 import { nowSec, parseJson } from '../core/util.js';
 import * as admins from './admins.js';
+import * as channels from './channels.js';
 import * as feds from './feds.js';
 import * as groupdata from './groupdata.js';
 import * as guards from './guards.js';
@@ -97,6 +98,7 @@ export async function migrate(oldId, newId) {
   await msglog.migrate(oldId, newId);
   await schedules.migrate(oldId, newId);
   await groupdata.migrate(oldId, newId);
+  await channels.migrate(oldId, newId);
   await audit.log(0, 'chat.migrated', { chatId: newId, target: String(oldId) });
 }
 
@@ -152,6 +154,10 @@ export async function refreshStaleCounts(ctx, limit, budgetMs) {
     await refreshCount(ctx, Number(r.chat_id));
   }
   return Number((await db.get(sql`SELECT count(*) AS n FROM aegis_chats WHERE active = 1 AND count_at < ${nowSec() - MEMBER_COUNT_TTL_SEC}`)).n);
+}
+
+export async function setCount(chatId, n) {
+  await db.run(sql`UPDATE aegis_chats SET member_count = ${Number(n) || 0}, count_at = ${nowSec()} WHERE chat_id = ${chatId}`);
 }
 
 export async function counts() {

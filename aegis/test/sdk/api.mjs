@@ -65,6 +65,7 @@ async function call(method, params = {}) {
     ? await post(path, ...Object.values(multipart(params)))
     : await post(path, Buffer.from(JSON.stringify(params)), 'application/json');
   if (!data.ok) throw new BotApiError(data.error_code, data.description, method, data.parameters);
+  if (method === 'getFileContent') return new Uint8Array(data.result); /* the platform gives the bytes */
   return data.result;
 }
 

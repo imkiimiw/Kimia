@@ -101,5 +101,19 @@
   "btn_security": "🔰 安全",
   "btn_fed": "🌐 联邦",
   "btn_adv": "⚙️ 高级",
-  "btn_topics": "🗂 话题"
+  "btn_topics": "🗂 话题",
+  "btn_ch_join": "🛂 入群申请",
+  "btn_ch_members": "👥 订阅者",
+  "btn_ch_links": "🔗 邀请链接",
+  "btn_ch_fraud": "🎭 假冒",
+  "btn_ch_posts": "📝 帖子",
+  "btn_ch_alerts": "🚨 提醒",
+  "btn_ch_discussion": "💬 讨论组",
+  "btn_ch_dms": "✉️ 私信",
+  "btn_ch_extras": "✨ 更多功能",
+  "btn_ch_backups": "💾 备份",
+  "btn_ch_crisis": "🆘 危机",
+  "btn_dashboard": "📊 频道面板",
+  "root_ch_numbers": "👥 {members} · 📥 {requests} 个等待中的申请 · 📝 {waiting} 条等待中的帖子",
+  "root_ch_crisis": "🆘 危机模式已开启。"
 }

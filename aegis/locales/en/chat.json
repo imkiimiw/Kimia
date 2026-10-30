@@ -101,5 +101,19 @@
   "btn_security": "🔰 Security",
   "btn_fed": "🌐 Federation",
   "btn_adv": "⚙️ Advanced",
-  "btn_topics": "🗂 Topics"
+  "btn_topics": "🗂 Topics",
+  "btn_ch_join": "🛂 Join requests",
+  "btn_ch_members": "👥 Members",
+  "btn_ch_links": "🔗 Invite links",
+  "btn_ch_fraud": "🎭 Fakes",
+  "btn_ch_posts": "📝 Posts",
+  "btn_ch_alerts": "🚨 Alerts",
+  "btn_ch_discussion": "💬 Discussion group",
+  "btn_ch_dms": "✉️ Direct messages",
+  "btn_ch_extras": "✨ Extras",
+  "btn_ch_backups": "💾 Backups",
+  "btn_ch_crisis": "🆘 Crisis",
+  "btn_dashboard": "📊 Channels dashboard",
+  "root_ch_numbers": "👥 {members} · 📥 {requests} waiting requests · 📝 {waiting} waiting posts",
+  "root_ch_crisis": "🆘 Crisis mode is ON."
 }
