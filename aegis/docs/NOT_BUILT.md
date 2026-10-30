@@ -5,10 +5,10 @@ Updated at the end of each phase. Constraint for all entries: **free only** — 
 or tier; only what Telegram Serverless and the Bot API allow.
 
 > **Note on the spec.** `aegis/docs/SPEC.md` (the Persian master spec) was not in the repository
-> when Phases 1 and 2 were built (searched the working tree, all branches on GitHub, and the
-> container). Both phases were built from their descriptions in the build instructions; details the
-> spec would normally settle are listed in [ASSUMPTIONS.md](ASSUMPTIONS.md). Both phases will be
-> re-checked against the spec once it is added.
+> when Phases 1–3 were built (searched the working tree, all branches on GitHub, and the
+> container). They were built from their descriptions in the build instructions (Phase 3 by the
+> owner's decision to go ahead without it); details the spec would normally settle are listed in
+> [ASSUMPTIONS.md](ASSUMPTIONS.md). They will be re-checked against the spec once it is added.
 
 ## Phase 1 — Core
 
@@ -40,3 +40,21 @@ or tier; only what Telegram Serverless and the Bot API allow.
 | **Persistent** reminder about outside admins | **Partial** | There is no scheduler, so the group reminder can't be timed. It is posted right after such an admin appears and then at most once a day **on the next group activity**; the panel always shows the list. | A platform scheduler. |
 | «My chats» for chats where the user became admin while Aegis **missed the update** | **Partial** | The list comes from Aegis's admin cache (filled from Telegram's admin list and chat_member updates). If an update was missed, the chat appears after the next refresh — sending «پیکربندی» in that group refreshes it at once. | — |
 | Super Admin access to **any** chat's panel / global chat management | **Phase 10** | Not part of Phase 2 (the owner manages chats where they are an admin, like anyone else). | Phase 10. |
+
+## Phase 3 — Lists, punishments, warnings, logs
+
+| Feature | State | Why | What it would need |
+|---|---|---|---|
+| Word, link, sticker, name, bot and forward lists **taking effect** | **Partial (by phase)** | The lists are complete (add, remove, edit, search, details, history, export), but deleting messages that match them is the job of the locks and filters of Phases 4–5. The panel says so on each list. | Phases 4–5. |
+| VIP / Trusted / Suspicious lists | **Partial (by phase)** | VIPs are already protected from moderation commands; the exemptions from filters and locks, and the use of «Suspicious», come with Phases 4–5. | Phases 4–5. |
+| Quarantine of **new members** automatically | **Not in this phase** | Quarantine works as a list/punishment now (muted until released); putting newcomers there automatically is a security feature (Phase 5). | Phase 5. |
+| Anti-betrayal **demotion** of the owner or of admins appointed outside Aegis | **Not possible** | Telegram lets a bot demote only admins it promoted (`can_be_edited`); nobody can demote the owner. Aegis reports these instead, says why, and offers to unban the removed members. | Appoint admins through Aegis. |
+| Anti-betrayal seeing every removal | **Partial** | Removals are counted from Telegram's `chat_member` updates, which a bot receives only where it is an admin. Bans through Aegis's own commands and panel are counted for the person who gave them. | Make Aegis an admin. |
+| Restoring admins **demoted by** a betrayer | **Not built** | Their former rights are not known reliably once Telegram has removed them (an admin appointed outside Aegis couldn't be re-appointed by the bot anyway). The alert counts them; re-appoint them through the panel. | — |
+| Undoing a **kick** | **Not possible** | A kick removes the member, who can rejoin by themselves; there is nothing to lift. The notice has no undo button for it. | — |
+| Mute / restrict / quarantine in a **basic group** | **Not possible** | `restrictChatMember` works only in supergroups. Aegis says so; bans and kicks work in basic groups. | Telegram converts the group to a supergroup. |
+| Timed punishments shown as "ended" exactly on time | **Partial** | Telegram lifts timed restrictions/bans itself (`until_date`); without a scheduler Aegis can't be woken at that moment, so its records simply read «expired» from then on. | A platform scheduler (not needed for correctness). |
+| Warning expiry | **Partial** | Expired warnings stop counting at once (checked at query time); they are not deleted, so they stay in the member's history. | — (by design). |
+| Punishing a **channel** or the group itself (`banChatSenderChat`) | **Not built** | Only members are punished in this phase; Aegis says so when someone replies to a channel's message. | A later phase if the spec asks for it. |
+| Punishing members by **@username** Aegis has never seen | **Partial** | The Bot API can't resolve usernames; Aegis knows a @username only after meeting that user. Replies, mentions and numeric ids always work. | — (Bot API limitation). |
+| Group notices for **panel** actions | **Partial (by design)** | Adding many members to a punishing list at once would flood the group with notices, so panel actions go to the log channel (and the panel's history) only; commands and automatic actions post notices. | — |

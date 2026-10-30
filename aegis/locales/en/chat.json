@@ -86,5 +86,15 @@
   "lang_done": "✅ Chat language: {name}",
   "reminder_on": "🔔 Reminders about admins not appointed through Aegis are on.",
   "reminder_off": "🔕 Reminders are off (the panel still shows those admins).",
-  "block_level": "You can only set levels below your own — only the owner can give Full."
+  "block_level": "You can only set levels below your own — only the owner can give Full.",
+  "btn_lists": "📋 Lists",
+  "btn_punish": "⚖️ Punishments",
+  "btn_warns": "⚠️ Warnings and steps",
+  "btn_betray": "🛡 Anti-betrayal",
+  "btn_audit_on": "🕵️ Audit Mode: ON",
+  "btn_audit_off": "🕵️ Audit Mode: OFF",
+  "btn_logs": "📜 Log channel",
+  "root_audit": "🕵️ Audit Mode is ON: automatic punishments are only reported.",
+  "need_restrict": "You need Telegram's «Ban users» right in this chat for this.",
+  "bot_cant_restrict": "Aegis doesn't have the «Ban users» right in this chat."
 }

@@ -140,7 +140,7 @@ for (const file of files) {
   } finally {
     fs.rmSync(flat, { force: true });
   }
-  if (/[​-‏⁦-⁩‪-‮﻿]/.test(src) && !file.includes(`${path.sep}strings${path.sep}`)) {
+  if (/[\u200B-\u200F\u2066-\u2069\u202A-\u202E\uFEFF]/.test(src) && !file.includes(`${path.sep}strings${path.sep}`)) {
     fail(file, 'invisible bidi/zero-width character in source: write it as an escape (\\u200F)');
   }
   const rel = path.relative(TG, file);

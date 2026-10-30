@@ -26,6 +26,13 @@ export async function touch(from, { started = false } = {}) {
   return r.rows[0];
 }
 
+/* A user seen in a group (a punished member, a moderator): only their name is kept, so lists, logs
+ * and the panel can show it. They are not marked as having started the bot. */
+export async function remember(user) {
+  if (!user || !Number.isSafeInteger(user.id) || user.id <= 0) return;
+  await touch(user);
+}
+
 export async function get(userId) {
   return db.get(sql`SELECT * FROM aegis_users WHERE user_id = ${userId}`);
 }
@@ -33,6 +40,15 @@ export async function get(userId) {
 /* A user Aegis has met, by @username (the Bot API can't look users up by username). */
 export async function byUsername(username) {
   return db.get(sql`SELECT * FROM aegis_users WHERE lower(username) = ${String(username).toLowerCase()} ORDER BY last_seen DESC LIMIT 1`);
+}
+
+/* A name to show for a user id: what Aegis knows of them, else the id. */
+export async function displayName(userId) {
+  const u = await get(userId);
+  if (u) return u.first_name || (u.username ? `@${u.username}` : String(userId));
+  const a = await db.get(sql`SELECT first_name, username FROM aegis_chat_admins WHERE user_id = ${userId} LIMIT 1`);
+  if (a) return a.first_name || (a.username ? `@${a.username}` : String(userId));
+  return String(userId);
 }
 
 export async function setLang(userId, lang) {

@@ -1,0 +1,12 @@
+{
+  "warn": "warn",
+  "unwarn": "unwarn",
+  "warns": "warns",
+  "mute": "mute",
+  "unmute": "unmute",
+  "restrict": "restrict",
+  "unrestrict": "unrestrict",
+  "kick": "kick",
+  "ban": "ban",
+  "unban": "unban"
+}

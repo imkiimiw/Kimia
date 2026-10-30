@@ -107,7 +107,7 @@ test('commands: /start payloads, /cmd@bot mentions, the new Persian and English 
   assert.equal(mentionOf('/config@Aegis_Bot'), 'aegis_bot');
   assert.equal(mentionOf('/config'), null);
   for (const [w, cmd] of [['پیکربندی', 'config'], ['config', 'config'], ['تنظیمات', 'config'], ['/config', 'config'], ['وضعیت', 'status'], ['status', 'status'],
-    ['خاموش', 'shutdown'], ['/shutdown', 'shutdown'], ['فعال‌سازی', 'activate'], ['فعالسازی', 'activate'], ['activate', 'activate'], ['настройки', 'config']]) {
+    ['خاموش', 'shutdown'], ['/shutdown', 'shutdown'], ['فعال\u200Cسازی', 'activate'], ['فعالسازی', 'activate'], ['activate', 'activate'], ['настройки', 'config']]) {
     assert.equal(parseCommand(w), cmd, w);
   }
 });

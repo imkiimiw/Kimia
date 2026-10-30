@@ -7,7 +7,9 @@
 // supergroup migrations for the broadcast tests. Admins follow Telegram's rules: a chat has a
 // creator and admins (each remembers who promoted it); promoteChatMember works only in supergroups
 // and channels, needs the bot's can_promote_members, can grant only rights the bot has, and can
-// edit or demote only admins the bot promoted itself (can_be_edited).
+// edit or demote only admins the bot promoted itself (can_be_edited). Restrict/ban/unban need the bot's
+// can_restrict_members, never touch admins (except ones the bot promoted, for bans), restrictions only in
+// supergroups; sendDocument takes a real multipart upload; reply keyboards may ask for users or chats.
 import { Buffer } from 'node:buffer';
 import http from 'node:http';
 
@@ -55,6 +57,10 @@ export function checkMarkup(markup, { privateChat = true } = {}) {
       if (!Array.isArray(row) || !row.length) return 'keyboard row is empty';
       for (const b of row) {
         if (!b.text) return 'button text is empty';
+        if (b.request_chat) {
+          if (!privateChat) return 'BUTTON_TYPE_INVALID';
+          if (!Number.isInteger(b.request_chat.request_id) || typeof b.request_chat.chat_is_channel !== 'boolean') return 'bad request_chat';
+        }
         if (b.request_users) {
           if (!privateChat) return 'BUTTON_TYPE_INVALID';
           const r = b.request_users;
@@ -80,6 +86,35 @@ export function checkMarkup(markup, { privateChat = true } = {}) {
     }
   }
   return null;
+}
+
+/* multipart/form-data → params; a file part becomes { filename, type, bytes }; other values JSON when they parse. */
+export function parseMultipart(body, contentType) {
+  const boundary = /boundary=(.+)$/.exec(contentType)[1];
+  const sep = Buffer.from(`--${boundary}`);
+  const out = {};
+  let at = body.indexOf(sep);
+  while (at >= 0) {
+    const next = body.indexOf(sep, at + sep.length);
+    if (next < 0) break;
+    const part = body.subarray(at + sep.length + 2, next - 2);
+    const headEnd = part.indexOf('\r\n\r\n');
+    const head = part.subarray(0, headEnd).toString('utf8');
+    const data = part.subarray(headEnd + 4);
+    const name = /name="([^"]+)"/.exec(head)[1];
+    const file = /filename="([^"]*)"/.exec(head);
+    if (file) out[name] = { filename: file[1], type: (/Content-Type: (.+)/i.exec(head) || [])[1], bytes: Buffer.from(data) };
+    else {
+      const v = data.toString('utf8');
+      try {
+        out[name] = JSON.parse(v);
+      } catch {
+        out[name] = v;
+      }
+    }
+    at = next;
+  }
+  return out;
 }
 
 export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
@@ -154,6 +189,11 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     if (a && a.status === 'creator') return { status: 'creator', user: a.user, is_anonymous: false };
     if (a) return { status: 'administrator', user: a.user, can_be_edited: a.promotedBy === botId, is_anonymous: false, ...a.rights };
     const user = (c.people && c.people.get(id)) || { id, is_bot: false, first_name: `User ${id}` };
+    const now = Math.floor(Date.now() / 1000);
+    const ban = c.banned && c.banned.get(id);
+    if (ban !== undefined && (!ban || ban > now)) return { status: 'kicked', user, until_date: ban || 0 };
+    const r = c.restricted && c.restricted.get(id);
+    if (r && (!r.until || r.until > now)) return { status: 'restricted', user, is_member: c.members.has(id), until_date: r.until || 0, ...r.permissions };
     if (c.members.has(id)) return { status: 'member', user };
     return { status: 'left', user };
   }
@@ -281,6 +321,67 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       state.defaultRights[p.for_channels ? 'channel' : 'group'] = r;
       return ok(true);
     },
+    restrictChatMember: (p) => {
+      const c = chat(p.chat_id);
+      if (!c) return err(400, 'Bad Request: chat not found');
+      if (c.type !== 'supergroup') return err(400, 'Bad Request: method is available only for supergroups');
+      if (!c.botAdmin || !(c.botRights || {}).can_restrict_members) return err(400, 'Bad Request: not enough rights to restrict/unrestrict chat member');
+      const id = Number(p.user_id);
+      if (id === botId) return err(400, "Bad Request: can't restrict self");
+      if (c.admins.has(id)) return err(400, 'Bad Request: user is an administrator of the chat');
+      if (!p.permissions || typeof p.permissions !== 'object') return err(400, 'Bad Request: permissions are required');
+      c.restricted = c.restricted || new Map();
+      const perms = Object.entries(p.permissions);
+      if (perms.length && perms.every(([, v]) => v === true)) c.restricted.delete(id);
+      else c.restricted.set(id, { permissions: p.permissions, until: Number(p.until_date) || 0 });
+      return ok(true);
+    },
+    banChatMember: (p) => {
+      const c = chat(p.chat_id);
+      if (!c) return err(400, 'Bad Request: chat not found');
+      if (!c.botAdmin || !(c.botRights || {}).can_restrict_members) return err(400, 'Bad Request: not enough rights to restrict/unrestrict chat member');
+      const id = Number(p.user_id);
+      if (id === botId) return err(400, "Bad Request: can't remove self");
+      const a = c.admins.get(id);
+      if (a && (a.status === 'creator' || a.promotedBy !== botId)) return err(400, 'Bad Request: user is an administrator of the chat');
+      if (a) c.admins.delete(id);
+      c.banned = c.banned || new Map();
+      c.banned.set(id, Number(p.until_date) || 0);
+      c.members.delete(id);
+      state.bans = (state.bans || 0) + 1;
+      return ok(true);
+    },
+    unbanChatMember: (p) => {
+      const c = chat(p.chat_id);
+      if (!c) return err(400, 'Bad Request: chat not found');
+      if (!c.botAdmin || !(c.botRights || {}).can_restrict_members) return err(400, 'Bad Request: not enough rights to restrict/unrestrict chat member');
+      const id = Number(p.user_id);
+      if (c.admins.has(id)) return err(400, 'Bad Request: user is an administrator of the chat');
+      if (c.banned && c.banned.has(id)) c.banned.delete(id);
+      else if (!p.only_if_banned) c.members.delete(id);
+      return ok(true);
+    },
+    editMessageReplyMarkup: (p) => {
+      const msg = state.messages.get(k(p.chat_id, p.message_id));
+      if (!msg) return err(400, 'Bad Request: message to edit not found');
+      if (msg.from && msg.from.id !== botId) return err(400, "Bad Request: message can't be edited");
+      const m = checkMarkup(p.reply_markup, { privateChat: Number(p.chat_id) > 0 });
+      if (m) return err(400, `Bad Request: ${m}`);
+      const next = markupOf(p);
+      const norm = (x) => JSON.stringify(x && x.inline_keyboard && x.inline_keyboard.length ? x : null);
+      if (norm(msg.markup) === norm(next)) return err(400, 'Bad Request: message is not modified');
+      msg.markup = next;
+      return ok({ message_id: msg.message_id });
+    },
+    sendDocument: (p) => {
+      const bad = reachable(p.chat_id);
+      if (bad) return bad;
+      const doc = p.document;
+      if (!doc || !doc.filename || !doc.bytes) return err(400, 'Bad Request: there is no document in the request');
+      if (p.caption && p.caption.length > 1024) return err(400, 'Bad Request: message caption is too long');
+      const id = store(p.chat_id, { kind: 'document', caption: p.caption, document: { file_name: doc.filename, mime_type: doc.type, bytes: doc.bytes } });
+      return ok({ message_id: id, chat: { id: Number(p.chat_id) }, date: 0, document: { file_name: doc.filename, mime_type: doc.type, file_size: doc.bytes.length } });
+    },
     getWebhookInfo: () => ok({ url: 'https://cloud.telegram.org/app1/webhook', has_custom_certificate: false, pending_update_count: state.pendingUpdates || 0 }),
     getChat: (p) => {
       const c = chat(p.chat_id);
@@ -305,7 +406,9 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => {
       const m = req.url.match(/^\/bot([^/]+)\/(\w+)/);
-      const params = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+      const body = Buffer.concat(chunks);
+      const type = String(req.headers['content-type'] || '');
+      const params = type.startsWith('multipart/form-data') ? parseMultipart(body, type) : JSON.parse(body.toString('utf8') || '{}');
       const method = m && m[2];
       let result;
       if (state.failNext.has(method)) {
@@ -341,7 +444,8 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     messageObject(chatId, id) {
       const m = state.messages.get(k(chatId, id));
       if (!m) return null;
-      return { message_id: m.message_id, from: m.from, chat: { id: m.chat, type: m.chat > 0 ? 'private' : 'supergroup' }, date: 0, text: m.plain, ...(m.markup ? { reply_markup: m.markup } : {}) };
+      const type = m.chat > 0 ? 'private' : ((state.chats.get(m.chat) || {}).type || 'supergroup');
+      return { message_id: m.message_id, from: m.from, chat: { id: m.chat, type }, date: 0, text: m.plain, ...(m.markup ? { reply_markup: m.markup } : {}) };
     },
     listen: () => new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port))),
     close: () => new Promise((resolve) => server.close(resolve)),

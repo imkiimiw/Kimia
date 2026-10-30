@@ -1,0 +1,12 @@
+{
+  "warn": "avertir",
+  "unwarn": "retirer avertissement",
+  "warns": "avertissements",
+  "mute": "muet",
+  "unmute": "rendre la parole|démuet",
+  "restrict": "restreindre",
+  "unrestrict": "lever restriction",
+  "kick": "expulser",
+  "ban": "bannir",
+  "unban": "débannir"
+}

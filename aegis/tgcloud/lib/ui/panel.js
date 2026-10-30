@@ -15,11 +15,13 @@
  *   g:c:l                access levels            g:c:l:u      choose a level → g:c:l:u:<0-3|d|3y>
  *   g:c:g[:lang]         the chat's language      g:c:r        reminder on/off
  *   g:c:h                change log
+ *   g:c:L… g:c:P… g:c:W… g:c:B… g:c:U… g:c:O…   lists, punishments, warnings and steps,
+ *                        anti-betrayal, Audit Mode, log channel — ui/panel_mod.js
  * Pending inputs (aegis_states): adm_pick { chat } — the member to appoint (shared user, forwarded
  * message, numeric id or a known @username); adm_edit { chat, target, mode, rights, name } — the
  * rights being edited.
  */
-import { ADMIN_CACHE_SEC, CHATS_PAGE, LANGS, LOG_PAGE } from '../config.js';
+import { CHATS_PAGE, LANGS, LOG_PAGE } from '../config.js';
 import * as audit from '../core/audit.js';
 import { me } from '../core/bot.js';
 import * as state from '../core/state.js';
@@ -27,22 +29,15 @@ import { answer, btn, call, describeError, screen, send, urlBtn } from '../core/
 import { esc, iso, normalizeWord, nowSec, parseJson, short, toInt } from '../core/util.js';
 import * as admins from '../engines/admins.js';
 import * as chats from '../engines/chats.js';
+import * as settings from '../engines/settings.js';
 import { addToChannelUrl, addToGroupUrl, canManageAdmins as typeCanManage, grantable, rightsOf } from '../engines/rights.js';
 import * as users from '../engines/users.js';
 import { dur, has, langFlag, langName, t } from '../i18n/index.js';
-import { grantLink, register, rightsLines } from './group.js';
+import { grantLink, rightsLines } from './group.js';
+import { back, guard, levelName, pairs, removeKeyboard, rowName, typeIcon } from './guard.js';
+import * as mod from './panel_mod.js';
 
 const { L } = admins;
-const levelName = (lang, level) => t(lang, `levels.${admins.LEVEL_NAMES[level]}`);
-const typeIcon = (type) => (type === 'channel' ? '📢' : '👥');
-const rowName = (r) => r.first_name || (r.username ? `@${r.username}` : String(r.user_id));
-const back = (lang, data) => [btn(t(lang, 'common.back'), data)];
-const pairs = (buttons) => {
-  const out = [];
-  for (let i = 0; i < buttons.length; i += 2) out.push(buttons.slice(i, i + 2));
-  return out;
-};
-const removeKeyboard = { reply_markup: { remove_keyboard: true } };
 const PRESET = {
   group: ['can_delete_messages', 'can_restrict_members', 'can_invite_users', 'can_pin_messages'],
   channel: ['can_post_messages', 'can_edit_messages', 'can_delete_messages', 'can_invite_users'],
@@ -71,42 +66,6 @@ export async function chatsList(ctx, user, page = 0, place = null) {
   return screen(ctx, user.user_id, place, text, rows, 'my-chats');
 }
 
-/* ---------- access guard ---------- */
-
-/*
- * Live re-check of `user` in chat `chatId`. Gives { chat, acc: { id, level, member } } or null
- * (after telling the user why). `need`: the minimum access level for this action.
- */
-async function guard(ctx, user, chatId, need, place) {
-  const lang = user.lang;
-  let chat = chatId === null ? null : await chats.get(chatId);
-  const toList = [[btn(t(lang, 'chat.btn_my_chats'), 'cl')]];
-  if (!chat || !Number(chat.active)) {
-    await screen(ctx, user.user_id, place, t(lang, 'chat.gone'), toList, 'chat-gone');
-    return null;
-  }
-  const acc = await admins.liveAccess(ctx, chat.chat_id, user.user_id);
-  const title = iso(chat.title || '', 48);
-  if (!acc.member) {
-    await screen(ctx, user.user_id, place, t(lang, 'chat.cant_check', { title }), toList, 'chat-cant-check');
-    return null;
-  }
-  if (acc.level < L.view) {
-    const key = admins.defaultLevel(acc.member) > L.none ? 'chat.no_access_level' : 'chat.not_admin';
-    await screen(ctx, user.user_id, place, t(lang, key, { title }), toList, 'chat-no-access');
-    return null;
-  }
-  if (acc.level < need) {
-    const msg = t(lang, 'chat.need_level', { level: levelName(lang, need), yours: levelName(lang, acc.level) });
-    if (ctx.callbackId) await answer(ctx, msg, true);
-    else await send(ctx, user.user_id, msg, null, 'chat-need-level');
-    return null;
-  }
-  if (!Number(chat.registered)) chat = await register(ctx, chat, null);
-  else if (Number(chat.admins_at) < nowSec() - ADMIN_CACHE_SEC) await admins.refresh(ctx, chat.chat_id);
-  return { chat: await chats.get(chat.chat_id), acc: { id: user.user_id, level: acc.level, member: acc.member } };
-}
-
 /* ---------- root, permissions, re-check ---------- */
 
 async function root(ctx, user, g, place, notice = '') {
@@ -125,7 +84,12 @@ async function root(ctx, user, g, place, notice = '') {
   else lines.push(t(lang, 'chat.root_rights_ok'));
   if (outside.length) lines.push(t(lang, 'chat.root_outside', { n: outside.length }));
   if (chat.type === 'group') lines.push('', t(lang, 'group.basic_group'));
+  const s = await settings.all(ctx, c);
+  if (settings.flag(s, 'audit')) lines.push('', t(lang, 'chat.root_audit'));
   const rows = [
+    [btn(t(lang, 'chat.btn_lists'), `g:${c}:L`), btn(t(lang, 'chat.btn_punish'), `g:${c}:P`)],
+    [btn(t(lang, 'chat.btn_warns'), `g:${c}:W`), btn(t(lang, 'chat.btn_betray'), `g:${c}:B`)],
+    [btn(t(lang, settings.flag(s, 'audit') ? 'chat.btn_audit_on' : 'chat.btn_audit_off'), `g:${c}:U`), btn(t(lang, 'chat.btn_logs'), `g:${c}:O`)],
     [btn(t(lang, 'chat.btn_perms'), `g:${c}:p`), btn(t(lang, 'chat.btn_admins'), `g:${c}:a`)],
     [btn(t(lang, 'chat.btn_access'), `g:${c}:l`), btn(t(lang, 'chat.btn_lang'), `g:${c}:g`)],
     [btn(t(lang, Number(chat.reminder) ? 'chat.btn_reminder_on' : 'chat.btn_reminder_off'), `g:${c}:r`), btn(t(lang, 'chat.btn_log'), `g:${c}:h`)],
@@ -572,6 +536,7 @@ async function logScreen(ctx, user, g, place) {
       lang: details.to && LANGS.includes(details.to) ? langName(details.to) : '',
       state: t(lang, details.on ? 'common.on' : 'common.off'),
       status: details.to ? String(details.to) : '',
+      key: esc(String(r.target || '')),
     };
     const what = has(key) ? t(lang, key, vars) : t(lang, 'log.other', { action: esc(r.action) });
     lines.push(t(lang, 'log.line', { ago: dur(lang, now - Number(r.at)), who: who(Number(r.actor_id)), what }));
@@ -607,6 +572,7 @@ export async function callback(ctx, user, parts, place) {
     case 'g': return langAction(ctx, user, g, parts, place);
     case 'r': return reminderToggle(ctx, user, g, place);
     case 'h': return logScreen(ctx, user, g, place);
+    case 'L': case 'P': case 'W': case 'B': case 'U': case 'O': return mod.callback(ctx, user, g, parts, place);
     default: return root(ctx, user, g, place);
   }
 }

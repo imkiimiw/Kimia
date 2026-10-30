@@ -1,7 +1,7 @@
 # Decisions taken without the master spec
 
 `docs/SPEC.md` (the Persian master spec, "the source of truth") was not in the repository when
-Phases 1 and 2 were built. Where the build instructions did not settle a detail, the choice below
+Phases 1–3 were built (for Phase 3 the owner said to build it without the spec). Where the build instructions did not settle a detail, the choice below
 was made. Each is easy to change once the spec says otherwise — nothing here drops, merges or
 renames a feature from the instructions.
 
@@ -32,3 +32,23 @@ renames a feature from the instructions.
 | Former admins | Revoked the moment Telegram reports the change (chat_member) or at the next live re-check: cached rights and manual level are deleted and the revocation is logged. |
 | /shutdown | Asks for confirmation. While shut down Aegis answers only the owner, posts nothing, pauses broadcasts, and still records membership changes quietly. Button presses by others get a short "paused for maintenance" notice. |
 | /status | State (and for how long), version/phase/data version, reachable users, groups/channels/registered chats, broadcast state, errors in 24 h and the last one, the webhook's pending updates and last delivery error. |
+
+## Phase 3
+
+| Topic | Decision |
+|---|---|
+| The 18 lists | VIP, Trusted, Muted, Restricted, Banned, Blacklist, Warned, Quarantine, Suspicious, Moderators («mod»), Allowed bots, Banned words, Allowed words, Allowed links, Blocked links, Allowed forward sources, Blocked sticker packs, Blocked name patterns. Per chat, up to 2,000 entries each, up to 50 added per message. |
+| Punishing lists | Muted / Restricted / Banned / Blacklist / Quarantine mirror Telegram: adding punishes, removing lifts, and punishments given by command appear in them. «Warned» is a view of members with active warnings (adding warns, removing clears). |
+| Restriction vs. mute vs. quarantine | Mute: nothing can be sent. Restriction: text only (no media, stickers, polls, links previews). Quarantine: muted until an admin releases it (no default end). Blacklist: banned now and again on every join. |
+| Default durations | A command without a duration means «until lifted» (Telegram: forever). Durations from 1 minute to 366 days (Telegram's limits). |
+| Who may moderate | The owner: everything. Admins with at least View: warn/unwarn/warns; with Telegram's «Ban users» right also mute, restrict, kick, ban and lifting. «mod» list members (not admins): warn, unwarn, warns, mute, unmute. Nobody can do through Aegis what Telegram wouldn't let them do. |
+| Protected members | The owner and admins (Telegram forbids restricting them), Aegis, the person themselves, VIP-list members; «mod» members can't punish each other. |
+| Plain-word commands | Count only with a target (reply, @username, id, mention), so chat that happens to start with «بن» or "warn" is ignored. Ordinary members are never answered. |
+| Undo | Every punishment except a kick, from the notice's button (creator; admins with «Ban users»; «mod» members for warnings and mutes; restoring a demoted admin needs Full and «Add new admins») or from the panel (Settings level + the same Telegram right). |
+| Default steps | 3 warnings → mute 1 day; 5 → ban. Warnings never expire by default; they are cleared after the last step (switchable). |
+| Audit Mode semantics | Applies to punishments Aegis decides **on its own**: warning steps, blacklist on join, anti-betrayal. They are recorded (status «audit only») and reported, not done. A command or panel action is a human decision and is carried out. Off by default. |
+| Anti-betrayal | Counts bans/kicks of members and demotions of admins, per admin, in a sliding window (default 5 in 60 s; choices 3/5/10/20 and 1 min/5 min/10 min/1 h). One incident per burst. Response «demote» (default) or «alert only». Changing it needs Full; turning it off (or Audit Mode on) notifies the owner privately. |
+| Log channel | Any channel/group where Aegis can post **and** the person setting it is an admin (so logs can't be sent to someone else's chat); not the group itself. Categories: punishments, lists, admins & security, settings — all on by default. |
+| Telegram-side bans | Recorded as punishments (source «in Telegram»), shown in the Banned list, undoable from the panel; an unban in Telegram closes them. The blacklist entry stays (it is Aegis's own rule). |
+| Names of members | Aegis keeps the name of members it punishes or sees punished, so lists, notices and logs show names instead of ids. |
+| Exports | CSV, UTF-8 with BOM (opens correctly in spreadsheet apps), times in UTC, sent to the person's private chat. Exports are logged. |

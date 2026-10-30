@@ -6,8 +6,8 @@ import { AEGIS_OWNER_ID } from './env.js';
 
 export const OWNER_ID = AEGIS_OWNER_ID;
 export const BOT_NAME = 'Aegis';
-export const VERSION = '0.2.0';
-export const PHASE = 2;
+export const VERSION = '0.3.0';
+export const PHASE = 3;
 
 /* Languages, in picker order. fa is right-to-left. */
 export const LANGS = ['fa', 'en', 'ru', 'zh', 'fr'];
@@ -42,6 +42,19 @@ export const REMINDER_INTERVAL_SEC = 24 * 3600; /* "admins not appointed through
 export const REMINDER_EVENT_GAP_SEC = 10 * 60; /* … and after a new such admin, not more often than this */
 export const CHATS_PAGE = 8; /* chats per page in «پیکربندی» */
 export const LOG_PAGE = 12; /* change-log entries shown in a chat's panel */
+
+/* Lists, punishments, warnings, anti-betrayal, logs (Phase 3). */
+export const LIST_PAGE = 10; /* entries per page */
+export const LIST_MAX_ENTRIES = 2000; /* per list and chat */
+export const LIST_ADD_MAX_LINES = 50; /* entries added at once from one message */
+export const LIST_VALUE_MAX = 120; /* characters of a text entry */
+export const EXPORT_MAX_ROWS = 5000;
+export const REASON_MAX = 200;
+export const PUNISH_PAGE = 10;
+export const MAX_DURATION_SEC = 366 * 86400; /* Telegram: longer (or under 30 s) means forever */
+export const MIN_DURATION_SEC = 60;
+export const MAX_STEPS = 10;
+export const BETRAY_KEEP_SEC = 2 * 86400; /* admin actions older than this are swept */
 
 /* Pending inputs (e.g. "send the broadcast message") expire after this. */
 export const STATE_TTL_SEC = 30 * 60;

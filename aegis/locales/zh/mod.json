@@ -1,0 +1,23 @@
+{
+  "usage": "用法：回复成员的消息并发送 /{cmd} [时长] [原因]，或发送 /{cmd} @username [时长] [原因]。时长：30m、2h、1d、1w。",
+  "need_restrict": "这需要 Telegram 的「封禁用户」权限。",
+  "mod_cant": "版主（「mod」名单）只能警告、取消警告和禁言。其他操作请找管理员。",
+  "basic_group": "仅在超级群组中可用：Telegram 不允许在普通群组中限制成员。",
+  "bot_cant": "Aegis 在这里没有「封禁用户」权限。请在群组的管理员设置中授予。",
+  "t_channel": "Aegis 只能处罚成员，不能处罚频道或群组本身。",
+  "t_unknown": "我不认识 {name}。请回复其一条消息，或使用其数字 ID。",
+  "t_bot_self": "我不会处罚自己。🙂",
+  "t_self": "不能对自己使用。",
+  "t_admin": "{target} 是管理员。Telegram 不允许机器人处罚管理员 — 请先撤销其管理员身份。",
+  "t_vip": "⭐ {target} 在 VIP 名单中。请先将其移出（面板 → 名单）。",
+  "t_mod": "🛡 {target} 也是版主。只有管理员可以处罚版主。",
+  "bad_duration": "时长无效：1 分钟到 366 天，例如 30m、2h、1d、1w。",
+  "tg_error": "❌ Telegram 拒绝：<code>{error}</code>",
+  "no_warns": "{target} 没有警告。",
+  "unwarned": "➖ 已移除 {target} 的一次警告。当前警告：{n}。",
+  "warns": "⚠️ {target}：{n} / {max} 次警告。",
+  "warns_item": "• {reason}",
+  "done_unmute": "🔊 {target} 可以再次发言（{actor}）。",
+  "done_unrestrict": "✅ 已解除 {target} 的限制（{actor}）。",
+  "done_unban": "✅ {target} 已解封，可以重新加入（{actor}）。"
+}

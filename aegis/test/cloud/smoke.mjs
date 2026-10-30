@@ -8,7 +8,9 @@
 // What it proves on the real platform: modules load in the isolate, the tables and indexes exist,
 // the data migrations ran, command menus (5 languages) and the default admin rights are accepted by
 // Telegram, the global switch is on, the forced-join check runs against the real default channels
-// (and shows where Aegis is not an admin yet), block tracking works.
+// (and shows where Aegis is not an admin yet), block tracking works; Phase 3: the six new tables,
+// the lists/settings/punishment SQL on the real database (fake chat -990000100, cleaned up), the
+// moderation command and chat_member paths load and run in the isolate.
 //
 //   cd aegis && npm run test:cloud      (needs Aegis_BOT_TGCLOUD_TOKEN)
 import { spawnSync } from 'node:child_process';
@@ -45,8 +47,18 @@ fs.copyFileSync(DEV_SRC, DEV_DST);
 try {
   const before = dev('read');
   const tables = before.tables.map((t) => t.name);
-  check('12 aegis_ tables exist', tables.length === 12, tables.join(', '));
-  check('indexes exist', before.indexes.length >= 16, `${before.indexes.length} idx_aegis_*`);
+  check('18 aegis_ tables exist', tables.length === 18, tables.join(', '));
+  check('indexes exist', before.indexes.length >= 26, `${before.indexes.length} idx_aegis_*`);
+  for (const t of ['aegis_chat_settings', 'aegis_list_entries', 'aegis_list_history', 'aegis_punishments', 'aegis_admin_actions', 'aegis_incidents']) {
+    check(`Phase 3 table ${t}`, tables.includes(t));
+  }
+  const p3 = dev('p3');
+  check('lists on the real database: add, refresh, expiry, counts, search, history, remove',
+    p3.added === 'added' && p3.again === 'updated' && p3.page === 1 && p3.expiredHidden && p3.search === 1 && p3.history.join() === 'edit,add' && p3.removed === true,
+    JSON.stringify(p3));
+  check('settings defaults, warnings, punishments and admin actions read back', p3.actions === 1 && p3.warnCount === 0 && p3.warned === 0 && p3.punishments === 0
+    && p3.settings === '[{"n":3,"a":"mute","d":86400},{"n":5,"a":"ban","d":0}]');
+  check('CSV bytes built in the isolate (no TextEncoder)', p3.csvBytes === 3 + 1 + 1 + 8 + 2, String(p3.csvBytes));
 
   const r1 = tg(['handlers/message', JSON5.stringify(message(user(A, 'fa'), '/start'))]);
   check('/start runs on the platform without errors', !r1.error, r1.error || '');
@@ -72,6 +84,13 @@ try {
   tg(['handlers/message', JSON5.stringify(message(user(B, 'en'), '/start'))]);
   const blk = { chat: { id: B, type: 'private' }, from: user(B, 'en'), date: 0, old_chat_member: { status: 'member', user: { id: 1, is_bot: true } }, new_chat_member: { status: 'kicked', user: { id: 1, is_bot: true } } };
   const r3 = tg(['handlers/my_chat_member', JSON5.stringify(blk)]);
+  const G = { id: -990000101, type: 'supergroup', title: 'Smoke group' };
+  const gm = { message_id: 2, from: user(A, 'fa'), chat: G, date: 0, text: '/ban 1d smoke', reply_to_message: { message_id: 1, from: user(B, 'en'), chat: G, date: 0 } };
+  const r4 = tg(['handlers/message', JSON5.stringify(gm)]);
+  check('a moderation command in an unknown group is handled quietly', !r4.error && !r4.trace.some((e) => e.m === 'banChatMember'), JSON.stringify(r4.trace));
+  const cm = { chat: G, from: user(A, 'fa'), date: 0, old_chat_member: { status: 'member', user: user(B, 'en') }, new_chat_member: { status: 'kicked', user: user(B, 'en'), until_date: 0 } };
+  const r5 = tg(['handlers/chat_member', JSON5.stringify(cm)]);
+  check('a ban seen in an unknown group is ignored without errors', !r5.error, r5.error || '');
   check('blocking the bot is recorded', !r3.error && Number(dev('read').users.find((u) => Number(u.user_id) === B).blocked) === 1);
 } finally {
   try {

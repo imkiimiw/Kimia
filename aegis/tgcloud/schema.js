@@ -233,3 +233,108 @@ export const broadcasts = table('aegis_broadcasts', {
 }, (t) => ({
   byStatus: index('idx_aegis_broadcasts_status').on(t.status, t.id),
 }));
+
+/*
+ * Per-chat settings (Phase 3+): one row per changed key; defaults live in lib/engines/settings.js.
+ */
+export const chatSettings = table('aegis_chat_settings', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  key: text('key').notNull(),
+  value: text('value'),
+  updatedBy: integer('updated_by').notNull().default(0),
+  updatedAt: integer('updated_at').notNull().default(0),
+}, (t) => ({
+  byChatKey: uniqueIndex('idx_aegis_chat_settings_chat_key').on(t.chatId, t.key),
+}));
+
+/*
+ * The 18 per-chat lists (lib/engines/lists.js). ekey is the normalized key (a user id, or the
+ * lowercase text); value is what is shown. expires_at: a timed entry (e.g. a 1-day mute), 0 = none.
+ */
+export const listEntries = table('aegis_list_entries', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  list: text('list').notNull(),
+  ekey: text('ekey').notNull(),
+  value: text('value').notNull(),
+  userId: integer('user_id').notNull().default(0),
+  note: text('note'),
+  addedBy: integer('added_by').notNull().default(0),
+  addedAt: integer('added_at').notNull().default(0),
+  updatedBy: integer('updated_by').notNull().default(0),
+  updatedAt: integer('updated_at').notNull().default(0),
+  expiresAt: integer('expires_at').notNull().default(0),
+}, (t) => ({
+  byKey: uniqueIndex('idx_aegis_list_entries_key').on(t.chatId, t.list, t.ekey),
+  byAdded: index('idx_aegis_list_entries_added').on(t.chatId, t.list, t.addedAt),
+}));
+
+/* Every change to a list entry (append-only). */
+export const listHistory = table('aegis_list_history', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  list: text('list').notNull(),
+  ekey: text('ekey').notNull(),
+  value: text('value'),
+  action: text('action').notNull(), /* add, remove, edit */
+  actorId: integer('actor_id').notNull().default(0),
+  at: integer('at').notNull(),
+  details: text('details'),
+}, (t) => ({
+  byList: index('idx_aegis_list_history_list').on(t.chatId, t.list, t.at),
+  byKey: index('idx_aegis_list_history_key').on(t.chatId, t.list, t.ekey, t.at),
+}));
+
+/*
+ * Punishments (lib/engines/punish.js): warn, mute, restrict, quarantine, kick, ban, demote.
+ * status: active, done (kick), undone, audit (Audit Mode: only recorded). until: 0 = no end.
+ * source: command, panel, list, step, blacklist, betrayal. meta: JSON (e.g. a demoted admin's rights).
+ */
+export const punishments = table('aegis_punishments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  kind: text('kind').notNull(),
+  reason: text('reason'),
+  actorId: integer('actor_id').notNull().default(0),
+  source: text('source').notNull().default('command'),
+  status: text('status').notNull().default('active'),
+  until: integer('until').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+  undoneBy: integer('undone_by').notNull().default(0),
+  undoneAt: integer('undone_at').notNull().default(0),
+  noticeMsg: integer('notice_msg').notNull().default(0),
+  meta: text('meta'),
+}, (t) => ({
+  byUser: index('idx_aegis_punishments_user').on(t.chatId, t.userId, t.kind, t.status),
+  byChat: index('idx_aegis_punishments_chat').on(t.chatId, t.createdAt),
+}));
+
+/* Destructive admin actions seen in chats (bans, removals, demotions) — anti-betrayal's window. */
+export const adminActions = table('aegis_admin_actions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  actorId: integer('actor_id').notNull(),
+  targetId: integer('target_id').notNull(),
+  kind: text('kind').notNull(), /* ban, demote */
+  at: integer('at').notNull(),
+}, (t) => ({
+  byActor: index('idx_aegis_admin_actions_actor').on(t.chatId, t.actorId, t.at),
+  byAt: index('idx_aegis_admin_actions_at').on(t.at),
+}));
+
+/* Anti-betrayal incidents: who, how many, what Aegis did, which victims (JSON), undone or not. */
+export const incidents = table('aegis_incidents', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  actorId: integer('actor_id').notNull(),
+  count: integer('count').notNull().default(0),
+  action: text('action').notNull(), /* demoted, alert, audit, failed */
+  victims: text('victims'),
+  at: integer('at').notNull(),
+  undoneBy: integer('undone_by').notNull().default(0),
+  undoneAt: integer('undone_at').notNull().default(0),
+}, (t) => ({
+  byActor: index('idx_aegis_incidents_actor').on(t.chatId, t.actorId, t.at),
+}));

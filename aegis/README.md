@@ -8,13 +8,73 @@ deployed **now**.
 |---|---|---|
 | 1 | Core: skeleton, config, DB + migrations, webhook, i18n (5 languages), /start, language picker, user tracking, forced join, owner panel (stats, forced-join channels, broadcast) | ✅ deployed |
 | 2 | Adding the bot, configuration & access control: registration + warning, required rights, appoint/edit/remove admins through Aegis, «پیکربندی», access levels, revocation, change log, /shutdown /activate /status | ✅ deployed |
-| 3–10 | Lists/punishments, locks, security, advanced settings, channel panel, reports, fun & media, full Super Admin panel | not started |
+| 3 | Group lists (18), punishments with undo, warnings and step punishments, anti-betrayal, Audit Mode, log channel | ✅ deployed |
+| 4–10 | Locks, security, advanced settings, channel panel, reports, fun & media, full Super Admin panel | not started |
 
 Design decisions taken without the master spec (it isn't in the repository yet) are listed in
 [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md).
 
 Features that can't be built for free on this platform, or only partly, are listed in
 [docs/NOT_BUILT.md](docs/NOT_BUILT.md).
+
+## What Phase 3 does
+
+**Moderation commands in the group** — `/warn /unwarn /warns /mute /unmute /restrict /unrestrict
+/kick /ban /unban`, or plain words in any of the 5 languages («اخطار», «سکوت», «رفع سکوت», «بن»,
+«رفع بن» …, «мут», «禁言», «bannir» …). Target: reply to the member's message, or `@username` /
+numeric id / a mention; then an optional duration (`30m 2h 1d 1w`, «۲ ساعت», «3 дня», `forever`) and
+a reason (≤ 200 characters). Example: reply with `/ban 1d spam links` or «سکوت ۲ ساعت فلود».
+- **Who**: the owner; admins with at least View access (warn/unwarn/warns), plus Telegram's «Ban
+  users» right for mute/restrict/kick/ban and lifting them; members of the «mod» list (warn,
+  unwarn, warns, mute, unmute). Everyone else is ignored without an answer — ordinary members are
+  never blocked or answered, and a plain word only counts with a target, so normal chat is safe.
+  Re-checked live with Telegram every time.
+- **Never a target**: the owner and admins (Telegram forbids it), Aegis itself, yourself, VIP-list
+  members; a «mod» can't punish another «mod».
+- **Notice** in the group (switchable) with who, what, how long and why, and a **↩️ Undo** button
+  (also for the automatic step). With notices off the result goes to the person's private chat.
+
+**Punishments** — warning, mute, restriction (text only), quarantine, kick, ban, blacklist ban,
+demotion (anti-betrayal). Each one records the executor, the reason, the source (command, panel,
+list, step, blacklist, anti-betrayal, done in Telegram itself) and its status. Every punishment can
+be undone except a kick (the member can simply rejoin); timed ones end by themselves in Telegram.
+Bans and unbans done **in Telegram itself** by admins are recorded too.
+
+**Warnings and steps** — a ladder on active warnings (default: 3 → mute 1 day, 5 → ban), editable
+in the panel as lines like `3 mute 1d` (Persian words work); warnings can expire (never / 1 day /
+7 days / 30 days) and are cleared after the last step (switchable).
+
+**Lists** (per chat, panel → 📋 Lists): ⭐ VIP · 🤝 Trusted · 🔇 Muted · 🚧 Restricted · ⛔️ Banned ·
+🏴 Blacklist · ⚠️ Warned · 🧪 Quarantine · 👁 Suspicious · 🛡 Moderators · 🤖 Allowed bots ·
+🚫 Banned words · ✅ Allowed words · 🔗 Allowed links · ⛓ Blocked links · 📢 Allowed forward sources ·
+🎭 Blocked sticker packs · 🏷 Blocked name patterns. Each has add (Telegram's user picker, forwarded
+messages, ids/@usernames, up to 50 lines with optional duration and note), remove (asks first),
+edit value/note, search, details with its own history, the list's history, and CSV export (UTF-8
+with BOM, times in UTC). The punishing lists mirror Telegram (adding mutes/bans, removing lifts);
+the blacklist bans again whenever the member joins; the «mod» list grants the moderation commands.
+Word/link/sticker/name/bot/forward lists are stored now and used by the locks and filters of later
+phases (the panel says so).
+
+**Anti-betrayal** (panel → 🛡) — an admin who removes or demotes N members within a window (default
+5 in 1 minute; 3/5/10/20 and 1 min/5 min/10 min/1 h) is demoted if Aegis appointed them (Telegram
+allows nothing else), loses the «mod» role, or is reported (owner, admins appointed elsewhere, or
+response set to «alert only»). The alert goes to the group (not a channel), the owner's private
+chat and the log channel, with **♻️ Unban removed members** and **↩️ Restore admin** (false alarm)
+buttons. Turning it off notifies the owner.
+
+**Audit Mode** (panel → 🕵️) — automatic punishments (steps, blacklist on join, anti-betrayal) are
+recorded and reported but not carried out; commands and panel actions still work. Turning it on
+notifies the owner.
+
+**Log channel** (panel → 📜) — pick a channel or group with Telegram's chat picker (or forward a
+post, @username, -100… id); Aegis checks it can post there and that you are an admin there, then
+posts punishments, list changes, admin/security events and setting changes (each category
+switchable), with a test button.
+
+**Panel → ⚖️ Punishments** — every punishment with executor, source, duration, reason and status,
+undo, paging and CSV export. Panel permissions: View browses/searches/exports, Settings changes
+lists and warnings (punishing lists also need «Ban users»), Full changes the «mod» list,
+anti-betrayal, Audit Mode and the log channel.
 
 ## What Phase 2 does
 
@@ -160,9 +220,12 @@ aegis/
       router.js               order of checks, callback_data table
       jobs.js                 work on the side of updates (broadcast chunks, housekeeping)
       config.js, env.js       settings; env.js is generated (AEGIS_OWNER_ID)
-      core/                   tg (Bot API + trace), kv, dedupe, errors, audit, state, migrations, commands, bot, util
-      engines/                users, chats, join, broadcast, buttons, rights, admins, system — one per engine
-      ui/                     start, owner, owner_bc, group (in-group messages), panel (a chat's panel), system
+      core/                   tg (Bot API + trace), kv, dedupe, errors, audit, state, migrations, commands, bot, util,
+                              duration, modparse, csv
+      engines/                users, chats, join, broadcast, buttons, rights, admins, system, settings, lists,
+                              punish, steps, betrayal, admin_actions, logs — one per engine
+      ui/                     start, owner, owner_bc, group (in-group messages), moderation (group commands,
+                              undo buttons, bans/joins), panel + panel_mod (a chat's panel), guard, system
       i18n/                   t(), digits, RTL; strings/ is generated from ../../locales
   locales/<lang>/*.json       fa, en, ru, zh, fr
   webapp/                     the 📡 live broadcast Mini App page (plain HTML/JS)

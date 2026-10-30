@@ -9,10 +9,13 @@ import { LANGS, readLocales, validate } from '../../scripts/locales.mjs';
 import { parseHtml } from '../mock-telegram.mjs';
 import { aliasCommand, dur, num, pickLang, t } from '../../tgcloud/lib/i18n/index.js';
 import { parseCommand } from '../../tgcloud/lib/core/commands.js';
+import { LISTS } from '../../tgcloud/lib/engines/lists.js';
+
+const LIST_CODES = LISTS.map((l) => l.code);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const { dicts, problems } = readLocales();
-const RLM = '‏';
+const RLM = '\u200F';
 
 test('the five languages are fa, en, ru, zh, fr', () => {
   assert.deepEqual([...LANGS].sort(), ['en', 'fa', 'fr', 'ru', 'zh']);
@@ -56,7 +59,7 @@ test('button labels and command descriptions fit Telegram limits', () => {
     for (const [key, s] of Object.entries(dicts[lang])) {
       if (/\.btn_|^common\.(back|cancel|no|yes_remove|refresh)$|^bc\.(aud|mode)_btn_/.test(key)) assert.ok(s.length <= 64, `${lang} ${key} is too long for a button`);
       if (key.startsWith('cmd.')) assert.ok(s.length >= 1 && s.length <= 256, `${lang} ${key}`);
-      if (/^(app|cmd|alias|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
+      if (/^(app|cmd|alias|modcmd|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
     }
   }
 });
@@ -103,6 +106,26 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'rights.': ['can_change_info', 'can_post_messages', 'can_edit_messages', 'can_delete_messages', 'can_invite_users', 'can_restrict_members',
       'can_pin_messages', 'can_manage_video_chats', 'can_promote_members'],
     'levels.': ['none', 'view', 'settings', 'full', 'creator'],
+    'pun.icon_': ['warn', 'mute', 'restrict', 'quarantine', 'kick', 'ban', 'blacklist', 'demote'],
+    'pun.k_': ['warn', 'mute', 'restrict', 'quarantine', 'kick', 'ban', 'blacklist', 'demote'],
+    'pun.s_': ['active', 'expired', 'undone', 'audit', 'done'],
+    'pun.src_': ['command', 'panel', 'list', 'step', 'blacklist', 'betrayal', 'telegram'],
+    'lists.n_': LIST_CODES,
+    'lists.d_': LIST_CODES,
+    'lists.add_prompt_': ['word', 'pattern', 'domain', 'chat', 'bot', 'sticker'],
+    'lists.fail_': ['bot', 'unknown', 'admin', 'self', 'vip', 'tg', 'full'],
+    'lists.h_': ['add', 'edit', 'remove'],
+    'lists.remove_lifts_': ['mute', 'restrict', 'ban', 'blacklist', 'quarantine'],
+    'logs.c_': ['punish', 'lists', 'admin', 'settings'],
+    'logs.s_': ['warn_reset', 'notify'],
+    'mod.done_': ['unmute', 'unrestrict', 'unban'],
+    'modcmd.': ['warn', 'unwarn', 'warns', 'mute', 'unmute', 'restrict', 'unrestrict', 'kick', 'ban', 'unban'],
+    'betray.a_': ['demote', 'alert'],
+    'betray.action_': ['demoted', 'unmod', 'alert', 'audit'],
+    'betray.short_': ['demoted', 'unmod', 'alert', 'audit'],
+    'betray.why_': ['setting', 'creator', 'not_via_aegis', 'unknown', 'failed'],
+    'warns.steps_err_': ['empty', 'format', 'action', 'count', 'order', 'duration', 'too_many'],
+    'common.dur_': ['d', 'h', 'm', 's'],
   };
   for (const [prefix, names] of Object.entries(families)) for (const n of names) used.add(`${prefix}${n}`);
   used.delete('alias2.');

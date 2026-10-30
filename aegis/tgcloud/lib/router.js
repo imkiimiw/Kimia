@@ -13,9 +13,13 @@
  * button; kept across the picker and the join screen) → /help, «پیکربندی» /config (my chats),
  * owner: /panel, /status, /shutdown, /activate → otherwise the main menu.
  * Group message: group → supergroup migration; «پیکربندی» / /config (admins: a button to the
- * private panel — ordinary members are never blocked or answered); otherwise the occasional
- * reminder about admins not appointed through Aegis.
+ * private panel — ordinary members are never blocked or answered); a moderation command
+ * (ui/moderation.js: /warn /mute /ban … or «اخطار» «سکوت» «بن» …, from the creator, admins and the
+ * «mod» list only); otherwise the occasional reminder about admins not appointed through Aegis.
  *
+ * callback_data in any chat (group notices, private chats, the log channel), authorized live in
+ * the punishment's chat — ui/moderation.js:
+ *   pu:<id>       undo a punishment          bt:<id>:v|r   anti-betrayal: unban victims / restore admin
  * callback_data (private chat):
  *   lg            language picker            lg:<fa|en|ru|zh|fr>   set language
  *   jc            "✅ I joined" (re-check, no cache)
@@ -26,7 +30,9 @@
  *
  * my_chat_member: private → the user blocked / unblocked the bot; group/supergroup/channel → the
  * bot's membership and rights there (ui/group.js: registration, warnings).
- * chat_member: someone's admin status changed (cache, revocation, log, reminder).
+ * chat_member: someone's admin status changed (cache, revocation, log, reminder); bans and unbans
+ * done in Telegram by admins (recorded; anti-betrayal counts them); a blacklisted member joined
+ * (banned again).
  */
 import { OWNER_ID } from './config.js';
 import { me } from './core/bot.js';
@@ -45,15 +51,20 @@ import * as users from './engines/users.js';
 import { isLang, pickLang, t } from './i18n/index.js';
 import { afterUpdate } from './jobs.js';
 import * as group from './ui/group.js';
+import * as moderation from './ui/moderation.js';
 import * as owner from './ui/owner.js';
 import * as ownerBc from './ui/owner_bc.js';
 import * as panel from './ui/panel.js';
+import * as panelMod from './ui/panel_mod.js';
 import * as start from './ui/start.js';
 import * as sys from './ui/system.js';
 
 const OWNER_HEADS = new Set(['op', 'os', 'oj', 'ob', 'bc', 'ox', 'sy']);
 const PANEL_HEADS = new Set(['cl', 'g']);
 const OWNER_INPUTS = new Set(['join_add', 'bc_content', 'bc_buttons']);
+const GROUP_HEADS = new Set(['pu', 'bt']);
+const isUserInput = (kind) => kind === 'adm_pick' || panelMod.INPUTS.has(kind);
+const hasKeyboard = (kind) => kind === 'adm_pick' || panelMod.KEYBOARD_INPUTS.has(kind);
 
 function result(ctx) {
   const out = { trace: ctx.trace };
@@ -113,6 +124,7 @@ export function onMessage(message, pctx) {
 async function input(ctx, user, message, pending) {
   const lang = user.lang;
   if (pending.kind === 'adm_pick') return panel.pickInput(ctx, user, message, pending.data);
+  if (panelMod.INPUTS.has(pending.kind)) return panelMod.input(ctx, user, message, pending);
   if (pending.kind === 'join_add') return owner.joinAddInput(ctx, lang, message);
   if (pending.kind === 'bc_content') return ownerBc.contentInput(ctx, lang, message, pending.data);
   if (pending.kind === 'bc_buttons') return ownerBc.buttonsInput(ctx, lang, message, pending.data);
@@ -137,11 +149,11 @@ async function handleMessage(ctx, message) {
   const user = await users.touch(from, { started: true });
   await syncCommands(ctx);
   const pending = await state.get(from.id);
-  const isInput = !!pending && (pending.kind === 'adm_pick' || (isOwner && OWNER_INPUTS.has(pending.kind)));
+  const isInput = !!pending && (isUserInput(pending.kind) || (isOwner && OWNER_INPUTS.has(pending.kind)));
   const cmd = parseCommand(message.text, { aliases: !isInput });
   if (cmd === 'cancel') {
     await state.clear(from.id);
-    if (pending && pending.kind === 'adm_pick') await send(ctx, from.id, t(user.lang, 'common.cancelled'), null, 'cancelled', { reply_markup: { remove_keyboard: true } });
+    if (pending && hasKeyboard(pending.kind)) await send(ctx, from.id, t(user.lang, 'common.cancelled'), null, 'cancelled', { reply_markup: { remove_keyboard: true } });
     else await send(ctx, from.id, t(user.lang, 'common.cancelled'), await start.mainRows(ctx, user.lang, from.id), 'cancelled');
     return;
   }
@@ -188,6 +200,7 @@ async function handleGroupMessage(ctx, message) {
     await group.configInGroup(ctx, message);
     return;
   }
+  if (await moderation.handle(ctx, message)) return;
   const row = await chats.get(chat.id);
   if (row) await group.onActivity(ctx, row);
 }
@@ -215,7 +228,19 @@ async function ownerCallback(ctx, user, parts, place) {
 async function handleCallback(ctx, cq) {
   const from = cq.from;
   const msg = cq.message;
-  if (!from || !msg || !msg.chat || msg.chat.type !== 'private') return;
+  if (!from || !msg || !msg.chat) return null;
+  const head0 = String(cq.data || '').split(':')[0];
+  if (GROUP_HEADS.has(head0) && String(cq.data).length <= 64) {
+    ctx.userId = from.id;
+    ctx.chatId = msg.chat.id;
+    if (ctx.shutdown && from.id !== OWNER_ID) {
+      const u = await users.get(from.id);
+      await answer(ctx, t(u && Number(u.lang_set) ? u.lang : pickLang(from.language_code), 'sys.paused_toast'), true);
+      return null;
+    }
+    return moderation.callback(ctx, cq, String(cq.data).split(':'));
+  }
+  if (msg.chat.type !== 'private') return null;
   ctx.userId = from.id;
   ctx.chatId = msg.chat.id;
   const place = { chat_id: msg.chat.id, message_id: msg.message_id };
@@ -301,5 +326,6 @@ export function onChatMember(upd, pctx) {
     ctx.quiet = !!ctx.shutdown;
     if (upd.from) ctx.userId = upd.from.id;
     await group.onMemberChange(ctx, upd);
+    await moderation.onMemberChange(ctx, upd);
   });
 }

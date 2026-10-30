@@ -86,5 +86,15 @@
   "lang_done": "✅ 聊天语言：{name}",
   "reminder_on": "🔔 已开启关于非 Aegis 任命管理员的提醒。",
   "reminder_off": "🔕 提醒已关闭（面板仍会显示这些管理员）。",
-  "block_level": "你只能设置低于自己级别的权限 —— 只有所有者能授予完全权限。"
+  "block_level": "你只能设置低于自己级别的权限 —— 只有所有者能授予完全权限。",
+  "btn_lists": "📋 名单",
+  "btn_punish": "⚖️ 处罚",
+  "btn_warns": "⚠️ 警告与阶梯",
+  "btn_betray": "🛡 防背叛",
+  "btn_audit_on": "🕵️ 审计模式：开",
+  "btn_audit_off": "🕵️ 审计模式：关",
+  "btn_logs": "📜 日志频道",
+  "root_audit": "🕵️ 审计模式已开启：自动处罚只报告。",
+  "need_restrict": "这需要你在此聊天中拥有 Telegram 的「封禁用户」权限。",
+  "bot_cant_restrict": "Aegis 在此聊天中没有「封禁用户」权限。"
 }

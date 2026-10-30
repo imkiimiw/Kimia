@@ -86,5 +86,15 @@
   "lang_done": "✅ Langue de la discussion : {name}",
   "reminder_on": "🔔 Les rappels sur les administrateurs non nommés via Aegis sont activés.",
   "reminder_off": "🔕 Les rappels sont désactivés (le panneau affiche toujours ces administrateurs).",
-  "block_level": "Vous ne pouvez régler que des niveaux inférieurs au vôtre — seul le propriétaire accorde l’accès Complet."
+  "block_level": "Vous ne pouvez régler que des niveaux inférieurs au vôtre — seul le propriétaire accorde l’accès Complet.",
+  "btn_lists": "📋 Listes",
+  "btn_punish": "⚖️ Sanctions",
+  "btn_warns": "⚠️ Avertissements et paliers",
+  "btn_betray": "🛡 Anti-trahison",
+  "btn_audit_on": "🕵️ Mode audit : ACTIVÉ",
+  "btn_audit_off": "🕵️ Mode audit : DÉSACTIVÉ",
+  "btn_logs": "📜 Canal de journal",
+  "root_audit": "🕵️ Le mode audit est activé : les sanctions automatiques sont seulement signalées.",
+  "need_restrict": "Il vous faut le droit Telegram « Bannir des utilisateurs » dans ce chat.",
+  "bot_cant_restrict": "Aegis n'a pas le droit « Bannir des utilisateurs » dans ce chat."
 }

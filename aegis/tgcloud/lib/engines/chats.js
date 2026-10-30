@@ -14,6 +14,9 @@ import * as audit from '../core/audit.js';
 import { call, describeError, isApiError } from '../core/tg.js';
 import { nowSec, parseJson } from '../core/util.js';
 import * as admins from './admins.js';
+import * as lists from './lists.js';
+import * as punish from './punish.js';
+import * as settings from './settings.js';
 import { missingRequired, rightsOf } from './rights.js';
 
 const ACTIVE = new Set(['member', 'administrator', 'creator', 'restricted']);
@@ -77,6 +80,9 @@ export async function migrate(oldId, newId) {
     await db.run(sql`UPDATE aegis_chats SET chat_id = ${newId}, type = 'supergroup', updated_at = ${nowSec()} WHERE chat_id = ${oldId}`);
   }
   await admins.migrate(oldId, newId);
+  await settings.migrate(oldId, newId);
+  await lists.migrate(oldId, newId);
+  await punish.migrate(oldId, newId);
   await audit.log(0, 'chat.migrated', { chatId: newId, target: String(oldId) });
 }
 

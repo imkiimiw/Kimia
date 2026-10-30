@@ -73,39 +73,45 @@ export function t(lang, key, vars) {
 
 export const has = (key) => DICTS[DEFAULT_LANG][key] !== undefined;
 
-/* "1 h 5 min", "42 s" in the language. */
+/* "2 d 3 h", "1 h 5 min", "42 s" in the language (minutes are dropped once there are days). */
 export function dur(lang, sec) {
   const s = Math.max(0, Math.round(Number(sec) || 0));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = d ? 0 : Math.floor((s % 3600) / 60);
   const parts = [];
+  if (d) parts.push(t(lang, 'common.dur_d', { n: d }));
   if (h) parts.push(t(lang, 'common.dur_h', { n: h }));
   if (m) parts.push(t(lang, 'common.dur_m', { n: m }));
-  if (!h && (!m || s % 60)) parts.push(t(lang, 'common.dur_s', { n: s % 60 }));
+  if (!d && !h && (!m || s % 60)) parts.push(t(lang, 'common.dur_s', { n: s % 60 }));
   return parts.join(' ').replace(new RegExp(RLM, 'g'), '');
 }
 
 /*
- * Command aliases typed as plain words, from the "alias" namespace of every language (so Persian
- * and English aliases both work whatever the user's language): { word → command }.
+ * Words typed instead of commands, from a locale namespace of every language (so Persian and
+ * English words both work whatever the user's language): "alias" for private-chat commands
+ * (aliasCommand), "modcmd" for the group's moderation commands (modCommand). { word → command }.
  */
-let aliasMap = null;
-export function aliasCommand(text) {
-  if (!aliasMap) {
-    aliasMap = new Map();
-    for (const lang of LANGS) {
-      for (const [key, value] of Object.entries(DICTS[lang])) {
-        if (!key.startsWith('alias.')) continue;
-        const cmd = key.slice('alias.'.length);
-        for (const word of value.split('|')) {
-          const w = normalizeWord(word);
-          if (w && !aliasMap.has(w)) aliasMap.set(w, cmd);
-        }
+const wordMaps = {};
+function wordMap(ns) {
+  if (wordMaps[ns]) return wordMaps[ns];
+  const map = new Map();
+  const prefix = `${ns}.`;
+  for (const lang of LANGS) {
+    for (const [key, value] of Object.entries(DICTS[lang])) {
+      if (!key.startsWith(prefix)) continue;
+      const cmd = key.slice(prefix.length);
+      for (const word of value.split('|')) {
+        const w = normalizeWord(word);
+        if (w && !map.has(w)) map.set(w, cmd);
       }
     }
   }
-  return aliasMap.get(normalizeWord(text)) || null;
+  wordMaps[ns] = map;
+  return map;
 }
+export const aliasCommand = (text) => wordMap('alias').get(normalizeWord(text)) || null;
+export const modCommand = (text) => wordMap('modcmd').get(normalizeWord(text)) || null;
 
 /* The language's own name ("فارسی", "English", …) for the picker. */
 export const langName = (lang) => DICTS[lang]['lang.name'];

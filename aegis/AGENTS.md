@@ -3,7 +3,7 @@
 Orientation for AI coding assistants (and humans) working on **Aegis**, a public Telegram group &
 channel management/security bot on **Telegram Serverless**. Keep it short and true. Platform SDK
 reference: [docs/tgcloud-sdk.md](docs/tgcloud-sdk.md). Product spec: `docs/SPEC.md` (Persian, the
-source of truth — it must be added to the repo; it was not present when Phases 1–2 were built, and
+source of truth — it must be added to the repo; it was not present when Phases 1–3 were built, and
 the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
 
 ## Ground rules
@@ -34,13 +34,20 @@ the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
   bidi isolation). `t()` adds the right-to-left marks for Persian.
 - Entry points return `{ trace }`; Bot API calls go through `lib/core/tg.js` with a view name.
 - Owner = `OWNER_ID` (numeric, from `AEGIS_OWNER_ID`), checked on every owner message and button.
-- Chat settings: every panel action goes through `guard()` in `lib/ui/panel.js` — a live
+- Chat settings: every panel action goes through `guard()` in `lib/ui/guard.js` — a live
   getChatMember re-check plus the needed access level (`lib/engines/admins.js`); never trust a
   cached admin row or a chat id from callback_data alone. In groups, never block or answer ordinary
   members because of forced join or configuration.
 - Admins: only ones Aegis promoted can be edited (Telegram's `can_be_edited`); appoint through
   `admins.applyRights`, which records `aegis_promotions` (later phases' anti-betrayal reads it).
 - Sensitive actions → `audit.log()`; failures → `errors.record()`; risky actions → a confirm step.
+- Punishments only through `engines/punish.js` (`apply`/`undo`/`lift`): it records executor, reason
+  and source, keeps the mirror lists in sync, logs, and respects **Audit Mode** for anything Aegis
+  decides on its own (sources `step`, `blacklist`, `betrayal`). Per-chat options live in
+  `engines/settings.js` (validated, logged); destructive admin actions go through
+  `betrayal.after()` so anti-betrayal counts them for the person, never for the bot.
+- Moderation in groups (`ui/moderation.js`): live role check every time; ordinary members are never
+  answered; the owner, admins, Aegis and VIPs are never targets.
 - Multi-step inputs → `lib/core/state.js`; new callback_data codes → document them in the module
   header and in `lib/router.js`; keep callback_data ≤ 64 bytes.
 

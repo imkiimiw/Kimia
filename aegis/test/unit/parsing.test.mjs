@@ -48,9 +48,9 @@ test('text helpers: escape, shorten without splitting surrogates, isolate, norma
   assert.equal(esc('<b>&"'), '&lt;b&gt;&amp;&quot;');
   assert.equal(short('abcdef', 4), 'abc…');
   assert.equal(short('ab😀cd', 4), 'ab…');
-  assert.equal(iso('<Ali>'), '⁨&lt;Ali&gt;⁩');
+  assert.equal(iso('<Ali>'), '\u2068&lt;Ali&gt;\u2069');
   assert.equal(normalizeWord(' مدیريت '), 'مدیریت');
-  assert.equal(normalizeWord('پنل‌مدیریت'), 'پنلمدیریت');
+  assert.equal(normalizeWord('پنل\u200Cمدیریت'), 'پنلمدیریت');
   assert.equal(toInt('42'), 42);
   assert.equal(toInt('-1001'), -1001);
   assert.equal(toInt('4x'), null);
