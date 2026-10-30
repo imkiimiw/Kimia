@@ -155,23 +155,29 @@ The platform manages the bot's webhook for you, derived from your deployed
 
 ## This bot
 
-A Persian relay (contact) bot. Every private message a user sends is **forwarded once and copied
-once** to the owner; the owner answers by **replying** to either one, and the reply is copied back to
-that user as a reply to their message. Both handlers delegate to `lib/relay.js`, whose header
-documents the flow and every `callback_data`.
+A Persian relay (contact) bot; anyone who starts it can write, there are no per-user links. For every
+private message a user sends, the owner gets a **"📩 پیام جدید" card** (sender's name, @username, id;
+buttons 👁 seen / ✉️ write / ⛔️ block), then the message **forwarded once** and **copied once**. Both
+handlers delegate to `lib/relay.js`, whose header documents the flow and every `callback_data`.
 
 - **Owner = numeric id `5557901897`** (`lib/config.js`), checked on every owner message and button.
   The owner's own messages are never relayed; the owner must `/start` the bot once.
-- **Routing**: every message the bot puts in the owner's chat is a row in `links` (owner message id →
-  user, user message id). Fallbacks when the row is missing (migration not run): the replied-to
-  message's keyboard (`u:<uid>:<mid>`), then its `forward_origin`. Only messages sent by the bot
+- **Routing**: every message the bot puts in the owner's chat (card, forward, copy, the ✉️ force-reply
+  prompt) is a row in `links` (owner message id → user, user message id). A reply to any of them is
+  copied to the user as a reply to their message. Fallbacks when the row is missing: the replied-to
+  card's buttons, then a forward's `forward_origin`. Only messages sent by the bot
   (`reply_to_message.from.is_bot`) route anywhere.
+- **Seen** is claimed atomically on the card's `links` row (`seen`), so a double tap tells the user once;
+  a failed send resets it.
 - **Database failures never stop relaying** (`safe()` in `lib/relay.js`); blocking needs the db.
-- **Albums** arrive as one update per photo: `users.last_album` makes one "sent" notice per album.
+- **Albums** arrive as one update per photo: `users.last_album` gives one card and one "sent" per album.
 - **No scheduler**: nothing waits or retries later (no timers in the isolate).
-- Every query is a primary-key lookup; raw SQL only (`db.run/get` with `` sql`…` ``).
+- **Block comments only** (`/* */`) in `tgcloud/`: a paste that loses line breaks must still work
+  (`npm test` checks it). Every query is a primary-key lookup; raw SQL only (`db.run/get` + `` sql`…` ``).
 - Handlers return `{ trace }` — every Bot API call with its view name — for `npx tgcloud run`.
 - Tests: `npm test` (static checks + 23 scenarios on the local sdk emulation in `test/sdk/` and a
-  strict Bot API mock in `test/mock-telegram.mjs` that stores every chat's messages).
-- **Project root**: the CLI uses the nearest folder with `.tgcloud/`. Make sure `relay_bot/.tgcloud/`
-  exists before running `tgcloud` here, or the command acts on the repository root's bot.
+  strict Bot API mock in `test/mock-telegram.mjs`), `npm run test:cloud` (7 checks on the real
+  platform via `tgcloud run`; it temporarily adds `tgcloud/endpoints/zz_devtools.js` — never push
+  while it runs — and deletes its test messages and rows at the end).
+- **CLI**: behind an HTTPS proxy run it with `NODE_USE_ENV_PROXY=1`. It uses the nearest folder with
+  `.tgcloud/`: make sure `relay_bot/.tgcloud/` exists, or commands act on the repository root's bot.

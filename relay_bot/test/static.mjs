@@ -1,9 +1,11 @@
 // Static checks for the platform's module rules, on every file under tgcloud/:
 // - syntax (node --check), imports only from `sdk*` or relative `.js` paths inside tgcloud/;
 // - no Node or web globals the bare V8 isolate doesn't have (Buffer, TextEncoder, timers, URL, Intl…);
-// - no foreign keys; handlers/ and endpoints/ flat; handler names are Bot API update types.
+// - no foreign keys; handlers/ and endpoints/ flat; handler names are Bot API update types;
+// - no line comments, and still valid with all line breaks removed (pasting can lose them).
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -71,6 +73,18 @@ for (const file of files) {
     else if (!fs.existsSync(target)) fail(file, `import "${spec}" does not exist`);
   }
   for (const re of FORBIDDEN) if (re.test(code)) fail(file, `uses ${re} (not available in the platform's isolate)`);
+  // A paste that loses the line breaks must still work (BotFather's Database field did that to schema.js):
+  // no line comments in modules, and the source with every newline turned into a space still parses.
+  if (/(^|[^:'"`\\])\/\/(?!user\?id)/m.test(src.replace(/(https?|tg):\/\/\S*/g, ''))) fail(file, 'line comment (//): use /* */ so a paste without line breaks still works');
+  const flat = path.join(os.tmpdir(), `flat-${process.pid}-${path.basename(file, '.js')}.mjs`);
+  fs.writeFileSync(flat, src.replace(/\r?\n/g, ' '));
+  try {
+    execFileSync(process.execPath, ['--check', flat], { stdio: 'pipe' });
+  } catch (e) {
+    fail(file, `does not parse once its line breaks are removed: ${String(e.stderr).split('\n').slice(0, 5).join(' ')}`);
+  } finally {
+    fs.rmSync(flat, { force: true });
+  }
   if (/handlers\//.test(path.relative(TG, file)) && !/export default/.test(code)) fail(file, 'handler without export default');
 }
 

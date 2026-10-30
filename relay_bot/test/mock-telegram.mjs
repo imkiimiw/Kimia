@@ -26,6 +26,7 @@ export function parseHtml(text) {
       if (close) {
         if (stack.pop() !== name) return { error: `can't parse entities: unmatched end tag "${name}"` };
       } else {
+        if (name === 'a' && !/^a href="(https?:\/\/[^"]+|tg:\/\/user\?id=\d+)"$/.test(tag)) return { error: `can't parse entities: bad <a> tag "${tag}"` };
         stack.push(name);
       }
       i = end + 1;
@@ -47,6 +48,11 @@ export function parseHtml(text) {
 
 function checkMarkup(markup) {
   if (!markup) return null;
+  if (markup.force_reply !== undefined) {
+    if (markup.force_reply !== true) return 'force_reply must be true';
+    if (markup.input_field_placeholder !== undefined && !(markup.input_field_placeholder.length >= 1 && markup.input_field_placeholder.length <= 64)) return 'bad input_field_placeholder';
+    return null;
+  }
   const rows = markup.inline_keyboard;
   if (!Array.isArray(rows)) return 'reply markup is not an inline keyboard';
   for (const row of rows) {

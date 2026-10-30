@@ -1,3 +1,5 @@
 .tgcloud/
 node_modules/
 *.log
+# test/cloud/run.mjs puts its devtools endpoint here for the length of a run: never commit or push it
+tgcloud/endpoints/zz_devtools.js
