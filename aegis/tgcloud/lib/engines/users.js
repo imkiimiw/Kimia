@@ -30,6 +30,11 @@ export async function get(userId) {
   return db.get(sql`SELECT * FROM aegis_users WHERE user_id = ${userId}`);
 }
 
+/* A user Aegis has met, by @username (the Bot API can't look users up by username). */
+export async function byUsername(username) {
+  return db.get(sql`SELECT * FROM aegis_users WHERE lower(username) = ${String(username).toLowerCase()} ORDER BY last_seen DESC LIMIT 1`);
+}
+
 export async function setLang(userId, lang) {
   await db.run(sql`UPDATE aegis_users SET lang = ${lang}, lang_set = 1 WHERE user_id = ${userId}`);
 }

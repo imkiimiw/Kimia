@@ -5,6 +5,7 @@
  *   a queued broadcast starts when nothing else is running;
  * - housekeeping at most once per GC_INTERVAL_SEC: old update ids, expired pending inputs, a few
  *   stale member counts.
+ * While the owner has shut Aegis down, broadcasts don't advance (housekeeping still runs).
  * Never throws: failures are recorded (lib/core/errors.js) and the update's own result stands.
  */
 import { BC_CHUNK, BC_CHUNK_BUDGET_MS, BC_PROGRESS_EVERY_SEC, GC_INTERVAL_SEC, UPDATE_KEEP_SEC } from './config.js';
@@ -45,7 +46,7 @@ async function housekeeping(ctx) {
 
 export async function afterUpdate(ctx) {
   try {
-    await broadcastChunk(ctx);
+    if (!ctx.shutdown) await broadcastChunk(ctx);
   } catch (err) {
     await errors.record(ctx, err, { source: 'jobs.broadcast' });
   }

@@ -1,0 +1,17 @@
+{
+  "req_delete": "删除消息",
+  "req_restrict": "限制成员",
+  "req_ban": "封禁成员",
+  "req_invite": "通过链接邀请用户",
+  "req_pin": "置顶消息",
+  "req_promote": "添加新管理员",
+  "can_change_info": "修改信息",
+  "can_post_messages": "发布消息",
+  "can_edit_messages": "编辑他人消息",
+  "can_delete_messages": "删除消息",
+  "can_invite_users": "邀请用户",
+  "can_restrict_members": "封禁与限制用户",
+  "can_pin_messages": "置顶消息",
+  "can_manage_video_chats": "管理视频聊天",
+  "can_promote_members": "添加新管理员"
+}

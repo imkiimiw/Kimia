@@ -3,5 +3,9 @@
   "help": "help",
   "language": "language|lang",
   "panel": "panel|admin|owner",
-  "cancel": "cancel"
+  "cancel": "cancel",
+  "config": "config|settings",
+  "status": "status",
+  "shutdown": "shutdown",
+  "activate": "activate"
 }

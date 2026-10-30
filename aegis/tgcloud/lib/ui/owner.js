@@ -39,8 +39,9 @@ export async function panel(ctx, lang, place = null) {
     t(lang, 'owner.summary_join', { state: t(lang, join.enabled(s) ? 'common.on' : 'common.off'), n: await join.count() }),
   ];
   if (active) lines.push(t(lang, 'owner.summary_bc', { id: Number(active.id), status: t(lang, `bc.st_${active.status}`) }));
+  if (s.shutdown === '1') lines.push('', t(lang, 'owner.summary_shutdown'));
   const rows = [
-    [btn(t(lang, 'owner.btn_stats'), 'os')],
+    [btn(t(lang, 'owner.btn_stats'), 'os'), btn(t(lang, 'owner.btn_status'), 'sy:st')],
     [btn(t(lang, 'owner.btn_join'), 'oj'), btn(t(lang, 'owner.btn_bc'), 'ob')],
     [btn(t(lang, 'owner.btn_main'), 'mm')],
   ];

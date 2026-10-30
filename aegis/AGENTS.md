@@ -3,7 +3,8 @@
 Orientation for AI coding assistants (and humans) working on **Aegis**, a public Telegram group &
 channel management/security bot on **Telegram Serverless**. Keep it short and true. Platform SDK
 reference: [docs/tgcloud-sdk.md](docs/tgcloud-sdk.md). Product spec: `docs/SPEC.md` (Persian, the
-source of truth — it must be added to the repo; it was not present when Phase 1 was built).
+source of truth — it must be added to the repo; it was not present when Phases 1–2 were built, and
+the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
 
 ## Ground rules
 
@@ -33,6 +34,12 @@ source of truth — it must be added to the repo; it was not present when Phase 
   bidi isolation). `t()` adds the right-to-left marks for Persian.
 - Entry points return `{ trace }`; Bot API calls go through `lib/core/tg.js` with a view name.
 - Owner = `OWNER_ID` (numeric, from `AEGIS_OWNER_ID`), checked on every owner message and button.
+- Chat settings: every panel action goes through `guard()` in `lib/ui/panel.js` — a live
+  getChatMember re-check plus the needed access level (`lib/engines/admins.js`); never trust a
+  cached admin row or a chat id from callback_data alone. In groups, never block or answer ordinary
+  members because of forced join or configuration.
+- Admins: only ones Aegis promoted can be edited (Telegram's `can_be_edited`); appoint through
+  `admins.applyRights`, which records `aegis_promotions` (later phases' anti-betrayal reads it).
 - Sensitive actions → `audit.log()`; failures → `errors.record()`; risky actions → a confirm step.
 - Multi-step inputs → `lib/core/state.js`; new callback_data codes → document them in the module
   header and in `lib/router.js`; keep callback_data ≤ 64 bytes.

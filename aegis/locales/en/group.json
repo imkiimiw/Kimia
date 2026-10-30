@@ -1,0 +1,23 @@
+{
+  "added_title": "🛡 <b>Aegis has been added to {title}</b>",
+  "rule": "⚠️ <b>Important:</b> Telegram lets a bot change or remove only the admins it appointed itself. So appoint admins <b>through Aegis's panel</b> — otherwise anti-betrayal protection and admin restrictions can't act on them.",
+  "perms_title": "<b>Permissions Aegis needs:</b>",
+  "perms_missing": "❗️ Missing: {n} — grant them in the chat's admin settings (or with the button below).",
+  "perms_ok": "✅ All required permissions are granted.",
+  "basic_group": "ℹ️ This is a basic group: Telegram lets bots appoint admins and restrict members only in supergroups. Telegram turns it into a supergroup when you, for example, make it public or show chat history to new members — Aegis follows the change automatically.",
+  "non_aegis_title": "⚠️ <b>Admins not appointed through Aegis ({n}):</b>",
+  "non_aegis_item": "• {name}",
+  "non_aegis_bot": "• 🤖 {name}",
+  "more": "…and {n} more",
+  "non_aegis_hint": "Aegis can't edit or remove them. The chat owner can remove them as admins in Telegram and appoint them again through Aegis's panel.",
+  "reminder_body": "Telegram doesn't let Aegis edit or remove these admins, so anti-betrayal protection and admin restrictions can't act on them. The chat owner can remove them as admins and appoint them again through Aegis's panel. (Admins can turn this reminder off in the panel.)",
+  "btn_panel": "⚙️ Open private panel",
+  "btn_grant": "🛡 Grant missing permissions",
+  "rights_changed_missing": "⚠️ <b>Aegis's permissions changed.</b> Missing now: {n}",
+  "rights_changed_ok": "✅ <b>Aegis's permissions changed:</b> everything required is granted.",
+  "config_reply": "⚙️ {name}, Aegis's settings for this chat open in a private chat with the bot:",
+  "config_no_access": "🔒 {name}, your access to Aegis in this chat is set to None. Ask the chat owner.",
+  "anon_admin": "🕶 You're posting anonymously, so Aegis can't tell who you are. Turn «Remain anonymous» off for a moment, or send «پیکربندی» / config in Aegis's private chat to see all your chats.",
+  "right_line": "{mark} {name}",
+  "right_item": "• {name}"
+}

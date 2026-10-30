@@ -1,0 +1,17 @@
+{
+  "req_delete": "Удаление сообщений",
+  "req_restrict": "Ограничение участников",
+  "req_ban": "Бан участников",
+  "req_invite": "Приглашение по ссылке",
+  "req_pin": "Закрепление сообщений",
+  "req_promote": "Назначение администраторов",
+  "can_change_info": "Изменение профиля",
+  "can_post_messages": "Публикация сообщений",
+  "can_edit_messages": "Редактирование чужих сообщений",
+  "can_delete_messages": "Удаление сообщений",
+  "can_invite_users": "Приглашение участников",
+  "can_restrict_members": "Бан и ограничения",
+  "can_pin_messages": "Закрепление сообщений",
+  "can_manage_video_chats": "Управление видеочатами",
+  "can_promote_members": "Назначение администраторов"
+}

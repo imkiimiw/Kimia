@@ -1,0 +1,22 @@
+{
+  "title": "📜 <b>Change log of {title}</b>",
+  "empty": "Nothing yet.",
+  "line": "• {ago} ago — {who}: {what}",
+  "system": "Aegis",
+  "other": "{action}",
+  "chat_added": "added Aegis",
+  "chat_removed": "removed Aegis",
+  "chat_registered": "set the chat up",
+  "chat_rights": "changed Aegis's permissions",
+  "chat_migrated": "the group became a supergroup",
+  "chat_lang": "set the chat language to {lang}",
+  "chat_reminder": "turned reminders {state}",
+  "admin_promote": "appointed {target} as admin",
+  "admin_edit": "changed {target}'s rights",
+  "admin_demote": "removed {target} as admin",
+  "admin_outside": "changed {target}'s admin status outside Aegis",
+  "access_set": "set {target}'s access to {level}",
+  "access_revoked": "{target} lost access (no longer an admin)",
+  "join_add": "added this chat to the forced-join list",
+  "join_remove": "removed this chat from the forced-join list"
+}

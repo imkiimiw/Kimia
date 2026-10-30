@@ -19,3 +19,7 @@ export async function log(actorId, action, { chatId = 0, target = null, details 
 export async function recent(limit = 20) {
   return db.all(sql`SELECT * FROM aegis_audit ORDER BY id DESC LIMIT ${limit}`);
 }
+
+export async function forChat(chatId, limit = 20) {
+  return db.all(sql`SELECT * FROM aegis_audit WHERE chat_id = ${chatId} ORDER BY at DESC, id DESC LIMIT ${limit}`);
+}

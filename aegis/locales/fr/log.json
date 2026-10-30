@@ -1,0 +1,22 @@
+{
+  "title": "📜 <b>Journal des modifications de {title}</b>",
+  "empty": "Rien pour l’instant.",
+  "line": "• il y a {ago} — {who} : {what}",
+  "system": "Aegis",
+  "other": "{action}",
+  "chat_added": "a ajouté Aegis",
+  "chat_removed": "a retiré Aegis",
+  "chat_registered": "a configuré la discussion",
+  "chat_rights": "a modifié les droits d’Aegis",
+  "chat_migrated": "le groupe est devenu un supergroupe",
+  "chat_lang": "a réglé la langue sur {lang}",
+  "chat_reminder": "rappels : {state}",
+  "admin_promote": "a nommé {target} administrateur",
+  "admin_edit": "a modifié les droits de {target}",
+  "admin_demote": "a retiré {target} des administrateurs",
+  "admin_outside": "a changé le statut d’administrateur de {target} hors d’Aegis",
+  "access_set": "a réglé l’accès de {target} sur {level}",
+  "access_revoked": "{target} a perdu son accès (n’est plus administrateur)",
+  "join_add": "a ajouté cette discussion à la liste d’adhésion obligatoire",
+  "join_remove": "a retiré cette discussion de la liste d’adhésion obligatoire"
+}

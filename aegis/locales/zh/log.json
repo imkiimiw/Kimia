@@ -1,0 +1,22 @@
+{
+  "title": "📜 <b>{title} 的变更记录</b>",
+  "empty": "暂无记录。",
+  "line": "• {ago}前 —— {who}：{what}",
+  "system": "Aegis",
+  "other": "{action}",
+  "chat_added": "添加了 Aegis",
+  "chat_removed": "移除了 Aegis",
+  "chat_registered": "完成了聊天设置",
+  "chat_rights": "更改了 Aegis 的权限",
+  "chat_migrated": "群组升级为超级群组",
+  "chat_lang": "将聊天语言设为 {lang}",
+  "chat_reminder": "将提醒设为{state}",
+  "admin_promote": "任命 {target} 为管理员",
+  "admin_edit": "更改了 {target} 的权限",
+  "admin_demote": "撤销了 {target} 的管理员身份",
+  "admin_outside": "在 Aegis 之外更改了 {target} 的管理员身份",
+  "access_set": "将 {target} 的访问级别设为 {level}",
+  "access_revoked": "{target} 失去访问权限（已不是管理员）",
+  "join_add": "将此聊天加入强制加入列表",
+  "join_remove": "将此聊天移出强制加入列表"
+}

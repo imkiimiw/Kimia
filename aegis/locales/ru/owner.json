@@ -7,5 +7,8 @@
   "btn_stats": "📊 Статистика",
   "btn_join": "🔒 Обязательная подписка",
   "btn_bc": "📣 Рассылка",
-  "btn_main": "🏠 Главное меню"
+  "btn_main": "🏠 Главное меню",
+  "btn_status": "🩺 Статус",
+  "summary_shutdown": "⛔️ <b>Aegis выключен</b> — /activate",
+  "title_short": "👑 Панель владельца"
 }

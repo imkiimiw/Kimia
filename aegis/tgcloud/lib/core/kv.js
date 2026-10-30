@@ -6,8 +6,10 @@
  *   bot_id, bot_username   from getMe, cached
  *   gc_at          last housekeeping run
  *   err_notify_at  last time the owner was told about a failure
- *   cmd_rev        revision of the command menus set with setMyCommands (cmd_try_at: last attempt;
+ *   cmd_rev        revision of the command menus set with setMyCommands (cmd_try_<rev>: last attempt;
  *                  owner_cmd_rev: the owner's own menu)
+ *   shutdown       '1' while the owner has shut Aegis down (/shutdown); shutdown_at, shutdown_by,
+ *                  activated_at
  * all(ctx) reads every key once per update and caches it on ctx.
  */
 import { db } from 'sdk';

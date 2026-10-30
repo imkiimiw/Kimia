@@ -3,5 +3,9 @@
   "language": "切换语言",
   "help": "帮助",
   "panel": "所有者面板",
-  "cancel": "取消当前步骤"
+  "cancel": "取消当前步骤",
+  "config": "我的聊天与设置",
+  "status": "状态（所有者）",
+  "shutdown": "关闭（所有者）",
+  "activate": "启用（所有者）"
 }

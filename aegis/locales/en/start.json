@@ -3,6 +3,9 @@
   "btn_language": "🌐 Language",
   "btn_help": "❓ Help",
   "btn_owner": "👑 Owner panel",
-  "help": "❓ <b>Help</b>\n\nCommands — each also works as a plain word, in English or Persian:\n/start — main menu (start · شروع)\n/language — change the language (language · زبان)\n/help — this help (help · راهنما)\n/cancel — cancel the current step (cancel · لغو)\n\nTo use Aegis in this chat you must first join its channels.",
-  "help_owner": "👑 <b>Owner</b>\n/panel — owner panel (panel · پنل): statistics, forced-join channels, broadcasts."
+  "help": "❓ <b>Help</b>\n\nCommands — each also works as a plain word, in English or Persian:\n/start — main menu (start · شروع)\n/config — your groups and channels and their settings (config · پیکربندی)\n/language — change the language (language · زبان)\n/help — this help (help · راهنما)\n/cancel — cancel the current step (cancel · لغو)\n\n<b>In a group</b> where Aegis is an admin, an admin can send «پیکربندی» or config to get a button to that group's private panel.\n\nTo use Aegis in this chat you must first join its channels.",
+  "help_owner": "👑 <b>Owner</b>\n/panel — owner panel (panel · پنل): statistics, forced-join channels, broadcasts\n/status — Aegis's status (status · وضعیت)\n/shutdown — stop answering everyone but you (shutdown · خاموش)\n/activate — turn back on (activate · فعال‌سازی)",
+  "btn_my_chats": "⚙️ My chats",
+  "btn_add_group": "➕ Add to group",
+  "btn_add_channel": "➕ Add to channel"
 }

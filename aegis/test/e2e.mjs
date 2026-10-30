@@ -24,7 +24,7 @@ for (const name of ['TextEncoder', 'TextDecoder', 'URL', 'URLSearchParams', 'Blo
   'setTimeout', 'setInterval', 'setImmediate', 'structuredClone', 'atob', 'btoa', 'crypto', 'Buffer', 'Intl']) delete globalThis[name];
 
 const H = {};
-for (const h of ['message', 'callback_query', 'my_chat_member']) H[h] = (await import(`../tgcloud/handlers/${h}.js`)).default;
+for (const h of ['message', 'callback_query', 'my_chat_member', 'chat_member']) H[h] = (await import(`../tgcloud/handlers/${h}.js`)).default;
 const bcLive = (await import('../tgcloud/endpoints/bcLive.js')).default;
 
 const errors = [];
@@ -51,7 +51,9 @@ let msgId = 1;
 function checkRtl(calls) {
   for (const c of calls) {
     if (!['sendMessage', 'editMessageText'].includes(c.method) || !c.result.ok) continue;
-    if (!faUsers.has(Number(c.params.chat_id))) continue;
+    const cid = Number(c.params.chat_id);
+    const faChat = cid < 0 && (rawDatabase().prepare('SELECT lang FROM aegis_chats WHERE chat_id = ?').get(cid) || {}).lang === 'fa';
+    if (!faUsers.has(cid) && !faChat) continue;
     if (/🌐 Choose your language/.test(c.params.text)) continue; // the picker shows every language
     for (const line of c.params.text.split('\n')) if (line) assert.equal(line[0], RLM, `Persian line without RLM: ${JSON.stringify(line)}`);
   }
@@ -94,7 +96,7 @@ const edits = (calls) => calls.filter((c) => c.method === 'editMessageText');
 const row = (q, ...p) => rawDatabase().prepare(q).get(...p);
 const rows = (q, ...p) => rawDatabase().prepare(q).all(...p);
 const lastBotMessage = (chatId) => [...mock.state.messages.values()].filter((m) => m.chat === chatId && m.from.id === BOT_ID).pop();
-const kb = (m) => (m.markup ? m.markup.inline_keyboard.flat() : []);
+const kb = (m) => (m.markup && m.markup.inline_keyboard ? m.markup.inline_keyboard.flat() : []);
 const dataOf = (m) => kb(m).map((b) => b.callback_data || b.url || (b.web_app && 'webapp'));
 const midOf = (call) => call.result.result.message_id;
 function findButton(m, re) {
@@ -119,9 +121,11 @@ async function scenario(name, fn) {
 
 await scenario('first /start: data migration seeds the 3 channels, command menus are set, the 5-language picker comes first', async () => {
   const calls = await dm(U.ali, '/start');
-  assert.equal(row("SELECT value FROM aegis_kv WHERE key = 'data_version'").value, '1');
+  assert.equal(row("SELECT value FROM aegis_kv WHERE key = 'data_version'").value, '2');
   assert.deepEqual(rows('SELECT username FROM aegis_join_channels ORDER BY position').map((r) => r.username), ['HIDE_i_SEEK', 'Nepenthw_ir', 'wangerBots']);
   assert.equal(sent(calls, 'setMyCommands').length, 6, 'default + one per language');
+  assert.equal(sent(calls, 'setMyDefaultAdministratorRights').length, 2, 'suggested admin rights for groups and channels');
+  assert.equal(mock.state.defaultRights.group.can_promote_members, true);
   assert.ok(mock.state.commands.some((c) => c.language_code === 'fa' && c.commands.some((x) => x.description === 'تغییر زبان')));
   assert.equal(sent(calls, 'getChatMember').length, 0, 'no membership check before a language is chosen');
   const [pick] = sent(calls);
@@ -169,7 +173,10 @@ await scenario('"✅ I joined": missing → alert with the count; joined → tha
   assert.match(r2.toast, /ممنون/);
   const welcome = mock.get(U.ali.id, midOf(s));
   assert.match(welcome.plain, /سلام ⁨علی⁩!/);
-  assert.deepEqual(dataOf(welcome), ['lg', 'hp']);
+  const d = dataOf(welcome);
+  assert.deepEqual([d[0], d[3], d[4]], ['cl', 'lg', 'hp']);
+  assert.match(d[1], /^https:\/\/t\.me\/aegis_test_bot\?startgroup=aegis&admin=.*promote_members/);
+  assert.match(d[2], /^https:\/\/t\.me\/aegis_test_bot\?startchannel&admin=.*post_messages/);
   const cached = await dm(U.ali, '/help');
   assert.equal(sent(cached, 'getChatMember').length, 0, 'cached pass');
   assert.match(sent(cached)[0].params.text, /راهنما/);
@@ -227,7 +234,8 @@ await scenario('blocking / unblocking the bot in private is tracked; adding the 
   mock.addChat({ id: -3001, type: 'channel', title: 'Channel One', username: 'chan_one', count: 1000 });
   const g = await member({ id: -2001, type: 'supergroup', title: 'Group One' }, U.ali, 'left', 'member');
   assert.equal(sent(g, 'getChatMemberCount').length, 1);
-  assert.equal(sent(g).length, 0, 'Phase 1 posts nothing in groups');
+  assert.equal(sent(g).filter((c) => c.params.chat_id === -2001).length, 1, 'phase 2: the warning in the group');
+  assert.equal(sent(g).filter((c) => c.params.chat_id === U.ali.id).length, 1, 'phase 2: and in the adding admin\'s private chat');
   await member({ id: -4001, type: 'group', title: 'Small Group' }, U.ali, 'left', 'administrator');
   await member({ id: -3001, type: 'channel', title: 'Channel One', username: 'chan_one' }, U.dan, 'left', 'administrator');
   const g1 = row('SELECT * FROM aegis_chats WHERE chat_id = -2001');
@@ -688,6 +696,474 @@ await scenario('housekeeping runs on the side of updates: old update ids and exp
   assert.equal(c.result.gc.states, 1);
   assert.equal(row('SELECT count(*) AS n FROM aegis_updates WHERE update_id = 999001').n, 0);
   assert.equal((await dm(U.ali, '/help')).result.gc, undefined, 'at most once per interval');
+});
+
+// ---------- phase 2: adding the bot, configuration & access control ----------
+
+const FSI = '\u2068';
+const PDI = '\u2069';
+const n = (s) => `${FSI}${s}${PDI}`; /* a name as Aegis isolates it */
+const P = {
+  carol: { id: 800000010, is_bot: false, first_name: 'Carol', language_code: 'en', username: 'carol_c' },
+  dave: { id: 800000011, is_bot: false, first_name: 'Dave', language_code: 'en' },
+  erin: { id: 800000012, is_bot: false, first_name: 'Erin', language_code: 'en' },
+  frank: { id: 800000013, is_bot: false, first_name: 'Frank', language_code: 'en', username: 'frank_u' },
+  gina: { id: 800000014, is_bot: false, first_name: 'Gina', language_code: 'en' },
+  hank: { id: 800000015, is_bot: false, first_name: 'Hank', language_code: 'en' },
+};
+const ALPHA = -1009001;
+const NEWS = -1009100;
+const alphaChat = { id: ALPHA, type: 'supergroup', title: 'Alpha' };
+const newsChat = { id: NEWS, type: 'channel', title: 'News', username: 'news_ch' };
+let alpha = null;
+let news = null;
+let carolPanel = null;
+let davePanel = null;
+let frankPanel = null;
+
+async function onboard(u, lang) {
+  const c = await dm(u, '/start');
+  await press(u, `lg:${lang}`, midOf(sent(c).find((x) => x.params.chat_id === u.id)));
+  join(u, -1001, -1002, -1004, -1005);
+}
+async function botChange(chat, from, oldStatus, newStatus, rights = {}) {
+  const neu = { status: newStatus, user: mock.bot };
+  if (newStatus === 'administrator') Object.assign(neu, { can_be_edited: false }, rights);
+  return run(H.my_chat_member, { chat, from, date: 0, old_chat_member: { status: oldStatus, user: mock.bot }, new_chat_member: neu });
+}
+async function gmsg(chat, from, text, extra = {}) {
+  return run(H.message, { message_id: msgId++, from, chat, date: 0, ...(text !== null ? { text } : {}), ...extra });
+}
+async function adminChange(chat, from, user, before, after) {
+  return run(H.chat_member, { chat, from, date: 0, old_chat_member: { user, ...before }, new_chat_member: { user, ...after } });
+}
+const toChat = (calls, id) => sent(calls).filter((c) => c.params.chat_id === id);
+const screenOf = (u, mid) => mock.get(u.id, mid);
+const labelsOf = (u, mid) => kb(screenOf(u, mid)).map((b) => b.text);
+
+await scenario('phase 2 — added as an admin with rights missing: warning in the group (its language) and the adder\'s private chat; chat registered, admins read', async () => {
+  await onboard(P.carol, 'en');
+  alpha = mock.addChat({ id: ALPHA, type: 'supergroup', title: 'Alpha', count: 40,
+    botRights: { can_manage_chat: true, can_change_info: true, can_delete_messages: true, can_restrict_members: true, can_invite_users: true } });
+  alpha.admins.set(P.carol.id, { status: 'creator', user: P.carol });
+  alpha.admins.set(P.dave.id, { status: 'administrator', user: P.dave, rights: { can_manage_chat: true, can_delete_messages: true, can_restrict_members: true }, promotedBy: P.carol.id });
+  for (const u of [P.erin, P.frank, P.gina, P.hank]) {
+    alpha.members.add(u.id);
+    alpha.people.set(u.id, u);
+  }
+  const c = await botChange(alphaChat, P.carol, 'left', 'administrator', alpha.botRights);
+  const [w] = toChat(c, ALPHA);
+  assert.ok(w, 'warning in the group');
+  assert.match(w.params.text, new RegExp(`Aegis has been added to ${n('Alpha')}`));
+  assert.match(w.params.text, /only the admins it appointed itself/);
+  assert.match(w.params.text, /<b>through Aegis's panel<\/b>/);
+  for (const ok of ['Delete messages', 'Restrict members', 'Ban members', 'Invite users via link']) assert.match(w.params.text, new RegExp(`✅ ${ok}`));
+  assert.match(w.params.text, /❌ Pin messages/);
+  assert.match(w.params.text, /❌ Add new admins/);
+  assert.match(w.params.text, /Missing: 2/);
+  assert.match(w.params.text, /Admins not appointed through Aegis \(1\)/);
+  assert.match(w.params.text, new RegExp(`• ${n('Dave')}`));
+  const urls = w.params.reply_markup.inline_keyboard.flat().map((b) => b.url);
+  assert.equal(urls[0], `https://t.me/aegis_test_bot?start=c_${ALPHA}`);
+  assert.match(urls[1], /\?startgroup=aegis&admin=.*pin_messages\+promote_members$/);
+  const [pm] = toChat(c, P.carol.id);
+  assert.ok(pm, 'warning in the adder\'s private chat');
+  assert.equal(pm.params.reply_markup.inline_keyboard[0][0].callback_data, `g:${ALPHA}`);
+  const ch = row('SELECT * FROM aegis_chats WHERE chat_id = ?', ALPHA);
+  assert.equal(ch.registered, 1);
+  assert.equal(ch.missing, '["pin","promote"]');
+  assert.equal(ch.lang, 'en');
+  assert.equal(ch.added_by, P.carol.id);
+  const cached = rows('SELECT user_id, status, via_aegis FROM aegis_chat_admins WHERE chat_id = ? ORDER BY user_id', ALPHA);
+  assert.deepEqual(cached.map((r) => [r.user_id, r.status, r.via_aegis]), [[P.carol.id, 'creator', 0], [P.dave.id, 'administrator', 0], [BOT_ID, 'administrator', 0]]);
+  assert.ok(row("SELECT id FROM aegis_audit WHERE action = 'chat.registered' AND chat_id = ?", ALPHA));
+});
+
+await scenario('phase 2 — a basic group added as a plain member by a Persian admin; a channel: private message only', async () => {
+  const basic = mock.addChat({ id: -4002, type: 'group', title: 'Basic', botAdmin: false });
+  basic.admins.set(U.ali.id, { status: 'creator', user: U.ali });
+  const c = await botChange({ id: -4002, type: 'group', title: 'Basic' }, U.ali, 'left', 'member');
+  const [w] = toChat(c, -4002);
+  assert.match(w.params.text, new RegExp(`Aegis به ${n('Basic')} اضافه شد`));
+  assert.equal((w.params.text.match(/❌/g) || []).length, 6, 'every required right is missing');
+  assert.match(w.params.text, /گروه ساده/);
+  assert.match(toChat(c, U.ali.id)[0].params.text, /گروه ساده/);
+  news = mock.addChat({ id: NEWS, type: 'channel', title: 'News', username: 'news_ch', botRights: { can_manage_chat: true, can_change_info: true, can_post_messages: true,
+    can_edit_messages: true, can_delete_messages: true, can_invite_users: true, can_restrict_members: true, can_promote_members: true } });
+  news.admins.set(P.carol.id, { status: 'creator', user: P.carol });
+  const ch = await botChange(newsChat, P.carol, 'left', 'administrator', news.botRights);
+  assert.equal(toChat(ch, NEWS).length, 0, 'nothing is posted in a channel');
+  assert.equal(toChat(ch, P.carol.id).length, 1);
+  assert.match(toChat(ch, P.carol.id)[0].params.text, /All required permissions are granted/);
+});
+
+await scenario('phase 2 — the bot\'s rights change: a notice in the group and to whoever changed them; the same rights again say nothing', async () => {
+  alpha.botRights = { ...alpha.botRights, can_pin_messages: true, can_promote_members: true };
+  const c = await botChange(alphaChat, P.carol, 'administrator', 'administrator', alpha.botRights);
+  assert.match(toChat(c, ALPHA)[0].params.text, /everything required is granted/);
+  assert.equal(toChat(c, P.carol.id).length, 1);
+  assert.equal(row('SELECT missing FROM aegis_chats WHERE chat_id = ?', ALPHA).missing, '[]');
+  assert.equal(sent(await botChange(alphaChat, P.carol, 'administrator', 'administrator', alpha.botRights)).length, 0);
+  assert.ok(row("SELECT id FROM aegis_audit WHERE action = 'chat.rights' AND chat_id = ?", ALPHA));
+});
+
+await scenario('phase 2 — «پیکربندی» / config in the group: admins get a link to the private panel, members are never answered', async () => {
+  assert.equal(sent(await gmsg(alphaChat, P.frank, 'پیکربندی')).length, 0, 'ordinary members get no answer');
+  const d = await gmsg(alphaChat, P.dave, 'config');
+  const [r] = sent(d);
+  assert.match(r.params.text, new RegExp(`${n('Dave')}, Aegis's settings for this chat open in a private chat`));
+  assert.equal(r.params.reply_markup.inline_keyboard[0][0].url, `https://t.me/aegis_test_bot?start=c_${ALPHA}`);
+  assert.ok(r.params.reply_parameters, 'a reply to the command');
+  assert.equal(sent(await gmsg(alphaChat, P.carol, '/config@other_bot')).length, 0, 'another bot\'s command');
+  assert.equal(sent(await gmsg(alphaChat, P.carol, '/config@aegis_test_bot')).length, 1);
+  assert.equal(sent(await gmsg(alphaChat, P.carol, 'تنظیمات')).length, 1, 'the other Persian alias');
+  const anon = await gmsg(alphaChat, { id: 1087968824, is_bot: true, first_name: 'Group', username: 'GroupAnonymousBot' }, 'config',
+    { sender_chat: { id: ALPHA, type: 'supergroup', title: 'Alpha' } });
+  assert.match(sent(anon)[0].params.text, /posting anonymously/);
+  assert.equal(sent(await gmsg(alphaChat, P.frank, 'hello everyone')).length, 0, 'ordinary chat: nothing');
+});
+
+await scenario('phase 2 — «پیکربندی» in private: the chats where the user is an allowed admin', async () => {
+  const c = await dm(P.carol, 'پیکربندی');
+  const m = sent(c)[0];
+  assert.match(m.params.text, /Your chats/);
+  const btns = m.params.reply_markup.inline_keyboard.flat();
+  assert.ok(btns.some((b) => b.callback_data === `g:${ALPHA}` && /👥 Alpha · Owner/.test(b.text)));
+  assert.ok(btns.some((b) => b.callback_data === `g:${NEWS}` && /📢 News · Owner/.test(b.text)));
+  await onboard(P.frank, 'en');
+  assert.match(sent(await dm(P.frank, '/config'))[0].params.text, /No chats yet/);
+});
+
+await scenario('phase 2 — the group\'s «open panel» link survives the language picker and the join screen (configuration flow is gated by forced join)', async () => {
+  const c = await dm(P.dave, `/start c_${ALPHA}`);
+  assert.match(sent(c)[0].params.text, /Choose your language/);
+  assert.equal(row('SELECT kind FROM aegis_states WHERE user_id = ?', P.dave.id).kind, 'resume');
+  davePanel = midOf(sent(c)[0]);
+  await press(P.dave, 'lg:en', davePanel);
+  assert.match(screenOf(P.dave, davePanel).plain, /Join our channels first/);
+  join(P.dave, -1001, -1002, -1004, -1005);
+  await press(P.dave, 'jc', davePanel);
+  const panel = screenOf(P.dave, davePanel).plain;
+  assert.match(panel, new RegExp(`⚙️ ${n('Alpha')} · group`));
+  assert.match(panel, /Your access: View/);
+  assert.equal(row('SELECT count(*) AS n FROM aegis_states WHERE user_id = ?', P.dave.id).n, 0);
+});
+
+await scenario('phase 2 — the panel: level, rights, outside admins, sections; permissions screen', async () => {
+  const c = await dm(P.carol, '/config');
+  carolPanel = midOf(sent(c)[0]);
+  await press(P.carol, `g:${ALPHA}`, carolPanel);
+  const root = screenOf(P.carol, carolPanel);
+  assert.match(root.plain, /Your access: Owner/);
+  assert.match(root.plain, /Aegis has every permission it needs/);
+  assert.match(root.plain, /Admins not appointed through Aegis: 1/);
+  const s = (x) => `g:${ALPHA}:${x}`;
+  assert.deepEqual(dataOf(root), [s('p'), s('a'), s('l'), s('g'), s('r'), s('h'), s('x'), 'cl']);
+  await press(P.carol, s('p'), carolPanel);
+  const perms = screenOf(P.carol, carolPanel).plain;
+  assert.equal((perms.match(/✅/g) || []).length, 7);
+  assert.match(perms, /Nothing is missing/);
+});
+
+await scenario('phase 2 — appointing an admin through Aegis: pick (shared user), rights editor, locked rights, confirm, promoteChatMember, logged', async () => {
+  await press(P.carol, `g:${ALPHA}:a`, carolPanel);
+  const list = screenOf(P.carol, carolPanel);
+  assert.match(list.plain, new RegExp(`👑 ${n('Carol')} — owner`));
+  assert.match(list.plain, new RegExp(`⚠️ ${n('Dave')} — not through Aegis · View`));
+  assert.deepEqual(dataOf(list), [`g:${ALPHA}:a:i:${P.dave.id}`, `g:${ALPHA}:a:n`, `g:${ALPHA}`]);
+  const ask = await press(P.carol, `g:${ALPHA}:a:n`, carolPanel);
+  assert.deepEqual(sent(ask.calls)[0].params.reply_markup.keyboard[0][0].request_users, { request_id: 1, max_quantity: 1 });
+  assert.equal(row('SELECT kind FROM aegis_states WHERE user_id = ?', P.carol.id).kind, 'adm_pick');
+  const sel = await dm(P.carol, null, { users_shared: { request_id: 1, users: [{ user_id: P.erin.id }] } });
+  const [picked, editorMsg] = sent(sel);
+  assert.match(picked.params.text, new RegExp(`Selected: ${n('Erin')}`));
+  assert.deepEqual(picked.params.reply_markup, { remove_keyboard: true });
+  const ed = midOf(editorMsg);
+  const t = (i) => `g:${ALPHA}:a:t:${P.erin.id}:${i}`;
+  assert.deepEqual(labelsOf(P.carol, ed).slice(0, 7), ['▫️ Change info', '✅ Delete messages', '✅ Ban and restrict users', '✅ Invite users', '✅ Pin messages',
+    '🔒 Manage video chats', '▫️ Add new admins']);
+  await press(P.carol, t(6), ed);
+  assert.equal(labelsOf(P.carol, ed)[6], '✅ Add new admins');
+  assert.match(screenOf(P.carol, ed).plain, /lets them appoint admins themselves/);
+  await press(P.carol, t(6), ed);
+  const locked = await press(P.carol, t(5), ed);
+  assert.ok(locked.alert);
+  assert.match(locked.toast, /can't be given/);
+  await press(P.carol, `g:${ALPHA}:a:s:${P.erin.id}`, ed);
+  const confirm = screenOf(P.carol, ed).plain;
+  assert.match(confirm, new RegExp(`Appoint ${n('Erin')} as an admin of ${n('Alpha')} with these rights\\?`));
+  assert.match(confirm, /• Delete messages\n• Ban and restrict users\n• Invite users\n• Pin messages/);
+  const done = await press(P.carol, `g:${ALPHA}:a:y:${P.erin.id}`, ed);
+  const [promo] = sent(done.calls, 'promoteChatMember');
+  assert.deepEqual(promo.params, { chat_id: ALPHA, user_id: P.erin.id, is_anonymous: false, can_change_info: false, can_delete_messages: true, can_restrict_members: true,
+    can_invite_users: true, can_pin_messages: true, can_manage_video_chats: false, can_promote_members: false, can_manage_chat: true });
+  assert.equal(alpha.admins.get(P.erin.id).promotedBy, BOT_ID);
+  const after = screenOf(P.carol, ed).plain;
+  assert.match(after, new RegExp(`${n('Erin')} is now an admin — appointed through Aegis`));
+  assert.match(after, new RegExp(`✅ ${n('Erin')} — appointed through Aegis · View`));
+  assert.equal(row('SELECT kind, actor_id FROM aegis_promotions WHERE chat_id = ? AND user_id = ?', ALPHA, P.erin.id).actor_id, P.carol.id);
+  assert.ok(row("SELECT id FROM aegis_audit WHERE action = 'admin.promote' AND target = ?", String(P.erin.id)));
+  assert.equal(row('SELECT via_aegis FROM aegis_chat_admins WHERE chat_id = ? AND user_id = ?', ALPHA, P.erin.id).via_aegis, 1);
+  assert.equal(row('SELECT count(*) AS n FROM aegis_states WHERE user_id = ?', P.carol.id).n, 0);
+});
+
+await scenario('phase 2 — picking the member: bad input, unknown @username, hidden forward, non-member, outside admin; @username, numeric id', async () => {
+  await press(P.carol, `g:${ALPHA}:a:n`, carolPanel);
+  assert.match(sent(await dm(P.carol, 'hello'))[0].params.text, /Choose a user with the button/);
+  assert.match(sent(await dm(P.carol, '@nobody_here'))[0].params.text, /look people up by @username/);
+  assert.match(sent(await dm(P.carol, null, { forward_origin: { type: 'hidden_user', sender_user_name: 'Ghost', date: 0 } }))[0].params.text, /privacy settings hide/);
+  assert.match(sent(await dm(P.carol, '800000099'))[0].params.text, /isn't a member of this chat/);
+  assert.match(sent(await dm(P.carol, null, { forward_origin: { type: 'user', sender_user: P.dave, date: 0 } }))[0].params.text, /appointed outside Aegis/);
+  const appoint = async (input, toggles) => {
+    const m = await dm(P.carol, input);
+    const [, editorMsg] = sent(m);
+    assert.ok(editorMsg, `no editor for ${input}`);
+    const ed = midOf(editorMsg);
+    const target = Number(/:a:t:(\d+):/.exec(kb(screenOf(P.carol, ed))[0].callback_data)[1]);
+    for (const i of toggles) await press(P.carol, `g:${ALPHA}:a:t:${target}:${i}`, ed);
+    await press(P.carol, `g:${ALPHA}:a:s:${target}`, ed);
+    await press(P.carol, `g:${ALPHA}:a:y:${target}`, ed);
+    return target;
+  };
+  assert.equal(await appoint('@frank_u', [0, 1, 2, 3, 4, 6]), P.frank.id, 'a known @username');
+  assert.deepEqual(alpha.admins.get(P.frank.id).rights, { can_manage_chat: true, can_change_info: true, can_promote_members: true });
+  await press(P.carol, `g:${ALPHA}:a:n`, carolPanel);
+  assert.equal(await appoint(String(P.gina.id), [2, 3, 4, 6]), P.gina.id, 'a numeric id');
+  assert.deepEqual(alpha.admins.get(P.gina.id).rights, { can_manage_chat: true, can_delete_messages: true, can_promote_members: true });
+});
+
+await scenario('phase 2 — anti-escalation: locked rights are kept, equal/higher admins and the owner are out of reach, outside admins can\'t be edited', async () => {
+  const fc = await dm(P.frank, '/config');
+  frankPanel = midOf(sent(fc)[0]);
+  assert.ok(kb(screenOf(P.frank, frankPanel)).some((b) => b.callback_data === `g:${ALPHA}` && /Full/.test(b.text)));
+  await press(P.frank, `g:${ALPHA}:a`, frankPanel);
+  assert.ok(dataOf(screenOf(P.frank, frankPanel)).includes(`g:${ALPHA}:a:n`), 'Full with «Add new admins» may appoint');
+  await press(P.frank, `g:${ALPHA}:a:e:${P.erin.id}`, frankPanel);
+  const labels = labelsOf(P.frank, frankPanel);
+  assert.equal(labels[0], '▫️ Change info');
+  assert.equal(labels[1], '🔒✅ Delete messages', 'Frank lacks it; Erin keeps it');
+  assert.equal(labels[4], '🔒✅ Pin messages');
+  assert.ok((await press(P.frank, `g:${ALPHA}:a:t:${P.erin.id}:4`, frankPanel)).alert);
+  await press(P.frank, `g:${ALPHA}:a:t:${P.erin.id}:0`, frankPanel);
+  await press(P.frank, `g:${ALPHA}:a:s:${P.erin.id}`, frankPanel);
+  const r = await press(P.frank, `g:${ALPHA}:a:y:${P.erin.id}`, frankPanel);
+  const [edit] = sent(r.calls, 'promoteChatMember');
+  assert.equal(edit.params.can_change_info, true, 'given');
+  assert.equal(edit.params.can_delete_messages, true, 'kept, not stripped');
+  assert.equal(edit.params.can_pin_messages, true, 'kept, not stripped');
+  assert.equal(edit.params.can_promote_members, false);
+  assert.equal(row("SELECT kind FROM aegis_promotions WHERE user_id = ? ORDER BY id DESC LIMIT 1", P.erin.id).kind, 'edit');
+  const higher = await press(P.frank, `g:${ALPHA}:a:e:${P.gina.id}`, frankPanel);
+  assert.ok(higher.alert);
+  assert.match(higher.toast, /equal to or higher than yours/);
+  assert.match((await press(P.frank, `g:${ALPHA}:a:d:${P.carol.id}`, frankPanel)).toast, /owner can't be changed/);
+  assert.match((await press(P.frank, `g:${ALPHA}:a:t:${P.gina.id}:0`, frankPanel)).toast, /expired/);
+  const dn = await press(P.dave, `g:${ALPHA}:a:n`, davePanel);
+  assert.ok(dn.alert);
+  assert.match(dn.toast, /You need full access/);
+  assert.match((await press(P.dave, `g:${ALPHA}:a:e:${P.erin.id}`, davePanel)).toast, /needs access level «Full»/);
+  assert.match((await press(P.carol, `g:${ALPHA}:a:e:${P.dave.id}`, carolPanel)).toast, /appointed outside Aegis/);
+  await press(P.carol, `g:${ALPHA}:a:i:${P.dave.id}`, carolPanel);
+  assert.match(screenOf(P.carol, carolPanel).plain, /To fix it:/);
+});
+
+await scenario('phase 2 — removing an Aegis admin (asks first): demoted in Telegram, cache and manual level gone, logged', async () => {
+  rawDatabase().prepare('INSERT INTO aegis_access (chat_id, user_id, level, set_by, set_at) VALUES (?, ?, 2, ?, 0)').run(ALPHA, P.erin.id, P.carol.id);
+  await press(P.carol, `g:${ALPHA}:a:e:${P.erin.id}`, carolPanel);
+  assert.ok(dataOf(screenOf(P.carol, carolPanel)).includes(`g:${ALPHA}:a:d:${P.erin.id}`));
+  await press(P.carol, `g:${ALPHA}:a:d:${P.erin.id}`, carolPanel);
+  assert.match(screenOf(P.carol, carolPanel).plain, new RegExp(`Remove ${n('Erin')} as an admin of ${n('Alpha')}\\?`));
+  assert.ok(alpha.admins.has(P.erin.id), 'nothing happens before the confirmation');
+  const r = await press(P.carol, `g:${ALPHA}:a:dy:${P.erin.id}`, carolPanel);
+  const [p] = sent(r.calls, 'promoteChatMember');
+  assert.equal(p.params.can_manage_chat, false);
+  assert.equal(p.params.can_delete_messages, false);
+  assert.equal(alpha.admins.has(P.erin.id), false);
+  assert.match(screenOf(P.carol, carolPanel).plain, new RegExp(`${n('Erin')} is no longer an admin`));
+  assert.equal(row('SELECT count(*) AS n FROM aegis_chat_admins WHERE chat_id = ? AND user_id = ?', ALPHA, P.erin.id).n, 0);
+  assert.equal(row('SELECT count(*) AS n FROM aegis_access WHERE chat_id = ? AND user_id = ?', ALPHA, P.erin.id).n, 0);
+  assert.ok(row("SELECT id FROM aegis_audit WHERE action = 'admin.demote' AND target = ?", String(P.erin.id)));
+  assert.ok(row("SELECT id FROM aegis_audit WHERE action = 'access.revoked' AND target = ?", String(P.erin.id)));
+});
+
+await scenario('phase 2 — access levels: none locks out, settings may change settings only, full needs confirming, default; Full admins only below themselves', async () => {
+  await press(P.carol, `g:${ALPHA}:l`, carolPanel);
+  const al = screenOf(P.carol, carolPanel);
+  assert.match(al.plain, new RegExp(`👑 ${n('Carol')} — Owner`));
+  assert.match(al.plain, new RegExp(`• ${n('Dave')} — View \\(from Telegram rights\\)`));
+  assert.match(al.plain, new RegExp(`• ${n('Frank')} — Full`));
+  assert.deepEqual(dataOf(al).filter((d) => /:l:\d/.test(d)).sort(), [P.dave.id, P.frank.id, P.gina.id].map((id) => `g:${ALPHA}:l:${id}`).sort());
+  const L = (id, v) => `g:${ALPHA}:l:${id}${v === undefined ? '' : `:${v}`}`;
+  await press(P.carol, L(P.dave.id), carolPanel);
+  assert.deepEqual(dataOf(screenOf(P.carol, carolPanel)).slice(0, 4), [L(P.dave.id, 3), L(P.dave.id, 2), L(P.dave.id, 1), L(P.dave.id, 0)]);
+  await press(P.carol, L(P.dave.id, 0), carolPanel);
+  assert.match(screenOf(P.carol, carolPanel).plain, new RegExp(`✅ ${n('Dave')}: None`));
+  assert.match(sent(await gmsg(alphaChat, P.dave, 'config'))[0].params.text, /set to None/);
+  await press(P.dave, `g:${ALPHA}`, davePanel);
+  assert.match(screenOf(P.dave, davePanel).plain, /set to None/);
+  await press(P.carol, L(P.dave.id, 2), carolPanel);
+  await press(P.dave, `g:${ALPHA}`, davePanel);
+  assert.match(screenOf(P.dave, davePanel).plain, /Your access: Settings/);
+  assert.match((await press(P.dave, L(P.frank.id), davePanel)).toast, /needs access level «Full»/);
+  await press(P.dave, `g:${ALPHA}:g:fa`, davePanel);
+  assert.equal(row('SELECT lang FROM aegis_chats WHERE chat_id = ?', ALPHA).lang, 'fa');
+  assert.match(sent(await gmsg(alphaChat, P.carol, 'config'))[0].params.text, /تنظیمات Aegis برای این چت/, 'the group now hears Persian');
+  await press(P.carol, `g:${ALPHA}:g:en`, carolPanel);
+  await press(P.carol, L(P.dave.id, 3), carolPanel);
+  assert.match(screenOf(P.carol, carolPanel).plain, new RegExp(`Give ${n('Dave')} Full access\\?`));
+  assert.equal(row('SELECT level FROM aegis_access WHERE chat_id = ? AND user_id = ?', ALPHA, P.dave.id).level, 2, 'not before confirming');
+  await press(P.carol, L(P.dave.id, '3y'), carolPanel);
+  assert.equal(row('SELECT level FROM aegis_access WHERE chat_id = ? AND user_id = ?', ALPHA, P.dave.id).level, 3);
+  await press(P.carol, L(P.dave.id, 'd'), carolPanel);
+  assert.equal(row('SELECT count(*) AS n FROM aegis_access WHERE chat_id = ? AND user_id = ?', ALPHA, P.dave.id).n, 0);
+  assert.match(screenOf(P.carol, carolPanel).plain, new RegExp(`✅ ${n('Dave')}: View`));
+  await press(P.frank, `g:${ALPHA}:l`, frankPanel);
+  assert.deepEqual(dataOf(screenOf(P.frank, frankPanel)).filter((d) => /:l:\d/.test(d)), [L(P.dave.id)]);
+  await press(P.frank, L(P.dave.id), frankPanel);
+  assert.deepEqual(dataOf(screenOf(P.frank, frankPanel)).filter((d) => /:l:\d+:/.test(d)), [L(P.dave.id, 2), L(P.dave.id, 1), L(P.dave.id, 0)]);
+  assert.match((await press(P.frank, L(P.dave.id, 3), frankPanel)).toast, /only the owner can give Full/);
+  assert.match((await press(P.frank, L(P.gina.id, 1), frankPanel)).toast, /equal to or higher than yours/);
+  assert.ok(rows("SELECT * FROM aegis_audit WHERE action = 'access.set' AND chat_id = ?", ALPHA).length >= 4);
+});
+
+await scenario('phase 2 — former admins lose access at once: a chat_member demotion, and a silent one caught by the live re-check', async () => {
+  rawDatabase().prepare('INSERT INTO aegis_access (chat_id, user_id, level, set_by, set_at) VALUES (?, ?, 2, ?, 0)').run(ALPHA, P.dave.id, P.carol.id);
+  alpha.admins.delete(P.dave.id);
+  alpha.members.add(P.dave.id);
+  const c = await adminChange(alphaChat, P.carol, P.dave, { status: 'administrator', can_be_edited: false, can_delete_messages: true }, { status: 'member' });
+  assert.equal(sent(c).length, 0);
+  assert.equal(row('SELECT count(*) AS n FROM aegis_chat_admins WHERE chat_id = ? AND user_id = ?', ALPHA, P.dave.id).n, 0);
+  assert.equal(row('SELECT count(*) AS n FROM aegis_access WHERE chat_id = ? AND user_id = ?', ALPHA, P.dave.id).n, 0);
+  assert.ok(row("SELECT id FROM aegis_audit WHERE action = 'access.revoked' AND target = ?", String(P.dave.id)));
+  assert.equal(row("SELECT actor_id FROM aegis_audit WHERE action = 'admin.outside' AND target = ?", String(P.dave.id)).actor_id, P.carol.id);
+  await press(P.dave, `g:${ALPHA}`, davePanel);
+  assert.match(screenOf(P.dave, davePanel).plain, new RegExp(`not an admin of ${n('Alpha')}`));
+  assert.equal(sent(await gmsg(alphaChat, P.dave, 'config')).length, 0, 'no longer answered in the group either');
+  alpha.admins.delete(P.frank.id);
+  alpha.members.add(P.frank.id);
+  await press(P.frank, `g:${ALPHA}`, frankPanel);
+  assert.match(screenOf(P.frank, frankPanel).plain, /not an admin/);
+  assert.equal(row('SELECT count(*) AS n FROM aegis_chat_admins WHERE chat_id = ? AND user_id = ?', ALPHA, P.frank.id).n, 0);
+  assert.match(sent(await dm(P.frank, '/config'))[0].params.text, /No chats yet/);
+});
+
+await scenario('phase 2 — reminders about admins appointed outside Aegis: right after one appears (gap 10 min), daily on activity, switchable', async () => {
+  tick(601);
+  alpha.admins.set(P.hank.id, { status: 'administrator', user: P.hank, rights: { can_delete_messages: true }, promotedBy: P.carol.id });
+  const c = await adminChange(alphaChat, P.carol, P.hank, { status: 'member' }, { status: 'administrator', can_be_edited: false, can_delete_messages: true });
+  const [rem] = toChat(c, ALPHA);
+  assert.ok(rem, 'a reminder right away');
+  assert.match(rem.params.text, /Admins not appointed through Aegis \(1\)/);
+  assert.match(rem.params.text, new RegExp(n('Hank')));
+  assert.equal(rem.params.reply_markup.inline_keyboard[0][0].url, `https://t.me/aegis_test_bot?start=c_${ALPHA}`);
+  alpha.admins.set(P.erin.id, { status: 'administrator', user: P.erin, rights: { can_delete_messages: true }, promotedBy: P.carol.id });
+  const c2 = await adminChange(alphaChat, P.carol, P.erin, { status: 'member' }, { status: 'administrator', can_be_edited: false, can_delete_messages: true });
+  assert.equal(toChat(c2, ALPHA).length, 0, 'not again within 10 minutes');
+  await press(P.carol, `g:${ALPHA}:r`, carolPanel);
+  assert.match(screenOf(P.carol, carolPanel).plain, /Reminders are off/);
+  tick(25 * 3600);
+  assert.equal(toChat(await gmsg(alphaChat, P.gina, 'hi'), ALPHA).length, 0, 'off: nothing');
+  await press(P.carol, `g:${ALPHA}:r`, carolPanel);
+  const act = await gmsg(alphaChat, P.gina, 'hi again');
+  assert.equal(toChat(act, ALPHA).length, 1, 'the daily reminder rides on activity');
+  assert.match(toChat(act, ALPHA)[0].params.text, /Admins not appointed through Aegis \(2\)/);
+  assert.equal(toChat(await gmsg(alphaChat, P.gina, 'and again'), ALPHA).length, 0, 'once a day');
+  await press(P.carol, `g:${ALPHA}`, carolPanel);
+  assert.match(screenOf(P.carol, carolPanel).plain, /Admins not appointed through Aegis: 2/, 'the panel always shows them');
+});
+
+await scenario('phase 2 — change log of the chat; re-check finds a right the bot lost', async () => {
+  await press(P.carol, `g:${ALPHA}:h`, carolPanel);
+  const log = screenOf(P.carol, carolPanel).plain;
+  assert.match(log, new RegExp(`Change log of ${n('Alpha')}`));
+  assert.match(log, new RegExp(`${n('Carol')}: turned reminders ON`));
+  assert.match(log, new RegExp(`${n('Carol')}: changed ${n('Hank')}'s admin status outside Aegis`));
+  assert.match(log, new RegExp(`Aegis: ${n('Frank')} lost access \\(no longer an admin\\)`));
+  assert.ok(log.split('\n').filter((l) => l.startsWith('• ')).length <= 12);
+  delete alpha.botRights.can_pin_messages;
+  await press(P.carol, `g:${ALPHA}:x`, carolPanel);
+  const root = screenOf(P.carol, carolPanel).plain;
+  assert.match(root, /Admins and permissions re-checked/);
+  assert.match(root, /Aegis is missing: Pin messages/);
+  alpha.botRights.can_pin_messages = true;
+  await press(P.carol, `g:${ALPHA}:p:r`, carolPanel);
+  assert.match(screenOf(P.carol, carolPanel).plain, /Nothing is missing/);
+});
+
+await scenario('phase 2 — a channel\'s panel offers channel rights; a basic group can\'t appoint; a migration carries admins and levels', async () => {
+  news.members.add(P.hank.id);
+  news.people.set(P.hank.id, P.hank);
+  await press(P.carol, `g:${NEWS}`, carolPanel);
+  assert.match(screenOf(P.carol, carolPanel).plain, new RegExp(`⚙️ ${n('News')} · channel`));
+  await press(P.carol, `g:${NEWS}:a:n`, carolPanel);
+  const sel = await dm(P.carol, String(P.hank.id));
+  const ed = midOf(sent(sel)[1]);
+  assert.deepEqual(labelsOf(P.carol, ed).slice(0, 8), ['▫️ Change info', '✅ Post messages', '✅ Edit others\' messages', '✅ Delete messages', '✅ Invite users',
+    '▫️ Ban and restrict users', '🔒 Manage video chats', '▫️ Add new admins']);
+  assert.match(sent(await dm(P.carol, '/cancel'))[0].params.text, /Cancelled/);
+  const c = await dm(U.ali, '/config');
+  const aliPanel = midOf(sent(c)[0]);
+  assert.ok(kb(screenOf(U.ali, aliPanel)).some((b) => b.callback_data === 'g:-4002'));
+  await press(U.ali, 'g:-4002:a', aliPanel);
+  const basicAdmins = screenOf(U.ali, aliPanel);
+  assert.ok(!dataOf(basicAdmins).includes('g:-4002:a:n'), 'no appoint button in a basic group');
+  assert.match(basicAdmins.plain, /تلگرام اجازه نمی‌دهد ربات ادمین منصوب کند/);
+  const nb = await press(U.ali, 'g:-4002:a:n', aliPanel);
+  assert.ok(nb.alert);
+  rawDatabase().prepare("INSERT INTO aegis_chat_admins (chat_id, user_id, status, via_aegis, is_bot, rights, updated_at) VALUES (-4002, 800000020, 'administrator', 0, 0, '{}', 0)").run();
+  rawDatabase().prepare('INSERT INTO aegis_access (chat_id, user_id, level, set_by, set_at) VALUES (-4002, 800000020, 2, 0, 0)').run();
+  await gmsg({ id: -4002, type: 'group', title: 'Basic' }, U.ali, null, { migrate_to_chat_id: -1004002 });
+  assert.equal(row('SELECT type FROM aegis_chats WHERE chat_id = -1004002').type, 'supergroup');
+  assert.equal(row('SELECT count(*) AS n FROM aegis_chat_admins WHERE chat_id = -1004002').n, 2);
+  assert.equal(row('SELECT level FROM aegis_access WHERE chat_id = -1004002 AND user_id = 800000020').level, 2);
+  assert.equal(row('SELECT count(*) AS n FROM aegis_chat_admins WHERE chat_id = -4002').n, 0);
+});
+
+await scenario('phase 2 — owner: /status; /shutdown asks, then only the owner is served (membership still recorded quietly); /activate', async () => {
+  assert.ok(mock.state.commands.some((c) => c.scope.type === 'chat' && c.scope.chat_id === OWNER_ID && c.commands.some((x) => x.command === 'shutdown')));
+  const st = await dm(U.owner, '/status');
+  const s = sent(st)[0].params.text;
+  assert.match(s, /وضعیت Aegis/);
+  assert.match(s, /✅ فعال/);
+  assert.match(s, /نسخه‌ی 0\.2\.0 · فاز ۲ · داده ۲/);
+  assert.match(s, /وبهوک: ۰ آپدیت در انتظار/);
+  assert.equal(sent(st, 'getWebhookInfo').length, 1);
+  for (const w of ['/status', 'وضعیت', '/shutdown', 'خاموش', '/activate']) assert.doesNotMatch(sent(await dm(U.ali, w))[0].params.text, /وضعیت Aegis|خاموش شود/, w);
+  const ask = await dm(U.owner, 'خاموش');
+  const askMsg = sent(ask)[0];
+  assert.match(askMsg.params.text, /Aegis خاموش شود؟/);
+  assert.equal(row("SELECT value FROM aegis_kv WHERE key = 'shutdown'").value, '0', 'not before confirming');
+  await press(U.owner, 'sy:offy', midOf(askMsg));
+  assert.equal(row("SELECT value FROM aegis_kv WHERE key = 'shutdown'").value, '1');
+  assert.match(screenOf(U.owner, midOf(askMsg)).plain, /Aegis خاموش شد/);
+  assert.ok(row("SELECT id FROM aegis_audit WHERE action = 'system.shutdown'"));
+  assert.equal(sent(await dm(U.ali, '/start')).length, 0, 'private messages: no answer');
+  const cb = await press(U.ali, 'hp', lastBotMessage(U.ali.id).message_id);
+  assert.ok(cb.alert);
+  assert.match(cb.toast, /موقتاً متوقف/);
+  assert.equal(sent(await gmsg(alphaChat, P.carol, 'config')).length, 0, 'groups: nothing');
+  const quietRights = { can_manage_chat: true, can_delete_messages: true };
+  mock.addChat({ id: -1009200, type: 'supergroup', title: 'Quiet', botRights: quietRights });
+  const q = await botChange({ id: -1009200, type: 'supergroup', title: 'Quiet' }, P.carol, 'left', 'administrator', quietRights);
+  assert.equal(sent(q).length, 0, 'added while shut down: recorded, nothing sent');
+  assert.equal(row('SELECT registered FROM aegis_chats WHERE chat_id = -1009200').registered, 1);
+  assert.match(sent(await dm(U.owner, '/panel'))[0].params.text, /Aegis خاموش است/);
+  const on = await dm(U.owner, 'فعال‌سازی');
+  assert.match(sent(on)[0].params.text, /Aegis دوباره فعال است/);
+  assert.equal(row("SELECT value FROM aegis_kv WHERE key = 'shutdown'").value, '0');
+  assert.ok(sent(await dm(U.ali, '/start')).length >= 1, 'answering again');
+  assert.match(sent(await dm(U.owner, '/activate'))[0].params.text, /از قبل فعال است/);
+});
+
+await scenario('after a deploy with new command menus, they are sent on the next private message (the retry throttle is per revision)', async () => {
+  rawDatabase().prepare("UPDATE aegis_kv SET value = '1' WHERE key = 'cmd_rev'").run();
+  rawDatabase().prepare("INSERT INTO aegis_kv (key, value) VALUES ('cmd_try_1', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(Math.floor(clock / 1000)));
+  rawDatabase().prepare("DELETE FROM aegis_kv WHERE key = 'cmd_try_2'").run();
+  const c = await dm(U.ali, '/help');
+  assert.equal(sent(c, 'setMyCommands').length, 6);
+  assert.equal(sent(c, 'setMyDefaultAdministratorRights').length, 2);
+  assert.equal(row("SELECT value FROM aegis_kv WHERE key = 'cmd_rev'").value, '2');
+  assert.equal(sent(await dm(U.ali, '/help'), 'setMyCommands').length, 0, 'once');
 });
 
 await scenario('every language renders the main screens; no unexpected console errors', async () => {

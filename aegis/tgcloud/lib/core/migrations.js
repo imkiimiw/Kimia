@@ -18,6 +18,14 @@ export const MIGRATIONS = [
       if (s.join_enabled === undefined) await kv.set(ctx, 'join_enabled', '1');
     },
   },
+  {
+    v: 2,
+    name: 'phase 2: global switch on; chats tracked before phase 2 are registered on their next update',
+    async run(ctx) {
+      const s = await kv.all(ctx);
+      if (s.shutdown === undefined) await kv.set(ctx, 'shutdown', '0');
+    },
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].v;

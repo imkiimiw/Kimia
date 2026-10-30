@@ -15,7 +15,7 @@ export default async function (input) {
   const action = input && input.action;
   if (action === 'read') {
     return {
-      kv: await db.all(sql`SELECT key, value FROM aegis_kv WHERE key IN ('data_version', 'join_enabled', 'join_rev', 'cmd_rev', 'bot_id', 'bot_username') LIMIT 20`),
+      kv: await db.all(sql`SELECT key, value FROM aegis_kv WHERE key IN ('data_version', 'join_enabled', 'join_rev', 'cmd_rev', 'bot_id', 'bot_username', 'shutdown') LIMIT 20`),
       channels: await db.all(sql`SELECT id, username, chat_id, title, bot_admin, last_error, position FROM aegis_join_channels ORDER BY position LIMIT 20`),
       users: await db.all(sql`SELECT user_id, lang, lang_set, started, blocked FROM aegis_users WHERE user_id BETWEEN ${LO} AND ${HI} LIMIT 50`),
       tables: await db.all(sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'aegis_%' ORDER BY name LIMIT 50`),

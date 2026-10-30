@@ -3,5 +3,9 @@
   "language": "Changer de langue",
   "help": "Aide",
   "panel": "Panneau du propriétaire",
-  "cancel": "Annuler l’étape en cours"
+  "cancel": "Annuler l’étape en cours",
+  "config": "Mes discussions et réglages",
+  "status": "Statut (propriétaire)",
+  "shutdown": "Arrêter (propriétaire)",
+  "activate": "Réactiver (propriétaire)"
 }

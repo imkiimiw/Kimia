@@ -9,5 +9,6 @@
   "off": "OFF",
   "dur_h": "{n} h",
   "dur_m": "{n} min",
-  "dur_s": "{n} s"
+  "dur_s": "{n} s",
+  "sep": ", "
 }

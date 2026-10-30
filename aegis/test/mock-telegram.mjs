@@ -4,7 +4,10 @@
 // too-long text, callback_data over 64 bytes, buttons without exactly one action, web_app buttons
 // outside private chats, editing a missing message, "message is not modified", answering a button
 // twice, copying a message that doesn't exist. It can also inject 429s, kicked chats and group →
-// supergroup migrations for the broadcast tests.
+// supergroup migrations for the broadcast tests. Admins follow Telegram's rules: a chat has a
+// creator and admins (each remembers who promoted it); promoteChatMember works only in supergroups
+// and channels, needs the bot's can_promote_members, can grant only rights the bot has, and can
+// edit or demote only admins the bot promoted itself (can_be_edited).
 import { Buffer } from 'node:buffer';
 import http from 'node:http';
 
@@ -46,6 +49,22 @@ export function parseHtml(text) {
 
 export function checkMarkup(markup, { privateChat = true } = {}) {
   if (!markup) return null;
+  if (markup.remove_keyboard === true) return null;
+  if (Array.isArray(markup.keyboard)) {
+    for (const row of markup.keyboard) {
+      if (!Array.isArray(row) || !row.length) return 'keyboard row is empty';
+      for (const b of row) {
+        if (!b.text) return 'button text is empty';
+        if (b.request_users) {
+          if (!privateChat) return 'BUTTON_TYPE_INVALID';
+          const r = b.request_users;
+          if (!Number.isInteger(r.request_id)) return 'request_id must be an integer';
+          if (r.max_quantity !== undefined && (r.max_quantity < 1 || r.max_quantity > 10)) return 'bad max_quantity';
+        }
+      }
+    }
+    return null;
+  }
   const rows = markup.inline_keyboard;
   if (!Array.isArray(rows)) return 'reply markup is not an inline keyboard';
   for (const row of rows) {
@@ -120,6 +139,24 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     state.messages.set(k(chatId, id), { chat: Number(chatId), message_id: id, from: bot, ...fields });
     return id;
   }
+  const RIGHTS = ['can_manage_chat', 'can_change_info', 'can_post_messages', 'can_edit_messages', 'can_delete_messages', 'can_invite_users',
+    'can_restrict_members', 'can_pin_messages', 'can_manage_topics', 'can_promote_members', 'can_manage_video_chats', 'can_post_stories',
+    'can_edit_stories', 'can_delete_stories'];
+  function botMember(c) {
+    if (c.kicked) return { status: 'kicked', user: bot };
+    if (c.botAdmin) return { status: 'administrator', user: bot, can_be_edited: false, ...(c.botRights || {}) };
+    return { status: c.type === 'channel' ? 'left' : 'member', user: bot };
+  }
+  function memberOf(c, userId) {
+    const id = Number(userId);
+    if (id === botId) return botMember(c);
+    const a = c.admins && c.admins.get(id);
+    if (a && a.status === 'creator') return { status: 'creator', user: a.user, is_anonymous: false };
+    if (a) return { status: 'administrator', user: a.user, can_be_edited: a.promotedBy === botId, is_anonymous: false, ...a.rights };
+    const user = (c.people && c.people.get(id)) || { id, is_bot: false, first_name: `User ${id}` };
+    if (c.members.has(id)) return { status: 'member', user };
+    return { status: 'left', user };
+  }
   function flood(p) {
     if (Number(p.chat_id) === Number(p.from_chat_id)) return null;
     state.sendsToOthers += 1;
@@ -148,7 +185,8 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       const m = checkMarkup(p.reply_markup, { privateChat: Number(p.chat_id) > 0 });
       if (m) return err(400, `Bad Request: ${m}`);
       const id = store(p.chat_id, { text: p.text, plain: plainOf(p), markup: markupOf(p), kind: 'text' });
-      return ok({ message_id: id, from: bot, chat: { id: Number(p.chat_id), type: Number(p.chat_id) > 0 ? 'private' : 'supergroup' }, date: 0, text: p.text });
+      const ct = Number(p.chat_id) > 0 ? 'private' : ((state.chats.get(Number(p.chat_id)) || {}).type || 'supergroup');
+      return ok({ message_id: id, from: bot, chat: { id: Number(p.chat_id), type: ct }, date: 0, text: p.text });
     },
     copyMessage: (p) => {
       const bad = reachable(p.chat_id) || flood(p);
@@ -196,10 +234,54 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     getChatMember: (p) => {
       const c = chat(p.chat_id);
       if (!c) return err(400, 'Bad Request: chat not found');
-      if (Number(p.user_id) === botId) return ok({ status: c.kicked ? 'kicked' : (c.botAdmin ? 'administrator' : 'left'), user: bot });
+      if (Number(p.user_id) === botId) return ok(botMember(c));
       if (c.broken || (c.type === 'channel' && !c.botAdmin)) return err(400, 'Bad Request: member list is inaccessible');
-      return ok({ status: c.members.has(Number(p.user_id)) ? 'member' : 'left', user: { id: Number(p.user_id) } });
+      if (!Number.isSafeInteger(Number(p.user_id)) || Number(p.user_id) <= 0) return err(400, 'Bad Request: invalid user_id specified');
+      return ok(memberOf(c, p.user_id));
     },
+    getChatAdministrators: (p) => {
+      const c = chat(p.chat_id);
+      if (!c) return err(400, 'Bad Request: chat not found');
+      if (c.kicked || (c.type === 'channel' && !c.botAdmin)) return err(400, 'Bad Request: CHAT_ADMIN_REQUIRED');
+      const list = [];
+      for (const id of (c.admins || new Map()).keys()) list.push(memberOf(c, id));
+      if (c.botAdmin) list.push(botMember(c));
+      return ok(list);
+    },
+    promoteChatMember: (p) => {
+      const c = chat(p.chat_id);
+      if (!c) return err(400, 'Bad Request: chat not found');
+      if (c.type !== 'supergroup' && c.type !== 'channel') return err(400, 'Bad Request: method is available for supergroup and channel chats only');
+      if (!c.botAdmin || !(c.botRights || {}).can_promote_members) return err(400, 'Bad Request: not enough rights');
+      const id = Number(p.user_id);
+      const cur = c.admins.get(id);
+      if (cur && cur.status === 'creator') return err(400, "Bad Request: can't change chat owner");
+      if (cur && cur.promotedBy !== botId) return err(400, 'Bad Request: CHAT_ADMIN_REQUIRED');
+      if (!cur && !c.members.has(id)) return err(400, 'Bad Request: USER_NOT_PARTICIPANT');
+      const rights = {};
+      for (const r of RIGHTS) if (p[r] === true) rights[r] = true;
+      for (const r of Object.keys(rights)) if (r !== 'can_manage_chat' && !(c.botRights || {})[r]) return err(400, 'Bad Request: RIGHT_FORBIDDEN');
+      const granting = Object.keys(rights).filter((r) => r !== 'can_manage_chat');
+      if (!granting.length && !rights.can_manage_chat) {
+        c.admins.delete(id);
+        c.members.add(id);
+        return ok(true);
+      }
+      const user = (cur && cur.user) || (c.people && c.people.get(id)) || { id, is_bot: false, first_name: `User ${id}` };
+      c.admins.set(id, { status: 'administrator', user, rights, promotedBy: botId });
+      return ok(true);
+    },
+    setMyDefaultAdministratorRights: (p) => {
+      const r = p.rights || {};
+      for (const f of ['is_anonymous', 'can_manage_chat', 'can_delete_messages', 'can_manage_video_chats', 'can_restrict_members', 'can_promote_members',
+        'can_change_info', 'can_invite_users', 'can_post_stories', 'can_edit_stories', 'can_delete_stories']) {
+        if (typeof r[f] !== 'boolean') return err(400, `Bad Request: field "${f}" must be a boolean`);
+      }
+      state.defaultRights = state.defaultRights || {};
+      state.defaultRights[p.for_channels ? 'channel' : 'group'] = r;
+      return ok(true);
+    },
+    getWebhookInfo: () => ok({ url: 'https://cloud.telegram.org/app1/webhook', has_custom_certificate: false, pending_update_count: state.pendingUpdates || 0 }),
     getChat: (p) => {
       const c = chat(p.chat_id);
       if (!c) return err(400, 'Bad Request: chat not found');
@@ -244,7 +326,7 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     state,
     bot,
     addChat(c) {
-      const full = { members: new Set(), botAdmin: true, ...c };
+      const full = { members: new Set(), admins: new Map(), people: new Map(), botAdmin: true, ...c };
       state.chats.set(c.id, full);
       return full;
     },

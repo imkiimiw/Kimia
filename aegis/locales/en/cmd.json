@@ -3,5 +3,9 @@
   "language": "Change language",
   "help": "Help",
   "panel": "Owner panel",
-  "cancel": "Cancel the current step"
+  "cancel": "Cancel the current step",
+  "config": "My chats and settings",
+  "status": "Status (owner)",
+  "shutdown": "Shut down (owner)",
+  "activate": "Activate (owner)"
 }

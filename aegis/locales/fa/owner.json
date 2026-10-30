@@ -7,5 +7,8 @@
   "btn_stats": "📊 آمار",
   "btn_join": "🔒 عضویت اجباری",
   "btn_bc": "📣 پیام همگانی",
-  "btn_main": "🏠 منوی اصلی"
+  "btn_main": "🏠 منوی اصلی",
+  "btn_status": "🩺 وضعیت",
+  "summary_shutdown": "⛔️ <b>Aegis خاموش است</b> — /activate",
+  "title_short": "👑 پنل مالک"
 }

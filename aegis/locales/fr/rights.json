@@ -1,0 +1,17 @@
+{
+  "req_delete": "Supprimer des messages",
+  "req_restrict": "Restreindre des membres",
+  "req_ban": "Bannir des membres",
+  "req_invite": "Inviter par lien",
+  "req_pin": "Épingler des messages",
+  "req_promote": "Ajouter des administrateurs",
+  "can_change_info": "Modifier les infos",
+  "can_post_messages": "Publier des messages",
+  "can_edit_messages": "Modifier les messages des autres",
+  "can_delete_messages": "Supprimer des messages",
+  "can_invite_users": "Inviter des utilisateurs",
+  "can_restrict_members": "Bannir et restreindre",
+  "can_pin_messages": "Épingler des messages",
+  "can_manage_video_chats": "Gérer les chats vidéo",
+  "can_promote_members": "Ajouter des administrateurs"
+}

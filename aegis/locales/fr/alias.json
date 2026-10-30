@@ -3,5 +3,9 @@
   "help": "aide",
   "language": "langue",
   "panel": "panneau",
-  "cancel": "annuler"
+  "cancel": "annuler",
+  "config": "configuration|réglages",
+  "status": "statut",
+  "shutdown": "arrêt",
+  "activate": "activer"
 }

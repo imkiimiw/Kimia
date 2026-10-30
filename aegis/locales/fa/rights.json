@@ -1,0 +1,17 @@
+{
+  "req_delete": "حذف پیام‌ها",
+  "req_restrict": "محدود کردن اعضا",
+  "req_ban": "اخراج (بن) اعضا",
+  "req_invite": "دعوت کاربران با لینک",
+  "req_pin": "سنجاق کردن پیام",
+  "req_promote": "افزودن ادمین جدید",
+  "can_change_info": "تغییر اطلاعات",
+  "can_post_messages": "ارسال پست",
+  "can_edit_messages": "ویرایش پیام دیگران",
+  "can_delete_messages": "حذف پیام‌ها",
+  "can_invite_users": "دعوت کاربران",
+  "can_restrict_members": "بن و محدود کردن",
+  "can_pin_messages": "سنجاق کردن پیام",
+  "can_manage_video_chats": "مدیریت ویدیوچت",
+  "can_promote_members": "افزودن ادمین جدید"
+}

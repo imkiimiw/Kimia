@@ -7,5 +7,8 @@
   "btn_stats": "📊 Statistics",
   "btn_join": "🔒 Forced join",
   "btn_bc": "📣 Broadcast",
-  "btn_main": "🏠 Main menu"
+  "btn_main": "🏠 Main menu",
+  "btn_status": "🩺 Status",
+  "summary_shutdown": "⛔️ <b>Aegis is shut down</b> — /activate",
+  "title_short": "👑 Owner panel"
 }

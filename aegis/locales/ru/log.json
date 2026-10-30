@@ -1,0 +1,22 @@
+{
+  "title": "📜 <b>Журнал изменений {title}</b>",
+  "empty": "Пока пусто.",
+  "line": "• {ago} назад — {who}: {what}",
+  "system": "Aegis",
+  "other": "{action}",
+  "chat_added": "добавил Aegis",
+  "chat_removed": "удалил Aegis",
+  "chat_registered": "настроил чат",
+  "chat_rights": "изменил права Aegis",
+  "chat_migrated": "группа стала супергруппой",
+  "chat_lang": "сменил язык чата на {lang}",
+  "chat_reminder": "напоминания: {state}",
+  "admin_promote": "назначил {target} администратором",
+  "admin_edit": "изменил права {target}",
+  "admin_demote": "снял {target} с должности администратора",
+  "admin_outside": "изменил статус администратора {target} не через Aegis",
+  "access_set": "установил доступ {target}: {level}",
+  "access_revoked": "{target} лишился доступа (больше не администратор)",
+  "join_add": "добавил этот чат в список обязательной подписки",
+  "join_remove": "убрал этот чат из списка обязательной подписки"
+}

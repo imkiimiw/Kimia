@@ -6,6 +6,8 @@ import { AEGIS_OWNER_ID } from './env.js';
 
 export const OWNER_ID = AEGIS_OWNER_ID;
 export const BOT_NAME = 'Aegis';
+export const VERSION = '0.2.0';
+export const PHASE = 2;
 
 /* Languages, in picker order. fa is right-to-left. */
 export const LANGS = ['fa', 'en', 'ru', 'zh', 'fr'];
@@ -33,6 +35,13 @@ export const BC_PROGRESS_EVERY_SEC = 15; /* background progress edits at most th
 export const BC_MAX_BUTTON_ROWS = 8;
 export const BC_MAX_BUTTONS_PER_ROW = 4;
 export const BC_MAX_BUTTON_TEXT = 48;
+
+/* Chats and admins (Phase 2). */
+export const ADMIN_CACHE_SEC = 10 * 60; /* a chat's cached admin list is refreshed after this */
+export const REMINDER_INTERVAL_SEC = 24 * 3600; /* "admins not appointed through Aegis" in the group, at most this often */
+export const REMINDER_EVENT_GAP_SEC = 10 * 60; /* … and after a new such admin, not more often than this */
+export const CHATS_PAGE = 8; /* chats per page in «پیکربندی» */
+export const LOG_PAGE = 12; /* change-log entries shown in a chat's panel */
 
 /* Pending inputs (e.g. "send the broadcast message") expire after this. */
 export const STATE_TTL_SEC = 30 * 60;

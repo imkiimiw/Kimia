@@ -1,16 +1,20 @@
 /*
- * Groups and channels the bot is in (aegis_chats), kept from my_chat_member updates. Phase 1 keeps
- * only what the owner's stats and group/channel broadcasts need: membership, type, title, member
- * count. (Permission checks, warnings and registration are Phase 2.)
+ * Groups and channels the bot is in (aegis_chats), kept from my_chat_member updates: membership,
+ * type, title, member count, the bot's own rights and the per-chat settings.
  * - member_count is cached and refreshed lazily with getChatMemberCount (stats view, joining).
- * - A group upgraded to a supergroup gets a new id (migrate_to_chat_id): the row moves with it.
+ * - bot_rights / missing: the bot's rights and the required ones it lacks (engines/rights.js).
+ * - registered: Aegis set the chat up (sent the warning, read the admins) — engines in ui/group.js.
+ * - A group upgraded to a supergroup gets a new id (migrate_to_chat_id): the row, its admin cache,
+ *   access levels and promotion history move with it.
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
 import { MEMBER_COUNT_TTL_SEC } from '../config.js';
 import * as audit from '../core/audit.js';
 import { call, describeError, isApiError } from '../core/tg.js';
-import { nowSec } from '../core/util.js';
+import { nowSec, parseJson } from '../core/util.js';
+import * as admins from './admins.js';
+import { missingRequired, rightsOf } from './rights.js';
 
 const ACTIVE = new Set(['member', 'administrator', 'creator', 'restricted']);
 export const isGroupType = (type) => type === 'group' || type === 'supergroup';
@@ -61,16 +65,57 @@ export async function onBotMembership(ctx, upd, lang) {
   return { wasActive, active: !!active };
 }
 
-/* A group became a supergroup: its row moves to the new id. */
+/* A group became a supergroup: its row (and everything keyed by the chat) moves to the new id. */
 export async function migrate(oldId, newId) {
   const old = await get(oldId);
   if (!old) return;
   if (await get(newId)) {
+    await db.run(sql`UPDATE aegis_chats SET lang = ${old.lang}, reminder = ${old.reminder}, registered = MAX(registered, ${old.registered}),
+      added_by = CASE WHEN added_by = 0 THEN ${old.added_by} ELSE added_by END WHERE chat_id = ${newId}`);
     await db.run(sql`DELETE FROM aegis_chats WHERE chat_id = ${oldId}`);
   } else {
     await db.run(sql`UPDATE aegis_chats SET chat_id = ${newId}, type = 'supergroup', updated_at = ${nowSec()} WHERE chat_id = ${oldId}`);
   }
+  await admins.migrate(oldId, newId);
   await audit.log(0, 'chat.migrated', { chatId: newId, target: String(oldId) });
+}
+
+/* Stores the bot's own rights in a chat. Gives { prev, missing } (lists of required right ids). */
+export async function setBotRights(chatId, chatType, member) {
+  const before = await get(chatId);
+  const prev = parseJson(before && before.missing, null);
+  const missing = missingRequired(chatType, member);
+  await db.run(sql`UPDATE aegis_chats SET bot_rights = ${JSON.stringify(rightsOf(member))}, missing = ${JSON.stringify(missing)},
+    rights_at = ${nowSec()} WHERE chat_id = ${chatId}`);
+  return { prev, missing };
+}
+
+/* True the first time a chat is registered (and again after the bot was removed and re-added). */
+export async function markRegistered(chatId) {
+  const r = await db.run(sql`UPDATE aegis_chats SET registered = 1, registered_at = ${nowSec()} WHERE chat_id = ${chatId} AND registered = 0`);
+  return r.rowsAffected > 0;
+}
+
+export async function unregister(chatId) {
+  await db.run(sql`UPDATE aegis_chats SET registered = 0 WHERE chat_id = ${chatId}`);
+}
+
+export async function setLang(chatId, lang) {
+  await db.run(sql`UPDATE aegis_chats SET lang = ${lang}, updated_at = ${nowSec()} WHERE chat_id = ${chatId}`);
+}
+
+export async function setReminder(chatId, on) {
+  await db.run(sql`UPDATE aegis_chats SET reminder = ${on ? 1 : 0}, updated_at = ${nowSec()} WHERE chat_id = ${chatId}`);
+}
+
+/* True for one caller when the chat's last reminder is at least `gap` seconds old. */
+export async function claimReminder(chatId, now, gap) {
+  const r = await db.run(sql`UPDATE aegis_chats SET reminded_at = ${now} WHERE chat_id = ${chatId} AND reminder = 1 AND reminded_at <= ${now - gap}`);
+  return r.rowsAffected > 0;
+}
+
+export async function countRegistered() {
+  return Number((await db.get(sql`SELECT count(*) AS n FROM aegis_chats WHERE active = 1 AND registered = 1`)).n);
 }
 
 export async function setInactive(chatId, status = 'left') {

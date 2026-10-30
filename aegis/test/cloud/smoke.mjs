@@ -6,8 +6,9 @@
 // `finally`, never pushed) and deletes the fake users again.
 //
 // What it proves on the real platform: modules load in the isolate, the tables and indexes exist,
-// the data migration ran, command menus are accepted in all 5 languages, the forced-join check runs
-// against the real default channels (and shows where Aegis is not an admin yet), block tracking works.
+// the data migrations ran, command menus (5 languages) and the default admin rights are accepted by
+// Telegram, the global switch is on, the forced-join check runs against the real default channels
+// (and shows where Aegis is not an admin yet), block tracking works.
 //
 //   cd aegis && npm run test:cloud      (needs Aegis_BOT_TGCLOUD_TOKEN)
 import { spawnSync } from 'node:child_process';
@@ -44,15 +45,16 @@ fs.copyFileSync(DEV_SRC, DEV_DST);
 try {
   const before = dev('read');
   const tables = before.tables.map((t) => t.name);
-  check('9 aegis_ tables exist', tables.length === 9, tables.join(', '));
-  check('indexes exist', before.indexes.length >= 10, `${before.indexes.length} idx_aegis_*`);
+  check('12 aegis_ tables exist', tables.length === 12, tables.join(', '));
+  check('indexes exist', before.indexes.length >= 16, `${before.indexes.length} idx_aegis_*`);
 
   const r1 = tg(['handlers/message', JSON5.stringify(message(user(A, 'fa'), '/start'))]);
   check('/start runs on the platform without errors', !r1.error, r1.error || '');
   check('first contact shows the language picker', r1.trace.some((e) => e.view === 'language'));
   const kv = Object.fromEntries(dev('read').kv.map((r) => [r.key, r.value]));
-  check('data migration applied', kv.data_version === '1', `data_version=${kv.data_version}`);
-  check('command menus accepted by Telegram in all languages', kv.cmd_rev === '1');
+  check('data migrations applied', kv.data_version === '2', `data_version=${kv.data_version}`);
+  check('command menus and default admin rights accepted by Telegram', kv.cmd_rev === '2', `cmd_rev=${kv.cmd_rev}`);
+  check('the global switch is on (not shut down)', kv.shutdown === '0', `shutdown=${kv.shutdown}`);
 
   const cq = { id: 'smoke', from: user(A, 'fa'), chat_instance: 'x', data: 'lg:fa', message: { message_id: 1, chat: { id: A, type: 'private' }, date: 0, text: 'x' } };
   const r2 = tg(['handlers/callback_query', JSON5.stringify(cq)]);

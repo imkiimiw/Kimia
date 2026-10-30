@@ -56,7 +56,7 @@ test('button labels and command descriptions fit Telegram limits', () => {
     for (const [key, s] of Object.entries(dicts[lang])) {
       if (/\.btn_|^common\.(back|cancel|no|yes_remove|refresh)$|^bc\.(aud|mode)_btn_/.test(key)) assert.ok(s.length <= 64, `${lang} ${key} is too long for a button`);
       if (key.startsWith('cmd.')) assert.ok(s.length >= 1 && s.length <= 256, `${lang} ${key}`);
-      if (key.startsWith('app.') || key.startsWith('cmd.') || key.startsWith('alias.')) assert.ok(!/[<>]/.test(s), `${lang} ${key} must be plain text`);
+      if (/^(app|cmd|alias|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
     }
   }
 });
@@ -79,6 +79,9 @@ test('every locale key the code names exists (literal keys and the dynamic famil
       for (const m of call[1].matchAll(/['`]([a-z]+)\.([a-z_]+)['`]/g)) if (namespaces.has(m[1])) used.add(`${m[1]}.${m[2]}`);
     }
     for (const m of src.matchAll(/\bkey = [^;]*/g)) for (const k of m[0].matchAll(/'([a-z]+\.[a-z_]+)'/g)) used.add(k[1]);
+    /* keys chosen before the t() call: `return 'chat.x'`, `error = 'chat.x'`, `? 'chat.x' : 'chat.y'` */
+    for (const m of src.matchAll(/(?:return|=|\?|:)\s*\(?'([a-z]+)\.([a-z_]+)'/g)) if (namespaces.has(m[1]) && dicts.en[`${m[1]}.${m[2]}`] !== undefined) used.add(`${m[1]}.${m[2]}`);
+    for (const m of src.matchAll(/(?:return|=)\s*'(chat|group|sys)\.([a-z_]+)'/g)) used.add(`${m[1]}.${m[2]}`);
   }
   const families = {
     'bc.st_': ['draft', 'queued', 'running', 'paused', 'done', 'cancelled'],
@@ -89,13 +92,35 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'bc.toast_': ['wait', 'locked', 'not_running', 'batch'],
     'cmd.': ['start', 'language', 'help', 'panel', 'cancel'],
     'alias.': ['start', 'language', 'help', 'panel', 'cancel'],
+    'alias2.': [],
     'app.': ['title', 'idle', 'sent', 'failed', 'blocked', 'left', 'audience', 'mode', 'status', 'wait', 'hint', 'pause', 'resume', 'cancel', 'cancel_q', 'close', 'paused_source_gone', 'error'],
     'lang.': ['name', 'flag', 'pick', 'current', 'saved'],
+    'alias.': ['config', 'status', 'shutdown', 'activate'],
+    'cmd.': ['config', 'status', 'shutdown', 'activate'],
+    'chat.type_': ['group', 'supergroup', 'channel'],
+    'chat.block_': ['no_rights', 'creator', 'not_admin', 'not_via_aegis', 'higher', 'level'],
+    'rights.req_': ['delete', 'restrict', 'ban', 'invite', 'pin', 'promote'],
+    'rights.': ['can_change_info', 'can_post_messages', 'can_edit_messages', 'can_delete_messages', 'can_invite_users', 'can_restrict_members',
+      'can_pin_messages', 'can_manage_video_chats', 'can_promote_members'],
+    'levels.': ['none', 'view', 'settings', 'full', 'creator'],
   };
   for (const [prefix, names] of Object.entries(families)) for (const n of names) used.add(`${prefix}${n}`);
+  used.delete('alias2.');
   const missing = [...used].filter((k) => dicts.en[k] === undefined);
   assert.deepEqual(missing, []);
-  assert.ok(used.size > 150, `only ${used.size} keys found in code`);
+  assert.ok(used.size > 300, `only ${used.size} keys found in code`);
+});
+
+test('every change a chat\'s panel can show in its change log has a log line in every language', () => {
+  const actions = new Set();
+  for (const file of walk(path.join(ROOT, 'tgcloud'))) {
+    const src = fs.readFileSync(file, 'utf8');
+    for (const m of src.matchAll(/audit\.log\([^,]+,\s*[`']([a-z]+)\.([a-z_]+)[`'],\s*\{[^}]*\bchatId\b/g)) actions.add(`log.${m[1]}_${m[2]}`);
+    for (const m of src.matchAll(/audit\.log\([^,]+,\s*`admin\.\$\{kind\}`/g)) for (const k of ['promote', 'edit']) actions.add(`log.admin_${k}`);
+  }
+  assert.ok(actions.size >= 10, [...actions].join(', '));
+  const missing = [...actions].filter((k) => dicts.en[k] === undefined);
+  assert.deepEqual(missing, []);
 });
 
 test('Persian: every line starts with a right-to-left mark; Persian digits and separators', () => {

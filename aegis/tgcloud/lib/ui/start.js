@@ -3,8 +3,10 @@
  * Every screen edits the pressed message when there is one, else sends a new message.
  */
 import { OWNER_ID } from '../config.js';
+import { me } from '../core/bot.js';
 import { btn, screen, urlBtn } from '../core/tg.js';
 import { iso, fullName } from '../core/util.js';
+import { addToChannelUrl, addToGroupUrl } from '../engines/rights.js';
 import { LANGS, langFlag, langName, t } from '../i18n/index.js';
 
 /* Picker text: the prompt in every language (the user may not have one yet). */
@@ -24,8 +26,13 @@ export async function picker(ctx, user, place = null) {
   return screen(ctx, user.user_id, place, pickerText(current), pickerRows(current), 'language');
 }
 
-export function mainRows(lang, userId) {
-  const rows = [[btn(t(lang, 'start.btn_language'), 'lg'), btn(t(lang, 'start.btn_help'), 'hp')]];
+export async function mainRows(ctx, lang, userId) {
+  const bot = (await me(ctx)).username;
+  const rows = [
+    [btn(t(lang, 'start.btn_my_chats'), 'cl')],
+    [urlBtn(t(lang, 'start.btn_add_group'), addToGroupUrl(bot)), urlBtn(t(lang, 'start.btn_add_channel'), addToChannelUrl(bot))],
+    [btn(t(lang, 'start.btn_language'), 'lg'), btn(t(lang, 'start.btn_help'), 'hp')],
+  ];
   if (userId === OWNER_ID) rows.push([btn(t(lang, 'start.btn_owner'), 'op')]);
   return rows;
 }
@@ -33,7 +40,7 @@ export function mainRows(lang, userId) {
 export async function welcome(ctx, user, from, place = null) {
   const lang = user.lang;
   const text = t(lang, 'start.welcome', { name: iso(fullName(from) || user.first_name || '') });
-  return screen(ctx, user.user_id, place, text, mainRows(lang, user.user_id), 'welcome');
+  return screen(ctx, user.user_id, place, text, await mainRows(ctx, lang, user.user_id), 'welcome');
 }
 
 export async function help(ctx, user, place = null) {

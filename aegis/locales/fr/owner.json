@@ -7,5 +7,8 @@
   "btn_stats": "📊 Statistiques",
   "btn_join": "🔒 Adhésion obligatoire",
   "btn_bc": "📣 Diffusion",
-  "btn_main": "🏠 Menu principal"
+  "btn_main": "🏠 Menu principal",
+  "btn_status": "🩺 Statut",
+  "summary_shutdown": "⛔️ <b>Aegis est arrêté</b> — /activate",
+  "title_short": "👑 Panneau du propriétaire"
 }

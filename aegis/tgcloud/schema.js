@@ -6,7 +6,7 @@
  * Data migrations (seeding, backfills) are versioned in lib/core/migrations.js.
  * Only block comments in this project's modules: a paste that loses its line breaks still works.
  */
-import { table, integer, text, index, sql } from 'sdk/db';
+import { table, integer, text, index, uniqueIndex, sql } from 'sdk/db';
 
 /*
  * Everyone the bot has met in private. started = has opened the bot's private chat (/start or any
@@ -40,7 +40,11 @@ export const users = table('aegis_users', {
 /*
  * Groups, supergroups and channels the bot is or was in, from my_chat_member. active = the bot is
  * in the chat now (member/administrator). member_count is cached (getChatMemberCount) and refreshed
- * lazily. lang = the language for messages the bot posts there.
+ * lazily. lang = the language for messages the bot posts there (set in the chat's panel).
+ * registered = Aegis has set the chat up (Phase 2): bot_rights is the bot's own ChatMember rights
+ * (JSON), missing the required rights it lacks (JSON list of right ids, see lib/engines/rights.js).
+ * admins_at = when the admin cache (aegis_chat_admins) was last refreshed. reminder = remind the
+ * group about admins not appointed through Aegis (reminded_at: the last reminder).
  */
 export const chats = table('aegis_chats', {
   chatId: integer('chat_id').primaryKey(),
@@ -55,9 +59,67 @@ export const chats = table('aegis_chats', {
   countAt: integer('count_at').notNull().default(0),
   joinedAt: integer('joined_at').notNull().default(0),
   updatedAt: integer('updated_at').notNull().default(0),
+  registered: integer('registered').notNull().default(0),
+  registeredAt: integer('registered_at').notNull().default(0),
+  botRights: text('bot_rights'),
+  missing: text('missing'),
+  rightsAt: integer('rights_at').notNull().default(0),
+  adminsAt: integer('admins_at').notNull().default(0),
+  reminder: integer('reminder').notNull().default(1),
+  remindedAt: integer('reminded_at').notNull().default(0),
 }, (t) => ({
   activeType: index('idx_aegis_chats_active_type').on(t.active, t.type, t.chatId),
   countAt: index('idx_aegis_chats_count_at').on(t.active, t.countAt),
+}));
+
+/*
+ * Cache of each chat's administrators (getChatAdministrators / chat_member / getChatMember).
+ * via_aegis = can_be_edited: Telegram lets the bot edit or demote only admins it promoted itself.
+ * rights = the admin's rights (JSON). A row disappears when the user stops being an admin, together
+ * with their access override (former-admin revocation).
+ */
+export const chatAdmins = table('aegis_chat_admins', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  status: text('status').notNull(), /* creator, administrator */
+  viaAegis: integer('via_aegis').notNull().default(0),
+  isBot: integer('is_bot').notNull().default(0),
+  rights: text('rights'),
+  firstName: text('first_name'),
+  username: text('username'),
+  updatedAt: integer('updated_at').notNull().default(0),
+}, (t) => ({
+  byChatUser: uniqueIndex('idx_aegis_chat_admins_chat_user').on(t.chatId, t.userId),
+  byUser: index('idx_aegis_chat_admins_user').on(t.userId),
+}));
+
+/*
+ * Aegis access levels set by hand for an admin of a chat (otherwise the level follows their
+ * Telegram rights — lib/engines/admins.js). Levels: 0 none, 1 view, 2 settings, 3 full.
+ */
+export const access = table('aegis_access', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  level: integer('level').notNull(),
+  setBy: integer('set_by').notNull().default(0),
+  setAt: integer('set_at').notNull().default(0),
+}, (t) => ({
+  byChatUser: uniqueIndex('idx_aegis_access_chat_user').on(t.chatId, t.userId),
+}));
+
+/* Every promotion, edit and demotion Aegis made (who, whom, which rights) — kept for later phases. */
+export const promotions = table('aegis_promotions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  actorId: integer('actor_id').notNull(),
+  kind: text('kind').notNull(), /* promote, edit, demote */
+  rights: text('rights'),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byChatUser: index('idx_aegis_promotions_chat_user').on(t.chatId, t.userId, t.at),
 }));
 
 /*

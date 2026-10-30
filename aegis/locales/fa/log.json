@@ -1,0 +1,22 @@
+{
+  "title": "📜 <b>گزارش تغییرات {title}</b>",
+  "empty": "هنوز چیزی ثبت نشده.",
+  "line": "• {ago} پیش — {who}: {what}",
+  "system": "Aegis",
+  "other": "{action}",
+  "chat_added": "Aegis را اضافه کرد",
+  "chat_removed": "Aegis را حذف کرد",
+  "chat_registered": "چت را راه‌اندازی کرد",
+  "chat_rights": "دسترسی‌های Aegis را تغییر داد",
+  "chat_migrated": "گروه سوپرگروه شد",
+  "chat_lang": "زبان چت را {lang} کرد",
+  "chat_reminder": "یادآوری را {state} کرد",
+  "admin_promote": "{target} را ادمین کرد",
+  "admin_edit": "دسترسی‌های {target} را تغییر داد",
+  "admin_demote": "{target} را از ادمینی برکنار کرد",
+  "admin_outside": "وضعیت ادمینی {target} را خارج از Aegis تغییر داد",
+  "access_set": "دسترسی {target} را {level} کرد",
+  "access_revoked": "دسترسی {target} حذف شد (دیگر ادمین نیست)",
+  "join_add": "این چت را به فهرست عضویت اجباری اضافه کرد",
+  "join_remove": "این چت را از فهرست عضویت اجباری حذف کرد"
+}
