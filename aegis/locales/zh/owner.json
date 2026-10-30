@@ -1,0 +1,11 @@
+{
+  "title": "👑 <b>所有者面板</b>",
+  "summary_users": "👤 可触达用户：<b>{n}</b>",
+  "summary_chats": "👥 群组：<b>{groups}</b> · 📢 频道：<b>{channels}</b>",
+  "summary_join": "🔒 强制加入：<b>{state}</b>（{n} 个频道）",
+  "summary_bc": "📣 群发 #{id}：<b>{status}</b>",
+  "btn_stats": "📊 统计",
+  "btn_join": "🔒 强制加入",
+  "btn_bc": "📣 群发",
+  "btn_main": "🏠 主菜单"
+}

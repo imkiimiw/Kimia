@@ -1,0 +1,8 @@
+{
+  "welcome": "🛡 <b>Aegis</b>\n\n{name}，你好！\nAegis 是一个用于 Telegram 群组和频道的管理与安全机器人。\n\n使用下方按钮切换语言或查看帮助。",
+  "btn_language": "🌐 语言",
+  "btn_help": "❓ 帮助",
+  "btn_owner": "👑 所有者面板",
+  "help": "❓ <b>帮助</b>\n\n命令 —— 也可以直接发送英文或波斯文单词：\n/start —— 主菜单（start · شروع）\n/language —— 切换语言（language · زبان）\n/help —— 本帮助（help · راهنما）\n/cancel —— 取消当前步骤（cancel · لغو）\n\n要在此聊天中使用 Aegis，请先加入它的频道。",
+  "help_owner": "👑 <b>所有者</b>\n/panel —— 所有者面板（panel · پنل）：统计、强制加入频道、群发。"
+}

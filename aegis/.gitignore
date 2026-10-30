@@ -1,0 +1,10 @@
+node_modules/
+# tgcloud CLI state, including a saved access token: never commit
+.tgcloud/
+# local secrets (see .env.example)
+.env
+*.log
+test/output/
+
+# the cloud smoke test's temporary endpoint (copied in for a run, always deleted): never push it
+tgcloud/endpoints/zz_devtools.js

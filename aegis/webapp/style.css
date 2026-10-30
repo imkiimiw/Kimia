@@ -1,0 +1,42 @@
+:root {
+  --bg: var(--tg-theme-bg-color, #ffffff);
+  --text: var(--tg-theme-text-color, #111111);
+  --hint: var(--tg-theme-hint-color, #888888);
+  --accent: var(--tg-theme-button-color, #2481cc);
+  --accent-text: var(--tg-theme-button-text-color, #ffffff);
+  --card: var(--tg-theme-secondary-bg-color, #f2f2f5);
+  --danger: var(--tg-theme-destructive-text-color, #d93025);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 20px 16px;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Vazirmatn, Tahoma, Roboto, "Noto Sans SC", sans-serif;
+}
+h1 { font-size: 20px; margin: 0 0 4px; }
+.muted { color: var(--hint); margin: 4px 0 16px; }
+.center { text-align: center; font-size: 28px; }
+.bar { height: 12px; background: var(--card); border-radius: 6px; overflow: hidden; }
+#fill { height: 100%; width: 0; background: var(--accent); transition: width .4s ease; }
+.big { font-size: 28px; font-weight: 700; margin: 10px 0 16px; font-variant-numeric: tabular-nums; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid div { background: var(--card); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; }
+.grid span { color: var(--hint); font-size: 13px; }
+.grid b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.actions { display: flex; gap: 10px; margin: 18px 0 10px; }
+button {
+  flex: 1;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px;
+  font: inherit;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--accent-text);
+}
+button.danger { background: var(--card); color: var(--danger); }
+button.plain { width: 100%; background: transparent; color: var(--hint); }
+button[hidden] { display: none; }
+button:disabled { opacity: .5; }

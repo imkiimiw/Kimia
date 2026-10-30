@@ -1,0 +1,222 @@
+/*
+ * Entry points for every update type Aegis handles, and the order of checks.
+ *
+ * Every update:  dedupe (update_id seen? → skip) → data migrations → the handler → background jobs
+ * (lib/jobs.js). Everything is caught: a failure is recorded (aegis_errors + console JSON + a
+ * rate-limited note to the owner) and the update still returns { trace } for `npx tgcloud run`.
+ * Every button press is answered exactly once.
+ *
+ * Private message:  user tracked (started) → /cancel → a pending owner input (slash commands
+ * interrupt it; plain words don't) → no language chosen yet → language picker → /language →
+ * forced join (owner exempt) → /help, /panel (owner) → otherwise the main menu.
+ * Group / channel messages: only a group → supergroup migration is recorded (groups are Phase 2).
+ *
+ * callback_data (private chat only in Phase 1):
+ *   lg            language picker            lg:<fa|en|ru|zh|fr>   set language
+ *   jc            "✅ I joined" (re-check, no cache)
+ *   mm            main menu                  hp                    help
+ *   op os oj… ob… bc:… ox   owner panel (OWNER_ID only; anyone else gets a silent answer) —
+ *                 see ui/owner.js and ui/owner_bc.js for the full table.
+ *
+ * my_chat_member: private → the user blocked / unblocked the bot; group/supergroup/channel → the
+ * bot's membership there (engines/chats.js).
+ */
+import { OWNER_ID } from './config.js';
+import { parseCommand, syncCommands, syncOwnerCommands } from './core/commands.js';
+import * as dedupe from './core/dedupe.js';
+import * as errors from './core/errors.js';
+import * as migrations from './core/migrations.js';
+import * as state from './core/state.js';
+import { answer, createCtx, send } from './core/tg.js';
+import * as chats from './engines/chats.js';
+import * as join from './engines/join.js';
+import * as users from './engines/users.js';
+import { isLang, pickLang, t } from './i18n/index.js';
+import { afterUpdate } from './jobs.js';
+import * as owner from './ui/owner.js';
+import * as ownerBc from './ui/owner_bc.js';
+import * as start from './ui/start.js';
+
+const OWNER_HEADS = new Set(['op', 'os', 'oj', 'ob', 'bc', 'ox']);
+
+function result(ctx) {
+  const out = { trace: ctx.trace };
+  if (ctx.error) out.error = ctx.error;
+  if (ctx.duplicate) out.duplicate = true;
+  if (ctx.gc) out.gc = ctx.gc;
+  return out;
+}
+
+async function run(kind, pctx, fn, extra = {}) {
+  const update = pctx && pctx.update;
+  const ctx = createCtx({ kind, updateId: update && Number.isSafeInteger(update.update_id) ? update.update_id : null, ...extra });
+  try {
+    if (!(await dedupe.begin(ctx.updateId))) {
+      ctx.duplicate = true;
+      return result(ctx);
+    }
+    await migrations.ensure(ctx);
+    await fn(ctx);
+  } catch (err) {
+    await errors.record(ctx, err, { source: kind, updateId: ctx.updateId || 0, chatId: ctx.chatId || 0, userId: ctx.userId || 0 });
+  }
+  try {
+    await dedupe.finish(ctx.updateId);
+  } catch (err) {
+    console.warn(`dedupe.finish: ${String((err && err.message) || err)}`);
+  }
+  await answer(ctx);
+  await afterUpdate(ctx);
+  return result(ctx);
+}
+
+/* ---------- messages ---------- */
+
+export function onMessage(message, pctx) {
+  return run('message', pctx, (ctx) => handleMessage(ctx, message));
+}
+
+async function ownerInput(ctx, user, message, pending) {
+  const lang = user.lang;
+  if (pending.kind === 'join_add') return owner.joinAddInput(ctx, lang, message);
+  if (pending.kind === 'bc_content') return ownerBc.contentInput(ctx, lang, message, pending.data);
+  if (pending.kind === 'bc_buttons') return ownerBc.buttonsInput(ctx, lang, message, pending.data);
+  await state.clear(user.user_id);
+  return owner.panel(ctx, lang);
+}
+
+async function handleMessage(ctx, message) {
+  const chat = message.chat;
+  if (!chat) return;
+  ctx.chatId = chat.id;
+  if (chat.type !== 'private') {
+    if (message.migrate_to_chat_id) await chats.migrate(chat.id, message.migrate_to_chat_id);
+    return;
+  }
+  const from = message.from;
+  if (!from || from.is_bot) return;
+  ctx.userId = from.id;
+  const isOwner = from.id === OWNER_ID;
+  const user = await users.touch(from, { started: true });
+  await syncCommands(ctx);
+  const pending = isOwner ? await state.get(from.id) : null;
+  const cmd = parseCommand(message.text, { aliases: !pending });
+  if (cmd === 'cancel') {
+    await state.clear(from.id);
+    await send(ctx, from.id, t(user.lang, 'common.cancelled'), start.mainRows(user.lang, from.id), 'cancelled');
+    return;
+  }
+  if (pending && !cmd) {
+    await ownerInput(ctx, user, message, pending);
+    return;
+  }
+  if (pending) await state.clear(from.id);
+  if (!Number(user.lang_set) || cmd === 'language') {
+    await start.picker(ctx, user);
+    return;
+  }
+  if (isOwner) await syncOwnerCommands(ctx, user.lang);
+  const j = await join.status(ctx, from.id);
+  if (!j.ok) {
+    await start.joinScreen(ctx, user, j.missing);
+    return;
+  }
+  if (cmd === 'help') await start.help(ctx, user);
+  else if (cmd === 'panel' && isOwner) await owner.panel(ctx, user.lang);
+  else await start.welcome(ctx, user, from);
+}
+
+/* ---------- buttons ---------- */
+
+export function onCallback(cq, pctx) {
+  return run('callback_query', pctx, (ctx) => handleCallback(ctx, cq), { callbackId: cq.id });
+}
+
+async function ownerCallback(ctx, user, parts, place) {
+  const lang = user.lang;
+  const head = parts[0];
+  if (head === 'op') return owner.panel(ctx, lang, place);
+  if (head === 'ox') {
+    await state.clear(OWNER_ID);
+    return owner.panel(ctx, lang, place);
+  }
+  if (head === 'os') return owner.stats(ctx, lang, place);
+  if (head === 'oj') return owner.joinCallback(ctx, lang, parts, place);
+  return ownerBc.callback(ctx, lang, parts, place);
+}
+
+async function handleCallback(ctx, cq) {
+  const from = cq.from;
+  const msg = cq.message;
+  if (!from || !msg || !msg.chat || msg.chat.type !== 'private') return;
+  ctx.userId = from.id;
+  ctx.chatId = msg.chat.id;
+  const place = { chat_id: msg.chat.id, message_id: msg.message_id };
+  const user = await users.touch(from);
+  const data = String(cq.data || '');
+  if (data.length > 64) return;
+  const parts = data.split(':');
+  const head = parts[0];
+
+  if (head === 'lg') {
+    if (parts.length === 1) return start.picker(ctx, user, place);
+    const lang = parts[1];
+    if (!isLang(lang)) return null;
+    await users.setLang(from.id, lang);
+    user.lang = lang;
+    user.lang_set = 1;
+    await answer(ctx, t(lang, 'lang.saved'));
+    if (from.id === OWNER_ID) await syncOwnerCommands(ctx, lang);
+    const j = await join.status(ctx, from.id);
+    if (!j.ok) return start.joinScreen(ctx, user, j.missing, place);
+    return start.welcome(ctx, user, from, place);
+  }
+  if (head === 'jc') {
+    const j = await join.status(ctx, from.id, { force: true });
+    if (!j.ok) {
+      await answer(ctx, t(user.lang, 'join.missing_alert', { n: j.missing.length }), true);
+      return start.joinScreen(ctx, user, j.missing, place);
+    }
+    await answer(ctx, t(user.lang, 'join.thanks'));
+    return start.welcome(ctx, user, from, place);
+  }
+  if (OWNER_HEADS.has(head)) {
+    if (from.id !== OWNER_ID) return null;
+    return ownerCallback(ctx, user, parts, place);
+  }
+  const j = await join.status(ctx, from.id);
+  if (!j.ok) {
+    await answer(ctx, t(user.lang, 'join.missing_alert', { n: j.missing.length }), true);
+    return start.joinScreen(ctx, user, j.missing, place);
+  }
+  if (head === 'hp') return start.help(ctx, user, place);
+  return start.welcome(ctx, user, from, place);
+}
+
+/* ---------- the bot's own membership ---------- */
+
+export function onMyChatMember(upd, pctx) {
+  return run('my_chat_member', pctx, (ctx) => handleMyChatMember(ctx, upd));
+}
+
+async function handleMyChatMember(ctx, upd) {
+  const chat = upd.chat;
+  if (!chat) return;
+  ctx.chatId = chat.id;
+  const status = upd.new_chat_member && upd.new_chat_member.status;
+  if (chat.type === 'private') {
+    if (!upd.from) return;
+    ctx.userId = upd.from.id;
+    if (status === 'kicked') await users.markBlocked(upd.from.id);
+    else if (status === 'member') await users.markUnblocked(upd.from);
+    return;
+  }
+  if (!chats.isTracked(chat.type)) return;
+  let lang = 'en';
+  if (upd.from && !upd.from.is_bot) {
+    ctx.userId = upd.from.id;
+    const u = await users.get(upd.from.id);
+    lang = u && Number(u.lang_set) ? u.lang : pickLang(upd.from.language_code);
+  }
+  await chats.onBotMembership(ctx, upd, lang);
+}

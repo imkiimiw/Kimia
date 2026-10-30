@@ -1,0 +1,8 @@
+{
+  "welcome": "🛡 <b>Aegis</b>\n\nHello {name}!\nAegis is a management and security bot for Telegram groups and channels.\n\nUse the buttons below to change the language or read the help.",
+  "btn_language": "🌐 Language",
+  "btn_help": "❓ Help",
+  "btn_owner": "👑 Owner panel",
+  "help": "❓ <b>Help</b>\n\nCommands — each also works as a plain word, in English or Persian:\n/start — main menu (start · شروع)\n/language — change the language (language · زبان)\n/help — this help (help · راهنما)\n/cancel — cancel the current step (cancel · لغو)\n\nTo use Aegis in this chat you must first join its channels.",
+  "help_owner": "👑 <b>Owner</b>\n/panel — owner panel (panel · پنل): statistics, forced-join channels, broadcasts."
+}

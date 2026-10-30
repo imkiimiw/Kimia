@@ -1,0 +1,22 @@
+{
+  "name": "aegis-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Aegis: Telegram group & channel management/security bot on Telegram Serverless (tgcloud). Phase 1: core.",
+  "scripts": {
+    "build": "node scripts/build-locales.mjs && node scripts/gen-env.mjs",
+    "locales": "node scripts/build-locales.mjs",
+    "test": "node scripts/build-locales.mjs --check && node --no-warnings test/static.mjs && npm run test:unit --silent && npm run test:e2e --silent",
+    "test:unit": "node --no-warnings --import ./test/sdk/register.mjs --test test/unit/*.test.mjs",
+    "test:e2e": "node --no-warnings --import ./test/sdk/register.mjs test/e2e.mjs",
+    "tg": "node scripts/tg.mjs",
+    "status": "node scripts/tg.mjs status",
+    "deploy": "node scripts/tg.mjs deploy",
+    "test:cloud": "node test/cloud/smoke.mjs"
+  },
+  "devDependencies": {
+    "@tgcloud/cli": "^0.2.0",
+    "json5": "^2.2.3"
+  }
+}

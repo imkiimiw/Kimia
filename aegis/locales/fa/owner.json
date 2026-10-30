@@ -1,0 +1,11 @@
+{
+  "title": "👑 <b>پنل مالک</b>",
+  "summary_users": "👤 کاربرانِ در دسترس: <b>{n}</b>",
+  "summary_chats": "👥 گروه‌ها: <b>{groups}</b> · 📢 کانال‌ها: <b>{channels}</b>",
+  "summary_join": "🔒 عضویت اجباری: <b>{state}</b> ({n} کانال)",
+  "summary_bc": "📣 پیام همگانی #{id}: <b>{status}</b>",
+  "btn_stats": "📊 آمار",
+  "btn_join": "🔒 عضویت اجباری",
+  "btn_bc": "📣 پیام همگانی",
+  "btn_main": "🏠 منوی اصلی"
+}

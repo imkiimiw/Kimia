@@ -1,0 +1,11 @@
+{
+  "title": "👑 <b>Owner panel</b>",
+  "summary_users": "👤 Reachable users: <b>{n}</b>",
+  "summary_chats": "👥 Groups: <b>{groups}</b> · 📢 Channels: <b>{channels}</b>",
+  "summary_join": "🔒 Forced join: <b>{state}</b> ({n} channels)",
+  "summary_bc": "📣 Broadcast #{id}: <b>{status}</b>",
+  "btn_stats": "📊 Statistics",
+  "btn_join": "🔒 Forced join",
+  "btn_bc": "📣 Broadcast",
+  "btn_main": "🏠 Main menu"
+}

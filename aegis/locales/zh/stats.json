@@ -1,0 +1,13 @@
+{
+  "title": "📊 <b>统计</b>",
+  "started": "👤 启动过机器人：<b>{n}</b>",
+  "reachable": "🟢 活跃（可接收消息）：<b>{n}</b>",
+  "blocked": "⛔️ 屏蔽了机器人：<b>{n}</b>",
+  "new": "🆕 新用户：今天 <b>{today}</b> · 近 7 天 <b>{week}</b>",
+  "active": "⚡️ 使用过机器人：近 24 小时 <b>{d1}</b> · 近 7 天 <b>{d7}</b>",
+  "chats": "👥 群组：<b>{groups}</b> · 📢 频道：<b>{channels}</b>",
+  "members": "👨‍👩‍👧 这些聊天的成员总数：<b>{n}</b>",
+  "members_stale": "⏳ 仍有 {n} 个聊天的成员数超过 1 小时未更新 —— 请点击「刷新」。",
+  "errors": "🧯 近 24 小时错误：<b>{n}</b>",
+  "note": "<i>“今天”从德黑兰时间 00:00 开始计算。成员数来自 Telegram（getChatMemberCount），每小时刷新。</i>"
+}

@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Aegis</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <!-- Aegis owner's live broadcast page. Every label comes from the bcLive endpoint in the owner's language. -->
+  <main id="app" hidden>
+    <h1 id="title"></h1>
+    <p id="meta" class="muted"></p>
+    <div class="bar"><div id="fill"></div></div>
+    <p id="pct" class="big"></p>
+    <div class="grid">
+      <div><span id="l-sent"></span><b id="v-sent"></b></div>
+      <div><span id="l-failed"></span><b id="v-failed"></b></div>
+      <div><span id="l-blocked"></span><b id="v-blocked"></b></div>
+      <div><span id="l-left"></span><b id="v-left"></b></div>
+    </div>
+    <p id="note" class="muted"></p>
+    <div class="actions">
+      <button id="b-toggle" type="button"></button>
+      <button id="b-cancel" type="button" class="danger"></button>
+    </div>
+    <button id="b-close" type="button" class="plain"></button>
+  </main>
+  <p id="loading" class="center">⏳</p>
+  <script src="app.js"></script>
+</body>
+</html>

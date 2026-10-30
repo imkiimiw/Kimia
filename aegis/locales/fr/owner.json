@@ -1,0 +1,11 @@
+{
+  "title": "👑 <b>Panneau du propriétaire</b>",
+  "summary_users": "👤 Utilisateurs joignables : <b>{n}</b>",
+  "summary_chats": "👥 Groupes : <b>{groups}</b> · 📢 Canaux : <b>{channels}</b>",
+  "summary_join": "🔒 Adhésion obligatoire : <b>{state}</b> ({n} canaux)",
+  "summary_bc": "📣 Diffusion n°{id} : <b>{status}</b>",
+  "btn_stats": "📊 Statistiques",
+  "btn_join": "🔒 Adhésion obligatoire",
+  "btn_bc": "📣 Diffusion",
+  "btn_main": "🏠 Menu principal"
+}

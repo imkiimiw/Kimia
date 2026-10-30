@@ -1,0 +1,13 @@
+{
+  "back": "⬅️ Back",
+  "cancel": "✖️ Cancel",
+  "cancelled": "✖️ Cancelled.",
+  "no": "No",
+  "yes_remove": "🗑 Yes, remove",
+  "refresh": "🔄 Refresh",
+  "on": "ON",
+  "off": "OFF",
+  "dur_h": "{n} h",
+  "dur_m": "{n} min",
+  "dur_s": "{n} s"
+}

@@ -1,0 +1,13 @@
+{
+  "back": "⬅️ Retour",
+  "cancel": "✖️ Annuler",
+  "cancelled": "✖️ Annulé.",
+  "no": "Non",
+  "yes_remove": "🗑 Oui, retirer",
+  "refresh": "🔄 Actualiser",
+  "on": "ACTIVÉ",
+  "off": "DÉSACTIVÉ",
+  "dur_h": "{n} h",
+  "dur_m": "{n} min",
+  "dur_s": "{n} s"
+}

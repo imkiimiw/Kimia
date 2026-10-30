@@ -1,0 +1,20 @@
+{
+  "title": "Diffusion",
+  "idle": "Aucune diffusion en cours.",
+  "sent": "Envoyés",
+  "failed": "Échecs",
+  "blocked": "Bloqués",
+  "left": "Restants",
+  "audience": "Destinataires",
+  "mode": "Mode",
+  "status": "État",
+  "wait": "Telegram demande d’attendre :",
+  "hint": "Gardez cette page ouverte : elle envoie environ 25 messages par seconde.",
+  "pause": "⏸ Pause",
+  "resume": "▶️ Reprendre",
+  "cancel": "⛔️ Annuler",
+  "cancel_q": "Annuler cette diffusion ? Les messages déjà envoyés restent.",
+  "close": "Fermer",
+  "paused_source_gone": "En pause : le message d’origine a été supprimé.",
+  "error": "Erreur"
+}

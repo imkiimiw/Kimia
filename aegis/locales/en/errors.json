@@ -1,0 +1,3 @@
+{
+  "owner_notice": "🧯 <b>Aegis error</b> in <code>{source}</code>:\n<code>{message}</code>\n\n<i>Recorded in the error log. You get at most one such note every 30 minutes.</i>"
+}

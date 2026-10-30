@@ -1,0 +1,8 @@
+{
+  // Aegis. The Mini App in webapp/ (plain HTML/JS, no build step) is the owner's live broadcast
+  // page, served at https://app<app id>.tgcloud.ai/ and opened from the owner panel.
+  "$schema": "./node_modules/@tgcloud/cli/schema/tgcloud.json",
+  "static": {
+    "source": "webapp"
+  }
+}
