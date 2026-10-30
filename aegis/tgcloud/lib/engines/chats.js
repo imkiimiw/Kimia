@@ -15,13 +15,16 @@ import { call, describeError, isApiError } from '../core/tg.js';
 import { nowSec, parseJson } from '../core/util.js';
 import * as admins from './admins.js';
 import * as feds from './feds.js';
+import * as groupdata from './groupdata.js';
 import * as guards from './guards.js';
 import * as lists from './lists.js';
 import * as locks from './locks.js';
 import * as members from './members.js';
+import * as msglog from './msglog.js';
 import * as punish from './punish.js';
 import * as settings from './settings.js';
 import { missingRequired, rightsOf } from './rights.js';
+import * as schedules from './schedules.js';
 
 const ACTIVE = new Set(['member', 'administrator', 'creator', 'restricted']);
 export const isGroupType = (type) => type === 'group' || type === 'supergroup';
@@ -91,6 +94,9 @@ export async function migrate(oldId, newId) {
   await members.migrate(oldId, newId);
   await guards.migrate(oldId, newId);
   await feds.migrate(oldId, newId);
+  await msglog.migrate(oldId, newId);
+  await schedules.migrate(oldId, newId);
+  await groupdata.migrate(oldId, newId);
   await audit.log(0, 'chat.migrated', { chatId: newId, target: String(oldId) });
 }
 

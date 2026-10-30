@@ -1,15 +1,16 @@
-// End-to-end tests of Phase 1: the real handlers and the Mini App endpoint (tgcloud/) against a local
+// End-to-end tests of Phases 1-6: the real handlers and the Mini App endpoint (tgcloud/) against a local
 // emulation of the platform's sdk (test/sdk/: SQLite via node:sqlite) and a strict mock Bot API
 // (test/mock-telegram.mjs). Web/Node globals the isolate lacks are removed first, the clock is fake.
 // Every Persian message is checked for right-to-left marks; every button press must be answered once.
 // Run: npm run test:e2e
 import assert from 'node:assert/strict';
-import { createMockTelegram } from './mock-telegram.mjs';
+import { createMockTelegram, parseHtml } from './mock-telegram.mjs';
 import { rawDatabase, setupDatabase } from './sdk/db.mjs';
 import * as schema from '../tgcloud/schema.js';
 import { BC_BATCH, BC_CHUNK, JOIN_CACHE_SEC, MAX_JOIN_CHANNELS, OWNER_ID, PHASE, VERSION } from '../tgcloud/lib/config.js';
 import { LATEST } from '../tgcloud/lib/core/migrations.js';
 import { num } from '../tgcloud/lib/i18n/index.js';
+import { fmtTime, localMinutes, TZ_OFFSETS } from '../tgcloud/lib/core/clock.js';
 
 const BOT_ID = 7200000001;
 const RLM = '\u200F';
@@ -862,7 +863,7 @@ await scenario('phase 2 — the panel: level, rights, outside admins, sections; 
   assert.match(root.plain, /Aegis has every permission it needs/);
   assert.match(root.plain, /Admins not appointed through Aegis: 1/);
   const s = (x) => `g:${ALPHA}:${x}`;
-  assert.deepEqual(dataOf(root), [s('K'), s('S'), s('L'), s('P'), s('W'), s('B'), s('F'), s('U'), s('O'), s('p'), s('a'), s('l'), s('g'), s('r'), s('h'), s('x'), 'cl']);
+  assert.deepEqual(dataOf(root), [s('K'), s('S'), s('L'), s('P'), s('W'), s('B'), s('F'), s('U'), s('V'), s('T'), s('O'), s('p'), s('a'), s('l'), s('g'), s('r'), s('h'), s('x'), 'cl']);
   await press(P.carol, s('p'), carolPanel);
   const perms = screenOf(P.carol, carolPanel).plain;
   assert.equal((perms.match(/✅/g) || []).length, 7);
@@ -1327,7 +1328,7 @@ await scenario('phase 3 — the panel: 18 lists; add, search, details, note, edi
   const c = await olgaSays('/config');
   olgaPanel = midOf(sent(c)[0]);
   await olga(`g:${BETA}`);
-  assert.deepEqual(dataOf(olgaScreen()).slice(0, 9), [B('K'), B('S'), B('L'), B('P'), B('W'), B('B'), B('F'), B('U'), B('O')]);
+  assert.deepEqual(dataOf(olgaScreen()).slice(0, 11), [B('K'), B('S'), B('L'), B('P'), B('W'), B('B'), B('F'), B('U'), B('V'), B('T'), B('O')]);
   await olga(B('L'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:L:[a-z]{3}$/.test(d)).length, 18);
   assert.match(olgaScreen().plain, /Each list belongs to this chat only/);
@@ -2330,6 +2331,523 @@ await scenario('phase 5 — Audit Mode: security only records (no deletion, puni
   await moduleOff('suspicious');
   await moduleOff('captcha');
   rawDatabase().prepare("UPDATE aegis_chat_settings SET value = '0' WHERE chat_id = ? AND key = 'audit'").run(DELTA);
+});
+
+// ---------- phase 6: advanced group settings and forum topics ----------
+
+const P6 = {};
+for (const [i, nm] of ['Amy', 'Bob', 'Cid', 'Dee', 'Eve', 'Fay', 'Gus', 'Hal', 'Ida', 'Jon'].entries()) {
+  P6[nm.toLowerCase()] = { id: 800000100 + i, is_bot: false, first_name: nm, language_code: 'en', username: `${nm.toLowerCase()}_p6` };
+}
+const ZETA = -1009900;
+const ZNEWS = -1009901;
+const ZEV = -1009902;
+const zetaChat = { id: ZETA, type: 'supergroup', title: 'Zeta', is_forum: true };
+let zeta = null;
+const Z = (x) => `g:${ZETA}:${x}`;
+const V = (x) => Z(`V${x ? `:${x}` : ''}`);
+const zmsg = (u, text, extra = {}) => gmsg(zetaChat, u, text, extra);
+const joinZeta = (u, from = u) => {
+  zeta.members.add(u.id);
+  zeta.people.set(u.id, u);
+  return adminChange(zetaChat, from, u, { status: 'left' }, { status: 'member' });
+};
+const leaveZeta = (u, from = u) => {
+  zeta.members.delete(u.id);
+  return adminChange(zetaChat, from, u, { status: 'member' }, { status: 'left' });
+};
+const bulkIds = (calls) => sent(calls, 'deleteMessages').flatMap((c) => c.params.message_ids);
+const zset = (key) => (row('SELECT value FROM aegis_chat_settings WHERE chat_id = ? AND key = ?', ZETA, key) || {}).value;
+const resetAdv = (...keys) => { for (const k of keys) rawDatabase().prepare('DELETE FROM aegis_chat_settings WHERE chat_id = ? AND key = ?').run(ZETA, k); };
+async function adv(key) {
+  return olga(V(`s:${key}`));
+}
+/* Olga answers a prompt of the advanced panel; the screen after it comes as a new message. */
+async function olgaInput(button, text, extra = {}) {
+  const p = await olga(V(`i:${button}`));
+  const prompt = sent(p.calls).find((x) => x.params.chat_id === Q.olga.id);
+  const r = await olgaSays(text, extra);
+  return { prompt: prompt && prompt.params.text, calls: r, last: sent(r).filter((x) => x.params.chat_id === Q.olga.id).pop() };
+}
+
+await scenario('phase 6 — ⚙️ advanced settings: 26 settings in four groups; join / pin notices deleted, leave notices kept', async () => {
+  tick(600);
+  zeta = mock.addChat({ id: ZETA, type: 'supergroup', title: 'Zeta', isForum: true, count: 25, botRights: { can_manage_chat: true, can_change_info: true,
+    can_delete_messages: true, can_restrict_members: true, can_invite_users: true, can_pin_messages: true, can_promote_members: true, can_manage_topics: true } });
+  zeta.admins.set(Q.olga.id, { status: 'creator', user: Q.olga });
+  zeta.admins.set(Q.abe.id, { status: 'administrator', user: Q.abe, rights: { can_manage_chat: true, can_delete_messages: true, can_restrict_members: true }, promotedBy: Q.olga.id });
+  for (const u of Object.values(P6)) {
+    zeta.members.add(u.id);
+    zeta.people.set(u.id, u);
+  }
+  await botChange(zetaChat, Q.olga, 'left', 'administrator', zeta.botRights);
+  rawDatabase().prepare('UPDATE aegis_chats SET reminder = 0 WHERE chat_id = ?').run(ZETA);
+  const c = await olgaSays('/config');
+  olgaPanel = midOf(sent(c)[0]);
+  await olga(`g:${ZETA}`);
+  await olga(V());
+  const home = olgaScreen().plain;
+  assert.match(home, /Advanced settings — \u2068Zeta\u2069/);
+  assert.match(home, /Cleanup: 0 of 8 on/);
+  assert.match(home, /Messages: 0 of 7 on/);
+  assert.match(home, /Commands: 3 of 6 on/);
+  assert.match(home, /Join and identity: 1 of 5 on/);
+  assert.match(home, /Time zone: UTC\+00:00/);
+  assert.equal(dataOf(olgaScreen()).filter((d) => /:V:g:/.test(d)).length, 4);
+  let total = 0;
+  for (const grp of ['clean', 'msg', 'cmd', 'join']) {
+    await olga(V(`g:${grp}`));
+    total += dataOf(olgaScreen()).filter((d) => /:V:(s:|u$)/.test(d)).length;
+  }
+  assert.equal(total, 26, 'every advanced setting has its button');
+  await olga(V('g:clean'));
+  assert.match(olgaScreen().plain, /Delete join notices: OFF\n\s+«X joined» notices are deleted\./);
+  await adv('del_join');
+  await adv('del_pin');
+  assert.match(olgaScreen().plain, /Delete join notices: ON/);
+  assert.equal(zset('del_join'), '1');
+  const sid = msgId;
+  assert.ok(ids(await zmsg(P6.amy, null, { new_chat_members: [P6.amy] })).includes(sid), 'join notice deleted');
+  const pid = msgId;
+  assert.ok(ids(await zmsg(Q.olga, null, { pinned_message: { message_id: 1, chat: zetaChat, date: 0 } })).includes(pid), 'pin notice deleted');
+  assert.equal(ids(await zmsg(P6.amy, null, { left_chat_member: P6.amy })).length, 0, 'leave notices are kept');
+  assert.equal(row("SELECT count(*) AS n FROM aegis_audit WHERE action = 'settings.set' AND chat_id = ? AND target = 'del_join'", ZETA).n, 1, 'the change is logged');
+});
+
+await scenario('phase 6 — message rules: slow mode, lines, mentions, CAPITALS, junk, length; admins exempt; Audit Mode only records; notices vanish', async () => {
+  await olga(V('g:msg'));
+  await adv('slow');
+  await adv('max_lines');
+  await adv('max_mentions');
+  await adv('caps');
+  await adv('junk');
+  assert.match(olgaScreen().plain, /Slow mode: 10 s/);
+  assert.match(olgaScreen().plain, /Max lines: 10/);
+  await olga(V('g:clean'));
+  await adv('notice_ttl');
+  assert.match(olgaScreen().plain, /Aegis notices vanish after: 1 min/);
+  tick(30);
+  assert.equal(ids(await zmsg(P6.bob, 'hello')).length, 0);
+  const s2 = msgId;
+  const sl = await zmsg(P6.bob, 'again');
+  assert.ok(ids(sl).includes(s2), 'slow mode');
+  assert.match(toChat(sl, ZETA)[0].params.text, /\u2068Bob\u2069, slow mode: one message every 10 s\./);
+  tick(6);
+  const soon = msgId;
+  assert.ok(ids(await zmsg(P6.bob, 'still too soon')).includes(soon), 'a stopped message does not restart the wait');
+  tick(5);
+  assert.equal(ids(await zmsg(P6.bob, 'later')).length, 0, '10 s after the last message that went through');
+  tick(11);
+  const many = msgId;
+  assert.ok(ids(await zmsg(P6.cid, Array.from({ length: 11 }, (_, i) => `line ${i}`).join('\n'))).includes(many), 'too many lines');
+  tick(11);
+  const men = msgId;
+  assert.ok(ids(await zmsg(P6.cid, '@aa @bb @cc @dd', { entities: [0, 4, 8, 12].map((o) => ({ type: 'mention', offset: o, length: 3 })) })).includes(men), 'mentions');
+  tick(11);
+  const caps = msgId;
+  const capsCalls = await zmsg(P6.dee, 'WHY IS NOBODY ANSWERING ME');
+  assert.ok(ids(capsCalls).includes(caps), 'shouting');
+  assert.match(toChat(capsCalls, ZETA)[0].params.text, /please don't shout/);
+  const notice = midOf(toChat(capsCalls, ZETA)[0]);
+  tick(11);
+  const junk = msgId;
+  assert.ok(ids(await zmsg(P6.dee, '.....!!!')).includes(junk), 'junk');
+  tick(11);
+  assert.equal(ids(await zmsg(P6.dee, '👍')).length, 0, 'an emoji is content');
+  tick(11);
+  assert.equal(ids(await zmsg(P6.dee, 'NASA is cool')).length, 0, 'a few capitals are fine');
+  assert.equal(ids(await zmsg(Q.abe, 'ADMINS MAY SHOUT AND WRITE FAST')).length, 0, 'admins are exempt');
+  assert.equal(ids(await zmsg(Q.abe, 'twice')).length, 0);
+  await olga(V('l'));
+  await adv('min_len');
+  await adv('max_len');
+  assert.deepEqual(labelsOf(Q.olga, olgaPanel).slice(0, 2), ['Min characters: 2', 'Max characters: 200']);
+  tick(11);
+  const short1 = msgId;
+  assert.ok(ids(await zmsg(P6.eve, 'k')).includes(short1), 'too short');
+  tick(11);
+  const long1 = msgId;
+  assert.ok(ids(await zmsg(P6.eve, 'x'.repeat(201))).includes(long1), 'too long');
+  tick(11);
+  rawDatabase().prepare("INSERT INTO aegis_chat_settings (chat_id, key, value, updated_by, updated_at) VALUES (?, 'audit', '1', 0, 0) ON CONFLICT(chat_id, key) DO UPDATE SET value = '1'").run(ZETA);
+  assert.equal(ids(await zmsg(P6.eve, 'AUDIT MODE ONLY RECORDS THIS')).length, 0, 'Audit Mode: nothing deleted');
+  resetAdv('audit');
+  tick(61);
+  const sweep = await olgaSays('/help');
+  assert.ok(bulkIds(sweep).includes(notice) || !mock.get(ZETA, notice), 'the notice vanished after a minute');
+  resetAdv('slow', 'max_lines', 'max_mentions', 'caps', 'junk', 'min_len', 'max_len', 'notice_ttl');
+});
+
+await scenario('phase 6 — late edits are removed (edit window)', async () => {
+  await olga(V('g:msg'));
+  await adv('edit_window');
+  assert.match(olgaScreen().plain, /Edits allowed for: 1 min/);
+  const id = msgId;
+  await zmsg(P6.fay, 'original');
+  const early = await run(H.edited_message, { message_id: id, from: P6.fay, chat: zetaChat, date: 1000, edit_date: 1030, text: 'fixed a typo' });
+  assert.equal(ids(early).length, 0);
+  const late = await run(H.edited_message, { message_id: id, from: P6.fay, chat: zetaChat, date: 1000, edit_date: 1200, text: 'now a scam link' });
+  assert.ok(ids(late).includes(id));
+  resetAdv('edit_window');
+  tick(10);
+});
+
+await scenario('phase 6 — rules, welcome with placeholders and buttons (old one removed), goodbye, preview, /start r_ deep link', async () => {
+  await olga(V('u'));
+  assert.match(olgaScreen().plain, /No rules have been written yet\./);
+  const r = await olgaInput('rules', '1. Be kind\n2. No <spam>');
+  assert.match(r.prompt, /Send the group's rules/);
+  assert.match(r.last.params.text, /1\. Be kind\n2\. No &lt;spam&gt;/);
+  assert.equal(zset('rules'), '1. Be kind\n2. No <spam>');
+  await olga(V('w'));
+  await adv('welcome_on');
+  await adv('goodbye_on');
+  assert.match(olgaScreen().plain, /Welcome: ON · goodbye: ON/);
+  const w = await olgaInput('welcome_text', 'Hi {name}, welcome to {group}! We are {count}.');
+  assert.match(w.prompt, /\{name\}, \{mention\}, \{group\} and \{count\}/, 'the placeholders are shown as they are typed');
+  const b = await olgaInput('welcome_btns', 'Site - https://example.org');
+  assert.match(b.last.params.text, /Welcome buttons: 1/);
+  const bad = await olgaInput('welcome_btns', 'just text');
+  assert.ok(bad.last, 'asks again');
+  await olgaSays('/cancel');
+  await onboard(P6.eve, 'en');
+  const j = await joinZeta(P6.eve);
+  const greet = toChat(j, ZETA)[0];
+  assert.equal(parseHtml(greet.params.text).plain, 'Hi Eve, welcome to Zeta! We are 25.');
+  assert.deepEqual(greet.params.reply_markup.inline_keyboard.flat().map((x) => x.url), ['https://example.org', `https://t.me/aegis_test_bot?start=r_${ZETA}`]);
+  const j2 = await joinZeta(P6.fay);
+  assert.ok(ids(j2).includes(midOf(greet)), 'the previous welcome is removed');
+  const bye = await leaveZeta(P6.eve);
+  assert.match(toChat(bye, ZETA)[0].params.text, /Goodbye, \u2068Eve\u2069\./);
+  const kicked = await leaveZeta(P6.fay, Q.olga);
+  assert.equal(toChat(kicked, ZETA).length, 0, 'no goodbye for someone removed by an admin');
+  const pv = await olga(V('wp'));
+  assert.equal(pv.toast, 'Preview sent below.');
+  assert.match(sent(pv.calls).find((x) => x.params.chat_id === Q.olga.id).params.text, /welcome to Zeta! We are 25\./);
+  const deep = await dm(P6.eve, `/start r_${ZETA}`);
+  assert.match(sent(deep)[0].params.text, /Rules of \u2068Zeta\u2069<\/b>\n\n1\. Be kind\n2\. No &lt;spam&gt;/);
+  const g1 = await zmsg(P6.gus, '/rules');
+  assert.match(toChat(g1, ZETA)[0].params.text, /Rules of \u2068Zeta\u2069/);
+  assert.equal(toChat(g1, ZETA)[0].params.reply_parameters.message_id, msgId - 1);
+  assert.match(toChat(await zmsg(P6.gus, 'قوانین'), ZETA)[0].params.text, /1\. Be kind/, 'the Persian word works too');
+  for (const u of [P6.eve, P6.fay]) zeta.members.add(u.id);
+  resetAdv('welcome_on', 'goodbye_on');
+});
+
+await scenario('phase 6 — member commands: /admins, /mywarns, answers in private, members\' commands off, commands deleted after', async () => {
+  const a = await zmsg(P6.gus, '/admins');
+  assert.match(toChat(a, ZETA)[0].params.text, /Admins of \u2068Zeta\u2069<\/b>\n👑 \u2068Olga\u2069\n• \u2068Abe\u2069/);
+  assert.match(toChat(await zmsg(P6.gus, '/mywarns'), ZETA)[0].params.text, /Your warnings here: 0 of 5\./);
+  await olga(V('g:cmd'));
+  await adv('reply_private');
+  const pm = await zmsg(P6.eve, '/rules');
+  assert.equal(toChat(pm, ZETA).length, 0);
+  assert.match(sent(pm).find((x) => x.params.chat_id === P6.eve.id).params.text, /Rules of \u2068Zeta\u2069/);
+  assert.equal(toChat(await zmsg(P6.gus, '/rules'), ZETA).length, 1, 'someone who never started the bot is answered in the group');
+  await adv('reply_private');
+  await adv('member_cmds');
+  assert.equal(toChat(await zmsg(P6.gus, '/rules'), ZETA).length, 0, 'members\' commands off');
+  assert.equal(toChat(await zmsg(Q.abe, '/rules'), ZETA).length, 1, 'admins still can');
+  await adv('member_cmds');
+  await olga(V('g:clean'));
+  await adv('del_cmds');
+  const cmdId = msgId;
+  assert.ok(ids(await zmsg(P6.gus, '/rules')).includes(cmdId), 'the command is deleted once answered');
+  resetAdv('del_cmds');
+});
+
+await scenario('phase 6 — 🚨 reports: to the admins privately with buttons; mute from the report; handled once; limits; @admin calls', async () => {
+  tick(30);
+  const target = msgId;
+  await zmsg(P6.gus, 'buy cheap followers here');
+  const rp = await zmsg(P6.hal, '/report spam', { reply_to_message: { message_id: target, from: P6.gus, chat: zetaChat, date: 0, text: 'buy cheap followers here' } });
+  assert.ok(ids(rp).includes(target + 1), 'the /report message itself goes');
+  assert.match(toChat(rp, ZETA)[0].params.text, /\u2068Hal\u2069, thanks — the admins have been told\./);
+  const toOlga = sent(rp).find((x) => x.params.chat_id === Q.olga.id);
+  const toAbe = sent(rp).find((x) => x.params.chat_id === Q.abe.id);
+  assert.ok(toOlga && toAbe, 'both admins are told');
+  assert.match(toOlga.params.text, /Report in \u2068Zeta\u2069<\/b>\n\u2068Hal\u2069 reported \u2068Gus\u2069\n💬 \u2068buy cheap followers here\u2069\n📝 Reason: \u2068spam\u2069/);
+  const rpData = toOlga.params.reply_markup.inline_keyboard.flat().map((x) => x.callback_data || x.url);
+  assert.equal(rpData[0], `https://t.me/c/9900/${target}`, 'a link to the reported message');
+  const id = row('SELECT id FROM aegis_reports ORDER BY id DESC LIMIT 1').id;
+  assert.deepEqual(rpData.slice(1), [`rp:${id}:d`, `rp:${id}:m`, `rp:${id}:b`, `rp:${id}:x`]);
+  const mute = await press(Q.olga, `rp:${id}:m`, midOf(toOlga));
+  assert.equal(mute.toast, '🔇 Deleted and muted for a day.');
+  assert.ok(ids(mute.calls).includes(target));
+  assert.equal(sent(mute.calls, 'restrictChatMember')[0].params.user_id, P6.gus.id);
+  assert.equal(row('SELECT status, handled_by FROM aegis_reports WHERE id = ?', id).status, 'muted');
+  const again = await press(Q.abe, `rp:${id}:x`, midOf(toAbe));
+  assert.equal(again.toast, 'Someone already handled this report.');
+  tick(6);
+  const self = await zmsg(P6.hal, '/report', { reply_to_message: { message_id: 1, from: Q.abe, chat: zetaChat, date: 0, text: 'admin text' } });
+  assert.match(toChat(self, ZETA)[0].params.text, /that message can't be reported/);
+  tick(6);
+  const quick = await zmsg(P6.hal, '/report', { reply_to_message: { message_id: 2, from: P6.ida, chat: zetaChat, date: 0, text: 'x' } });
+  assert.match(toChat(quick, ZETA)[0].params.text, /one report per minute/);
+  tick(6);
+  assert.match(toChat(await zmsg(P6.hal, '/report'), ZETA)[0].params.text, /reply to the message you want to report/);
+  await olga(V('r'));
+  assert.match(olgaScreen().plain, /Reports: ON · to admins privately/);
+  assert.match(olgaScreen().plain, /\u2068Hal\u2069 reported \u2068Gus\u2069: muted/);
+  tick(6);
+  const call = await zmsg(P6.dee, '@admin someone is spamming');
+  assert.match(sent(call).find((x) => x.params.chat_id === Q.olga.id).params.text, /\u2068Dee\u2069 is calling the admins in \u2068Zeta\u2069:\n\u2068@admin someone is spamming\u2069/);
+  assert.match(toChat(call, ZETA)[0].params.text, /the admins have been called/);
+  tick(60);
+  assert.equal(sent(await zmsg(P6.dee, '@admin again')).length, 0, 'once every 5 minutes');
+});
+
+await scenario('phase 6 — 📢 forced join and forced add for members (Aegis checks the channel; «I joined» button)', async () => {
+  const news = mock.addChat({ id: ZNEWS, type: 'channel', title: 'Zeta News', username: 'zeta_news' });
+  news.admins.set(Q.olga.id, { status: 'creator', user: Q.olga });
+  await olga(V('j'));
+  assert.match(olgaScreen().plain, /No channels yet\./);
+  const r = await olgaInput('fj_add', null, { chat_shared: { request_id: 51, chat_id: ZNEWS } });
+  assert.match(r.prompt, /Pick the channel or group members must join/);
+  assert.equal(r.calls.find((x) => x.method === 'sendMessage' && /added/.test(x.params.text)).params.reply_markup.remove_keyboard, true);
+  assert.deepEqual(JSON.parse(zset('fj_chats')), [{ id: ZNEWS, title: 'Zeta News', username: 'zeta_news', url: 'https://t.me/zeta_news' }]);
+  tick(6);
+  const id = msgId;
+  const stopped = await zmsg(P6.ida, 'hello all');
+  assert.ok(ids(stopped).includes(id));
+  const note = toChat(stopped, ZETA)[0];
+  assert.match(note.params.text, /\u2068Ida\u2069, join our channel first \(1 left\), then press «I joined»\./);
+  assert.deepEqual(note.params.reply_markup.inline_keyboard.flat().map((x) => x.url || x.callback_data), ['https://t.me/zeta_news', `fj:${ZETA}`]);
+  const still = await gpress(P6.ida, ZETA, `fj:${ZETA}`, midOf(note));
+  assert.equal(still.toast, 'You haven\'t joined yet (1 left).');
+  join(P6.ida, ZNEWS);
+  const okNow = await gpress(P6.ida, ZETA, `fj:${ZETA}`, midOf(note));
+  assert.equal(okNow.toast, '✅ Thanks — you can write now.');
+  assert.equal(ids(await zmsg(P6.ida, 'hello again')).length, 0);
+  assert.equal(ids(await zmsg(Q.abe, 'admins never have to join')).length, 0);
+  await olga(V('jr:0'));
+  assert.equal(zset('fj_chats'), '[]');
+  await adv('fa_n');
+  assert.match(olgaScreen().plain, /Forced add: 1/);
+  tick(6);
+  const jid = msgId;
+  const fa = await zmsg(P6.jon, 'can I talk');
+  assert.ok(ids(fa).includes(jid));
+  assert.match(toChat(fa, ZETA)[0].params.text, /\u2068Jon\u2069, add 1 more members to write here \(needed: 1\)\./);
+  await zmsg(P6.jon, null, { new_chat_members: [{ id: 830000600, is_bot: false, first_name: 'Friend' }] });
+  assert.equal(ids(await zmsg(P6.jon, 'now I can')).length, 0);
+  resetAdv('fa_n');
+});
+
+await scenario('phase 6 — 🌙 night lock in the chat\'s time zone: closes now, opens again by itself after the window', async () => {
+  await olga(V('z'));
+  assert.match(olgaScreen().plain, /Time zone: UTC\+00:00\nFixed offsets/);
+  await olga(V(`z:${TZ_OFFSETS.indexOf(0)}`));
+  assert.equal(zset('tz'), '0');
+  const m = localMinutes(nowS(), 0);
+  const from = (m + 1440 - 30) % 1440;
+  const to = (m + 30) % 1440;
+  const bad = await olgaInput('night_times', 'tonight');
+  assert.match(bad.last.params.text, /Send the night hours/);
+  const r = await olgaSays(`${fmtTime(from)} - ${fmtTime(to)}`);
+  assert.match(sent(r).pop().params.text, new RegExp(`Night lock: OFF · from ${fmtTime(from)} to ${fmtTime(to)} \\(UTC\\+00:00\\)`));
+  const on = await adv('night_on');
+  const lock = sent(on.calls, 'setChatPermissions')[0];
+  assert.equal(lock.params.chat_id, ZETA);
+  assert.equal(lock.params.permissions.can_send_messages, false);
+  assert.match(toChat(on.calls, ZETA)[0].params.text, new RegExp(`Good night! The group is closed for members until ${fmtTime(to)}\\.`));
+  assert.ok(row("SELECT next_at FROM aegis_schedules WHERE chat_id = ? AND kind = 'night'", ZETA).next_at > nowS());
+  tick(20 * 60);
+  assert.equal(sent(await olgaSays('/help'), 'setChatPermissions').length, 0, 'still night');
+  tick(11 * 60);
+  const morning = await olgaSays('/help');
+  const restore = sent(morning, 'setChatPermissions')[0];
+  assert.ok(restore, 'the morning comes without a scheduler');
+  assert.equal(restore.params.permissions.can_send_messages, true);
+  assert.match(toChat(morning, ZETA)[0].params.text, /Good morning! The group is open again\./);
+  const next = row("SELECT next_at FROM aegis_schedules WHERE chat_id = ? AND kind = 'night'", ZETA).next_at;
+  assert.ok(next > nowS() && next <= nowS() + 86400, 'the next night is planned');
+  await adv('night_on');
+  assert.equal((row("SELECT next_at FROM aegis_schedules WHERE chat_id = ? AND kind = 'night'", ZETA) || { next_at: 0 }).next_at, 0, 'nothing planned');
+});
+
+await scenario('phase 6 — 🧹 scheduled cleanup and «clean now»; self-destructing media', async () => {
+  await olga(V('c'));
+  const tooMany = await olgaInput('clean_times', '1 2 3 4 5 6');
+  assert.match(tooMany.last.params.text, /At most 5 times\./);
+  const at = (localMinutes(nowS(), 0) + 5) % 1440;
+  await olgaSays(fmtTime(at));
+  assert.equal(zset('clean_times'), JSON.stringify([at]));
+  await adv('clean_on');
+  tick(10);
+  const first = msgId;
+  await zmsg(P6.amy, 'one');
+  await zmsg(P6.bob, 'two');
+  await zmsg(Q.abe, 'an admin message stays');
+  tick(6 * 60);
+  const run1 = await olgaSays('/help');
+  assert.deepEqual(bulkIds(run1).filter((x) => x >= first && x < first + 3).sort(), [first, first + 1]);
+  assert.ok(mock.get(ZETA, first + 2), 'admin message kept');
+  tick(10);
+  const x = msgId;
+  await zmsg(P6.cid, 'three');
+  await olga(V('cn'));
+  assert.match(olgaScreen().plain, /Delete the messages Aegis saw in \u2068Zeta\u2069 in the last 48 hours/);
+  const now = await olga(V('cny'));
+  assert.ok(bulkIds(now.calls).includes(x));
+  assert.match(olgaScreen().plain, /🧹 \d+ messages deleted\./);
+  await adv('clean_on');
+  await olga(V('g:msg'));
+  await adv('media_ttl');
+  assert.match(olgaScreen().plain, /Members' media vanish after: 1 h/);
+  const ph = msgId;
+  await zmsg(P6.dee, null, { photo: [{ file_id: 'z', file_unique_id: 'zeta-photo', width: 1, height: 1 }] });
+  tick(1800);
+  assert.ok(!bulkIds(await olgaSays('/help')).includes(ph));
+  tick(1801);
+  assert.ok(bulkIds(await olgaSays('/help')).includes(ph), 'the photo deleted itself after an hour');
+  resetAdv('media_ttl', 'clean_on', 'clean_times');
+});
+
+await scenario('phase 6 — 📡 event channel (joins, leaves, admins, names), join requests, bots added by members, title lock, linked-channel posts', async () => {
+  const ev = mock.addChat({ id: ZEV, type: 'channel', title: 'Zeta Events' });
+  ev.admins.set(Q.olga.id, { status: 'creator', user: Q.olga });
+  await olga(V('e'));
+  assert.match(olgaScreen().plain, /Event channel: not set/);
+  const r = await olgaInput('ev_set', null, { chat_shared: { request_id: 53, chat_id: ZEV } });
+  assert.match(toChat(r.calls, ZEV)[0].params.text, /This chat now receives the member events of \u2068Zeta\u2069\./);
+  assert.equal(zset('ev_chat'), String(ZEV));
+  const newbie = { id: 830000700, is_bot: false, first_name: 'Newbie' };
+  const j = await joinZeta(newbie);
+  assert.match(toChat(j, ZEV)[0].params.text, /📡 \u2068Zeta\u2069\n➕ \u2068Newbie\u2069 joined \(<code>830000700<\/code>\)/);
+  const l = await leaveZeta(newbie, Q.olga);
+  assert.match(toChat(l, ZEV)[0].params.text, /🚪 \u2068Newbie\u2069 was removed by \u2068Olga\u2069/);
+  await olga(V('g:join'));
+  await adv('name_watch');
+  await zmsg(P6.bob, 'my name is Bob');
+  const renamed = await zmsg({ ...P6.bob, first_name: 'Bobby' }, 'now Bobby');
+  assert.match(toChat(renamed, ZEV)[0].params.text, /Name change \(<code>800000101<\/code>\): \u2068Bob @bob_p6\u2069 → \u2068Bobby @bob_p6\u2069/);
+  await adv('name_watch');
+  await adv('jr_mode');
+  assert.match(olgaScreen().plain, /Join requests: approve all/);
+  mock.joinRequest(ZETA, 830000780);
+  const jr = await run(H.chat_join_request, { chat: zetaChat, from: { id: 830000780, is_bot: false, first_name: 'Asker' }, user_chat_id: 830000780, date: 0 });
+  assert.equal(sent(jr, 'approveChatJoinRequest')[0].params.user_id, 830000780);
+  resetAdv('jr_mode');
+  await adv('title_lock');
+  assert.equal(zset('title_locked'), 'Zeta');
+  zeta.title = 'Spam City';
+  const tl = await zmsg(P6.cid, null, { new_chat_title: 'Spam City' });
+  assert.equal(sent(tl, 'setChatTitle')[0].params.title, 'Zeta');
+  assert.match(sent(tl).find((x) => x.params.chat_id === Q.olga.id).params.text, /\u2068Cid\u2069 changed the title to \u2068Spam City\u2069; Aegis put back \u2068Zeta\u2069\./);
+  await adv('title_lock');
+  const botUser = { id: 5550001, is_bot: true, first_name: 'Spammy', username: 'spammy_bot' };
+  const added = await zmsg(P6.cid, null, { new_chat_members: [botUser] });
+  assert.match(sent(added).find((x) => x.params.chat_id === Q.olga.id).params.text, /\u2068Cid\u2069 added \u2068@spammy_bot\u2069\./);
+  assert.equal(sent(added, 'banChatMember').length, 0, 'only reported while «remove members\' bots» is off');
+  await olga(V('g:join'));
+  await adv('bot_kick');
+  const kickBot = { id: 5550002, is_bot: true, first_name: 'Adder', username: 'adder_bot' };
+  const kicked = await zmsg(P6.cid, null, { new_chat_members: [kickBot] });
+  assert.equal(sent(kicked, 'banChatMember')[0].params.user_id, kickBot.id);
+  assert.match(sent(kicked).find((x) => x.params.chat_id === Q.olga.id).params.text, /\u2068Cid\u2069 added \u2068@adder_bot\u2069; Aegis removed it/);
+  assert.equal(sent(await zmsg(Q.abe, null, { new_chat_members: [{ id: 5550003, is_bot: true, first_name: 'Helper', username: 'helper_bot' }] }), 'banChatMember').length, 0,
+    'admins may add bots');
+  await adv('bot_kick');
+  await olga(V('g:clean'));
+  await adv('del_bots');
+  tick(6);
+  const bid = msgId;
+  const bm = await zmsg(botUser, 'buy now');
+  assert.ok(ids(bm).includes(bid));
+  assert.match(toChat(bm, ZETA)[0].params.text, /Messages of other bots are removed here\./);
+  resetAdv('del_bots');
+  await olga(V('k'));
+  await adv('linked');
+  const linked = { id: -1009903, type: 'channel', title: 'Linked' };
+  const post = msgId;
+  assert.equal(sent(await zmsg(undefined, 'channel post', { sender_chat: linked, is_automatic_forward: true }), 'unpinChatMessage')[0].params.message_id, post);
+  await adv('linked');
+  const post2 = msgId;
+  assert.ok(ids(await zmsg(undefined, 'another post', { sender_chat: linked, is_automatic_forward: true })).includes(post2));
+  resetAdv('linked');
+});
+
+await scenario('phase 6 — commands of the anonymous admin run once a real admin confirms them', async () => {
+  await olga(V('g:cmd'));
+  await adv('anon_cmds');
+  const anon = { id: 1087968824, is_bot: true, first_name: 'Group', username: 'GroupAnonymousBot' };
+  const c = await zmsg(anon, '/ban', { sender_chat: { id: ZETA, type: 'supergroup', title: 'Zeta' }, reply_to_message: { message_id: 3, from: P6.hal, chat: zetaChat, date: 0, text: 'x' } });
+  assert.equal(sent(c, 'banChatMember').length, 0, 'nothing runs yet');
+  const ask = toChat(c, ZETA)[0];
+  assert.match(ask.params.text, /An anonymous admin sent a command/);
+  const data = ask.params.reply_markup.inline_keyboard[0][0].callback_data;
+  assert.match(data, /^an:\d+$/);
+  const no = await gpress(P6.dee, ZETA, data, midOf(ask));
+  assert.equal(no.toast, 'Only admins can confirm this.');
+  const yes = await gpress(Q.olga, ZETA, data, midOf(ask));
+  assert.equal(sent(yes.calls, 'banChatMember')[0].params.user_id, P6.hal.id);
+  assert.ok(ids(yes.calls).includes(midOf(ask)));
+  const twice = await gpress(Q.olga, ZETA, data, midOf(ask));
+  assert.equal(sent(twice.calls, 'banChatMember').length, 0, 'runs once');
+  resetAdv('anon_cmds');
+});
+
+await scenario('phase 6 — 🗂 topics: create, read-only for members, rename, close, General hide; delete asks first; a group without topics says so', async () => {
+  await olga(`g:${BETA}`);
+  await olga(B('T'));
+  assert.match(olgaScreen().plain, /This group doesn't use topics/);
+  await olga(Z('T'));
+  assert.match(olgaScreen().plain, /Topics — \u2068Zeta\u2069/);
+  assert.match(olgaScreen().plain, /Telegram doesn't let bots list topics/);
+  const p = await olga(Z('T:n'));
+  assert.match(sent(p.calls).pop().params.text, /Send the topic's name \(up to 128 characters\)\./);
+  const made = await olgaSays('Announcements');
+  const create = sent(made, 'createForumTopic')[0];
+  assert.equal(create.params.name, 'Announcements');
+  const tid = create.result.result.message_thread_id;
+  assert.match(sent(made).pop().params.text, /Topic \u2068Announcements\u2069 created\./);
+  await olga(Z(`T:t:${tid}`));
+  assert.match(olgaScreen().plain, /\u2068Announcements\u2069\n\n💬 Open\nMembers can write here\./);
+  await olga(Z(`T:t:${tid}:ro`));
+  assert.match(olgaScreen().plain, /Read-only: only admins can write here\./);
+  tick(6);
+  const mid = msgId;
+  const ro = await zmsg(P6.amy, 'hello topic', { message_thread_id: tid, is_topic_message: true });
+  assert.ok(ids(ro).includes(mid));
+  assert.match(toChat(ro, ZETA)[0].params.text, /only admins write in \u2068Announcements\u2069/);
+  assert.equal(ids(await zmsg(Q.abe, 'news', { message_thread_id: tid, is_topic_message: true })).length, 0);
+  await olga(Z(`T:t:${tid}:c`));
+  assert.equal(zeta.topics.get(tid).closed, true);
+  assert.match(olgaScreen().plain, /🔒 Closed/);
+  await olga(Z(`T:t:${tid}:r`));
+  const rn = await olgaSays('News');
+  assert.equal(sent(rn, 'editForumTopic')[0].params.name, 'News');
+  assert.match(sent(rn).pop().params.text, /Renamed\./);
+  await zmsg(Q.abe, null, { message_thread_id: 4242, is_topic_message: true, forum_topic_created: { name: 'Seen elsewhere', icon_color: 1 } });
+  await olga(Z('T'));
+  assert.match(olgaScreen().plain, /🔒 \u2068News\u2069/);
+  assert.match(olgaScreen().plain, /💬 \u2068Seen elsewhere\u2069/);
+  await olga(Z('T:g:h'));
+  assert.match(olgaScreen().plain, /General hidden\./);
+  await olga(Z('T:g:h'));
+  assert.match(olgaScreen().plain, /TOPIC_NOT_MODIFIED/, 'Telegram\'s answer is shown');
+  await olga(Z(`T:t:${tid}:d`));
+  assert.match(olgaScreen().plain, /Delete the topic \u2068News\u2069 with all its messages\?/);
+  await olga(Z(`T:t:${tid}:dy`));
+  assert.match(olgaScreen().plain, /Topic \u2068News\u2069 deleted\./);
+  assert.ok(!zeta.topics.has(tid));
+  assert.equal(row('SELECT count(*) AS n FROM aegis_topics WHERE chat_id = ? AND thread_id = ?', ZETA, tid).n, 0);
+});
+
+await scenario('phase 6 — in a Persian group the new notices, rules and reports are right-to-left on every line', async () => {
+  rawDatabase().prepare("UPDATE aegis_chats SET lang = 'fa' WHERE chat_id = ?").run(ZETA);
+  rawDatabase().prepare("INSERT INTO aegis_chat_settings (chat_id, key, value, updated_by, updated_at) VALUES (?, 'caps', '1', 0, 0) ON CONFLICT(chat_id, key) DO UPDATE SET value = '1'").run(ZETA);
+  tick(70);
+  const caps = await zmsg(P6.amy, 'THIS IS VERY LOUD TEXT');
+  assert.match(toChat(caps, ZETA)[0].params.text, /\u2068Amy\u2069/);
+  const rules = await zmsg(P6.amy, 'قوانین');
+  assert.match(toChat(rules, ZETA)[0].params.text, /قوانین \u2068Zeta\u2069/);
+  tick(70);
+  const usage = await zmsg(P6.amy, 'گزارش');
+  assert.ok(toChat(usage, ZETA)[0], 'the Persian word «گزارش» is the report command');
+  resetAdv('caps');
+  rawDatabase().prepare("UPDATE aegis_chats SET lang = 'en' WHERE chat_id = ?").run(ZETA);
 });
 
 await scenario('after a deploy with new command menus, they are sent on the next private message (the retry throttle is per revision)', async () => {

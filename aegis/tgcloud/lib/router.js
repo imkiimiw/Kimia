@@ -14,7 +14,9 @@
  * owner: /panel, /status, /shutdown, /activate → otherwise the main menu.
  * Group message: group → supergroup migration; the locks (ui/enforce.js — admins are exempt; a
  * message a lock deletes goes no further); the security checks (ui/security.js: federation bans,
- * captcha, flood, anti-link, anti-ads, suspicious content, risk); /lockdown /readonly /fban /unfban; «پیکربندی» / /config (admins: a button to the
+ * captcha, flood, anti-link, anti-ads, suspicious content, risk); the advanced rules (ui/advanced.js:
+ * service notices, forced join/add, slow mode, lengths, mentions, caps, junk, read-only topics,
+ * @admin, names); /rules /report /admins /mywarns; /lockdown /readonly /fban /unfban; «پیکربندی» / /config (admins: a button to the
  * private panel — ordinary members are never blocked or answered); a moderation command
  * (ui/moderation.js: /warn /mute /ban … or «اخطار» «سکوت» «بن» …, from the creator, admins and the
  * «mod» list only); otherwise the occasional reminder about admins not appointed through Aegis.
@@ -24,6 +26,8 @@
  *   pu:<id>       undo a punishment          bt:<id>:v|r   anti-betrayal: unban victims / restore admin
  *   cp:<id>:<n|ok|no>   captcha answer / admin approves or removes — ui/security.js
  *   rk:<id>:y|n   risk alert feedback          ld:<id>:end   end an emergency lock, read-only or raid mode
+ *   fj:<chat>     forced join re-check         rp:<id>:d|m|b|x   a member's report: delete/mute/ban/dismiss
+ *   an:<id>       a real admin confirms an anonymous admin's command — ui/advanced.js
  * callback_data (private chat):
  *   lg            language picker            lg:<fa|en|ru|zh|fr>   set language
  *   jc            "✅ I joined" (re-check, no cache)
@@ -48,14 +52,16 @@ import * as errors from './core/errors.js';
 import * as kv from './core/kv.js';
 import * as migrations from './core/migrations.js';
 import * as state from './core/state.js';
-import { answer, createCtx, send } from './core/tg.js';
-import { toInt } from './core/util.js';
+import { answer, createCtx, send, tryCall } from './core/tg.js';
+import { esc, iso, toInt } from './core/util.js';
 import * as chats from './engines/chats.js';
 import * as join from './engines/join.js';
+import * as settings from './engines/settings.js';
 import * as system from './engines/system.js';
 import * as users from './engines/users.js';
 import { isLang, pickLang, t } from './i18n/index.js';
 import { afterUpdate } from './jobs.js';
+import * as advanced from './ui/advanced.js';
 import * as enforce from './ui/enforce.js';
 import * as group from './ui/group.js';
 import * as moderation from './ui/moderation.js';
@@ -63,17 +69,19 @@ import * as security from './ui/security.js';
 import * as owner from './ui/owner.js';
 import * as ownerBc from './ui/owner_bc.js';
 import * as panel from './ui/panel.js';
+import * as panelAdv from './ui/panel_adv.js';
 import * as panelFed from './ui/panel_fed.js';
 import * as panelLocks from './ui/panel_locks.js';
 import * as panelMod from './ui/panel_mod.js';
+import * as panelTopics from './ui/panel_topics.js';
 import * as start from './ui/start.js';
 import * as sys from './ui/system.js';
 
 const OWNER_HEADS = new Set(['op', 'os', 'oj', 'ob', 'bc', 'ox', 'sy']);
 const PANEL_HEADS = new Set(['cl', 'g']);
 const OWNER_INPUTS = new Set(['join_add', 'bc_content', 'bc_buttons']);
-const GROUP_HEADS = new Set(['pu', 'bt', 'cp', 'rk', 'ld']);
-const PANELS = [panelMod, panelLocks, panelFed];
+const GROUP_HEADS = new Set(['pu', 'bt', 'cp', 'rk', 'ld', 'fj', 'rp', 'an']);
+const PANELS = [panelMod, panelLocks, panelFed, panelAdv, panelTopics];
 const isUserInput = (kind) => kind === 'adm_pick' || PANELS.some((p) => p.INPUTS.has(kind));
 const hasKeyboard = (kind) => kind === 'adm_pick' || PANELS.some((p) => p.KEYBOARD_INPUTS.has(kind));
 
@@ -109,11 +117,20 @@ async function run(kind, pctx, fn, extra = {}) {
   return result(ctx);
 }
 
-/* /start c_<chat id>: open that chat's panel; anything else: the main menu. */
+/* /start c_<chat id>: open that chat's panel; r_<chat id>: that group's rules; anything else: the main menu. */
 async function openPayload(ctx, user, from, payload, place = null) {
   const m = /^c_(-?\d{5,16})$/.exec(String(payload || ''));
   if (m) return panel.open(ctx, user, toInt(m[1]), place);
+  const r = /^r_(-?\d{5,16})$/.exec(String(payload || ''));
+  if (r) return showRules(ctx, user, toInt(r[1]));
   return start.welcome(ctx, user, from, place);
+}
+
+async function showRules(ctx, user, chatId) {
+  const chat = await chats.get(chatId);
+  const s = chat ? await settings.all(ctx, chatId) : null;
+  const text = s && s.rules ? t(user.lang, 'adv.rules_text', { title: iso(chat.title || '', 48), rules: esc(s.rules) }) : t(user.lang, 'adv.no_rules');
+  return send(ctx, user.user_id, text, await start.mainRows(ctx, user.lang, user.user_id), 'rules-pm');
 }
 
 /* After the picker or the join screen: a /start payload saved for later, else the main menu. */
@@ -138,6 +155,8 @@ async function input(ctx, user, message, pending) {
   if (panelMod.INPUTS.has(pending.kind)) return panelMod.input(ctx, user, message, pending);
   if (panelLocks.INPUTS.has(pending.kind)) return panelLocks.input(ctx, user, message, pending);
   if (panelFed.INPUTS.has(pending.kind)) return panelFed.input(ctx, user, message, pending);
+  if (panelAdv.INPUTS.has(pending.kind)) return panelAdv.input(ctx, user, message, pending);
+  if (panelTopics.INPUTS.has(pending.kind)) return panelTopics.input(ctx, user, message, pending);
   if (pending.kind === 'join_add') return owner.joinAddInput(ctx, lang, message);
   if (pending.kind === 'bc_content') return ownerBc.contentInput(ctx, lang, message, pending.data);
   if (pending.kind === 'bc_buttons') return ownerBc.buttonsInput(ctx, lang, message, pending.data);
@@ -207,8 +226,10 @@ async function handleGroupMessage(ctx, message) {
   if (ctx.shutdown) return;
   if (message.from) ctx.userId = message.from.id;
   const known = await chats.get(chat.id);
-  if (await enforce.check(ctx, known, message)) return; /* deleted by a lock: no command acts on it */
+  const lockDeleted = await enforce.check(ctx, known, message); /* deleted by a lock: no command acts on it */
+  if ((await advanced.service(ctx, known, message, { deleted: lockDeleted })) || lockDeleted) return;
   if (await security.onMessage(ctx, known, message)) return;
+  if (await advanced.onMessage(ctx, known, message)) return;
   const cmd = parseCommand(message.text, { aliases: true });
   if (cmd === 'config') {
     const mention = mentionOf(message.text);
@@ -216,8 +237,10 @@ async function handleGroupMessage(ctx, message) {
     await group.configInGroup(ctx, message);
     return;
   }
-  if (await security.command(ctx, message)) return;
-  if (await moderation.handle(ctx, message)) return;
+  if ((await advanced.command(ctx, message)) || (await security.command(ctx, message)) || (await moderation.handle(ctx, message))) {
+    await deleteCommand(ctx, known, message);
+    return;
+  }
   const row = await chats.get(chat.id);
   if (row) await group.onActivity(ctx, row);
 }
@@ -231,7 +254,8 @@ export function onEditedMessage(message, pctx) {
     if (message.from) ctx.userId = message.from.id;
     const known = await chats.get(chat.id);
     if (await enforce.check(ctx, known, message, { edited: true })) return;
-    await security.onMessage(ctx, known, message, { edited: true });
+    if (await security.onMessage(ctx, known, message, { edited: true })) return;
+    await advanced.onMessage(ctx, known, message, { edited: true });
   });
 }
 
@@ -243,6 +267,13 @@ export function onJoinRequest(req, pctx) {
     ctx.userId = req.from.id;
     await security.onJoinRequest(ctx, req);
   });
+}
+
+/* «Delete commands» (del_cmds): the command message goes once Aegis has acted on it. */
+async function deleteCommand(ctx, chat, message) {
+  if (!chat || message.sender_chat) return;
+  const s = await settings.all(ctx, chat.chat_id);
+  if (settings.flag(s, 'del_cmds')) await tryCall(ctx, 'deleteMessage', { chat_id: chat.chat_id, message_id: message.message_id }, 'delete-command');
 }
 
 /* ---------- buttons ---------- */
@@ -279,6 +310,7 @@ async function handleCallback(ctx, cq) {
       return null;
     }
     const parts = String(cq.data).split(':');
+    if (advanced.HEADS.has(head0)) return advanced.callback(ctx, cq, parts, { roleOf: moderation.roleOf, security: security.command, moderation: moderation.handle });
     return security.HEADS.has(head0) ? security.callback(ctx, cq, parts) : moderation.callback(ctx, cq, parts);
   }
   if (msg.chat.type !== 'private') return null;

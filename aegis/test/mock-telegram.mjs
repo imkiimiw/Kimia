@@ -11,7 +11,9 @@
 // can_restrict_members, never touch admins (except ones the bot promoted, for bans), restrictions only in
 // supergroups; sendDocument takes a real multipart upload; reply keyboards may ask for users or chats;
 // deleteMessage removes a stored message (a member's only with the bot's can_delete_messages); chat
-// permissions (getChat / setChatPermissions) and join requests (approve / decline, a short DM window).
+// permissions (getChat / setChatPermissions) and join requests (approve / decline, a short DM window);
+// deleteMessages (1-100 ids), setChatTitle and unpinChatMessage need the matching bot right; forum
+// topics exist only in forum chats (isForum) and need the bot's can_manage_topics.
 import { Buffer } from 'node:buffer';
 import http from 'node:http';
 
@@ -207,6 +209,22 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       return err(429, `Too Many Requests: retry after ${state.floodRetry}`, { retry_after: state.floodRetry });
     }
     return null;
+  }
+
+  /* Forum topics: only in forum supergroups, and the bot needs can_manage_topics. */
+  function topicCall(p, fn) {
+    const c = chat(p.chat_id);
+    if (!c) return err(400, 'Bad Request: chat not found');
+    if (!c.isForum) return err(400, 'Bad Request: the chat is not a forum');
+    if (!c.botAdmin || !(c.botRights || {}).can_manage_topics) return err(400, 'Bad Request: not enough rights to manage topics');
+    c.topics = c.topics || new Map();
+    return fn(c, p.message_thread_id !== undefined ? c.topics.get(Number(p.message_thread_id)) : null);
+  }
+  function general(c, key, value) {
+    c.general = c.general || { closed: false, hidden: false };
+    if (c.general[key] === value) return err(400, 'Bad Request: TOPIC_NOT_MODIFIED');
+    c.general[key] = value;
+    return ok(true);
   }
 
   const handlers = {
@@ -420,12 +438,62 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       const id = store(p.chat_id, { kind: 'document', caption: p.caption, document: { file_name: doc.filename, mime_type: doc.type, bytes: doc.bytes } });
       return ok({ message_id: id, chat: { id: Number(p.chat_id) }, date: 0, document: { file_name: doc.filename, mime_type: doc.type, file_size: doc.bytes.length } });
     },
+    deleteMessages: (p) => {
+      if (!Array.isArray(p.message_ids) || !p.message_ids.length || p.message_ids.length > 100) return err(400, 'Bad Request: message_ids must be 1-100 ids');
+      const c = Number(p.chat_id) < 0 ? chat(p.chat_id) : null;
+      if (c && !(c.botAdmin && (c.botRights || {}).can_delete_messages)) return err(400, "Bad Request: message can't be deleted");
+      let any = false;
+      for (const id of p.message_ids) {
+        if (!state.messages.has(k(p.chat_id, id))) continue;
+        any = true;
+        state.messages.delete(k(p.chat_id, id));
+        state.deleted = state.deleted || [];
+        state.deleted.push(k(p.chat_id, id));
+      }
+      return any ? ok(true) : err(400, 'Bad Request: message to delete not found');
+    },
+    setChatTitle: (p) => {
+      const c = chat(p.chat_id);
+      if (!c) return err(400, 'Bad Request: chat not found');
+      if (!c.botAdmin || !(c.botRights || {}).can_change_info) return err(400, 'Bad Request: not enough rights to change chat title');
+      if (!p.title || p.title.length > 128) return err(400, 'Bad Request: chat title is empty');
+      if (p.title === c.title) return err(400, 'Bad Request: chat title is not modified');
+      c.title = p.title;
+      return ok(true);
+    },
+    unpinChatMessage: (p) => {
+      const c = chat(p.chat_id);
+      if (!c) return err(400, 'Bad Request: chat not found');
+      if (!c.botAdmin || !(c.botRights || {}).can_pin_messages) return err(400, 'Bad Request: not enough rights to manage pinned messages in the chat');
+      c.unpinned = c.unpinned || [];
+      c.unpinned.push(Number(p.message_id));
+      return ok(true);
+    },
+    createForumTopic: (p) => topicCall(p, (c) => {
+      if (!p.name || p.name.length > 128) return err(400, 'Bad Request: TOPIC_TITLE_EMPTY');
+      const id = state.nextMessageId++;
+      c.topics.set(id, { name: p.name, closed: false });
+      return ok({ message_thread_id: id, name: p.name, icon_color: 7322096 });
+    }),
+    editForumTopic: (p) => topicCall(p, (c, tp) => {
+      if (!tp) return err(400, 'Bad Request: TOPIC_ID_INVALID');
+      if (p.name === tp.name) return err(400, 'Bad Request: TOPIC_NOT_MODIFIED');
+      tp.name = p.name;
+      return ok(true);
+    }),
+    closeForumTopic: (p) => topicCall(p, (c, tp) => (tp ? ((tp.closed = true), ok(true)) : err(400, 'Bad Request: TOPIC_ID_INVALID'))),
+    reopenForumTopic: (p) => topicCall(p, (c, tp) => (tp ? ((tp.closed = false), ok(true)) : err(400, 'Bad Request: TOPIC_ID_INVALID'))),
+    deleteForumTopic: (p) => topicCall(p, (c, tp) => (tp ? (c.topics.delete(Number(p.message_thread_id)), ok(true)) : err(400, 'Bad Request: TOPIC_ID_INVALID'))),
+    closeGeneralForumTopic: (p) => topicCall(p, (c) => general(c, 'closed', true)),
+    reopenGeneralForumTopic: (p) => topicCall(p, (c) => general(c, 'closed', false)),
+    hideGeneralForumTopic: (p) => topicCall(p, (c) => general(c, 'hidden', true)),
+    unhideGeneralForumTopic: (p) => topicCall(p, (c) => general(c, 'hidden', false)),
     getWebhookInfo: () => ok({ url: 'https://cloud.telegram.org/app1/webhook', has_custom_certificate: false, pending_update_count: state.pendingUpdates || 0 }),
     getChat: (p) => {
       const c = chat(p.chat_id);
       if (!c) return err(400, 'Bad Request: chat not found');
       const perms = c.type === 'channel' ? {} : { permissions: c.permissions || { can_send_messages: true, can_send_photos: true, can_send_videos: true, can_invite_users: true } };
-      return ok({ id: c.id, type: c.type, title: c.title, ...(c.username ? { username: c.username } : {}), ...(c.inviteLink && c.botAdmin ? { invite_link: c.inviteLink } : {}), ...perms });
+      return ok({ id: c.id, type: c.type, title: c.title, ...(c.isForum ? { is_forum: true } : {}), ...(c.username ? { username: c.username } : {}), ...(c.inviteLink && c.botAdmin ? { invite_link: c.inviteLink } : {}), ...perms });
     },
     getChatMemberCount: (p) => {
       const bad = reachable(p.chat_id);

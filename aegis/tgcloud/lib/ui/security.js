@@ -50,6 +50,7 @@ import * as settings from '../engines/settings.js';
 import * as users from '../engines/users.js';
 import { dur, pickLang, t, wordCommand } from '../i18n/index.js';
 import { deleteMessage, isAdmin, postNotice } from './enforce.js';
+import { welcome } from './welcome.js';
 
 export const HEADS = new Set(['cp', 'rk', 'ld']);
 const OFF_WORDS = new Set(['off', 'end', 'stop', 'خاموش', 'پایان', 'لغو', 'выкл', 'стоп', '关闭', '结束', 'fin', 'arrêt']);
@@ -207,6 +208,8 @@ async function passCaptcha(ctx, chat, row, byId) {
     const g = await guards.all(ctx, chat.chat_id);
     if (g.quarantine.on) await quarantine(ctx, chat, uid, g, (await members.joinedAt(chat.chat_id, uid)) || nowSec());
     else await tryCall(ctx, 'restrictChatMember', { chat_id: chat.chat_id, user_id: uid, permissions: punish.ALL }, 'captcha-free');
+    const member = await tryCall(ctx, 'getChatMember', { chat_id: chat.chat_id, user_id: uid }, 'captcha-member');
+    if (member && member.user) await welcome(ctx, chat, member.user);
   }
   if (Number(row.msg_id)) {
     if (row.kind === 'request') {
@@ -285,8 +288,12 @@ export async function onJoinRequest(ctx, req) {
     await logs.post(ctx, chat, 'security', t(chat.lang, 'sec.log_fed_declined', { user: iso(fullName(user)), fed: iso(fed.name) }));
     return;
   }
+  const s = await settings.all(ctx, chat.chat_id);
   const g = await guards.all(ctx, chat.chat_id);
-  if (!g.captcha.on || !g.captcha.jr) return;
+  if (!g.captcha.on || !g.captcha.jr) {
+    if (s.jr_mode !== 'manual') await tryCall(ctx, s.jr_mode === 'approve' ? 'approveChatJoinRequest' : 'declineChatJoinRequest', { chat_id: chat.chat_id, user_id: user.id }, `jr-${s.jr_mode}`);
+    return;
+  }
   const u = await users.get(user.id);
   const lang = u && Number(u.lang_set) ? u.lang : pickLang(user.language_code);
   const cap = makeCaptcha(g.captcha.mode);
@@ -475,8 +482,9 @@ async function act(ctx, chat, message, user, hits, sc) {
 
 /* ---------- the join path ---------- */
 
+/* Gives true when the newcomer was removed or still owes a captcha (then no welcome yet). */
 export async function onJoin(ctx, chat, user) {
-  if (!chat || !Number(chat.registered) || chat.type === 'channel' || !user || user.is_bot) return;
+  if (!chat || !Number(chat.registered) || chat.type === 'channel' || !user || user.is_bot) return false;
   const c = chat.chat_id;
   await sweep(ctx, c);
   const fed = await feds.ofChat(c);
@@ -484,12 +492,12 @@ export async function onJoin(ctx, chat, user) {
     const ban = await feds.banOf(fed.id, user.id);
     if (ban) {
       await fedBanHere(ctx, chat, fed, user, ban);
-      return;
+      return true;
     }
   }
   const g = await guards.all(ctx, c);
-  if (!guards.anyOn(g)) return;
-  if (await lists.has(c, 'vip', String(user.id)) || await lists.has(c, 'tru', String(user.id))) return;
+  if (!guards.anyOn(g)) return false;
+  if (await lists.has(c, 'vip', String(user.id)) || await lists.has(c, 'tru', String(user.id))) return false;
   const audited = await auditOn(ctx, c);
   let raid = await guards.lockdown(c, 'raid');
   if (g.raid.on && !raid && await guards.recentJoins(c, g.raid.t) >= g.raid.n) raid = await startRaid(ctx, chat, g, audited);
@@ -510,14 +518,15 @@ export async function onJoin(ctx, chat, user) {
           reason: t(chat.lang, 'sec.reason', { what: t(chat.lang, 'sec.m_risk') }), actorId: 0, source: 'security', meta: { join: true } });
       }
       await riskAlert(ctx, chat, user, sc, sc.score >= actAt, res, audited);
-      if (res && res.ok && !res.auditOnly && ['ban', 'kick'].includes(res.row.kind)) return;
+      if (res && res.ok && !res.auditOnly && ['ban', 'kick'].includes(res.row.kind)) return true;
     }
   }
-  if (audited || chat.type !== 'supergroup') return;
+  if (audited || chat.type !== 'supergroup') return false;
   if ((g.captcha.on || raidAct === 'captcha') && !(await guards.recentPass(c, user.id, nowSec() - 900))) {
-    if (await startCaptcha(ctx, chat, user, g)) return;
+    if (await startCaptcha(ctx, chat, user, g)) return true;
   }
   if (g.quarantine.on || raidAct === 'quarantine') await quarantine(ctx, chat, user.id, g);
+  return false;
 }
 
 async function startRaid(ctx, chat, g, audited) {

@@ -186,5 +186,9 @@
   "log_fban": "🌐 {who} 联邦封禁了 {target}（{fed}）",
   "log_funban": "🌐 {who} 解除了 {target} 的联邦封禁（{fed}）",
   "log_fed_ban_here": "🌐 {user} 在联邦 {fed} 中被封禁：在这里也被封禁。原因：{reason}",
-  "log_fed_declined": "🌐 已拒绝 {user} 的入群申请：在联邦 {fed} 中被封禁。"
+  "log_fed_declined": "🌐 已拒绝 {user} 的入群申请：在联邦 {fed} 中被封禁。",
+  "night_ended": "☀️ {who} 结束了夜间锁定。",
+  "night_restored": "☀️ 早上好！群组已重新开放。",
+  "log_night_end": "☀️ 夜间锁定已结束",
+  "state_night": "🌙 夜间锁定已开启 — 结束：{time}。"
 }

@@ -1,7 +1,7 @@
 # Decisions taken without the master spec
 
 `docs/SPEC.md` (the Persian master spec, "the source of truth") was not in the repository when
-Phases 1–5 were built (for Phases 3–5 the owner said to build them without the spec). Where the build instructions did not settle a detail, the choice below
+Phases 1–6 were built (for Phases 3–6 the owner said to build them without the spec). Where the build instructions did not settle a detail, the choice below
 was made. Each is easy to change once the spec says otherwise — nothing here drops, merges or
 renames a feature from the instructions.
 
@@ -82,3 +82,20 @@ renames a feature from the instructions.
 | Audit Mode | Security is automatic, so in Audit Mode nothing is deleted, punished, locked or captcha'd; it is recorded and logged. Commands (/lockdown, /fban) are human decisions and still work. |
 | Federations | One federation per group; up to 50 groups and 20 admins per federation; joining needs the owner's join code and the group's own Full admin; a fed ban bans at once in every member group where Aegis can ban, and again on join/message/join request. |
 | Memory | Flood counters, media and ad fingerprints are kept 1 day; risk alerts 30 days; finished captchas 7 days. |
+
+## Phase 6
+
+| Topic | Decision |
+|---|---|
+| The 26 advanced settings | **Cleanup 8**: delete join notices, leave notices, pin notices, title/photo notices, video-chat notices, commands Aegis acted on, other bots' messages; Aegis's notices vanish after (off / 1 min / 5 min / 15 min / 1 h). **Messages 7**: slow mode (off / 10 s / 30 s / 1 min / 5 min), max lines (10 / 20 / 50), max mentions (3 / 5 / 10), no CAPITALS, no junk, edits allowed for (1 min / 5 min / 1 h), members' media vanish after (1 h / 6 h / 1 day). **Commands 6**: rules, rules button under the welcome, members' commands, answer in private, `@admin` calls admins, anonymous admin's commands. **Join & identity 5**: remove members' bots, join requests (admins decide / approve all / decline all), name-change alerts, title lock, bot-added alerts. |
+| The 26th setting | Was planned as the CAS spam-list check; CAS now needs a personal API key (see NOT_BUILT), so «Remove members' bots» took its place: a bot added by a non-admin is banned at once (so it can't simply be re-added), the admins are told; admins may add bots. (The Phase 4 bots lock does the same per lock settings, with exceptions and a punishment for the adder; this setting is the simple switch.) |
+| Defaults | Everything off except: rules button, members' commands, `@admin` calls, bot-added alerts, removing the previous welcome, reports (to the admins privately), event types (once an event channel is set). Join requests: the admins decide. Linked-channel posts: kept. Time zone: from the group's language. |
+| Extras | Welcome and goodbye (own text ≤ 1000 / 500 characters with `{name}` `{mention}` `{group}` `{count}`, link buttons as in broadcasts, previous welcome removed, after the captcha, none during a raid, no goodbye for someone an admin removed). Forced join: up to 3 channels/groups where Aegis is an admin, a passed check trusted 10 min. Forced add: 1, 2, 3, 5 or 10 people (counted from Telegram's «X added Y» notices since Phase 6). Scheduled cleanup: up to 5 times a day; what: everything / media only / notices only. Night lock: one window a day, may cross midnight. Message length: min 2/3/5/10, max 200/500/1000/2000/4000 characters (the minimum applies to text messages only). |
+| Exempt | Admins, VIP and trusted members are never caught by these rules; Aegis's own messages and the linked channel's posts neither. |
+| Order | Locks → service-message handling (topics, forced-add counting, title lock, linked posts, notice deletion) → security → advanced message rules (bots, edits, read-only topics, forced join, forced add, slow mode, length, lines, mentions, CAPS, junk) → member and moderation commands. The first rule that deletes a message ends the checks for it. |
+| Notices | All advanced rules share the locks' rolling notice (each new one deletes the previous, at most one per 5 s per chat), and are logged to the log channel under «locks». |
+| Reports | `/report [reason]` (or «گزارش» …) as a reply; one per member per minute; not on admins, Aegis or oneself; the /report message is deleted; the admins get the reported text (≤ 300 characters), a link to the message (supergroups) and buttons; the first admin to act closes it for everyone; mute = 1 day; mute/ban need «Ban users». |
+| Who may | Changing any advanced setting or topic: Settings level. Viewing: View level. Confirming an anonymous admin's command: any admin (it runs with their own access). Handling a report: admins with «Ban users» for mute/ban, any admin for delete/ignore. |
+| Times | Fixed UTC offsets (no daylight saving); 24 offered; «auto» follows the group's language. Times are entered as «03:00, 15:30» or «۳:۰۰ و ۱۵» (Persian digits and «و» understood); the night window as «23:00 - 07:00» (or «تا»). |
+| Topics | Topics Aegis has seen or created are listed; «read-only» is Aegis's own (members' messages there are deleted), closing uses Telegram's close. Delete asks first. |
+| Audit Mode | Every advanced rule that deletes, removes, locks or restores the title only records and logs. Human actions (reports, «clean now», confirming an anonymous command) still work. |

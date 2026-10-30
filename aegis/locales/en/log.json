@@ -58,5 +58,9 @@
   "fed_admin_add": "made {target} a federation admin",
   "fed_admin_remove": "removed {target} as a federation admin",
   "fed_ban": "fed-banned {target}",
-  "fed_unban": "fed-unbanned {target}"
+  "fed_unban": "fed-unbanned {target}",
+  "report_new": "reported a message of {target}",
+  "report_handled": "handled a report about {target}",
+  "security_night": "night lock started",
+  "security_night_end": "night lock ended"
 }

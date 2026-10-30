@@ -58,5 +58,9 @@
   "fed_admin_add": "{target} را ادمین فدراسیون کرد",
   "fed_admin_remove": "{target} را از ادمینی فدراسیون برداشت",
   "fed_ban": "{target} را فدبن کرد",
-  "fed_unban": "فدبن {target} را برداشت"
+  "fed_unban": "فدبن {target} را برداشت",
+  "report_new": "پیام {target} را گزارش داد",
+  "report_handled": "به گزارشی درباره‌ی {target} رسیدگی کرد",
+  "security_night": "قفل شبانه شروع شد",
+  "security_night_end": "قفل شبانه تمام شد"
 }

@@ -186,5 +186,9 @@
   "log_fban": "🌐 {who} a fed-banni {target} ({fed})",
   "log_funban": "🌐 {who} a levé le fed-ban de {target} ({fed})",
   "log_fed_ban_here": "🌐 {user} est banni dans la fédération {fed} : banni ici aussi. Raison : {reason}",
-  "log_fed_declined": "🌐 Demande d'adhésion de {user} refusée : banni dans la fédération {fed}."
+  "log_fed_declined": "🌐 Demande d'adhésion de {user} refusée : banni dans la fédération {fed}.",
+  "night_ended": "☀️ Le verrou de nuit a été levé par {who}.",
+  "night_restored": "☀️ Bonjour ! Le groupe est de nouveau ouvert.",
+  "log_night_end": "☀️ Verrou de nuit terminé",
+  "state_night": "🌙 Verrou de nuit ACTIF — fin : {time}."
 }

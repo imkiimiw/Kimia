@@ -69,6 +69,9 @@ export const chats = table('aegis_chats', {
   remindedAt: integer('reminded_at').notNull().default(0),
   lockNotice: integer('lock_notice').notNull().default(0), /* the last lock notice posted (deleted when the next one comes) */
   lockNoticeAt: integer('lock_notice_at').notNull().default(0),
+  welcomeMsg: integer('welcome_msg').notNull().default(0), /* the last welcome (deleted when the next one comes) */
+  isForum: integer('is_forum').notNull().default(0),
+  adminCallAt: integer('admin_call_at').notNull().default(0),
 }, (t) => ({
   activeType: index('idx_aegis_chats_active_type').on(t.active, t.type, t.chatId),
   countAt: index('idx_aegis_chats_count_at').on(t.active, t.countAt),
@@ -534,4 +537,88 @@ export const fedBans = table('aegis_fed_bans', {
 }, (t) => ({
   key: uniqueIndex('idx_aegis_fed_bans_key').on(t.fedId, t.userId),
   byFed: index('idx_aegis_fed_bans_fed').on(t.fedId, t.at),
+}));
+
+/*
+ * Messages Aegis saw in chats that use scheduled cleanup or self-destructing media/notices (kept
+ * 48 h — Telegram lets a bot delete messages only that long). del_at > 0: delete at that time.
+ */
+export const msgLog = table('aegis_msg_log', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  msgId: integer('msg_id').notNull(),
+  userId: integer('user_id').notNull().default(0),
+  kind: text('kind').notNull(), /* text, media, service, aegis */
+  at: integer('at').notNull(),
+  delAt: integer('del_at').notNull().default(0),
+}, (t) => ({
+  byChat: index('idx_aegis_msg_log_chat').on(t.chatId, t.at),
+  due: index('idx_aegis_msg_log_due').on(t.delAt).where(sql`del_at > 0`),
+}));
+
+/* Timed jobs of a chat (night lock, scheduled cleanup): done lazily when next_at has passed. */
+export const schedules = table('aegis_schedules', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  kind: text('kind').notNull(), /* night, cleanup */
+  nextAt: integer('next_at').notNull(),
+  lastAt: integer('last_at').notNull().default(0),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_schedules_key').on(t.chatId, t.kind),
+  due: index('idx_aegis_schedules_due').on(t.nextAt),
+}));
+
+/* Members' reports of messages (/report), and what the admins did. */
+export const reports = table('aegis_reports', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  reporterId: integer('reporter_id').notNull(),
+  targetId: integer('target_id').notNull().default(0),
+  msgId: integer('msg_id').notNull().default(0),
+  snippet: text('snippet'),
+  reason: text('reason'),
+  status: text('status').notNull().default('open'), /* open, deleted, muted, banned, dismissed */
+  handledBy: integer('handled_by').notNull().default(0),
+  handledAt: integer('handled_at').notNull().default(0),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byChat: index('idx_aegis_reports_chat').on(t.chatId, t.at),
+  byReporter: index('idx_aegis_reports_reporter').on(t.chatId, t.reporterId, t.at),
+}));
+
+/* Per member and chat: forced join passed at, members added (forced add), last message (slow mode). */
+export const memberFlags = table('aegis_member_flags', {
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  fjOkAt: integer('fj_ok_at').notNull().default(0),
+  adds: integer('adds').notNull().default(0),
+  lastAt: integer('last_at').notNull().default(0),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_member_flags_key').on(t.chatId, t.userId),
+}));
+
+/* Forum topics Aegis knows of (the Bot API can't list them): name, state, read-only for members. */
+export const topics = table('aegis_topics', {
+  chatId: integer('chat_id').notNull(),
+  threadId: integer('thread_id').notNull(),
+  name: text('name').notNull(),
+  color: integer('color').notNull().default(0),
+  closed: integer('closed').notNull().default(0),
+  readonly: integer('readonly').notNull().default(0),
+  createdAt: integer('created_at').notNull().default(0),
+  lastAt: integer('last_at').notNull().default(0),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_topics_key').on(t.chatId, t.threadId),
+}));
+
+/* A command sent by an anonymous admin, waiting for a real admin to confirm it with a button. */
+export const anonCmds = table('aegis_anon_cmds', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  message: text('message').notNull(), /* the message JSON (text, entities, reply) */
+  status: text('status').notNull().default('pending'),
+  byId: integer('by_id').notNull().default(0),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byChat: index('idx_aegis_anon_cmds_chat').on(t.chatId, t.at),
 }));

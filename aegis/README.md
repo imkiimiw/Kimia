@@ -11,13 +11,59 @@ deployed **now**.
 | 3 | Group lists (18), punishments with undo, warnings and step punishments, anti-betrayal, Audit Mode, log channel | ✅ deployed |
 | 4 | Group locks: 42 locks, each with its own settings | ✅ deployed |
 | 5 | Group security: anti-link, anti-ads/tabchi, anti-flood, anti-raid, captcha, quarantine, emergency lock, read-only, suspicious content, risk score with feedback, federations | ✅ deployed |
-| 6–10 | Advanced settings, channel panel, reports, fun & media, full Super Admin panel | not started |
+| 6 | Advanced group settings (26 + extras: welcome/goodbye, forced join/add for members, scheduled cleanup, night lock, time zone, message length, member reports, event channel, linked-channel posts) and forum topics | ✅ deployed |
+| 7–10 | Channel panel, reports & stats, fun & media, full Super Admin panel | not started |
 
 Design decisions taken without the master spec (it isn't in the repository yet) are listed in
 [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md).
 
 Features that can't be built for free on this platform, or only partly, are listed in
 [docs/NOT_BUILT.md](docs/NOT_BUILT.md).
+
+## What Phase 6 does
+
+**⚙️ Advanced** (panel → ⚙️ Advanced) — 26 settings in four groups. Admins, VIP and trusted
+members are never caught; in **Audit Mode** every rule below only records (log channel), it never
+deletes, removes or locks.
+- **🧹 Cleanup** — delete Telegram's join / leave / pin / title-and-photo / video-chat notices, the
+  commands Aegis acted on, messages of other (non-admin) bots; Aegis's own notices vanish after
+  1 min – 1 h.
+- **💬 Messages** — Aegis slow mode (10 s – 5 min; a stopped message doesn't restart the wait), max
+  lines, max mentions (anti mass-tag), no SHOUTING, no junk (only dots/symbols), edits allowed only
+  for 1 min – 1 h (later edits are deleted), members' media vanish after 1 h – 1 day.
+- **⌨️ Commands** — rules (`/rules`, «قوانین», a «📖 Rules» button under the welcome that opens them
+  in the bot), members' commands on/off (`/rules`, `/admins`, `/mywarns`), answers in the member's
+  private chat, `@admin` calls the admins privately (at most every 5 minutes), commands of the
+  anonymous admin run only after a real admin confirms them with a button.
+- **🚪 Join and identity** — bots added by a member are removed (admins may add bots), what to do
+  with join requests when the captcha doesn't handle them (admins decide / approve all / decline
+  all), name and username changes announced, the group title put back when someone changes it,
+  admins told when a bot is added.
+
+Extras on the same screen:
+- **👋 Welcome & goodbye** — own text with `{name}`, `{mention}`, `{group}`, `{count}`, link buttons
+  («Text - https://link»), preview, the previous welcome removed; after the captcha when there is
+  one; none during a raid.
+- **📢 Forced join / add for members** — up to 3 channels or groups members must join before they
+  write (Aegis must be an admin there to check), with join buttons and «✅ I joined»; or members
+  must add 1–10 people first. This only stops messages — nobody is removed.
+- **🌙 Night lock** — the group closes for members every night and its permissions come back in
+  the morning; **🧹 scheduled cleanup** up to 5 times a day (messages Aegis saw since the last
+  cleanup, at most 48 h — Telegram's limit; admins' messages stay) and «clean now»; both in the
+  chat's **🕐 time zone** (fixed offsets, default from the group's language).
+- **📏 Message length** (min / max characters), **🚨 member reports** (`/report [reason]` or
+  «گزارش» as a reply → the admins privately or the log channel, with 🗑 delete / 🔇 mute 1 d /
+  ⛔️ ban / ✅ ignore; handled once; one report a minute per member), **📡 event channel** (joins,
+  leaves, admin changes, name changes), **🔗 linked channel** posts kept / unpinned / deleted.
+
+**🗂 Topics** (panel → 🗂 Topics, forum groups) — Telegram can't list a forum's topics to a bot, so
+Aegis shows the ones it has seen or made: create, rename, close / reopen, delete (asks first),
+**read-only for members** (Aegis deletes their messages there), and General: close / reopen,
+hide / show.
+
+**No scheduler**: the night lock, scheduled cleanup and self-destructing messages happen on the
+first update Aegis receives after their time (any group or private message), checked at most once a
+minute — in a completely silent bot they wait for the next update.
 
 ## What Phase 5 does
 
@@ -257,14 +303,17 @@ npm run test:cloud            # smoke test on the real platform with fake users 
 - **Make Aegis an admin in every forced-join channel** — Telegram only lets a bot check membership
   where it is an admin. Until then those channels are skipped (⚠️ in the panel).
 - Webhook: managed by the platform (`https://cloud.telegram.org/app<id>/webhook`), refreshed on push
-  from the handlers present (`message`, `callback_query`, `my_chat_member`, `chat_member`).
+  from the handlers present (`message`, `edited_message`, `callback_query`, `my_chat_member`,
+  `chat_member`, `chat_join_request`).
 - In groups Aegis should be an **admin**: then Telegram delivers it every message (needed for
   «پیکربندی» as a plain word); without admin rights only `/config` reaches it (privacy mode).
 
 ## Database and migrations
 
-Tables (all prefixed `aegis_`): `users`, `chats`, `chat_admins`, `access`, `promotions`,
-`join_channels`, `kv`, `states`, `updates`, `audit`, `errors`, `broadcasts` — see `tgcloud/schema.js`.
+38 tables, all prefixed `aegis_` (core: `users`, `chats`, `chat_admins`, `access`, `promotions`,
+`join_channels`, `kv`, `states`, `updates`, `audit`, `errors`, `broadcasts`; then each phase's own,
+e.g. Phase 6: `msg_log`, `schedules`, `reports`, `member_flags`, `topics`, `anon_cmds`) — see
+`tgcloud/schema.js`.
 
 - **Schema** changes: edit `tgcloud/schema.js`, then `npm run deploy` (`tgcloud migrate --safe`
   adds tables/columns/indexes; drops only via `.deprecated()`; type changes are manual).
@@ -300,16 +349,20 @@ aegis/
     endpoints/bcLive.js       owner-only: the live broadcast page's batches
     lib/
       router.js               order of checks, callback_data table
-      jobs.js                 work on the side of updates (broadcast chunks, housekeeping)
+      jobs.js                 work on the side of updates (broadcast chunks, housekeeping, timed jobs)
       config.js, env.js       settings; env.js is generated (AEGIS_OWNER_ID)
       core/                   tg (Bot API + trace), kv, dedupe, errors, audit, state, migrations, commands, bot, util,
-                              duration, modparse, csv, msgscan (what a message contains), signals (security)
+                              duration, modparse, csv, msgscan (what a message contains), signals (security),
+                              clock (times of day in a chat's time zone)
       engines/                users, chats, join, broadcast, buttons, rights, admins, system, settings, lists,
-                              punish, steps, betrayal, admin_actions, logs, locks, members, guards, feds
+                              punish, steps, betrayal, admin_actions, logs, locks, members, guards, feds,
+                              msglog, schedules, groupdata, events
       ui/                     start, owner, owner_bc, group (in-group messages), moderation (group commands,
                               undo buttons, bans/joins), enforce (locks at work), security (security at
-                              work, captcha, lockdowns, federation bans), panel + panel_mod + panel_locks +
-                              panel_security + panel_fed (a chat's panel), guard, system
+                              work, captcha, lockdowns, federation bans), advanced (advanced settings at
+                              work, member commands, reports, night lock, cleanup), welcome, panel +
+                              panel_mod + panel_locks + panel_security + panel_fed + panel_adv +
+                              panel_topics (a chat's panel), guard, system
       i18n/                   t(), digits, RTL; strings/ is generated from ../../locales
   locales/<lang>/*.json       fa, en, ru, zh, fr
   webapp/                     the 📡 live broadcast Mini App page (plain HTML/JS)

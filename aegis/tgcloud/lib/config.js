@@ -6,8 +6,8 @@ import { AEGIS_OWNER_ID } from './env.js';
 
 export const OWNER_ID = AEGIS_OWNER_ID;
 export const BOT_NAME = 'Aegis';
-export const VERSION = '0.5.0';
-export const PHASE = 5;
+export const VERSION = '0.6.0';
+export const PHASE = 6;
 
 /* Languages, in picker order. fa is right-to-left. */
 export const LANGS = ['fa', 'en', 'ru', 'zh', 'fr'];
@@ -74,6 +74,19 @@ export const FED_MAX_ADMINS = 20;
 export const FED_NAME_MAX = 48;
 export const FED_BAN_PAGE = 10;
 export const XGROUP_WINDOW_SEC = 3600; /* the same ad in other groups within this time */
+
+/* Advanced group settings and topics (Phase 6). */
+export const MSG_LOG_KEEP_SEC = 48 * 3600; /* Telegram: a bot deletes messages only within 48 h */
+export const FJ_CACHE_SEC = 10 * 60; /* a member's passed forced-join check is trusted this long */
+export const FJ_MAX_CHANNELS = 3;
+export const CLEAN_MAX_TIMES = 5;
+export const REPORT_GAP_SEC = 60; /* one report per member per minute */
+export const ADMIN_CALL_GAP_SEC = 5 * 60;
+export const RULES_MAX = 3000;
+export const WELCOME_MAX = 1000;
+export const GOODBYE_MAX = 500;
+export const REPORT_ADMINS_MAX = 10; /* admins who get a report privately */
+export const TOPIC_NAME_MAX = 128; /* Telegram's limit */
 
 /* Pending inputs (e.g. "send the broadcast message") expire after this. */
 export const STATE_TTL_SEC = 30 * 60;

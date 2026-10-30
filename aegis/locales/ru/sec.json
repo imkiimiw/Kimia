@@ -186,5 +186,9 @@
   "log_fban": "🌐 {who} дал фед-бан {target} ({fed})",
   "log_funban": "🌐 {who} снял фед-бан с {target} ({fed})",
   "log_fed_ban_here": "🌐 {user} забанен в федерации {fed}: забанен и здесь. Причина: {reason}",
-  "log_fed_declined": "🌐 Заявка {user} отклонена: бан в федерации {fed}."
+  "log_fed_declined": "🌐 Заявка {user} отклонена: бан в федерации {fed}.",
+  "night_ended": "☀️ Ночную блокировку завершил {who}.",
+  "night_restored": "☀️ Доброе утро! Группа снова открыта.",
+  "log_night_end": "☀️ Ночная блокировка закончилась",
+  "state_night": "🌙 Ночная блокировка ВКЛ — до: {time}."
 }

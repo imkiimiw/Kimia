@@ -6,7 +6,9 @@
  * - housekeeping at most once per GC_INTERVAL_SEC: old update ids, expired pending inputs, a few
  *   stale member counts, admin actions older than BETRAY_KEEP_SEC (anti-betrayal only counts recent ones),
  *   lock hits older than LOCK_HITS_KEEP_SEC, old security memory (flood rows, media/ad fingerprints, risk alerts);
- * - at most once a minute: expired captchas and finished lockdowns of every chat (ui/security.js).
+ * - at most once a minute: expired captchas and finished lockdowns of every chat (ui/security.js),
+ *   self-destructing messages, the night lock and scheduled cleanup (ui/advanced.js);
+ * - after every update: Aegis's own group messages are noted for cleanup / self-destructing notices.
  * While the owner has shut Aegis down, broadcasts don't advance (housekeeping still runs).
  * Never throws: failures are recorded (lib/core/errors.js) and the update's own result stands.
  */
@@ -19,9 +21,12 @@ import { nowSec } from './core/util.js';
 import * as adminActions from './engines/admin_actions.js';
 import * as bc from './engines/broadcast.js';
 import * as chats from './engines/chats.js';
+import * as groupdata from './engines/groupdata.js';
 import * as guards from './engines/guards.js';
 import * as locks from './engines/locks.js';
+import * as msglog from './engines/msglog.js';
 import { afterBatch, refreshPanel } from './ui/owner_bc.js';
+import * as advanced from './ui/advanced.js';
 import * as security from './ui/security.js';
 
 async function broadcastChunk(ctx) {
@@ -50,6 +55,8 @@ async function housekeeping(ctx) {
     adminActions: await adminActions.sweep(now, BETRAY_KEEP_SEC),
     lockHits: await locks.sweepHits(now, LOCK_HITS_KEEP_SEC),
     security: await guards.sweep(now),
+    msgLog: await msglog.sweep(now),
+    anonCmds: await groupdata.sweep(now),
   };
 }
 
@@ -58,6 +65,7 @@ async function securitySweep(ctx) {
   if (ctx.shutdown) return;
   if (!(await kv.claim('sec_sweep_at', nowSec(), 60))) return;
   await security.sweep(ctx, null);
+  await advanced.sweep(ctx);
 }
 
 export async function afterUpdate(ctx) {
@@ -65,6 +73,11 @@ export async function afterUpdate(ctx) {
     if (!ctx.shutdown) await broadcastChunk(ctx);
   } catch (err) {
     await errors.record(ctx, err, { source: 'jobs.broadcast' });
+  }
+  try {
+    await advanced.afterUpdate(ctx);
+  } catch (err) {
+    await errors.record(ctx, err, { source: 'jobs.msglog' });
   }
   try {
     await securitySweep(ctx);

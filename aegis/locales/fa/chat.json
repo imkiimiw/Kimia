@@ -99,5 +99,7 @@
   "bot_cant_restrict": "Aegis در این چت دسترسی «بن کاربران» ندارد.",
   "btn_locks": "🔐 قفل‌ها",
   "btn_security": "🔰 امنیت",
-  "btn_fed": "🌐 فدراسیون"
+  "btn_fed": "🌐 فدراسیون",
+  "btn_adv": "⚙️ پیشرفته",
+  "btn_topics": "🗂 تاپیک‌ها"
 }

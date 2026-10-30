@@ -186,5 +186,9 @@
   "log_fban": "🌐 {who} fed-banned {target} ({fed})",
   "log_funban": "🌐 {who} fed-unbanned {target} ({fed})",
   "log_fed_ban_here": "🌐 {user} is banned in the federation {fed}: banned here too. Reason: {reason}",
-  "log_fed_declined": "🌐 Join request of {user} declined: banned in the federation {fed}."
+  "log_fed_declined": "🌐 Join request of {user} declined: banned in the federation {fed}.",
+  "night_ended": "☀️ The night lock was ended by {who}.",
+  "night_restored": "☀️ Good morning! The group is open again.",
+  "log_night_end": "☀️ Night lock ended",
+  "state_night": "🌙 Night lock is ON — ends {time}."
 }

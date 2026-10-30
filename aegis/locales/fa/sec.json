@@ -186,5 +186,9 @@
   "log_fban": "🌐 {who} کاربر {target} را فدبن کرد ({fed})",
   "log_funban": "🌐 {who} فدبن {target} را برداشت ({fed})",
   "log_fed_ban_here": "🌐 {user} در فدراسیون {fed} بن است: اینجا هم بن شد. دلیل: {reason}",
-  "log_fed_declined": "🌐 درخواست عضویت {user} رد شد: در فدراسیون {fed} بن است."
+  "log_fed_declined": "🌐 درخواست عضویت {user} رد شد: در فدراسیون {fed} بن است.",
+  "night_ended": "☀️ قفل شبانه توسط {who} تمام شد.",
+  "night_restored": "☀️ صبح بخیر! گروه دوباره باز است.",
+  "log_night_end": "☀️ قفل شبانه تمام شد",
+  "state_night": "🌙 قفل شبانه روشن است — پایان: {time}."
 }

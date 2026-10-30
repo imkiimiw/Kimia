@@ -58,5 +58,9 @@
   "fed_admin_add": "将 {target} 设为联邦管理员",
   "fed_admin_remove": "移除了联邦管理员 {target}",
   "fed_ban": "联邦封禁了 {target}",
-  "fed_unban": "解除了 {target} 的联邦封禁"
+  "fed_unban": "解除了 {target} 的联邦封禁",
+  "report_new": "举报了 {target} 的消息",
+  "report_handled": "处理了关于 {target} 的举报",
+  "security_night": "夜间锁定开始",
+  "security_night_end": "夜间锁定结束"
 }

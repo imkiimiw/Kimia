@@ -58,5 +58,9 @@
   "fed_admin_add": "a nommé {target} admin de la fédération",
   "fed_admin_remove": "a retiré {target} des admins de la fédération",
   "fed_ban": "a fed-banni {target}",
-  "fed_unban": "a levé le fed-ban de {target}"
+  "fed_unban": "a levé le fed-ban de {target}",
+  "report_new": "a signalé un message de {target}",
+  "report_handled": "a traité un signalement sur {target}",
+  "security_night": "verrou de nuit commencé",
+  "security_night_end": "verrou de nuit terminé"
 }

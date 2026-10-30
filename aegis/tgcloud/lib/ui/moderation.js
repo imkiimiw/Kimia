@@ -28,6 +28,7 @@ import * as settings from '../engines/settings.js';
 import * as users from '../engines/users.js';
 import { dur, pickLang, t } from '../i18n/index.js';
 import * as enforce from './enforce.js';
+import * as advanced from './advanced.js';
 import * as security from './security.js';
 import { ensureChat, register } from './group.js';
 
@@ -341,6 +342,8 @@ export async function onMemberChange(ctx, upd) {
   const actorId = upd.from ? upd.from.id : 0;
   const byPerson = !!actorId && actorId !== bot.id && actorId !== target.id;
   await enforce.memberChange(chat.chat_id, target, inChat(before), inChat(after));
+  if (inChat(before) && !inChat(after)) await advanced.onLeave(ctx, chat, target, { removedBy: byPerson ? actorId : 0 });
+  await advanced.onAdminChange(ctx, chat, target, before, after, actorId);
   if (byPerson && after.status === 'kicked' && before.status !== 'kicked') {
     await users.remember(target);
     if (upd.from && !upd.from.is_bot) await users.remember(upd.from);
@@ -356,7 +359,10 @@ export async function onMemberChange(ctx, upd) {
     await betrayal.after(ctx, chat, actorId, target.id, 'demote');
     return;
   }
-  if (!inChat(before) && inChat(after) && actorId !== bot.id && !(await onJoin(ctx, chat, target))) await security.onJoin(ctx, chat, target);
+  if (!inChat(before) && inChat(after) && actorId !== bot.id && !(await onJoin(ctx, chat, target))) {
+    const held = await security.onJoin(ctx, chat, target);
+    await advanced.onJoin(ctx, chat, target, { welcomeNow: !held });
+  }
 }
 
 /* Someone joined: a blacklisted member is banned again (Audit Mode: only reported). */

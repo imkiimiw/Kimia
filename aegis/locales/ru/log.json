@@ -58,5 +58,9 @@
   "fed_admin_add": "сделал {target} админом федерации",
   "fed_admin_remove": "снял {target} с админов федерации",
   "fed_ban": "дал фед-бан {target}",
-  "fed_unban": "снял фед-бан с {target}"
+  "fed_unban": "снял фед-бан с {target}",
+  "report_new": "пожаловался на сообщение {target}",
+  "report_handled": "обработал жалобу на {target}",
+  "security_night": "ночная блокировка началась",
+  "security_night_end": "ночная блокировка закончилась"
 }

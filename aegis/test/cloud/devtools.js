@@ -3,7 +3,8 @@
  * tgcloud/endpoints/zz_devtools.js for the run (`tgcloud run` executes local files without
  * deploying them) and always deletes it afterwards, so it is never pushed. It reads bot-wide state
  * and reads/deletes ONLY the fake smoke-test users (ids 990000100-990000199) and the fake chat
- * FAKE_CHAT (lists, admin actions, locks, lock hits, join times, security memory). It never touches the
+ * FAKE_CHAT (lists, admin actions, locks, lock hits, join times, security memory, message log,
+ * schedules, member flags, reports, topics, anonymous commands). It never touches the
  * audit log (federations are not created here for that reason).
  */
 import { db } from 'sdk';
@@ -20,6 +21,11 @@ import { hostsOf, linksOf } from '../lib/core/msgscan.js';
 import { scan } from '../lib/core/msgscan.js';
 import * as punish from '../lib/engines/punish.js';
 import * as settings from '../lib/engines/settings.js';
+import * as msglog from '../lib/engines/msglog.js';
+import * as schedules from '../lib/engines/schedules.js';
+import * as gd from '../lib/engines/groupdata.js';
+import { localMinutes, nextTime, parseTimes } from '../lib/core/clock.js';
+import { parseCommand as memberCommand } from '../lib/ui/advanced.js';
 
 const LO = 990000100;
 const HI = 990000199;
@@ -108,7 +114,44 @@ export default async function (input) {
       fedNone: (await feds.ofChat(FAKE_CHAT)) === null,
     };
   }
+  if (action === 'p6') {
+    /* Phase 6: message log with self-destruct times, schedules claimed once, member flags, reports,
+       topics, anonymous commands; times of day and member commands (Unicode) in the isolate. */
+    const now = Math.floor(Date.now() / 1000);
+    await msglog.add(FAKE_CHAT, 11, LO, 'text', 0);
+    await msglog.add(FAKE_CHAT, 12, LO, 'media', now - 1);
+    const since = (await msglog.since(FAKE_CHAT, now - 60, ['text', 'media'], 10)).map((r) => Number(r.msg_id)).sort((a, b) => a - b);
+    /* only read: rows of real chats stay for the real sweep */
+    const dueHere = (await msglog.due(now, 100)).byChat.get(FAKE_CHAT) || [];
+    await schedules.set(FAKE_CHAT, 'cleanup', now - 5);
+    const row = await schedules.get(FAKE_CHAT, 'cleanup');
+    const first = await schedules.claim(row, now + 3600);
+    const second = await schedules.claim(row, now + 7200);
+    await gd.setFjOk(FAKE_CHAT, LO);
+    await gd.addAdds(FAKE_CHAT, LO, 2);
+    const prev = await gd.touchLast(FAKE_CHAT, LO);
+    const fl = await gd.flags(FAKE_CHAT, LO);
+    const rid = await gd.addReport(FAKE_CHAT, LO, LO + 1, 5, 'snippet', 'reason');
+    const handled = await gd.handleReport(rid, 'deleted', LO);
+    const handledTwice = await gd.handleReport(rid, 'banned', LO);
+    await gd.saveTopic(FAKE_CHAT, 77, { name: 'Smoke topic' });
+    await gd.saveTopic(FAKE_CHAT, 77, { closed: true });
+    await gd.setTopicReadonly(FAKE_CHAT, 77, true);
+    const tp = await gd.topic(FAKE_CHAT, 77);
+    const aid = await gd.addAnon(FAKE_CHAT, { text: '/ban' });
+    const took = await gd.takeAnon(aid, LO);
+    const tookAgain = await gd.takeAnon(aid, LO);
+    return {
+      since, dueHere: dueHere.length, claim: [!!first, !!second], flags: [Number(fl.fj_ok_at) > 0, Number(fl.adds), prev === 0, Number(fl.last_at) > 0],
+      report: [!!handled, !!handledTwice, (await gd.report(rid)).status], topic: [tp.name, Number(tp.closed), Number(tp.readonly)],
+      anon: [!!took, !!tookAgain], times: parseTimes('۳:۰۰ و 15:30').times, next: nextTime([0], 0, 210) === 86400 - 210 * 60, local: localMinutes(3600, 210),
+      member: [memberCommand('قوانین').cmd, memberCommand('/report@x spam').cmd, memberCommand('hello') === null],
+    };
+  }
   if (action === 'cleanup') {
+    for (const t of ['aegis_msg_log', 'aegis_schedules', 'aegis_member_flags', 'aegis_reports', 'aegis_topics', 'aegis_anon_cmds']) {
+      await db.run(sql`DELETE FROM ${sql.raw(t)} WHERE chat_id = ${FAKE_CHAT}`);
+    }
     for (const t of ['aegis_flood', 'aegis_captchas', 'aegis_lockdowns', 'aegis_risk_events', 'aegis_guards']) await db.run(sql`DELETE FROM ${sql.raw(t)} WHERE chat_id = ${FAKE_CHAT}`);
     await db.run(sql`DELETE FROM aegis_media_seen WHERE file_uid = 'smoke-media'`);
     await db.run(sql`DELETE FROM aegis_msg_hashes WHERE user_id = ${LO}`);

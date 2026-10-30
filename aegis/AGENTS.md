@@ -3,7 +3,7 @@
 Orientation for AI coding assistants (and humans) working on **Aegis**, a public Telegram group &
 channel management/security bot on **Telegram Serverless**. Keep it short and true. Platform SDK
 reference: [docs/tgcloud-sdk.md](docs/tgcloud-sdk.md). Product spec: `docs/SPEC.md` (Persian, the
-source of truth — it must be added to the repo; it was not present when Phases 1–5 were built, and
+source of truth — it must be added to the repo; it was not present when Phases 1–6 were built, and
 the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
 
 ## Ground rules
@@ -55,6 +55,11 @@ the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
   federations in `engines/feds.js`, the work in `ui/security.js` (after locks, before commands).
   Anything that must happen "later" (captcha timeout, end of a lock) is done lazily by `sweep()` —
   on the chat's next update and at most every minute globally (`jobs.js`). Never rely on timing.
+- Advanced settings: the work in `ui/advanced.js` (service messages before security, message rules
+  after it, member commands before moderation), the panel in `ui/panel_adv.js`, topics in
+  `ui/panel_topics.js`. Timed jobs (night lock, scheduled cleanup) are rows in `aegis_schedules`
+  claimed once by `advanced.sweep()`; message ids for cleanup / self-destruct go to `aegis_msg_log`
+  (48 h, Telegram's deletion limit). Times of day are fixed UTC offsets (`core/clock.js`, no Intl).
 - Multi-step inputs → `lib/core/state.js`; new callback_data codes → document them in the module
   header and in `lib/router.js`; keep callback_data ≤ 64 bytes.
 

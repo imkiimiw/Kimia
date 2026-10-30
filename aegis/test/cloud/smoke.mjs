@@ -12,7 +12,9 @@
 // the lists/settings/punishment SQL on the real database (fake chat -990000100, cleaned up), the
 // moderation command and chat_member paths load and run in the isolate; Phase 4: the three lock
 // tables, the locks SQL and the message scanner (Unicode regexes) in the isolate, edited messages;
-// Phase 5: the eleven security/federation tables, their SQL and the signals in the isolate, join requests.
+// Phase 5: the eleven security/federation tables, their SQL and the signals in the isolate, join requests;
+// Phase 6: the six new tables (message log, schedules, member flags, reports, topics, anonymous
+// commands), their SQL, times of day and member commands in the isolate.
 //
 //   cd aegis && npm run test:cloud      (needs Aegis_BOT_TGCLOUD_TOKEN)
 import { spawnSync } from 'node:child_process';
@@ -49,8 +51,15 @@ fs.copyFileSync(DEV_SRC, DEV_DST);
 try {
   const before = dev('read');
   const tables = before.tables.map((t) => t.name);
-  check('32 aegis_ tables exist', tables.length === 32, tables.join(', '));
-  check('indexes exist', before.indexes.length >= 54, `${before.indexes.length} idx_aegis_*`);
+  check('38 aegis_ tables exist', tables.length === 38, tables.join(', '));
+  check('indexes exist', before.indexes.length >= 63, `${before.indexes.length} idx_aegis_*`);
+  for (const t of ['aegis_msg_log', 'aegis_schedules', 'aegis_reports', 'aegis_member_flags', 'aegis_topics', 'aegis_anon_cmds']) check(`Phase 6 table ${t}`, tables.includes(t));
+  const p6 = dev('p6');
+  check('advanced settings on the real platform: message log and self-destruct, schedules claimed once, member flags, reports handled once, topics, anonymous commands',
+    p6.since.join() === '11,12' && p6.dueHere === 1 && p6.claim.join() === 'true,false' && p6.flags.join() === 'true,2,true,true'
+    && p6.report.join() === 'true,false,deleted' && p6.topic.join() === 'Smoke topic,1,1' && p6.anon.join() === 'true,false', JSON.stringify(p6));
+  check('times of day and member commands (Persian) in the isolate', p6.times.join() === '180,930' && p6.next && p6.local === 270
+    && p6.member.join() === 'rules,report,true', JSON.stringify([p6.times, p6.next, p6.local, p6.member]));
   for (const t of ['aegis_guards', 'aegis_flood', 'aegis_captchas', 'aegis_lockdowns', 'aegis_risk_events', 'aegis_media_seen', 'aegis_msg_hashes', 'aegis_feds',
     'aegis_fed_chats', 'aegis_fed_admins', 'aegis_fed_bans']) check(`Phase 5 table ${t}`, tables.includes(t));
   const p5 = dev('p5');

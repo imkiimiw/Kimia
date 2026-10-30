@@ -817,7 +817,7 @@ async function logsCallback(ctx, user, g, parts, place) {
 }
 
 /* The log channel in a log_set message: a picked chat, a forwarded channel post, @username or -100… id. */
-async function logChatOf(ctx, message) {
+export async function logChatOf(ctx, message) {
   if (message.chat_shared && message.chat_shared.chat_id) return message.chat_shared.chat_id;
   const o = message.forward_origin;
   if (o && (o.type === 'channel' || o.type === 'chat') && (o.chat || o.sender_chat)) return (o.chat || o.sender_chat).id;

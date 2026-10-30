@@ -99,5 +99,7 @@
   "bot_cant_restrict": "Aegis doesn't have the «Ban users» right in this chat.",
   "btn_locks": "🔐 Locks",
   "btn_security": "🔰 Security",
-  "btn_fed": "🌐 Federation"
+  "btn_fed": "🌐 Federation",
+  "btn_adv": "⚙️ Advanced",
+  "btn_topics": "🗂 Topics"
 }

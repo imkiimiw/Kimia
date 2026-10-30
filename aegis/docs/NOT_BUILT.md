@@ -5,10 +5,10 @@ Updated at the end of each phase. Constraint for all entries: **free only** — 
 or tier; only what Telegram Serverless and the Bot API allow.
 
 > **Note on the spec.** `aegis/docs/SPEC.md` (the Persian master spec) was not in the repository
-> when Phases 1–5 were built (searched the working tree, all branches on GitHub, and the
-> container). They were built from their descriptions in the build instructions (Phases 3–5 by the
-> owner's decision to go ahead without it — the 42 locks and the security modules are Aegis's own
-> design, see ASSUMPTIONS); details the spec would normally settle are listed in
+> when Phases 1–6 were built (searched the working tree, all branches on GitHub, and the
+> container). They were built from their descriptions in the build instructions (Phases 3–6 by the
+> owner's decision to go ahead without it — the 42 locks, the security modules and the 26 advanced
+> settings are Aegis's own design, see ASSUMPTIONS); details the spec would normally settle are listed in
 > [ASSUMPTIONS.md](ASSUMPTIONS.md). They will be re-checked against the spec once it is added.
 
 ## Phase 1 — Core
@@ -68,7 +68,7 @@ or tier; only what Telegram Serverless and the Bot API allow.
 | Punishing the person behind a message **sent as a channel** | **Not possible** | Telegram hides who posted as a channel; such messages can only be deleted. (Banning the channel itself, `banChatSenderChat`, is not in this phase.) | A later phase if the spec asks for it. |
 | Telling **Persian from Arabic** (or English from French …) | **Partial** | Language locks work by script: Arabic script (Persian and Arabic together), Latin, Cyrillic, CJK. Telling languages that share a script apart needs language models/dictionaries. | A free language-identification library small enough for the isolate (none used). |
 | Old messages / messages sent **while Aegis was not there** | **Not possible** | Bots can't read chat history; only new messages and edits are checked. | — (Bot API). |
-| Deleting the bot's own lock notices **after a delay** | **Partial** | There is no scheduler, so a notice can't remove itself later. Instead each new lock notice deletes the previous one, and at most one is posted every 5 s. | A platform scheduler. |
+| Deleting the bot's own lock notices **after a delay** | **Partial (improved in Phase 6)** | Each new lock notice deletes the previous one, and at most one is posted every 5 s. Since Phase 6 «Aegis notices vanish after» (1 min – 1 h) also removes them — on the first update after that time, as there is no scheduler. | A platform scheduler for exact timing. |
 | «New members only» for people who joined **before** Aegis | **Partial (by design)** | Join times are known only from joins Telegram reported to Aegis; anyone else counts as an old member (never wrongly treated as new). | — |
 | Locks on **channel posts** and the discussion group | **Phase 7** | Channels and their discussion groups get their own protection in the channel panel. Edited channel posts are not handled. | Phase 7. |
 | Native Telegram permissions (`setChatPermissions`) as locks | **Not used** | Locks are enforced by Aegis per message, so they can have exceptions, sensitivity, scope and punishments, which Telegram's chat-wide permissions can't. (Read-only mode and emergency lock in Phase 5 will use them.) | — |
@@ -88,3 +88,23 @@ or tier; only what Telegram Serverless and the Bot API allow.
 | Federations **retroactively** banning everyone on the list when a group joins | **Partial (by design)** | A joining group's members are banned when they join, write or request to join, not all at once (a big list would hit Telegram's limits). | — |
 | Federation **subscriptions** (one federation following another) and fed-ban **notifications to every group** | **Not built** | Not described in the build instructions; a fed ban is reported in the group where it was given and logged there. | Spec details. |
 | Risk alerts in a **group** chat | **Not built (by design)** | Alerts name a member and their score, so they go to the log channel, or the creator's private chat when there is none. | — |
+
+## Phase 6 — Advanced settings and topics
+
+| Feature | State | Why | What it would need |
+|---|---|---|---|
+| **CAS** (Combot Anti-Spam) check of newcomers | **Not built** | It was planned as one of the 26 advanced settings, but the CAS API now answers every request with `401 API key required` (checked from this container and from the platform). A key is per account: someone signs in to combot.org with Telegram and generates it, and the API page doesn't say whether it's free. Aegis can't get a key by itself, and a key is a secret, which deployed code here has nowhere to keep (`env.js` is committed code). Removed together with its menu entry; the 26th advanced setting is «Remove members' bots» instead (see ASSUMPTIONS). | A key that is confirmed free, plus secret storage — e.g. the owner saving it in the Super Admin panel (Phase 10) into the database. |
+| Night lock, scheduled cleanup, self-destructing messages **exactly on time** | **Partial** | There is no scheduler. They happen on the first update Aegis receives after their time (any group or private message to the bot), checked at most once a minute; in a silent bot they wait. | A platform scheduler. |
+| Time zones with **daylight saving** | **Partial** | The isolate has no `Intl` and no time-zone database, so a chat's time zone is a fixed UTC offset (24 offered; the default follows the group's language: fa +03:30, ru +03:00, zh +08:00, fr +01:00, en UTC). Where clocks change, the admin moves the offset. | Time-zone data in the isolate. |
+| Cleaning **everything** / old history | **Partial** | Bots can't read chat history and can delete messages only up to 48 hours old. Scheduled cleanup deletes the messages Aegis saw (and noted) since the last run, at most 48 h back; messages are noted only while cleanup or self-destructing media is on, and admins' messages are never noted. | — (Bot API). |
+| **Telegram's own** slow mode | **Not possible** | The Bot API has no method to set a group's slow mode, so Aegis's slow mode deletes messages sent too early (with a notice) instead of preventing them. | A Bot API method (not offered). |
+| Listing a forum's **topics** | **Partial** | The Bot API can't list topics. The 🗂 Topics screen shows those Aegis has seen (created, renamed, closed, written in) or created itself. | A Bot API method (not offered). |
+| Topic **icons** | **Not built** | Choosing a topic's icon needs the list of allowed custom emoji (`getForumTopicIconStickers`) and a picker; topics are created with Telegram's default icon. | A later phase if the spec asks for it. |
+| Forced join for members in channels where Aegis is **not an admin** | **Not possible** | Telegram reveals channel membership to a bot only where it is an admin, so such a channel can't be added; if Aegis later loses admin there, that channel is skipped (nobody is blocked by a check that can't be done). | Make Aegis an admin there. |
+| Forced join / add **preventing** messages | **Partial (by design)** | A bot can't stop a member from sending; Aegis deletes their messages (with join buttons) until they join or add the people. Nobody is removed. | — |
+| Reports and `@admin` calls to admins who **never started** Aegis | **Not possible** | A bot can't write first to a user. Only admins who started Aegis get them privately; choose «Reports go to: the log channel» to reach everyone there. | Admins start the bot. |
+| Knowing **which** anonymous admin sent a command | **Not possible** | Telegram hides the anonymous admin, so their commands wait until a real admin confirms them and then run as that admin's (an hour at most). | — (Telegram design). |
+| Name changes **as they happen** | **Partial** | Telegram sends no update for name changes; Aegis notices one when the member next writes in the group. | — (Bot API). |
+| Keeping the title when Aegis **can't change info** | **Not possible** | Putting the title back needs Aegis's «Change group info» right; without it the admins are only told. | Give Aegis the right. |
+| Unpinning / deleting linked-channel posts without the rights | **Not possible** | Needs «Pin messages» / «Delete messages». | Give Aegis the rights. |
+| Night lock and the scheduled cleanup in a **basic group** | **Partial** | Chat permissions can be set only in supergroups, so the night lock works only there (the panel says so); cleanup works in both. | Telegram converts the group. |

@@ -12,6 +12,8 @@ import { parseCommand } from '../../tgcloud/lib/core/commands.js';
 import { LISTS } from '../../tgcloud/lib/engines/lists.js';
 import { LOCKS } from '../../tgcloud/lib/engines/locks.js';
 import { WEIGHTS } from '../../tgcloud/lib/core/signals.js';
+import { CHOICES } from '../../tgcloud/lib/engines/settings.js';
+import { GROUPS as ADV_GROUPS } from '../../tgcloud/lib/ui/panel_adv.js';
 
 const LIST_CODES = LISTS.map((l) => l.code);
 const LOCK_CODES = LOCKS.map((l) => l.code);
@@ -62,7 +64,7 @@ test('button labels and command descriptions fit Telegram limits', () => {
     for (const [key, s] of Object.entries(dicts[lang])) {
       if (/\.btn_|^common\.(back|cancel|no|yes_remove|refresh)$|^bc\.(aud|mode)_btn_/.test(key)) assert.ok(s.length <= 64, `${lang} ${key} is too long for a button`);
       if (key.startsWith('cmd.')) assert.ok(s.length >= 1 && s.length <= 256, `${lang} ${key}`);
-      if (/^(app|cmd|alias|modcmd|seccmd|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
+      if (/^(app|cmd|alias|modcmd|seccmd|advcmd|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
     }
   }
 });
@@ -154,7 +156,30 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'sec.log_captcha_': ['expired', 'failed', 'removed', 'audit'],
     'fed.admin_': ['ok', 'exists', 'full'], 'fed.join_': ['ok', 'other', 'full'],
     'logs.c_': ['security'], 'pun.src_': ['security'],
+    'sec.state_': ['night'],
   };
+  /* Phase 6: the advanced settings and topics panels build these keys from their tables. */
+  for (const grp of Object.keys(ADV_GROUPS)) {
+    used.add(`adv.g_${grp}`);
+    for (const k of ADV_GROUPS[grp]) for (const pre of ['k_', 'h_']) used.add(`adv.${pre}${k}`);
+  }
+  for (const [key, values] of Object.entries(CHOICES)) {
+    if (['jr_mode', 'clean_scope', 'report_dest', 'linked'].includes(key)) for (const v of values) used.add(`adv.v_${key}_${v}`);
+  }
+  for (const x of ['w', 'j', 'n', 'c', 'z', 'l', 'r', 'e', 'k', 'u']) for (const pre of ['x_', 'x_title_', 'x_intro_']) used.add(`adv.${pre}${x}`);
+  for (const k of ['welcome_on', 'goodbye_on', 'welcome_clean', 'fa_n', 'night_on', 'clean_on', 'clean_scope', 'min_len', 'max_len', 'reports', 'report_dest',
+    'ev_join', 'ev_leave', 'ev_admin', 'ev_names', 'linked']) used.add(`adv.k_${k}`);
+  for (const k of ['welcome_text', 'welcome_btns', 'goodbye_text', 'fj_add', 'night_times', 'clean_times', 'ev_set', 'rules']) {
+    used.add(`adv.btn_i_${k}`);
+    used.add(`adv.p_${k}`);
+  }
+  for (const r of ['bots', 'edit', 'topic', 'fj', 'fa', 'slow', 'min', 'max', 'lines', 'mentions', 'caps', 'junk']) for (const pre of ['rule_', 'stop_']) used.add(`adv.${pre}${r}`);
+  for (const st of ['open', 'deleted', 'muted', 'banned', 'dismissed']) used.add(`adv.rs_${st}`);
+  for (const st of ['deleted', 'muted', 'banned', 'dismissed']) used.add(`adv.rp_${st}`);
+  for (const e of ['empty', 'format', 'too_many']) used.add(`adv.times_err_${e}`);
+  for (const a of ['c', 'o', 'h', 'u']) used.add(`topics.general_${a}`);
+  for (const a of ['rules', 'report', 'admins', 'mywarns']) used.add(`advcmd.${a}`);
+  used.add('sec.night_ended'); used.add('sec.night_restored'); used.add('sec.log_night_end');
   for (const [prefix, names] of Object.entries(more)) for (const x of names) used.add(`${prefix}${x}`);
   for (const kind of ['emergency', 'readonly', 'raid']) for (const sfx of ['ended', 'restored']) used.add(`sec.${kind}_${sfx}`);
   for (const kind of ['emergency', 'readonly']) for (const sfx of ['started', 'title', 'intro', 'q', 'done', 'not_on', 'already']) used.add(`sec.${kind}_${sfx}`);
