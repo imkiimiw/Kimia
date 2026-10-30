@@ -8,7 +8,7 @@ import { appLink, botUsername, payloadFor } from './links.js';
 import { newRoomId } from './rooms.js';
 import { edit, esc } from './tg.js';
 
-const names = (room, seats) => seats.map((i) => room.seats[i]).filter(Boolean).map((s) => esc(s.name)).join(', ');
+const names = (room, seats) => seats.map((i) => room.seats[i]).filter(Boolean).map((s) => (s.bot ? `🤖${s.name}` : esc(s.name))).join(', ');
 
 export async function updateInvite(ctx, room) {
   if (!room.inlineId) return;

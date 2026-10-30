@@ -1,0 +1,77 @@
+/*
+ * Design tokens. Surfaces and text come from Telegram's theme (telegram-web-app.js sets the
+ * --tg-theme-* variables), so the app sits naturally in light and dark Telegram; the brand palette,
+ * elevation and motion are layered on top. data-scheme (light / dark) is set from WebApp.colorScheme.
+ */
+:root {
+  --bg: var(--tg-theme-secondary-bg-color, #f1f2f7);
+  --surface: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #ffffff));
+  --text: var(--tg-theme-text-color, #11132a);
+  --hint: var(--tg-theme-hint-color, #8c90a6);
+  --link: var(--tg-theme-link-color, #6b5cff);
+  --line: color-mix(in srgb, var(--text) 9%, transparent);
+  --surface-2: color-mix(in srgb, var(--surface) 90%, var(--text) 10%);
+  --surface-glass: color-mix(in srgb, var(--surface) 78%, transparent);
+
+  --brand: #7458ff;
+  --brand-2: #ff4f8b;
+  --brand-3: #ffb23f;
+  --brand-grad: linear-gradient(135deg, #7458ff 0%, #b04bff 48%, #ff4f8b 100%);
+  --gold: #ffb83a;
+  --silver: #b7c0d4;
+  --bronze: #e08b52;
+  --ok: #1fc37a;
+  --bad: #ff4d63;
+  --x: #ff5d6c;
+  --o: #3aa7ff;
+
+  --felt: #0d6b4d;
+  --felt-2: #0a5a40;
+  --wood: #6b3d22;
+  --wood-2: #8a5531;
+  --point-a: #e9cfa5;
+  --point-b: #a2462f;
+  --white-checker: #f7f3ea;
+  --black-checker: #2a2a33;
+
+  --radius-lg: 24px;
+  --radius: 18px;
+  --radius-sm: 12px;
+  --radius-xs: 8px;
+  --shadow-1: 0 1px 2px rgba(20, 16, 60, 0.06), 0 2px 8px -2px rgba(20, 16, 60, 0.08);
+  --shadow-2: 0 2px 4px rgba(20, 16, 60, 0.06), 0 12px 28px -10px rgba(36, 24, 96, 0.28);
+  --shadow-3: 0 18px 50px -16px rgba(36, 24, 96, 0.45);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--brand) 35%, transparent);
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --fast: 140ms;
+  --mid: 260ms;
+  --slow: 520ms;
+
+  --safe-top: max(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px), env(safe-area-inset-top, 0px));
+  --safe-bottom: max(var(--tg-safe-area-inset-bottom, 0px) + var(--tg-content-safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
+
+  --font: 'Inter', 'Vazirmatn', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+:root[dir='rtl'] {
+  --font: 'Vazirmatn', 'Inter', system-ui, -apple-system, Tahoma, sans-serif;
+}
+
+:root[data-scheme='dark'] {
+  --bg: var(--tg-theme-secondary-bg-color, #0f1020);
+  --surface: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #181a2e));
+  --text: var(--tg-theme-text-color, #f2f3ff);
+  --hint: var(--tg-theme-hint-color, #8b8fb0);
+  --line: color-mix(in srgb, var(--text) 11%, transparent);
+  --surface-2: color-mix(in srgb, var(--surface) 86%, #ffffff 14%);
+  --brand: #8b73ff;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 10px -2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.3), 0 14px 32px -12px rgba(0, 0, 0, 0.7);
+  --shadow-3: 0 22px 60px -18px rgba(0, 0, 0, 0.8);
+  --felt: #0b5a41;
+  --felt-2: #08432f;
+  --white-checker: #efe9dc;
+  --black-checker: #1b1b22;
+}

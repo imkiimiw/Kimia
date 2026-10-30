@@ -308,7 +308,7 @@ export function actionChange(userId, input, rng, t) {
         room.seats = room.seats.map((s) => {
           if (s) return s;
           k += 1;
-          return { id: -k, name: `🤖 ${k}`, bot: true };
+          return { id: -k, name: String(k), bot: true };
         });
         start(room, rng, t);
         advance(room, t, rng);
