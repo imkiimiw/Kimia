@@ -1,7 +1,7 @@
 # Decisions taken without the master spec
 
 `docs/SPEC.md` (the Persian master spec, "the source of truth") was not in the repository when
-Phases 1–4 were built (for Phases 3–4 the owner said to build them without the spec). Where the build instructions did not settle a detail, the choice below
+Phases 1–5 were built (for Phases 3–5 the owner said to build them without the spec). Where the build instructions did not settle a detail, the choice below
 was made. Each is easy to change once the spec says otherwise — nothing here drops, merges or
 renames a feature from the instructions.
 
@@ -68,3 +68,17 @@ renames a feature from the instructions.
 | Bots lock | Removes bots added by non-admins (kick: ban + unban), except usernames on «Allowed bots»; the lock's punishment applies to the person who added them. |
 | Edits | Every edit is checked against the content locks; the edit lock deletes any edited message. |
 | Audit Mode | Locks are automatic, so in Audit Mode nothing is deleted or punished and nothing is posted in the group; the catch is recorded («audit only») and logged. |
+
+## Phase 5
+
+| Topic | Decision |
+|---|---|
+| Modules | Eight, all off by default: anti-link, anti-ads/tabchi, anti-flood, anti-raid, captcha, quarantine, suspicious content, risk score — plus emergency lock, read-only mode and federations. |
+| Order | Locks run first, then security, then commands (a message a lock or security deletes is not executed as a command). Exempt: admins, Aegis, the anonymous admin, the linked channel's posts, VIP and trusted lists. |
+| Defaults | Anti-link: delete, no punishment. Anti-ads: delete + mute 1 day, «new» = 10 min. Flood: 5 messages in 5 s or the same message 3×, delete + mute 10 min, punished once per window. Raid: 10 joins in 60 s → captcha for 30 min. Captcha: emoji buttons, 3 min, unsolved → kick, 2 tries. Quarantine: text only for 1 h. Suspicious: all checks, delete. Risk: medium (alert 40, act 70), mute 1 day. |
+| Who may | Module settings: Settings level (punishments above a warning also need «Ban users»). Emergency lock / read-only: anyone with «Ban users» or the creator (command or panel). Captcha approve/remove and ending a lock from its message: admins with «Ban users». Risk feedback: Settings level. Federation create/join/leave: Full level; manage: its owner; /fban /unfban: owner and fed admins. |
+| Restoring permissions | Before locking, the chat's permissions are read and saved; the same permissions are set back when the last lock ends (several locks at once restore only once, to the original). |
+| Risk signals and weights | 18 signals with fixed default points (see `core/signals.js`); feedback multiplies the weights of that alert's signals ×1.1 (right) or ×0.8 (wrong), bounded 0.3–2×, per group, resettable. «Wrong» also undoes the punishment. |
+| Audit Mode | Security is automatic, so in Audit Mode nothing is deleted, punished, locked or captcha'd; it is recorded and logged. Commands (/lockdown, /fban) are human decisions and still work. |
+| Federations | One federation per group; up to 50 groups and 20 admins per federation; joining needs the owner's join code and the group's own Full admin; a fed ban bans at once in every member group where Aegis can ban, and again on join/message/join request. |
+| Memory | Flood counters, media and ad fingerprints are kept 1 day; risk alerts 30 days; finished captchas 7 days. |

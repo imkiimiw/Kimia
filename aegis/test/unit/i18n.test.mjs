@@ -11,6 +11,7 @@ import { aliasCommand, dur, num, pickLang, t } from '../../tgcloud/lib/i18n/inde
 import { parseCommand } from '../../tgcloud/lib/core/commands.js';
 import { LISTS } from '../../tgcloud/lib/engines/lists.js';
 import { LOCKS } from '../../tgcloud/lib/engines/locks.js';
+import { WEIGHTS } from '../../tgcloud/lib/core/signals.js';
 
 const LIST_CODES = LISTS.map((l) => l.code);
 const LOCK_CODES = LOCKS.map((l) => l.code);
@@ -61,7 +62,7 @@ test('button labels and command descriptions fit Telegram limits', () => {
     for (const [key, s] of Object.entries(dicts[lang])) {
       if (/\.btn_|^common\.(back|cancel|no|yes_remove|refresh)$|^bc\.(aud|mode)_btn_/.test(key)) assert.ok(s.length <= 64, `${lang} ${key} is too long for a button`);
       if (key.startsWith('cmd.')) assert.ok(s.length >= 1 && s.length <= 256, `${lang} ${key}`);
-      if (/^(app|cmd|alias|modcmd|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
+      if (/^(app|cmd|alias|modcmd|seccmd|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
     }
   }
 });
@@ -140,6 +141,24 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'logs.c_': ['punish', 'lists', 'locks', 'admin', 'settings'],
     'pun.src_': ['lock'],
   };
+  const MODULES = ['antilink', 'antiads', 'flood', 'raid', 'captcha', 'quarantine', 'suspicious', 'risk'];
+  const more = {
+    'sec.m_': MODULES, 'sec.d_': MODULES,
+    'sec.f_': ['a', 'd', 'del', 'sc', 'btn', 'win', 'xg', 'n', 't', 'dup', 'act', 'dur', 'mode', 'to', 'fail', 'jr', 'lvl', 'inv', 'homo', 'dec', 'file', 'dupm', 'lv'],
+    'sec.v_': ['sc_all', 'sc_new', 'act_captcha', 'act_quarantine', 'act_lock', 'act_alert', 'mode_button', 'mode_math', 'fail_kick', 'fail_ban', 'fail_mute',
+      'lvl_text', 'lvl_mute'],
+    'sec.sig_': Object.keys(WEIGHTS),
+    'sec.state_': ['emergency', 'readonly', 'raid'],
+    'sec.raid_act_': ['captcha', 'quarantine', 'lock', 'alert', 'audit'],
+    'sec.risk_': ['alert', 'acted', 'audit'], 'sec.ra_': ['alert', 'acted', 'audit'], 'sec.fb_': ['right', 'wrong'],
+    'sec.log_captcha_': ['expired', 'failed', 'removed', 'audit'],
+    'fed.admin_': ['ok', 'exists', 'full'], 'fed.join_': ['ok', 'other', 'full'],
+    'logs.c_': ['security'], 'pun.src_': ['security'],
+  };
+  for (const [prefix, names] of Object.entries(more)) for (const x of names) used.add(`${prefix}${x}`);
+  for (const kind of ['emergency', 'readonly', 'raid']) for (const sfx of ['ended', 'restored']) used.add(`sec.${kind}_${sfx}`);
+  for (const kind of ['emergency', 'readonly']) for (const sfx of ['started', 'title', 'intro', 'q', 'done', 'not_on', 'already']) used.add(`sec.${kind}_${sfx}`);
+  for (const kind of ['emergency', 'readonly', 'raid']) used.add(`sec.log_${kind}_end`);
   for (const fam of ['link', 'masked', 'command', 'badword', 'blocklink', 'emoji', 'long', 'repeat', 'lang', 'forward']) {
     for (const lv of ['low', 'medium', 'high']) used.add(`locks.s_${fam}_${lv}`);
   }

@@ -16,6 +16,7 @@
  *   g:c:g[:lang]         the chat's language      g:c:r        reminder on/off
  *   g:c:h                change log
  *   g:c:K…               locks — ui/panel_locks.js
+ *   g:c:S…  g:c:F…       security, federation — ui/panel_security.js, ui/panel_fed.js
  *   g:c:L… g:c:P… g:c:W… g:c:B… g:c:U… g:c:O…   lists, punishments, warnings and steps,
  *                        anti-betrayal, Audit Mode, log channel — ui/panel_mod.js
  * Pending inputs (aegis_states): adm_pick { chat } — the member to appoint (shared user, forwarded
@@ -36,8 +37,10 @@ import * as users from '../engines/users.js';
 import { dur, has, langFlag, langName, t } from '../i18n/index.js';
 import { grantLink, rightsLines } from './group.js';
 import { back, guard, levelName, pairs, removeKeyboard, rowName, typeIcon } from './guard.js';
+import * as fedPanel from './panel_fed.js';
 import * as lockPanel from './panel_locks.js';
 import * as mod from './panel_mod.js';
+import * as secPanel from './panel_security.js';
 
 const { L } = admins;
 const PRESET = {
@@ -89,10 +92,11 @@ async function root(ctx, user, g, place, notice = '') {
   const s = await settings.all(ctx, c);
   if (settings.flag(s, 'audit')) lines.push('', t(lang, 'chat.root_audit'));
   const rows = [
-    [btn(t(lang, 'chat.btn_locks'), `g:${c}:K`)],
+    [btn(t(lang, 'chat.btn_locks'), `g:${c}:K`), btn(t(lang, 'chat.btn_security'), `g:${c}:S`)],
     [btn(t(lang, 'chat.btn_lists'), `g:${c}:L`), btn(t(lang, 'chat.btn_punish'), `g:${c}:P`)],
     [btn(t(lang, 'chat.btn_warns'), `g:${c}:W`), btn(t(lang, 'chat.btn_betray'), `g:${c}:B`)],
-    [btn(t(lang, settings.flag(s, 'audit') ? 'chat.btn_audit_on' : 'chat.btn_audit_off'), `g:${c}:U`), btn(t(lang, 'chat.btn_logs'), `g:${c}:O`)],
+    [btn(t(lang, 'chat.btn_fed'), `g:${c}:F`), btn(t(lang, settings.flag(s, 'audit') ? 'chat.btn_audit_on' : 'chat.btn_audit_off'), `g:${c}:U`)],
+    [btn(t(lang, 'chat.btn_logs'), `g:${c}:O`)],
     [btn(t(lang, 'chat.btn_perms'), `g:${c}:p`), btn(t(lang, 'chat.btn_admins'), `g:${c}:a`)],
     [btn(t(lang, 'chat.btn_access'), `g:${c}:l`), btn(t(lang, 'chat.btn_lang'), `g:${c}:g`)],
     [btn(t(lang, Number(chat.reminder) ? 'chat.btn_reminder_on' : 'chat.btn_reminder_off'), `g:${c}:r`), btn(t(lang, 'chat.btn_log'), `g:${c}:h`)],
@@ -541,6 +545,7 @@ async function logScreen(ctx, user, g, place) {
       status: details.to ? String(details.to) : '',
       key: esc(String(r.target || '')),
       lock: has(`locks.n_${r.target}`) ? t(lang, `locks.n_${r.target}`) : esc(String(r.target || '')),
+      module: has(`sec.m_${r.target}`) ? t(lang, `sec.m_${r.target}`) : esc(String(r.target || '')),
     };
     const what = has(key) ? t(lang, key, vars) : t(lang, 'log.other', { action: esc(r.action) });
     lines.push(t(lang, 'log.line', { ago: dur(lang, now - Number(r.at)), who: who(Number(r.actor_id)), what }));
@@ -577,6 +582,8 @@ export async function callback(ctx, user, parts, place) {
     case 'r': return reminderToggle(ctx, user, g, place);
     case 'h': return logScreen(ctx, user, g, place);
     case 'K': return lockPanel.callback(ctx, user, g, parts, place);
+    case 'S': return secPanel.callback(ctx, user, g, parts, place);
+    case 'F': return fedPanel.callback(ctx, user, g, parts, place);
     case 'L': case 'P': case 'W': case 'B': case 'U': case 'O': return mod.callback(ctx, user, g, parts, place);
     default: return root(ctx, user, g, place);
   }

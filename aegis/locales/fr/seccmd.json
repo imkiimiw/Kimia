@@ -1,0 +1,6 @@
+{
+  "lockdown": "verrouillage|urgence",
+  "readonly": "lecture seule",
+  "fban": "fedban",
+  "unfban": "unfedban"
+}

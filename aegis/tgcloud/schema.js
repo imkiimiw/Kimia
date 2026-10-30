@@ -365,6 +365,7 @@ export const members = table('aegis_members', {
   joinedAt: integer('joined_at').notNull(),
 }, (t) => ({
   key: uniqueIndex('idx_aegis_members_key').on(t.chatId, t.userId),
+  recent: index('idx_aegis_members_recent').on(t.chatId, t.joinedAt),
 }));
 
 /* Messages a lock caught (kept 7 days): the panel's «recent hits» per lock. */
@@ -379,4 +380,158 @@ export const lockHits = table('aegis_lock_hits', {
 }, (t) => ({
   byLock: index('idx_aegis_lock_hits_lock').on(t.chatId, t.code, t.at),
   byAt: index('idx_aegis_lock_hits_at').on(t.at),
+}));
+
+/*
+ * Group security modules (Phase 5): one row per chat and module (antilink, antiads, flood, raid,
+ * captcha, quarantine, suspicious, risk); config JSON validated in lib/engines/guards.js.
+ */
+export const guards = table('aegis_guards', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  code: text('code').notNull(),
+  enabled: integer('enabled').notNull().default(0),
+  config: text('config').notNull(),
+  updatedBy: integer('updated_by').notNull().default(0),
+  updatedAt: integer('updated_at').notNull().default(0),
+}, (t) => ({
+  byChat: uniqueIndex('idx_aegis_guards_chat_code').on(t.chatId, t.code),
+}));
+
+/* Per member and chat: the flood window, the last message's fingerprint and how often it repeated. */
+export const flood = table('aegis_flood', {
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  winAt: integer('win_at').notNull().default(0),
+  n: integer('n').notNull().default(0),
+  lastHash: text('last_hash'),
+  dupN: integer('dup_n').notNull().default(0),
+  msgs: integer('msgs').notNull().default(0), /* messages seen from this member (first-message checks) */
+  punishedAt: integer('punished_at').notNull().default(0),
+  at: integer('at').notNull().default(0),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_flood_key').on(t.chatId, t.userId),
+  byAt: index('idx_aegis_flood_at').on(t.at),
+}));
+
+/* Captchas: in the group (a muted newcomer presses a button) or in private (a join request). */
+export const captchas = table('aegis_captchas', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  kind: text('kind').notNull(), /* group, request */
+  answer: integer('answer').notNull(),
+  options: text('options').notNull(), /* JSON: the buttons */
+  question: text('question'),
+  msgChat: integer('msg_chat').notNull().default(0),
+  msgId: integer('msg_id').notNull().default(0),
+  attempts: integer('attempts').notNull().default(0),
+  status: text('status').notNull().default('pending'), /* pending, passed, failed, expired, approved, removed */
+  createdAt: integer('created_at').notNull(),
+  expiresAt: integer('expires_at').notNull(),
+}, (t) => ({
+  byUser: index('idx_aegis_captchas_user').on(t.chatId, t.userId, t.status),
+  pending: index('idx_aegis_captchas_pending').on(t.expiresAt).where(sql`status = 'pending'`),
+}));
+
+/* Emergency lock, read-only mode and raid mode: the chat's earlier permissions, restored at the end. */
+export const lockdowns = table('aegis_lockdowns', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  kind: text('kind').notNull(), /* emergency, readonly, raid */
+  active: integer('active').notNull().default(1),
+  saved: text('saved'), /* ChatPermissions JSON before the lock */
+  reason: text('reason'),
+  byId: integer('by_id').notNull().default(0),
+  startedAt: integer('started_at').notNull(),
+  until: integer('until').notNull().default(0), /* 0 = until ended by hand */
+  endedAt: integer('ended_at').notNull().default(0),
+  endedBy: integer('ended_by').notNull().default(0),
+}, (t) => ({
+  byChat: index('idx_aegis_lockdowns_chat').on(t.chatId, t.active),
+  due: index('idx_aegis_lockdowns_due').on(t.until).where(sql`active = 1 AND until > 0`),
+}));
+
+/* Risk alerts: the score, the reasons, what was done, and the admins' feedback. */
+export const riskEvents = table('aegis_risk_events', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  score: integer('score').notNull(),
+  reasons: text('reasons').notNull(), /* JSON [[signal, points]] */
+  action: text('action').notNull(), /* alert, acted, audit */
+  punishId: integer('punish_id').notNull().default(0),
+  at: integer('at').notNull(),
+  feedback: text('feedback'), /* right, wrong */
+  feedbackBy: integer('feedback_by').notNull().default(0),
+}, (t) => ({
+  byChat: index('idx_aegis_risk_events_chat').on(t.chatId, t.at),
+}));
+
+/* Media seen recently (duplicate media, in one chat or across chats). Kept a day. */
+export const mediaSeen = table('aegis_media_seen', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  fileUid: text('file_uid').notNull(),
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byFile: index('idx_aegis_media_seen_file').on(t.fileUid, t.at),
+  byAt: index('idx_aegis_media_seen_at').on(t.at),
+}));
+
+/* Fingerprints of ad-like messages (links, @usernames, phones): the same text in several groups. Kept a day. */
+export const msgHashes = table('aegis_msg_hashes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  hash: text('hash').notNull(),
+  chatId: integer('chat_id').notNull(),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byUser: index('idx_aegis_msg_hashes_user').on(t.userId, t.hash, t.at),
+  byAt: index('idx_aegis_msg_hashes_at').on(t.at),
+}));
+
+/* Federations: groups that share one ban list. */
+export const feds = table('aegis_feds', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  ownerId: integer('owner_id').notNull(),
+  code: text('code').notNull(), /* the join code the owner hands out */
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  byCode: uniqueIndex('idx_aegis_feds_code').on(t.code),
+  byOwner: index('idx_aegis_feds_owner').on(t.ownerId),
+}));
+
+export const fedChats = table('aegis_fed_chats', {
+  fedId: integer('fed_id').notNull(),
+  chatId: integer('chat_id').notNull(),
+  joinedBy: integer('joined_by').notNull().default(0),
+  joinedAt: integer('joined_at').notNull(),
+}, (t) => ({
+  byChat: uniqueIndex('idx_aegis_fed_chats_chat').on(t.chatId),
+  byFed: index('idx_aegis_fed_chats_fed').on(t.fedId),
+}));
+
+export const fedAdmins = table('aegis_fed_admins', {
+  fedId: integer('fed_id').notNull(),
+  userId: integer('user_id').notNull(),
+  addedBy: integer('added_by').notNull().default(0),
+  addedAt: integer('added_at').notNull(),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_fed_admins_key').on(t.fedId, t.userId),
+  byUser: index('idx_aegis_fed_admins_user').on(t.userId),
+}));
+
+export const fedBans = table('aegis_fed_bans', {
+  fedId: integer('fed_id').notNull(),
+  userId: integer('user_id').notNull(),
+  name: text('name'),
+  reason: text('reason'),
+  byId: integer('by_id').notNull().default(0),
+  at: integer('at').notNull(),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_fed_bans_key').on(t.fedId, t.userId),
+  byFed: index('idx_aegis_fed_bans_fed').on(t.fedId, t.at),
 }));

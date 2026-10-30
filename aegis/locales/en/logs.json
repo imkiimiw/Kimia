@@ -53,5 +53,6 @@
   "lock_kept": "🔐 Caught a message of {user} (kept) — {locks}",
   "lock_audit": "🕵️ Audit Mode — would have acted on a message of {user}: {locks}",
   "lock_bots": "🦾 Removed {bots}, added by {user}",
-  "lock_bots_audit": "🕵️ Audit Mode — would have removed {bots}, added by {user}"
+  "lock_bots_audit": "🕵️ Audit Mode — would have removed {bots}, added by {user}",
+  "c_security": "Security"
 }

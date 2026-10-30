@@ -97,5 +97,7 @@
   "root_audit": "🕵️ Audit Mode is ON: automatic punishments are only reported.",
   "need_restrict": "You need Telegram's «Ban users» right in this chat for this.",
   "bot_cant_restrict": "Aegis doesn't have the «Ban users» right in this chat.",
-  "btn_locks": "🔐 Locks"
+  "btn_locks": "🔐 Locks",
+  "btn_security": "🔰 Security",
+  "btn_fed": "🌐 Federation"
 }

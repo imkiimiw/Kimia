@@ -53,5 +53,6 @@
   "lock_kept": "🔐 Message de {user} bloqué (gardé) — {locks}",
   "lock_audit": "🕵️ Mode audit — aurait agi sur un message de {user} : {locks}",
   "lock_bots": "🦾 {bots} retiré(s), ajouté(s) par {user}",
-  "lock_bots_audit": "🕵️ Mode audit — aurait retiré {bots}, ajouté(s) par {user}"
+  "lock_bots_audit": "🕵️ Mode audit — aurait retiré {bots}, ajouté(s) par {user}",
+  "c_security": "Sécurité"
 }

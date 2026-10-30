@@ -11,7 +11,8 @@
 // (and shows where Aegis is not an admin yet), block tracking works; Phase 3: the six new tables,
 // the lists/settings/punishment SQL on the real database (fake chat -990000100, cleaned up), the
 // moderation command and chat_member paths load and run in the isolate; Phase 4: the three lock
-// tables, the locks SQL and the message scanner (Unicode regexes) in the isolate, edited messages.
+// tables, the locks SQL and the message scanner (Unicode regexes) in the isolate, edited messages;
+// Phase 5: the eleven security/federation tables, their SQL and the signals in the isolate, join requests.
 //
 //   cd aegis && npm run test:cloud      (needs Aegis_BOT_TGCLOUD_TOKEN)
 import { spawnSync } from 'node:child_process';
@@ -48,8 +49,14 @@ fs.copyFileSync(DEV_SRC, DEV_DST);
 try {
   const before = dev('read');
   const tables = before.tables.map((t) => t.name);
-  check('21 aegis_ tables exist', tables.length === 21, tables.join(', '));
-  check('indexes exist', before.indexes.length >= 33, `${before.indexes.length} idx_aegis_*`);
+  check('32 aegis_ tables exist', tables.length === 32, tables.join(', '));
+  check('indexes exist', before.indexes.length >= 54, `${before.indexes.length} idx_aegis_*`);
+  for (const t of ['aegis_guards', 'aegis_flood', 'aegis_captchas', 'aegis_lockdowns', 'aegis_risk_events', 'aegis_media_seen', 'aegis_msg_hashes', 'aegis_feds',
+    'aegis_fed_chats', 'aegis_fed_admins', 'aegis_fed_bans']) check(`Phase 5 table ${t}`, tables.includes(t));
+  const p5 = dev('p5');
+  check('security on the real platform: flood counters, punish once, media/ad memory, captcha and lockdown expiry, risk feedback, signals in the isolate',
+    p5.modules === 8 && !p5.anyOn && p5.flood.join() === '1,2,2,2' && p5.claimed && !p5.again && p5.seen.join() === '0,1' && p5.ad === 0 && p5.captcha && p5.lockdown
+    && p5.feedback && p5.signals.join() === 'spam.com,true,1,75' && p5.fedNone, JSON.stringify(p5));
   for (const t of ['aegis_locks', 'aegis_members', 'aegis_lock_hits']) check(`Phase 4 table ${t}`, tables.includes(t));
   const p4 = dev('p4');
   check('locks on the real platform: active lock read back, disguised link caught, mixed message not caught, hits and join times stored',
@@ -99,6 +106,8 @@ try {
   check('a ban seen in an unknown group is ignored without errors', !r5.error, r5.error || '');
   const r6 = tg(['handlers/edited_message', JSON5.stringify({ ...gm, edit_date: 1, text: 'edited smoke' })]);
   check('an edited message (new handler) runs without errors', !r6.error, r6.error || '');
+  const r7 = tg(['handlers/chat_join_request', JSON5.stringify({ chat: G, from: user(B, 'en'), user_chat_id: B, date: 0 })]);
+  check('a join request (new handler) in an unknown group is ignored without errors', !r7.error && r7.trace.length === 0, JSON.stringify(r7.trace));
   check('blocking the bot is recorded', !r3.error && Number(dev('read').users.find((u) => Number(u.user_id) === B).blocked) === 1);
 } finally {
   try {

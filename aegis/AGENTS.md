@@ -3,7 +3,7 @@
 Orientation for AI coding assistants (and humans) working on **Aegis**, a public Telegram group &
 channel management/security bot on **Telegram Serverless**. Keep it short and true. Platform SDK
 reference: [docs/tgcloud-sdk.md](docs/tgcloud-sdk.md). Product spec: `docs/SPEC.md` (Persian, the
-source of truth — it must be added to the repo; it was not present when Phases 1–4 were built, and
+source of truth — it must be added to the repo; it was not present when Phases 1–5 were built, and
 the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
 
 ## Ground rules
@@ -51,6 +51,10 @@ the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
 - Locks: detection is pure (`core/msgscan.js`, unit-tested), the 42 definitions and settings live in
   `engines/locks.js`, enforcement in `ui/enforce.js` runs **before** commands on every group message
   and edit (a deleted message goes no further). Keep the per-message path to a few indexed queries.
+- Security: signals are pure (`core/signals.js`), settings and memory in `engines/guards.js`,
+  federations in `engines/feds.js`, the work in `ui/security.js` (after locks, before commands).
+  Anything that must happen "later" (captcha timeout, end of a lock) is done lazily by `sweep()` —
+  on the chat's next update and at most every minute globally (`jobs.js`). Never rely on timing.
 - Multi-step inputs → `lib/core/state.js`; new callback_data codes → document them in the module
   header and in `lib/router.js`; keep callback_data ≤ 64 bytes.
 

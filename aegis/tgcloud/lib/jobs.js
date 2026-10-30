@@ -5,7 +5,8 @@
  *   a queued broadcast starts when nothing else is running;
  * - housekeeping at most once per GC_INTERVAL_SEC: old update ids, expired pending inputs, a few
  *   stale member counts, admin actions older than BETRAY_KEEP_SEC (anti-betrayal only counts recent ones),
- *   lock hits older than LOCK_HITS_KEEP_SEC.
+ *   lock hits older than LOCK_HITS_KEEP_SEC, old security memory (flood rows, media/ad fingerprints, risk alerts);
+ * - at most once a minute: expired captchas and finished lockdowns of every chat (ui/security.js).
  * While the owner has shut Aegis down, broadcasts don't advance (housekeeping still runs).
  * Never throws: failures are recorded (lib/core/errors.js) and the update's own result stands.
  */
@@ -18,8 +19,10 @@ import { nowSec } from './core/util.js';
 import * as adminActions from './engines/admin_actions.js';
 import * as bc from './engines/broadcast.js';
 import * as chats from './engines/chats.js';
+import * as guards from './engines/guards.js';
 import * as locks from './engines/locks.js';
 import { afterBatch, refreshPanel } from './ui/owner_bc.js';
+import * as security from './ui/security.js';
 
 async function broadcastChunk(ctx) {
   let cur = await bc.active();
@@ -46,7 +49,15 @@ async function housekeeping(ctx) {
     staleCounts: await chats.refreshStaleCounts(ctx, 3, 1500),
     adminActions: await adminActions.sweep(now, BETRAY_KEEP_SEC),
     lockHits: await locks.sweepHits(now, LOCK_HITS_KEEP_SEC),
+    security: await guards.sweep(now),
   };
+}
+
+/* Expired captchas and finished lockdowns of every chat, at most once a minute (no scheduler). */
+async function securitySweep(ctx) {
+  if (ctx.shutdown) return;
+  if (!(await kv.claim('sec_sweep_at', nowSec(), 60))) return;
+  await security.sweep(ctx, null);
 }
 
 export async function afterUpdate(ctx) {
@@ -54,6 +65,11 @@ export async function afterUpdate(ctx) {
     if (!ctx.shutdown) await broadcastChunk(ctx);
   } catch (err) {
     await errors.record(ctx, err, { source: 'jobs.broadcast' });
+  }
+  try {
+    await securitySweep(ctx);
+  } catch (err) {
+    await errors.record(ctx, err, { source: 'jobs.security' });
   }
   try {
     await housekeeping(ctx);

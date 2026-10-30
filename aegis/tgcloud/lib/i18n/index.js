@@ -90,7 +90,8 @@ export function dur(lang, sec) {
 /*
  * Words typed instead of commands, from a locale namespace of every language (so Persian and
  * English words both work whatever the user's language): "alias" for private-chat commands
- * (aliasCommand), "modcmd" for the group's moderation commands (modCommand). { word → command }.
+ * (aliasCommand), "modcmd" for the group's moderation commands (modCommand), "seccmd" for the security
+ * commands (wordCommand). { word → command }.
  */
 const wordMaps = {};
 function wordMap(ns) {
@@ -112,6 +113,7 @@ function wordMap(ns) {
 }
 export const aliasCommand = (text) => wordMap('alias').get(normalizeWord(text)) || null;
 export const modCommand = (text) => wordMap('modcmd').get(normalizeWord(text)) || null;
+export const wordCommand = (ns, text) => wordMap(ns).get(normalizeWord(text)) || null;
 
 /* The language's own name ("فارسی", "English", …) for the picker. */
 export const langName = (lang) => DICTS[lang]['lang.name'];

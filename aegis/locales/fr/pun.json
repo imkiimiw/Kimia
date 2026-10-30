@@ -59,5 +59,6 @@
   "src_betrayal": "anti-trahison",
   "src_telegram": "dans Telegram",
   "export_caption": "⚖️ Sanctions de {title} : {n} lignes (heures UTC).",
-  "src_lock": "verrou"
+  "src_lock": "verrou",
+  "src_security": "sécurité"
 }

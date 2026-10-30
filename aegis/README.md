@@ -10,13 +10,57 @@ deployed **now**.
 | 2 | Adding the bot, configuration & access control: registration + warning, required rights, appoint/edit/remove admins through Aegis, «پیکربندی», access levels, revocation, change log, /shutdown /activate /status | ✅ deployed |
 | 3 | Group lists (18), punishments with undo, warnings and step punishments, anti-betrayal, Audit Mode, log channel | ✅ deployed |
 | 4 | Group locks: 42 locks, each with its own settings | ✅ deployed |
-| 5–10 | Security, advanced settings, channel panel, reports, fun & media, full Super Admin panel | not started |
+| 5 | Group security: anti-link, anti-ads/tabchi, anti-flood, anti-raid, captcha, quarantine, emergency lock, read-only, suspicious content, risk score with feedback, federations | ✅ deployed |
+| 6–10 | Advanced settings, channel panel, reports, fun & media, full Super Admin panel | not started |
 
 Design decisions taken without the master spec (it isn't in the repository yet) are listed in
 [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md).
 
 Features that can't be built for free on this platform, or only partly, are listed in
 [docs/NOT_BUILT.md](docs/NOT_BUILT.md).
+
+## What Phase 5 does
+
+**🔰 Security** (panel → 🔰 Security) — eight modules, each off by default, each with its own
+settings; admins, Aegis, the anonymous admin, the linked channel and the VIP and trusted lists are
+never caught:
+- **Anti-link** — links even when disguised (full-width letters `ｓｐａｍ．ｃｏｍ`, look-alike dots
+  `spam。net`, `site(dot)com`, zero-width characters inside, links on inline buttons); the «Allowed
+  links» list and links to the group itself pass; everyone or new members only.
+- **Anti-ads / tabchi** — a new member's first link, @username, phone or channel forward; the same
+  ad posted in other groups that use Aegis (fingerprints kept a day); ad phrases in five languages
+  together with a contact.
+- **Anti-flood** — n messages in t seconds (3/5/8/12 in 3/5/10/30 s), or the same message 2/3/5
+  times; deleted, punished once per window.
+- **Anti-raid** — n joins in t seconds → raid mode for 10 min – 6 h: captcha or quarantine for
+  everyone joining, an emergency lock, or only an alert; alert in the group and to the creator with
+  «🔓 End raid mode».
+- **Captcha** — newcomers are muted until they press the shown emoji (or solve a small sum); 1, 3
+  or 10 minutes; unsolved → kick, ban or stay muted; admins can approve/remove from the message.
+  With **join requests** the captcha goes to the requester's private chat and approves or declines
+  the request.
+- **Quarantine** — newcomers send text only (or nothing) for 10 min – 1 day; Telegram lifts it.
+- **Suspicious content** — invisible characters (bidi overrides, zero-width, Hangul filler — not
+  ZWNJ/ZWJ), look-alike letters (`раypal`), scam text («Telegram Support: verify your account»),
+  deceptive hidden links, dangerous files (.apk .exe .bat .js .docm …, `photo.jpg.exe`, reversed
+  names), the same media 3 times in a day or across groups.
+- **Risk score** — adds up 18 signals (e.g. impersonating an admin or Telegram +40, the same ad in
+  other groups +45, dangerous file +50, new member with a link +30) for every message and newcomer;
+  explains the score to the admins (log channel, or the creator's private chat) and acts above the
+  threshold (low/medium/high: 50/90, 40/70, 30/50). **✅ Right / ❌ Wrong** on each alert: wrong
+  undoes the punishment; both adjust that group's weights (×1.1 / ×0.8, kept within 0.3–2×), shown
+  in «📈 Risk alerts» with a reset.
+
+**🚨 Emergency lock / 📖 read-only** — `/lockdown [duration] [reason]`, `/lockdown off`,
+`/readonly [duration]`, `/readonly off` (or «قفل اضطراری», «فقط خواندنی» …), or the panel (asks
+first; 10 min, 1 h, 6 h or until ended). Members can't write; the group's permissions are saved and
+**restored automatically** when it ends — also when the time runs out.
+
+**🌐 Federation** (panel → 🌐 Federation) — groups sharing one ban list. Create one (you own it)
+or join with its code; the owner names federation admins. `/fban` and `/unfban` (reply, @username or
+id, with a reason) ban or unban in every member group at once; a fed-banned person is banned again
+when they join, write or ask to join any member group. Ban list with unban and CSV export; new
+join code, rename, leave, delete (asks first).
 
 ## What Phase 4 does
 
@@ -251,19 +295,21 @@ Tables (all prefixed `aegis_`): `users`, `chats`, `chat_admins`, `access`, `prom
 aegis/
   tgcloud/
     schema.js                 aegis_* tables
-    handlers/                 message, edited_message, callback_query, my_chat_member, chat_member  → lib/router.js
+    handlers/                 message, edited_message, callback_query, my_chat_member, chat_member,
+                              chat_join_request  → lib/router.js
     endpoints/bcLive.js       owner-only: the live broadcast page's batches
     lib/
       router.js               order of checks, callback_data table
       jobs.js                 work on the side of updates (broadcast chunks, housekeeping)
       config.js, env.js       settings; env.js is generated (AEGIS_OWNER_ID)
       core/                   tg (Bot API + trace), kv, dedupe, errors, audit, state, migrations, commands, bot, util,
-                              duration, modparse, csv, msgscan (what a message contains)
+                              duration, modparse, csv, msgscan (what a message contains), signals (security)
       engines/                users, chats, join, broadcast, buttons, rights, admins, system, settings, lists,
-                              punish, steps, betrayal, admin_actions, logs, locks, members — one per engine
+                              punish, steps, betrayal, admin_actions, logs, locks, members, guards, feds
       ui/                     start, owner, owner_bc, group (in-group messages), moderation (group commands,
-                              undo buttons, bans/joins), enforce (locks at work), panel + panel_mod +
-                              panel_locks (a chat's panel), guard, system
+                              undo buttons, bans/joins), enforce (locks at work), security (security at
+                              work, captcha, lockdowns, federation bans), panel + panel_mod + panel_locks +
+                              panel_security + panel_fed (a chat's panel), guard, system
       i18n/                   t(), digits, RTL; strings/ is generated from ../../locales
   locales/<lang>/*.json       fa, en, ru, zh, fr
   webapp/                     the 📡 live broadcast Mini App page (plain HTML/JS)

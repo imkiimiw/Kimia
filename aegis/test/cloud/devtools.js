@@ -3,7 +3,8 @@
  * tgcloud/endpoints/zz_devtools.js for the run (`tgcloud run` executes local files without
  * deploying them) and always deletes it afterwards, so it is never pushed. It reads bot-wide state
  * and reads/deletes ONLY the fake smoke-test users (ids 990000100-990000199) and the fake chat
- * FAKE_CHAT (lists, admin actions, locks, lock hits, join times). It never touches the audit log.
+ * FAKE_CHAT (lists, admin actions, locks, lock hits, join times, security memory). It never touches the
+ * audit log (federations are not created here for that reason).
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
@@ -12,6 +13,10 @@ import * as adminActions from '../lib/engines/admin_actions.js';
 import * as lists from '../lib/engines/lists.js';
 import * as locks from '../lib/engines/locks.js';
 import * as members from '../lib/engines/members.js';
+import * as feds from '../lib/engines/feds.js';
+import * as guards from '../lib/engines/guards.js';
+import { deobfuscate, invisible, mixedScriptWords, score } from '../lib/core/signals.js';
+import { hostsOf, linksOf } from '../lib/core/msgscan.js';
 import { scan } from '../lib/core/msgscan.js';
 import * as punish from '../lib/engines/punish.js';
 import * as settings from '../lib/engines/settings.js';
@@ -27,8 +32,8 @@ export default async function (input) {
       kv: await db.all(sql`SELECT key, value FROM aegis_kv WHERE key IN ('data_version', 'join_enabled', 'join_rev', 'cmd_rev', 'bot_id', 'bot_username', 'shutdown') LIMIT 20`),
       channels: await db.all(sql`SELECT id, username, chat_id, title, bot_admin, last_error, position FROM aegis_join_channels ORDER BY position LIMIT 20`),
       users: await db.all(sql`SELECT user_id, lang, lang_set, started, blocked FROM aegis_users WHERE user_id BETWEEN ${LO} AND ${HI} LIMIT 50`),
-      tables: await db.all(sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'aegis_%' ORDER BY name LIMIT 50`),
-      indexes: await db.all(sql`SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_aegis_%' ORDER BY name LIMIT 50`),
+      tables: await db.all(sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'aegis_%' ORDER BY name LIMIT 200`),
+      indexes: await db.all(sql`SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_aegis_%' ORDER BY name LIMIT 200`),
     };
   }
   if (action === 'p3') {
@@ -76,7 +81,37 @@ export default async function (input) {
       counts: await locks.countOn(FAKE_CHAT),
     };
   }
+  if (action === 'p5') {
+    /* Phase 5: the security SQL (upsert with RETURNING, conditional updates) and signals in the isolate. */
+    const ctx = {};
+    const g = await guards.all(ctx, FAKE_CHAT);
+    const c1 = await guards.countMessage(FAKE_CHAT, LO, 'h1', 5);
+    const c2 = await guards.countMessage(FAKE_CHAT, LO, 'h1', 5);
+    const claimed = await guards.claimFloodPunish(FAKE_CHAT, LO, 5);
+    const again = await guards.claimFloodPunish(FAKE_CHAT, LO, 5);
+    const seen1 = await guards.seenMedia('smoke-media', FAKE_CHAT, LO);
+    const seen2 = await guards.seenMedia('smoke-media', FAKE_CHAT, LO);
+    const ad = await guards.seenAd(LO, 'smokehash', FAKE_CHAT, 3600);
+    const capId = await guards.newCaptcha(FAKE_CHAT, LO, 'group', { answer: 1, options: ['a', 'b'] }, 'x', 1);
+    const expired = (await guards.expiredCaptchas(Math.floor(Date.now() / 1000), FAKE_CHAT)).map((r) => Number(r.id));
+    const finished = await guards.finishCaptcha(capId, 'expired');
+    const ldId = await guards.startLockdown(FAKE_CHAT, 'readonly', { can_send_messages: true }, null, LO, 1);
+    const due = (await guards.dueLockdowns(Math.floor(Date.now() / 1000), FAKE_CHAT)).map((r) => Number(r.id));
+    const ended = await guards.endLockdown(ldId, LO);
+    const riskId = await guards.addRisk(FAKE_CHAT, LO, 50, [['no_username', 10]], 'alert', 0);
+    const fb = await guards.riskFeedback(riskId, 'wrong', LO);
+    return {
+      modules: Object.keys(g).length, anyOn: guards.anyOn(g), flood: [c1.n, c2.n, c2.dup, c2.msgs], claimed, again, seen: [seen1.here, seen2.here], ad,
+      captcha: expired.includes(capId) && finished, lockdown: due.includes(ldId) && ended, feedback: fb,
+      signals: [hostsOf(linksOf({ text: deobfuscate('ｓｐａｍ．ｃｏｍ'), urls: [], entities: [] }, 'high')).join(), invisible('a\u202Eb').suspicious, mixedScriptWords('раypal'),
+        score(['xgroup', 'new_link']).score],
+      fedNone: (await feds.ofChat(FAKE_CHAT)) === null,
+    };
+  }
   if (action === 'cleanup') {
+    for (const t of ['aegis_flood', 'aegis_captchas', 'aegis_lockdowns', 'aegis_risk_events', 'aegis_guards']) await db.run(sql`DELETE FROM ${sql.raw(t)} WHERE chat_id = ${FAKE_CHAT}`);
+    await db.run(sql`DELETE FROM aegis_media_seen WHERE file_uid = 'smoke-media'`);
+    await db.run(sql`DELETE FROM aegis_msg_hashes WHERE user_id = ${LO}`);
     await db.run(sql`DELETE FROM aegis_locks WHERE chat_id = ${FAKE_CHAT}`);
     await db.run(sql`DELETE FROM aegis_lock_hits WHERE chat_id = ${FAKE_CHAT}`);
     await db.run(sql`DELETE FROM aegis_members WHERE chat_id = ${FAKE_CHAT}`);

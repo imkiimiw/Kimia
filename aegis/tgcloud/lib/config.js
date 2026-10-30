@@ -6,8 +6,8 @@ import { AEGIS_OWNER_ID } from './env.js';
 
 export const OWNER_ID = AEGIS_OWNER_ID;
 export const BOT_NAME = 'Aegis';
-export const VERSION = '0.4.0';
-export const PHASE = 4;
+export const VERSION = '0.5.0';
+export const PHASE = 5;
 
 /* Languages, in picker order. fa is right-to-left. */
 export const LANGS = ['fa', 'en', 'ru', 'zh', 'fr'];
@@ -63,6 +63,17 @@ export const LOCK_NOTICE_GAP_SEC = 5; /* at most one lock notice per chat this o
 export const LOCK_HITS_KEEP_SEC = 7 * 86400;
 export const LOCK_DURATIONS = [600, 3600, 86400, 7 * 86400, 0]; /* punishment durations offered (0 = until lifted) */
 export const NEW_WINDOWS = [3600, 86400, 3 * 86400, 7 * 86400]; /* "new member" = joined less than this ago */
+
+/* Group security and federations (Phase 5). */
+export const SEC_KEEP_SEC = 86400; /* flood rows, media and message fingerprints are kept this long */
+export const RISK_KEEP_SEC = 30 * 86400;
+export const CAPTCHA_MAX_ATTEMPTS = 2;
+export const SWEEP_LIMIT = 20; /* expired captchas / lockdowns handled per sweep */
+export const FED_MAX_CHATS = 50;
+export const FED_MAX_ADMINS = 20;
+export const FED_NAME_MAX = 48;
+export const FED_BAN_PAGE = 10;
+export const XGROUP_WINDOW_SEC = 3600; /* the same ad in other groups within this time */
 
 /* Pending inputs (e.g. "send the broadcast message") expire after this. */
 export const STATE_TTL_SEC = 30 * 60;

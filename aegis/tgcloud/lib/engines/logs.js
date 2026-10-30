@@ -8,7 +8,7 @@ import { iso } from '../core/util.js';
 import { t } from '../i18n/index.js';
 import * as settings from './settings.js';
 
-export const CATEGORIES = ['punish', 'lists', 'locks', 'admin', 'settings'];
+export const CATEGORIES = ['punish', 'lists', 'locks', 'security', 'admin', 'settings'];
 
 export async function post(ctx, chat, category, text, rows = null) {
   if (ctx.quiet) return false;

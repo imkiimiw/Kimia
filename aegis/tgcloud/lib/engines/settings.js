@@ -9,7 +9,7 @@
  *   steps          JSON ladder [{ n, a, d }] (lib/engines/steps.js)
  *   betray_on, betray_n, betray_sec, betray_action ('demote' | 'alert')   anti-betrayal
  *   log_chat       the log channel/group id ('0' = none); log_on; log_punish, log_lists, log_admin,
- *                  log_settings, log_locks — what is posted there
+ *                  log_settings, log_locks, log_security — what is posted there
  *   new_window     seconds a member counts as new (locks that apply to new members only)
  */
 import { db } from 'sdk';
@@ -36,13 +36,14 @@ export const DEFAULTS = {
   log_admin: '1',
   log_settings: '1',
   log_locks: '1',
+  log_security: '1',
   new_window: '86400',
 };
 
 export const WARN_TTLS = [0, 86400, 7 * 86400, 30 * 86400];
 export const BETRAY_NS = [3, 5, 10, 20];
 export const BETRAY_SECS = [60, 300, 600, 3600];
-const FLAGS = new Set(['audit', 'notify', 'warn_reset', 'betray_on', 'log_on', 'log_punish', 'log_lists', 'log_admin', 'log_settings', 'log_locks']);
+const FLAGS = new Set(['audit', 'notify', 'warn_reset', 'betray_on', 'log_on', 'log_punish', 'log_lists', 'log_admin', 'log_settings', 'log_locks', 'log_security']);
 
 function valid(key, value) {
   const v = String(value);

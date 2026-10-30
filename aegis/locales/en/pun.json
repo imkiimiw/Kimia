@@ -59,5 +59,6 @@
   "src_betrayal": "anti-betrayal",
   "src_telegram": "in Telegram",
   "export_caption": "⚖️ Punishments of {title}: {n} rows (times in UTC).",
-  "src_lock": "lock"
+  "src_lock": "lock",
+  "src_security": "security"
 }

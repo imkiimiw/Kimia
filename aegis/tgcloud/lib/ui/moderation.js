@@ -28,6 +28,7 @@ import * as settings from '../engines/settings.js';
 import * as users from '../engines/users.js';
 import { dur, pickLang, t } from '../i18n/index.js';
 import * as enforce from './enforce.js';
+import * as security from './security.js';
 import { ensureChat, register } from './group.js';
 
 const MOD_ALLOWED = new Set(['warn', 'unwarn', 'warns', 'mute', 'unmute']);
@@ -355,16 +356,18 @@ export async function onMemberChange(ctx, upd) {
     await betrayal.after(ctx, chat, actorId, target.id, 'demote');
     return;
   }
-  if (!inChat(before) && inChat(after) && actorId !== bot.id) await onJoin(ctx, chat, target);
+  if (!inChat(before) && inChat(after) && actorId !== bot.id && !(await onJoin(ctx, chat, target))) await security.onJoin(ctx, chat, target);
 }
 
 /* Someone joined: a blacklisted member is banned again (Audit Mode: only reported). */
+/* Gives true when the newcomer was dealt with (banned again), so the security checks can skip them. */
 async function onJoin(ctx, chat, user) {
-  if (isAdminStatus((await admins.getRow(chat.chat_id, user.id) || {}).status)) return;
-  if (!(await lists.has(chat.chat_id, 'blk', String(user.id)))) return;
-  if (await lists.has(chat.chat_id, 'vip', String(user.id))) return;
+  if (isAdminStatus((await admins.getRow(chat.chat_id, user.id) || {}).status)) return true;
+  if (!(await lists.has(chat.chat_id, 'blk', String(user.id)))) return false;
+  if (await lists.has(chat.chat_id, 'vip', String(user.id))) return false;
   const name = fullName(user);
   await users.remember(user);
   const res = await punish.apply(ctx, chat, { userId: user.id, name, kind: 'blacklist', sec: 0, reason: t(chat.lang, 'pun.blacklist_reason'), actorId: 0, source: 'blacklist' });
   if (res.ok) await notice(ctx, chat, res, name, 0);
+  return res.ok && !res.auditOnly;
 }

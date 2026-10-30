@@ -53,5 +53,6 @@
   "lock_kept": "🔐 拦截了 {user} 的消息（保留）— {locks}",
   "lock_audit": "🕵️ 审计模式 — 本会处理 {user} 的消息：{locks}",
   "lock_bots": "🦾 移除了 {user} 添加的 {bots}",
-  "lock_bots_audit": "🕵️ 审计模式 — 本会移除 {user} 添加的 {bots}"
+  "lock_bots_audit": "🕵️ 审计模式 — 本会移除 {user} 添加的 {bots}",
+  "c_security": "安全"
 }

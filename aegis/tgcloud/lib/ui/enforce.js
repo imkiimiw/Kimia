@@ -35,7 +35,7 @@ import { dur, t } from '../i18n/index.js';
 const OWN = new Set([...SLASH_NAMES, ...MOD_COMMANDS]);
 const lockName = (lang, code) => t(lang, `locks.n_${code}`);
 
-async function isAdmin(chatId, userId) {
+export async function isAdmin(chatId, userId) {
   const r = await admins.getRow(chatId, userId);
   return !!r && (r.status === 'creator' || r.status === 'administrator');
 }
@@ -68,7 +68,7 @@ async function applicable(ctx, chat, matched, user) {
   return out;
 }
 
-async function deleteMessage(ctx, chatId, messageId, view) {
+export async function deleteMessage(ctx, chatId, messageId, view) {
   return !!(await tryCall(ctx, 'deleteMessage', { chat_id: chatId, message_id: messageId }, view));
 }
 
@@ -93,7 +93,7 @@ function noticeText(lang, primary, name, res) {
   return lines.join('\n');
 }
 
-async function postNotice(ctx, chat, text, rows) {
+export async function postNotice(ctx, chat, text, rows) {
   const now = nowSec();
   const fresh = await db.get(sql`SELECT lock_notice, lock_notice_at FROM aegis_chats WHERE chat_id = ${chat.chat_id}`);
   if (fresh && Number(fresh.lock_notice_at) > now - LOCK_NOTICE_GAP_SEC) return null;

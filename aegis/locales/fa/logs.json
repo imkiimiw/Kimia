@@ -53,5 +53,6 @@
   "lock_kept": "🔐 پیام {user} گرفته شد (ماند) — {locks}",
   "lock_audit": "🕵️ حالت ممیزی — روی پیام {user} اقدام می‌شد: {locks}",
   "lock_bots": "🦾 {bots} که {user} اضافه کرده بود حذف شد",
-  "lock_bots_audit": "🕵️ حالت ممیزی — {bots} که {user} اضافه کرده بود حذف می‌شد"
+  "lock_bots_audit": "🕵️ حالت ممیزی — {bots} که {user} اضافه کرده بود حذف می‌شد",
+  "c_security": "امنیت"
 }

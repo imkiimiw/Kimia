@@ -13,7 +13,8 @@
  * button; kept across the picker and the join screen) → /help, «پیکربندی» /config (my chats),
  * owner: /panel, /status, /shutdown, /activate → otherwise the main menu.
  * Group message: group → supergroup migration; the locks (ui/enforce.js — admins are exempt; a
- * message a lock deletes goes no further); «پیکربندی» / /config (admins: a button to the
+ * message a lock deletes goes no further); the security checks (ui/security.js: federation bans,
+ * captcha, flood, anti-link, anti-ads, suspicious content, risk); /lockdown /readonly /fban /unfban; «پیکربندی» / /config (admins: a button to the
  * private panel — ordinary members are never blocked or answered); a moderation command
  * (ui/moderation.js: /warn /mute /ban … or «اخطار» «سکوت» «بن» …, from the creator, admins and the
  * «mod» list only); otherwise the occasional reminder about admins not appointed through Aegis.
@@ -21,6 +22,8 @@
  * callback_data in any chat (group notices, private chats, the log channel), authorized live in
  * the punishment's chat — ui/moderation.js:
  *   pu:<id>       undo a punishment          bt:<id>:v|r   anti-betrayal: unban victims / restore admin
+ *   cp:<id>:<n|ok|no>   captcha answer / admin approves or removes — ui/security.js
+ *   rk:<id>:y|n   risk alert feedback          ld:<id>:end   end an emergency lock, read-only or raid mode
  * callback_data (private chat):
  *   lg            language picker            lg:<fa|en|ru|zh|fr>   set language
  *   jc            "✅ I joined" (re-check, no cache)
@@ -29,7 +32,8 @@
  *   op os oj… ob… bc:… ox sy:…   owner panel and global switch (OWNER_ID only; anyone else gets a
  *                 silent answer) — ui/owner.js, ui/owner_bc.js, ui/system.js
  *
- * edited_message: in a group, the locks again (and the edit lock).
+ * edited_message: in a group, the locks again (and the edit lock), then the security checks.
+ * chat_join_request: the join captcha in the requester's private chat.
  * my_chat_member: private → the user blocked / unblocked the bot; group/supergroup/channel → the
  * bot's membership and rights there (ui/group.js: registration, warnings).
  * chat_member: someone's admin status changed (cache, revocation, log, reminder); bans and unbans
@@ -55,9 +59,11 @@ import { afterUpdate } from './jobs.js';
 import * as enforce from './ui/enforce.js';
 import * as group from './ui/group.js';
 import * as moderation from './ui/moderation.js';
+import * as security from './ui/security.js';
 import * as owner from './ui/owner.js';
 import * as ownerBc from './ui/owner_bc.js';
 import * as panel from './ui/panel.js';
+import * as panelFed from './ui/panel_fed.js';
 import * as panelLocks from './ui/panel_locks.js';
 import * as panelMod from './ui/panel_mod.js';
 import * as start from './ui/start.js';
@@ -66,9 +72,10 @@ import * as sys from './ui/system.js';
 const OWNER_HEADS = new Set(['op', 'os', 'oj', 'ob', 'bc', 'ox', 'sy']);
 const PANEL_HEADS = new Set(['cl', 'g']);
 const OWNER_INPUTS = new Set(['join_add', 'bc_content', 'bc_buttons']);
-const GROUP_HEADS = new Set(['pu', 'bt']);
-const isUserInput = (kind) => kind === 'adm_pick' || panelMod.INPUTS.has(kind) || panelLocks.INPUTS.has(kind);
-const hasKeyboard = (kind) => kind === 'adm_pick' || panelMod.KEYBOARD_INPUTS.has(kind) || panelLocks.KEYBOARD_INPUTS.has(kind);
+const GROUP_HEADS = new Set(['pu', 'bt', 'cp', 'rk', 'ld']);
+const PANELS = [panelMod, panelLocks, panelFed];
+const isUserInput = (kind) => kind === 'adm_pick' || PANELS.some((p) => p.INPUTS.has(kind));
+const hasKeyboard = (kind) => kind === 'adm_pick' || PANELS.some((p) => p.KEYBOARD_INPUTS.has(kind));
 
 function result(ctx) {
   const out = { trace: ctx.trace };
@@ -130,6 +137,7 @@ async function input(ctx, user, message, pending) {
   if (pending.kind === 'adm_pick') return panel.pickInput(ctx, user, message, pending.data);
   if (panelMod.INPUTS.has(pending.kind)) return panelMod.input(ctx, user, message, pending);
   if (panelLocks.INPUTS.has(pending.kind)) return panelLocks.input(ctx, user, message, pending);
+  if (panelFed.INPUTS.has(pending.kind)) return panelFed.input(ctx, user, message, pending);
   if (pending.kind === 'join_add') return owner.joinAddInput(ctx, lang, message);
   if (pending.kind === 'bc_content') return ownerBc.contentInput(ctx, lang, message, pending.data);
   if (pending.kind === 'bc_buttons') return ownerBc.buttonsInput(ctx, lang, message, pending.data);
@@ -198,7 +206,9 @@ async function handleGroupMessage(ctx, message) {
   }
   if (ctx.shutdown) return;
   if (message.from) ctx.userId = message.from.id;
-  if (await enforce.check(ctx, await chats.get(chat.id), message)) return; /* deleted by a lock: no command acts on it */
+  const known = await chats.get(chat.id);
+  if (await enforce.check(ctx, known, message)) return; /* deleted by a lock: no command acts on it */
+  if (await security.onMessage(ctx, known, message)) return;
   const cmd = parseCommand(message.text, { aliases: true });
   if (cmd === 'config') {
     const mention = mentionOf(message.text);
@@ -206,6 +216,7 @@ async function handleGroupMessage(ctx, message) {
     await group.configInGroup(ctx, message);
     return;
   }
+  if (await security.command(ctx, message)) return;
   if (await moderation.handle(ctx, message)) return;
   const row = await chats.get(chat.id);
   if (row) await group.onActivity(ctx, row);
@@ -218,7 +229,19 @@ export function onEditedMessage(message, pctx) {
     if (!chat || (chat.type !== 'group' && chat.type !== 'supergroup') || ctx.shutdown) return;
     ctx.chatId = chat.id;
     if (message.from) ctx.userId = message.from.id;
-    await enforce.check(ctx, await chats.get(chat.id), message, { edited: true });
+    const known = await chats.get(chat.id);
+    if (await enforce.check(ctx, known, message, { edited: true })) return;
+    await security.onMessage(ctx, known, message, { edited: true });
+  });
+}
+
+/* A request to join a group: the captcha in the requester's private chat (ui/security.js). */
+export function onJoinRequest(req, pctx) {
+  return run('chat_join_request', pctx, async (ctx) => {
+    if (!req || !req.chat || !req.from || ctx.shutdown) return;
+    ctx.chatId = req.chat.id;
+    ctx.userId = req.from.id;
+    await security.onJoinRequest(ctx, req);
   });
 }
 
@@ -255,7 +278,8 @@ async function handleCallback(ctx, cq) {
       await answer(ctx, t(u && Number(u.lang_set) ? u.lang : pickLang(from.language_code), 'sys.paused_toast'), true);
       return null;
     }
-    return moderation.callback(ctx, cq, String(cq.data).split(':'));
+    const parts = String(cq.data).split(':');
+    return security.HEADS.has(head0) ? security.callback(ctx, cq, parts) : moderation.callback(ctx, cq, parts);
   }
   if (msg.chat.type !== 'private') return null;
   ctx.userId = from.id;

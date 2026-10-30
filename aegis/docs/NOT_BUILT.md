@@ -5,9 +5,10 @@ Updated at the end of each phase. Constraint for all entries: **free only** — 
 or tier; only what Telegram Serverless and the Bot API allow.
 
 > **Note on the spec.** `aegis/docs/SPEC.md` (the Persian master spec) was not in the repository
-> when Phases 1–4 were built (searched the working tree, all branches on GitHub, and the
-> container). They were built from their descriptions in the build instructions (Phases 3–4 by the
-> owner's decision to go ahead without it — the list of 42 locks is Aegis's own, see ASSUMPTIONS); details the spec would normally settle are listed in
+> when Phases 1–5 were built (searched the working tree, all branches on GitHub, and the
+> container). They were built from their descriptions in the build instructions (Phases 3–5 by the
+> owner's decision to go ahead without it — the 42 locks and the security modules are Aegis's own
+> design, see ASSUMPTIONS); details the spec would normally settle are listed in
 > [ASSUMPTIONS.md](ASSUMPTIONS.md). They will be re-checked against the spec once it is added.
 
 ## Phase 1 — Core
@@ -72,3 +73,18 @@ or tier; only what Telegram Serverless and the Bot API allow.
 | Locks on **channel posts** and the discussion group | **Phase 7** | Channels and their discussion groups get their own protection in the channel panel. Edited channel posts are not handled. | Phase 7. |
 | Native Telegram permissions (`setChatPermissions`) as locks | **Not used** | Locks are enforced by Aegis per message, so they can have exceptions, sensitivity, scope and punishments, which Telegram's chat-wide permissions can't. (Read-only mode and emergency lock in Phase 5 will use them.) | — |
 | Lock catches kept **longer than 7 days** | **Partial** | Kept 7 days for the panel's «recent catches» (database size); punishments from locks are kept like any other. | — |
+
+## Phase 5 — Group security
+
+| Feature | State | Why | What it would need |
+|---|---|---|---|
+| Captcha / raid mode / read-only **ending exactly on time** | **Partial** | There is no scheduler. An unsolved captcha is acted on, and a timed lock or raid mode is ended (permissions restored), at the next update of that chat or within a minute of any update the bot receives — not at the exact second. Quarantine uses Telegram's own `until_date`, so it ends on time. | A platform scheduler. |
+| Captcha, quarantine, emergency lock, read-only in a **basic group** | **Not possible** | Restricting members and setting chat permissions work only in supergroups. The panel says so. | Telegram converts the group to a supergroup. |
+| Join-request captcha **longer than 5 minutes** | **Not possible** | Telegram lets a bot write to someone who asked to join only for 5 minutes, so the captcha time is capped there. | — (Bot API). |
+| Profile-photo or account-age signals for the risk score | **Not built** | Account age isn't available to bots; checking every newcomer's profile photos would be an extra API call per join. The score uses the name, username, the group's own data and behaviour. | Spec decision; possible later (getUserProfilePhotos). |
+| Checking files' **contents** (viruses, archives with passwords, PDF scripts) | **Not built (Phase 9 for PDFs)** | Downloading and scanning files in the isolate is not possible within limits and no free scanning API is used. Files are judged by name, extension and type. | Phase 9 (PDF checks with free libraries) — antivirus scanning has no free option. |
+| Telling the same **ad reworded** in other groups | **Partial** | Cross-group detection matches the same visible text (fingerprint), not paraphrases. | A similarity model (not free in the isolate). |
+| Language detection for Persian vs. Arabic in ads/scam phrases | **Partial** | Phrase lists cover five languages; other languages' ads are caught only by links, contacts and behaviour. | Larger phrase lists from the spec. |
+| Federations **retroactively** banning everyone on the list when a group joins | **Partial (by design)** | A joining group's members are banned when they join, write or request to join, not all at once (a big list would hit Telegram's limits). | — |
+| Federation **subscriptions** (one federation following another) and fed-ban **notifications to every group** | **Not built** | Not described in the build instructions; a fed ban is reported in the group where it was given and logged there. | Spec details. |
+| Risk alerts in a **group** chat | **Not built (by design)** | Alerts name a member and their score, so they go to the log channel, or the creator's private chat when there is none. | — |

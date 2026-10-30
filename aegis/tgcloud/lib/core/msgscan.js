@@ -89,7 +89,7 @@ export function scan(m) {
 /*
  * Links in the message, at a sensitivity: low — clickable links only (Telegram's url/text_link
  * entities); medium — also typed URLs with a scheme, www. or t.me/; high — also disguised domains
- * ("example . com", "example[.]com", "example(dot)com").
+ * ("example . com", "example[.]com", "example(dot)com") and bare domains Telegram didn't mark as links.
  */
 export function linksOf(f, sens = 'medium') {
   const out = [...f.urls];
@@ -100,6 +100,8 @@ export function linksOf(f, sens = 'medium') {
     const re = new RegExp(`\\b([a-z0-9-]{2,})\\s*(?:\\[\\.\\]|\\(\\.\\)|\\[dot\\]|\\(dot\\)|\\s+dot\\s+|\\s+\\.\\s*|\\.\\s+)\\s*(${TLDS})\\b`, 'gi');
     for (const m of f.text.matchAll(re)) out.push(`${m[1]}.${m[2]}`);
     for (const m of f.text.matchAll(/\bt\s*[.]?\s*me\s*\/\s*([A-Za-z0-9_+]{4,})/gi)) out.push(`t.me/${m[1]}`);
+    const bare = new RegExp(`\\b((?:[a-z0-9-]{2,}\\.)+(?:${TLDS}))\\b`, 'gi');
+    for (const m of f.text.matchAll(bare)) out.push(m[1]);
   }
   return [...new Set(out)];
 }

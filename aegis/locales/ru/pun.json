@@ -59,5 +59,6 @@
   "src_betrayal": "анти-предательство",
   "src_telegram": "в Telegram",
   "export_caption": "⚖️ Наказания в {title}: {n} строк (время в UTC).",
-  "src_lock": "блокировка"
+  "src_lock": "блокировка",
+  "src_security": "безопасность"
 }

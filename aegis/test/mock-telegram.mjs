@@ -10,7 +10,8 @@
 // edit or demote only admins the bot promoted itself (can_be_edited). Restrict/ban/unban need the bot's
 // can_restrict_members, never touch admins (except ones the bot promoted, for bans), restrictions only in
 // supergroups; sendDocument takes a real multipart upload; reply keyboards may ask for users or chats;
-// deleteMessage removes a stored message (a member's only with the bot's can_delete_messages).
+// deleteMessage removes a stored message (a member's only with the bot's can_delete_messages); chat
+// permissions (getChat / setChatPermissions) and join requests (approve / decline, a short DM window).
 import { Buffer } from 'node:buffer';
 import http from 'node:http';
 
@@ -151,7 +152,7 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     const id = Number(chatId);
     if (id > 0) {
       if (state.blocked.has(id)) return err(403, 'Forbidden: bot was blocked by the user');
-      if (!state.started.has(id)) return err(403, "Forbidden: bot can't initiate conversation with a user");
+      if (!state.started.has(id) && !(state.joinRequesters && state.joinRequesters.has(id))) return err(403, "Forbidden: bot can't initiate conversation with a user");
       return null;
     }
     const c = state.chats.get(id);
@@ -362,6 +363,32 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       else if (!p.only_if_banned) c.members.delete(id);
       return ok(true);
     },
+    setChatPermissions: (p) => {
+      const c = chat(p.chat_id);
+      if (!c) return err(400, 'Bad Request: chat not found');
+      if (c.type === 'channel') return err(400, 'Bad Request: method is available only for groups');
+      if (!c.botAdmin || !(c.botRights || {}).can_restrict_members) return err(400, 'Bad Request: not enough rights to change chat permissions');
+      if (!p.permissions || typeof p.permissions !== 'object') return err(400, 'Bad Request: permissions are required');
+      c.permissions = p.permissions;
+      return ok(true);
+    },
+    approveChatJoinRequest: (p) => {
+      const c = chat(p.chat_id);
+      if (!c) return err(400, 'Bad Request: chat not found');
+      if (!c.botAdmin || !(c.botRights || {}).can_invite_users) return err(400, 'Bad Request: not enough rights');
+      if (!c.requests || !c.requests.has(Number(p.user_id))) return err(400, 'Bad Request: HIDE_REQUESTER_MISSING');
+      c.requests.delete(Number(p.user_id));
+      c.members.add(Number(p.user_id));
+      return ok(true);
+    },
+    declineChatJoinRequest: (p) => {
+      const c = chat(p.chat_id);
+      if (!c) return err(400, 'Bad Request: chat not found');
+      if (!c.botAdmin || !(c.botRights || {}).can_invite_users) return err(400, 'Bad Request: not enough rights');
+      if (!c.requests || !c.requests.has(Number(p.user_id))) return err(400, 'Bad Request: HIDE_REQUESTER_MISSING');
+      c.requests.delete(Number(p.user_id));
+      return ok(true);
+    },
     deleteMessage: (p) => {
       const msg = state.messages.get(k(p.chat_id, p.message_id));
       if (!msg) return err(400, 'Bad Request: message to delete not found');
@@ -397,7 +424,8 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     getChat: (p) => {
       const c = chat(p.chat_id);
       if (!c) return err(400, 'Bad Request: chat not found');
-      return ok({ id: c.id, type: c.type, title: c.title, ...(c.username ? { username: c.username } : {}), ...(c.inviteLink && c.botAdmin ? { invite_link: c.inviteLink } : {}) });
+      const perms = c.type === 'channel' ? {} : { permissions: c.permissions || { can_send_messages: true, can_send_photos: true, can_send_videos: true, can_invite_users: true } };
+      return ok({ id: c.id, type: c.type, title: c.title, ...(c.username ? { username: c.username } : {}), ...(c.inviteLink && c.botAdmin ? { invite_link: c.inviteLink } : {}), ...perms });
     },
     getChatMemberCount: (p) => {
       const bad = reachable(p.chat_id);
@@ -445,6 +473,14 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       return full;
     },
     get: (chatId, id) => state.messages.get(k(chatId, id)),
+    /** Someone asked to join a chat: the bot may write to them for a while. */
+    joinRequest(chatId, userId) {
+      const c = state.chats.get(chatId);
+      c.requests = c.requests || new Set();
+      c.requests.add(userId);
+      state.joinRequesters = state.joinRequesters || new Set();
+      state.joinRequesters.add(userId);
+    },
     /** A message the user sent (so the bot can copy or forward it). */
     userMessage(chatId, id, fields) {
       state.messages.set(k(chatId, id), { chat: chatId, message_id: id, from: { id: chatId }, kind: 'text', ...fields });
