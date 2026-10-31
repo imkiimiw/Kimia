@@ -10,5 +10,6 @@
   "btn_main": "🏠 منوی اصلی",
   "btn_status": "🩺 وضعیت",
   "summary_shutdown": "⛔️ <b>Aegis خاموش است</b> — /activate",
-  "title_short": "👑 پنل مالک"
+  "title_short": "👑 پنل مالک",
+  "btn_admin": "🛠 مدیریت (چت‌ها، تیم، لاگ‌ها، سلامت…)"
 }

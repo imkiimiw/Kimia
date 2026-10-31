@@ -8,5 +8,6 @@
   "status": "状态（所有者）",
   "shutdown": "关闭（所有者）",
   "activate": "启用（所有者）",
-  "appeal": "申诉处罚"
+  "appeal": "申诉处罚",
+  "staff": "机器人团队面板"
 }

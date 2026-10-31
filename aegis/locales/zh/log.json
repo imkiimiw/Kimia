@@ -106,5 +106,12 @@
   "qa_unblock": "解除了匿名发送者的屏蔽",
   "review_upheld": "维持了关于 {target} 的决定",
   "review_overturned": "推翻了关于 {target} 的决定",
-  "stats_export": "导出了统计"
+  "stats_export": "导出了统计",
+  "chat_suspend": "（Aegis 团队）在此聊天中暂停了 Aegis",
+  "chat_unsuspend": "（Aegis 团队）在此聊天中恢复了 Aegis",
+  "chat_leave": "（Aegis 团队）让 Aegis 退出了",
+  "chat_refresh": "（Aegis 团队）向 Telegram 重新核对了聊天",
+  "chat_backup": "（Aegis 团队）下载了配置备份",
+  "chat_message": "（Aegis 团队）发布了一条消息",
+  "chat_refused": "Aegis 已退出：不接受新聊天"
 }

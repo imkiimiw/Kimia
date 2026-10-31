@@ -10,5 +10,6 @@
   "btn_main": "🏠 Menu principal",
   "btn_status": "🩺 Statut",
   "summary_shutdown": "⛔️ <b>Aegis est arrêté</b> — /activate",
-  "title_short": "👑 Panneau du propriétaire"
+  "title_short": "👑 Panneau du propriétaire",
+  "btn_admin": "🛠 Gestion (discussions, équipe, journaux, état…)"
 }

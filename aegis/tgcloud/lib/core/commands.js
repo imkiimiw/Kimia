@@ -16,13 +16,14 @@ import { asciiDigits, parseDuration } from './clock.js';
 const SLASH = {
   start: 'start', help: 'help', language: 'language', lang: 'language',
   panel: 'panel', admin: 'panel', owner: 'panel', cancel: 'cancel', config: 'config', settings: 'config',
-  status: 'status', shutdown: 'shutdown', activate: 'activate', appeal: 'appeal',
+  status: 'status', shutdown: 'shutdown', activate: 'activate', appeal: 'appeal', staff: 'staff', team: 'staff',
 };
 export const SLASH_NAMES = [...Object.keys(SLASH), 'rules', 'report', 'admins', 'mywarns', 'lockdown', 'readonly', 'fban', 'unfban', 'me', 'top', 'give',
   'take', 'ask', 'anon'];
 const PUBLIC = ['start', 'config', 'appeal', 'language', 'help'];
-const OWNER = ['start', 'config', 'panel', 'status', 'shutdown', 'activate', 'appeal', 'language', 'help', 'cancel'];
-export const COMMANDS_REV = '3';
+const OWNER = ['start', 'config', 'panel', 'staff', 'status', 'shutdown', 'activate', 'appeal', 'language', 'help', 'cancel'];
+const STAFF = [...PUBLIC, 'staff'];
+export const COMMANDS_REV = '4';
 
 /*
  * The command in a private message, or null. `aliases`: also accept plain words (off while an
@@ -79,6 +80,13 @@ export async function syncOwnerCommands(ctx, lang) {
   if (s.owner_cmd_rev === rev) return;
   const r = await tryCall(ctx, 'setMyCommands', { commands: menu(lang, OWNER), scope: { type: 'chat', chat_id: OWNER_ID } }, 'commands-owner');
   if (r) await kv.set(ctx, 'owner_cmd_rev', rev);
+}
+
+/* A member of the bot's team (Phase 10) gets /staff in their menu; removed, the menu goes back to the public one. */
+export async function syncStaffCommands(ctx, userId, lang, on) {
+  const scope = { type: 'chat', chat_id: userId };
+  if (on) await tryCall(ctx, 'setMyCommands', { commands: menu(lang, STAFF), scope }, 'commands-staff');
+  else await tryCall(ctx, 'deleteMyCommands', { scope }, 'commands-staff');
 }
 
 /* ========== merged from core/modparse.js ========== */

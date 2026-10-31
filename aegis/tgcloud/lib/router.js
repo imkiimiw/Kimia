@@ -38,7 +38,9 @@
  *   cl… g:…       my chats and a chat's panel (any admin with access) — ui/panel.js
  *   db… xp…       the channels dashboard and posting to several channels — ui/dashboard.js
  *   op os oj… ob… bc:… ox sy:…   owner panel and global switch (OWNER_ID only; anyone else gets a
- *                 silent answer) — ui/owner.js, ui/owner_bc.js, ui/system.js
+ *                 silent answer) — ui/owner.js, ui/owner_bc.js, ui/admin.js
+ *   sa…           Phase 10: the management sections — the owner and the bot's team (aegis_staff), the
+ *                 level read on every press, before the forced join; anyone else: a silent answer — ui/admin.js
  *
  * edited_message: in a group, the locks again (and the edit lock), then the security checks.
  * channel_post / edited_channel_post: a channel's posts and edits (ui/channel.js).
@@ -55,6 +57,11 @@
  * groups (their answers after the stats); in private, after the other commands: a fun command, a media
  * command, a private game's answer, a photo / sticker / video / GIF / PDF (its tools); /start md_<job>.
  * callback_data fn:<game>:…  (games) · md:<job>:<op>  (media tools, the asker only) · nop (nothing).
+ * Phase 10: /staff (or «ستاد») opens the team panel for the owner and the team. A chat the team suspended
+ * (aegis_kv g_suspended, read once per update into ctx.suspended) is ignored like a shut-down Aegis:
+ * messages, edits, posts, reactions, join requests (a guard bot's query: «queue»), buttons (a toast),
+ * its panel (an alert); membership changes are still recorded quietly. The system settings g_fun /
+ * g_media (ctx.funOn / ctx.mediaOn) switch fun and media tools off everywhere.
  * my_chat_member: private → the user blocked / unblocked the bot; group/supergroup/channel → the
  * bot's membership and rights there (ui/group.js: registration, warnings).
  * chat_member: someone's admin status changed (cache, revocation, log, reminder); bans and unbans
@@ -74,9 +81,11 @@ import * as chats from './engines/chats.js';
 import * as join from './engines/join.js';
 import * as settings from './engines/settings.js';
 import * as system from './engines/system.js';
+import { globals } from './engines/system.js';
 import * as users from './engines/users.js';
 import { isLang, pickLang, t } from './i18n/index.js';
 import { afterUpdate } from './jobs.js';
+import * as admin from './ui/admin.js';
 import * as advanced from './ui/advanced.js';
 import * as channel from './ui/channel.js';
 import * as dashboard from './ui/dashboard.js';
@@ -101,7 +110,6 @@ import * as media from './ui/media.js';
 import { qa } from './ui/social.js';
 import * as social from './ui/social.js';
 import * as start from './ui/start.js';
-import * as sys from './ui/system.js';
 
 const OWNER_HEADS = new Set(['op', 'os', 'oj', 'ob', 'bc', 'ox', 'sy']);
 const PANEL_HEADS = new Set(['cl', 'g']);
@@ -129,7 +137,11 @@ async function run(kind, pctx, fn, extra = {}) {
       return result(ctx);
     }
     await migrations.ensure(ctx);
-    ctx.shutdown = system.isShutdown(await kv.all(ctx));
+    const s = await kv.all(ctx);
+    ctx.shutdown = system.isShutdown(s);
+    ctx.suspended = globals.suspendedSet(s);
+    ctx.funOn = globals.on(s, 'g_fun');
+    ctx.mediaOn = globals.on(s, 'g_media');
     await fn(ctx);
   } catch (err) {
     await errors.record(ctx, err, { source: kind, updateId: ctx.updateId || 0, chatId: ctx.chatId || 0, userId: ctx.userId || 0 });
@@ -147,6 +159,7 @@ async function run(kind, pctx, fn, extra = {}) {
 /* /start c_<chat id>: open that chat's panel; r_<chat id>: that group's rules; anything else: the main menu. */
 async function openPayload(ctx, user, from, payload, place = null) {
   const m = /^c_(-?\d{5,16})$/.exec(String(payload || ''));
+  if (m && ctx.suspended.has(toInt(m[1]))) return send(ctx, user.user_id, t(user.lang, 'sa.chat_paused_panel'), await start.mainRows(ctx, user.lang, user.user_id), 'chat-suspended');
   if (m) return panel.open(ctx, user, toInt(m[1]), place);
   const r = /^r_(-?\d{5,16})$/.exec(String(payload || ''));
   if (r) return showRules(ctx, user, toInt(r[1]));
@@ -155,7 +168,7 @@ async function openPayload(ctx, user, from, payload, place = null) {
   const ap = /^ap_(\d{1,12})$/.exec(String(payload || ''));
   if (ap) return qa.startAppeal(ctx, user, toInt(ap[1]));
   const md = /^md_(\d{1,12})$/.exec(String(payload || ''));
-  if (md) return media.openJob(ctx, user, toInt(md[1]));
+  if (md && ctx.mediaOn) return media.openJob(ctx, user, toInt(md[1]));
   return start.welcome(ctx, user, from, place);
 }
 
@@ -196,6 +209,7 @@ async function input(ctx, user, message, pending) {
   if (panelSocial.INPUTS.has(pending.kind)) return panelSocial.input(ctx, user, message, pending);
   if (panelQa.INPUTS.has(pending.kind)) return panelQa.input(ctx, user, message, pending);
   if (qa.INPUTS.has(pending.kind)) return qa.input(ctx, user, message, pending);
+  if (admin.INPUTS.has(pending.kind)) return admin.input(ctx, user, message, pending);
   if (pending.kind === 'join_add') return owner.joinAddInput(ctx, lang, message);
   if (pending.kind === 'bc_content') return ownerBc.contentInput(ctx, lang, message, pending.data);
   if (pending.kind === 'bc_buttons') return ownerBc.buttonsInput(ctx, lang, message, pending.data);
@@ -224,7 +238,7 @@ async function handleMessage(ctx, message) {
   const user = await users.touch(from, { started: true });
   await syncCommands(ctx);
   const pending = await state.get(from.id);
-  const isInput = !!pending && (isUserInput(pending.kind) || (isOwner && OWNER_INPUTS.has(pending.kind)));
+  const isInput = !!pending && (isUserInput(pending.kind) || (isOwner && OWNER_INPUTS.has(pending.kind)) || admin.INPUTS.has(pending.kind));
   const cmd = parseCommand(message.text, { aliases: !isInput });
   if (cmd === 'cancel') {
     await state.clear(from.id);
@@ -255,11 +269,12 @@ async function handleMessage(ctx, message) {
   else if (cmd === 'config') await panel.chatsList(ctx, user);
   else if (cmd === 'appeal') await qa.startAppeal(ctx, user);
   else if (isOwner && cmd === 'panel') await owner.panel(ctx, user.lang);
-  else if (isOwner && cmd === 'status') await sys.status(ctx, user.lang);
-  else if (isOwner && cmd === 'shutdown') await sys.askShutdown(ctx, user.lang);
-  else if (isOwner && cmd === 'activate') await sys.activate(ctx, user.lang);
-  else if ((await fun.command(ctx, message, user)) || (await media.command(ctx, message, user)) || (await fun.onPrivateText(ctx, user, message))
-    || (await media.privateMessage(ctx, user, message))) return;
+  else if (isOwner && cmd === 'status') await admin.status(ctx, user.lang);
+  else if (isOwner && cmd === 'shutdown') await admin.askShutdown(ctx, user.lang);
+  else if (isOwner && cmd === 'activate') await admin.activate(ctx, user.lang);
+  else if (cmd === 'staff' && (await admin.command(ctx, user))) return;
+  else if ((ctx.funOn && (await fun.command(ctx, message, user))) || (ctx.mediaOn && (await media.command(ctx, message, user)))
+    || (ctx.funOn && (await fun.onPrivateText(ctx, user, message))) || (ctx.mediaOn && (await media.privateMessage(ctx, user, message)))) return;
   else await start.welcome(ctx, user, from);
 }
 
@@ -269,7 +284,7 @@ async function handleGroupMessage(ctx, message) {
     await chats.migrate(chat.id, message.migrate_to_chat_id);
     return;
   }
-  if (ctx.shutdown) return;
+  if (ctx.shutdown || ctx.suspended.has(chat.id)) return;
   if (message.from) ctx.userId = message.from.id;
   const known = await chats.get(chat.id);
   const lockDeleted = await enforce.check(ctx, known, message); /* deleted by a lock: no command acts on it */
@@ -285,7 +300,7 @@ async function handleGroupMessage(ctx, message) {
     return;
   }
   if ((await advanced.command(ctx, message)) || (await social.command(ctx, message)) || (await qa.command(ctx, message))
-    || (await fun.command(ctx, message)) || (await media.command(ctx, message))
+    || (ctx.funOn && (await fun.command(ctx, message))) || (ctx.mediaOn && (await media.command(ctx, message)))
     || (await security.command(ctx, message)) || (await moderation.handle(ctx, message))) {
     await deleteCommand(ctx, known, message);
     return;
@@ -293,7 +308,7 @@ async function handleGroupMessage(ctx, message) {
   const row = await chats.get(chat.id);
   if (row) {
     await social.onMessage(ctx, row, message);
-    await fun.onMessage(ctx, row, message);
+    if (ctx.funOn) await fun.onMessage(ctx, row, message);
     await group.onActivity(ctx, row);
   }
 }
@@ -302,7 +317,7 @@ async function handleGroupMessage(ctx, message) {
 export function onEditedMessage(message, pctx) {
   return run('edited_message', pctx, async (ctx) => {
     const chat = message && message.chat;
-    if (!chat || (chat.type !== 'group' && chat.type !== 'supergroup') || ctx.shutdown) return;
+    if (!chat || (chat.type !== 'group' && chat.type !== 'supergroup') || ctx.shutdown || ctx.suspended.has(chat.id)) return;
     ctx.chatId = chat.id;
     if (message.from) ctx.userId = message.from.id;
     const known = await chats.get(chat.id);
@@ -318,8 +333,8 @@ export function onJoinRequest(req, pctx) {
     if (!req || !req.chat || !req.from) return;
     ctx.chatId = req.chat.id;
     ctx.userId = req.from.id;
-    if (ctx.shutdown) {
-      /* Aegis is paused: a guard bot's query still needs an answer, so the admins decide */
+    if (ctx.shutdown || ctx.suspended.has(req.chat.id)) {
+      /* Aegis is paused (everywhere, or in this chat by the bot's team): a guard bot's query still needs an answer, so the admins decide */
       if (req.query_id) await tryCall(ctx, 'answerChatJoinRequestQuery', { chat_join_request_query_id: req.query_id, result: 'queue' }, 'guard-queue');
       return;
     }
@@ -331,7 +346,7 @@ export function onJoinRequest(req, pctx) {
 /* A channel's post, and its edits (ui/channel.js). */
 export function onChannelPost(message, pctx) {
   return run('channel_post', pctx, async (ctx) => {
-    if (!message || !message.chat || ctx.shutdown) return;
+    if (!message || !message.chat || ctx.shutdown || ctx.suspended.has(message.chat.id)) return;
     ctx.chatId = message.chat.id;
     await channel.onPost(ctx, message);
   });
@@ -346,13 +361,13 @@ export function onPollAnswer(answer2, pctx) {
   return run('poll_answer', pctx, async (ctx) => {
     if (answer2 && answer2.user) ctx.userId = answer2.user.id;
     await social.onPollAnswer(ctx, answer2);
-    await fun.onPollAnswer(ctx, answer2);
+    if (ctx.funOn) await fun.onPollAnswer(ctx, answer2);
   });
 }
 
 export function onReactionCount(upd, pctx) {
   return run('message_reaction_count', pctx, async (ctx) => {
-    if (!upd || !upd.chat) return;
+    if (!upd || !upd.chat || ctx.suspended.has(upd.chat.id)) return;
     ctx.chatId = upd.chat.id;
     await social.onReactionCount(ctx, upd);
   });
@@ -360,7 +375,7 @@ export function onReactionCount(upd, pctx) {
 
 export function onEditedChannelPost(message, pctx) {
   return run('edited_channel_post', pctx, async (ctx) => {
-    if (!message || !message.chat || ctx.shutdown) return;
+    if (!message || !message.chat || ctx.shutdown || ctx.suspended.has(message.chat.id)) return;
     ctx.chatId = message.chat.id;
     await channel.onEditedPost(ctx, message);
   });
@@ -389,7 +404,7 @@ async function ownerCallback(ctx, user, parts, place) {
   }
   if (head === 'os') return owner.stats(ctx, lang, place);
   if (head === 'oj') return owner.joinCallback(ctx, lang, parts, place);
-  if (head === 'sy') return sys.callback(ctx, lang, parts, place);
+  if (head === 'sy') return admin.sysCallback(ctx, lang, parts, place);
   return ownerBc.callback(ctx, lang, parts, place);
 }
 
@@ -401,9 +416,11 @@ async function handleCallback(ctx, cq) {
   if (GROUP_HEADS.has(head0) && String(cq.data).length <= 64) {
     ctx.userId = from.id;
     ctx.chatId = msg.chat.id;
-    if (ctx.shutdown && from.id !== OWNER_ID) {
+    const paused = ctx.shutdown && from.id !== OWNER_ID;
+    const off = ctx.suspended.has(msg.chat.id) || (head0 === 'fn' && !ctx.funOn) || (head0 === 'md' && !ctx.mediaOn);
+    if (paused || off) {
       const u = await users.get(from.id);
-      await answer(ctx, t(u && Number(u.lang_set) ? u.lang : pickLang(from.language_code), 'sys.paused_toast'), true);
+      await answer(ctx, t(u && Number(u.lang_set) ? u.lang : pickLang(from.language_code), paused ? 'sys.paused_toast' : 'sa.off_toast'), true);
       return null;
     }
     const parts = String(cq.data).split(':');
@@ -456,10 +473,15 @@ async function handleCallback(ctx, cq) {
     if (from.id !== OWNER_ID) return null;
     return ownerCallback(ctx, user, parts, place);
   }
+  if (head === 'sa') return admin.callback(ctx, user, parts, place); /* the bot's team: the level is checked inside, before the forced join */
   const j = await join.status(ctx, from.id);
   if (!j.ok) {
     await answer(ctx, t(user.lang, 'join.missing_alert', { n: j.missing.length }), true);
     return start.joinScreen(ctx, user, j.missing, place);
+  }
+  if (head === 'g' && ctx.suspended.has(toInt(parts[1]))) {
+    await answer(ctx, t(user.lang, 'sa.chat_paused_panel'), true);
+    return null;
   }
   if (PANEL_HEADS.has(head)) return panel.callback(ctx, user, parts, place);
   if (DASH_HEADS.has(head)) return dashboard.callback(ctx, user, parts, place);
@@ -477,7 +499,7 @@ async function handleMyChatMember(ctx, upd) {
   const chat = upd.chat;
   if (!chat) return;
   ctx.chatId = chat.id;
-  ctx.quiet = !!ctx.shutdown;
+  ctx.quiet = !!ctx.shutdown || ctx.suspended.has(chat.id);
   const status = upd.new_chat_member && upd.new_chat_member.status;
   if (chat.type === 'private') {
     if (!upd.from) return;
@@ -500,7 +522,7 @@ export function onChatMember(upd, pctx) {
   return run('chat_member', pctx, async (ctx) => {
     if (!upd.chat) return;
     ctx.chatId = upd.chat.id;
-    ctx.quiet = !!ctx.shutdown;
+    ctx.quiet = !!ctx.shutdown || ctx.suspended.has(upd.chat.id);
     if (upd.from) ctx.userId = upd.from.id;
     await group.onMemberChange(ctx, upd);
     if (upd.chat.type === 'channel') await channel.onMemberChange(ctx, upd);

@@ -83,6 +83,7 @@ export const chats = table('aegis_chats', {
 }, (t) => ({
   activeType: index('idx_aegis_chats_active_type').on(t.active, t.type, t.chatId),
   countAt: index('idx_aegis_chats_count_at').on(t.active, t.countAt),
+  byMembers: index('idx_aegis_chats_members').on(t.active, t.memberCount), /* Phase 10: the Super Admin chat list */
 }));
 
 /*
@@ -195,6 +196,34 @@ export const audit = table('aegis_audit', {
   byActor: index('idx_aegis_audit_actor').on(t.actorId, t.at),
   byChat: index('idx_aegis_audit_chat').on(t.chatId, t.at),
 }));
+
+/*
+ * Phase 10: seals of the audit log, a SHA-256 hash chain: each seal covers the rows from_id … to_id and
+ * hash = sha256(prev + rows), so a row changed or deleted later no longer matches (engines/system.js).
+ * Append-only like aegis_audit; both are guarded by database triggers (data migration 3).
+ */
+export const auditSeals = table('aegis_audit_seals', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  fromId: integer('from_id').notNull(),
+  toId: integer('to_id').notNull(),
+  rows: integer('rows').notNull(),
+  prev: text('prev').notNull(),
+  hash: text('hash').notNull(),
+  at: integer('at').notNull(),
+  postedMsg: integer('posted_msg').notNull().default(0), /* the copy in the global log channel, if one is set */
+}, (t) => ({
+  byTo: index('idx_aegis_audit_seals_to').on(t.toId),
+}));
+
+/* Phase 10: the bot's own team — people the owner gave an access level (the owner is never in it). */
+export const staff = table('aegis_staff', {
+  userId: integer('user_id').primaryKey(),
+  level: text('level').notNull(), /* viewer, support, manager */
+  name: text('name'),
+  addedBy: integer('added_by').notNull().default(0),
+  addedAt: integer('added_at').notNull().default(0),
+  updatedAt: integer('updated_at').notNull().default(0),
+});
 
 /* Structured error log: one row per failure caught at an entry point or in background work. */
 export const errors = table('aegis_errors', {

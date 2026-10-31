@@ -2,7 +2,7 @@
  * The owner panel (private chat, OWNER_ID only — router.js checks before calling anything here):
  * the root screen, statistics and forced-join channel management. Broadcasts: owner_bc.js.
  *
- * callback_data: op (panel) · os (stats; refreshes stale member counts) · oj (forced-join list) ·
+ * callback_data: op (panel) · sa (the management sections — ui/admin.js) · os (stats; refreshes stale member counts) · oj (forced-join list) ·
  * oj:a (add: asks for the channel) · oj:r:<id> (remove?) · oj:y:<id> (remove!) · oj:u:<id> / oj:d:<id>
  * (move up / down) · oj:t (on/off) · oj:c (re-check the bot's admin rights) · ox (cancel an input).
  * Pending input (aegis_states): join_add — the next message names a channel.
@@ -42,6 +42,7 @@ export async function panel(ctx, lang, place = null) {
   const rows = [
     [btn(t(lang, 'owner.btn_stats'), 'os'), btn(t(lang, 'owner.btn_status'), 'sy:st')],
     [btn(t(lang, 'owner.btn_join'), 'oj'), btn(t(lang, 'owner.btn_bc'), 'ob')],
+    [btn(t(lang, 'owner.btn_admin'), 'sa')],
     [btn(t(lang, 'owner.btn_main'), 'mm')],
   ];
   return screen(ctx, OWNER_ID, place, lines.join('\n'), rows, 'owner');

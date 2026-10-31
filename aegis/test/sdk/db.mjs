@@ -155,6 +155,8 @@ export function ddl(schema) {
 
 let database = null;
 export const stats = { queries: 0 };
+/** Failure injection (test/load.mjs): the query numbered `failAt` (counted like stats.queries) throws once. */
+export const faults = { failAt: 0 };
 
 /**
  * Opens the database and creates the tables of `schema` (what `tgcloud migrate` does).
@@ -183,6 +185,10 @@ function prepare(query, params) {
     clean[k] = v;
   }
   stats.queries += 1;
+  if (faults.failAt && stats.queries === faults.failAt) {
+    faults.failAt = 0;
+    throw new Error('Sqlite query failed: injected failure');
+  }
   return { stmt: database.prepare(text), params: clean, text };
 }
 

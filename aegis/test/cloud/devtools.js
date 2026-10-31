@@ -6,8 +6,9 @@
  * FAKE_CHAT (lists, admin actions, locks, lock hits, join times, security memory, message log,
  * schedules, member flags, reports, topics, anonymous commands, join requests, channel stats, invite
  * links, posts and their versions, the post queue, crises; member stats, badges, contests, polls,
- * questions, appeals and reviews; Phase 9: fun limits, games, birthdays, picks, media jobs). It never touches the
- * audit log (federations are not created here for that reason).
+ * questions, appeals and reviews; Phase 9: fun limits, games, birthdays, picks, media jobs; Phase 10: one fake team
+ * member, added and removed). It never writes to the audit log (federations are not created here for that
+ * reason; Phase 10 seals the rows already there, as housekeeping would, and checks the seals).
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
@@ -37,7 +38,9 @@ import { parseWhen } from '../lib/ui/panel_posts.js';
 import * as join from '../lib/engines/join.js';
 import * as fun from '../lib/engines/fun.js';
 import * as img from '../lib/core/image.js';
-import { checkPdf, deflate, inflate } from '../lib/core/files.js';
+import { checkPdf, deflate, inflate, sha256 } from '../lib/core/files.js';
+import * as system from '../lib/engines/system.js';
+import { allChats, globalBackup, seals, staff } from '../lib/engines/system.js';
 import { stickerPng } from '../lib/ui/media.js';
 import { createCtx, me } from '../lib/core/tg.js';
 import { appeals, badges, contests, polls, questions, stats } from '../lib/engines/social.js';
@@ -50,6 +53,53 @@ const FAKE_CHAT = -990000100;
 
 export default async function (input) {
   const action = input && input.action;
+  if (action === 'p10') {
+    /* Phase 10: SHA-256 in the isolate; the audit log's triggers (an UPDATE that would change nothing is
+       refused); seals made and verified; the team table (a fake member, no audit row); health, queues, the
+       chat list and the global backup on the real database. Nothing is written to the audit log here. */
+    const ctx = createCtx({ kind: 'endpoint' });
+    const t0 = Date.now();
+    const big = sha256(new Uint8Array(1000000).fill(0x61));
+    const shaMs = Date.now() - t0;
+    const triggers = (await db.all(sql`SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'aegis_audit%' ORDER BY name LIMIT 10`)).map((r) => r.name);
+    let refused = false;
+    if (triggers.includes('aegis_audit_no_update')) {
+      try {
+        await db.run(sql`UPDATE aegis_audit SET action = action WHERE id = (SELECT max(id) FROM aegis_audit)`);
+      } catch (e) {
+        refused = /append-only/.test(String((e && e.message) || e));
+      }
+    }
+    const made = await seals.sealNow(null, { runs: 2 });
+    const check = await seals.verify(1);
+    const sum = await seals.summary();
+    await db.run(sql`INSERT INTO aegis_staff (user_id, level, name, added_by, added_at, updated_at) VALUES (${LO}, 'support', 'smoke', 0, 0, 0)
+      ON CONFLICT(user_id) DO UPDATE SET level = 'support'`);
+    const level = await staff.levelOf(LO);
+    await db.run(sql`DELETE FROM aegis_staff WHERE user_id = ${LO}`);
+    const gone = await staff.levelOf(LO);
+    const health = await system.health(ctx);
+    const page = await allChats.page(ctx, 'a', 0, 8);
+    const g = await globalBackup.makeGlobals(ctx);
+    const back = globalBackup.check(JSON.stringify(g));
+    return {
+      sha: [sha256(bytesOf('abc')).slice(0, 16), big.slice(0, 16), shaMs < 2000],
+      guard: [triggers.join(','), refused],
+      seals: [made.length >= 0, check.bad.length, sum.unsealed <= 2, sum.guard],
+      staff: [level, gone],
+      health: [health.api, !!(health.webhook && (health.webhook.set || health.webhook.managed)), typeof system.lateTotal(health.queues), health.seals.guard],
+      chats: [Array.isArray(page.rows), page.total >= 0],
+      backup: [g.part, g.join.length >= 3, back.part],
+    };
+  }
+  if (action === 'shabench') {
+    /* How much SHA-256 fits in one update's CPU budget (Date.now() does not move inside an update). */
+    const audit = [];
+    for (let i = 0; i < (input.rows || 1000); i += 1) audit.push({ id: i + 1, at: 1790000000 + i, actor_id: 5557901897, chat_id: -1001234567890, action: 'settings.set', target: 'fun_rate', details: '{"from":"10","to":"20"}' });
+    let h = '';
+    for (let r = 0; r < (input.seals || 1); r += 1) h = seals.hashOf(h || seals.ZERO, audit);
+    return { h: h.slice(0, 8), rows: audit.length * (input.seals || 1) };
+  }
   if (action === 'bench') {
     /* How much CPU one call gets: typed-array work like image decoding, timed in steps. */
     const out = [];

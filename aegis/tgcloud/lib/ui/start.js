@@ -6,6 +6,7 @@ import { OWNER_ID } from '../config.js';
 import { btn, me, screen, urlBtn } from '../core/tg.js';
 import { fullName, iso } from '../core/util.js';
 import { addToChannelUrl, addToGroupUrl } from '../engines/rights.js';
+import { staff } from '../engines/system.js';
 import { langFlag, langName, LANGS, t } from '../i18n/index.js';
 
 /* Picker text: the prompt in every language (the user may not have one yet). */
@@ -33,6 +34,7 @@ export async function mainRows(ctx, lang, userId) {
     [btn(t(lang, 'start.btn_language'), 'lg'), btn(t(lang, 'start.btn_help'), 'hp')],
   ];
   if (userId === OWNER_ID) rows.push([btn(t(lang, 'start.btn_owner'), 'op')]);
+  else if (userId && (await staff.get(userId))) rows.push([btn(t(lang, 'start.btn_staff'), 'sa')]);
   return rows;
 }
 

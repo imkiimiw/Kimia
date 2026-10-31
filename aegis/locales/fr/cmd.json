@@ -8,5 +8,6 @@
   "status": "Statut (propriétaire)",
   "shutdown": "Arrêter (propriétaire)",
   "activate": "Réactiver (propriétaire)",
-  "appeal": "Faire appel d'une sanction"
+  "appeal": "Faire appel d'une sanction",
+  "staff": "Panneau de l’équipe du bot"
 }

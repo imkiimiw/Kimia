@@ -106,5 +106,12 @@
   "qa_unblock": "مسدودی فرستندگان ناشناس را برداشت",
   "review_upheld": "تصمیمی دربارهٔ {target} را تأیید کرد",
   "review_overturned": "تصمیمی دربارهٔ {target} را لغو کرد",
-  "stats_export": "از آمار خروجی گرفت"
+  "stats_export": "از آمار خروجی گرفت",
+  "chat_suspend": "(تیم Aegis) ربات را در این چت معلق کرد",
+  "chat_unsuspend": "(تیم Aegis) ربات را در این چت دوباره فعال کرد",
+  "chat_leave": "(تیم Aegis) ربات را از چت خارج کرد",
+  "chat_refresh": "(تیم Aegis) چت را دوباره از تلگرام بررسی کرد",
+  "chat_backup": "(تیم Aegis) پشتیبان پیکربندی را گرفت",
+  "chat_message": "(تیم Aegis) پیامی گذاشت",
+  "chat_refused": "Aegis خارج شد: پذیرش چت جدید بسته است"
 }

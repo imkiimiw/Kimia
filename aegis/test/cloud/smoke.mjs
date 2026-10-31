@@ -20,7 +20,9 @@
 // (points, badges, contests, polls, questions, appeals, reviews), levels, the health score and the
 // command words in the isolate, and the poll / poll_answer / message_reaction_count handlers;
 // Phase 9: the six fun/media tables, the codecs in the isolate (CPU budget), the fun tables' rules,
-// the media endpoint; the forced-join channels checked live (is Aegis an admin there?).
+// the media endpoint; the forced-join channels checked live (is Aegis an admin there?); Phase 10: the team and
+// seal tables, SHA-256 in the isolate, the audit log's triggers, seals verified on the real data, health, queues,
+// the chat list and the global backup, the team panel closed to strangers.
 //
 //   cd aegis && npm run test:cloud      (needs Aegis_BOT_TGCLOUD_TOKEN)
 import { spawnSync } from 'node:child_process';
@@ -57,8 +59,9 @@ fs.copyFileSync(DEV_SRC, DEV_DST);
 try {
   const before = dev('read');
   const tables = before.tables.map((t) => t.name);
-  check('66 aegis_ tables exist', tables.length === 66, tables.join(', '));
-  check('indexes exist', before.indexes.length >= 109, `${before.indexes.length} idx_aegis_*`);
+  check('68 aegis_ tables exist', tables.length === 68, tables.join(', '));
+  check('indexes exist', before.indexes.length >= 111, `${before.indexes.length} idx_aegis_*`);
+  for (const t of ['aegis_staff', 'aegis_audit_seals']) check(`Phase 10 table ${t}`, tables.includes(t));
   for (const t of ['aegis_fun_use', 'aegis_fun_games', 'aegis_birthdays', 'aegis_fun_daily', 'aegis_media_jobs', 'aegis_sticker_packs']) check(`Phase 9 table ${t}`, tables.includes(t));
   const p9 = dev('p9');
   check('media codecs in the isolate within the CPU budget: a 1280×960 photo decoded and made a sticker, a QR code made and read, a PDF checked, zlib, GIF',
@@ -120,10 +123,19 @@ try {
   check('/start runs on the platform without errors', !r1.error, r1.error || '');
   check('first contact shows the language picker', r1.trace.some((e) => e.view === 'language'));
   const kv = Object.fromEntries(dev('read').kv.map((r) => [r.key, r.value]));
-  check('data migrations applied', kv.data_version === '2', `data_version=${kv.data_version}`);
+  check('data migrations applied', kv.data_version === '3', `data_version=${kv.data_version}`);
   const rev = /COMMANDS_REV = '(\d+)'/.exec(fs.readFileSync(path.join(ROOT, 'tgcloud/lib/core/commands.js'), 'utf8'))[1];
   check('command menus and default admin rights accepted by Telegram', kv.cmd_rev === rev, `cmd_rev=${kv.cmd_rev}, expected ${rev}`);
   check('the global switch is on (not shut down)', kv.shutdown === '0', `shutdown=${kv.shutdown}`);
+  /* after /start: the data migrations (3: the audit log's triggers) run on the first update after a deploy */
+  const p10 = dev('p10');
+  check('SHA-256 in the isolate (a test vector; 1 MB within the CPU budget)', p10.sha.join() === 'ba7816bf8f01cfea,cdc76e5c9914fb92,true', JSON.stringify(p10.sha));
+  check('the audit log is append-only in the real database: four triggers, an UPDATE refused', p10.guard[0] === 'aegis_audit_no_delete,aegis_audit_no_update,aegis_audit_seals_no_delete,aegis_audit_seals_no_update'
+    && p10.guard[1] === true, JSON.stringify(p10.guard));
+  check('the audit log sealed and every seal verified on the real data', p10.seals.join() === 'true,0,true,true', JSON.stringify(p10.seals));
+  check('team levels read fresh: a fake member\'s level, then none once removed', p10.staff.join() === 'support,', JSON.stringify(p10.staff));
+  check('health, queues, the chat list and the global backup on the real platform', p10.health.join() === 'true,true,number,true' && p10.chats.join() === 'true,true'
+    && p10.backup.join() === 'globals,true,globals', JSON.stringify(p10));
 
   const cq = { id: 'smoke', from: user(A, 'fa'), chat_instance: 'x', data: 'lg:fa', message: { message_id: 1, chat: { id: A, type: 'private' }, date: 0, text: 'x' } };
   const r2 = tg(['handlers/callback_query', JSON5.stringify(cq)]);
@@ -163,6 +175,10 @@ try {
     JSON5.stringify({ initData: { user: { id: A, first_name: 'Smoke' }, chat: { id: CHN.id, type: 'channel', title: 'Smoke channel' }, chat_join_request_query_id: 'smoke' } })]);
   check('the guard bot\'s Mini App endpoint answers (no such request: closed)', g1.done === true && /Smoke channel/.test(g1.title), JSON.stringify(g1));
   check('blocking the bot is recorded', !r3.error && Number(dev('read').users.find((u) => Number(u.user_id) === B).blocked) === 1);
+  const sa = tg(['handlers/callback_query', JSON5.stringify({ ...cq, id: 'smoke-sa', data: 'sa:s' })]);
+  check('the team panel gives a stranger nothing (only the silent answer)', !sa.error && sa.trace.every((e) => e.m === 'answerCallbackQuery'), JSON.stringify(sa.trace));
+  const st = tg(['handlers/message', JSON5.stringify(message(user(A, 'fa'), '/staff'))]);
+  check('/staff from someone outside the team is just the main menu', !st.error && !st.trace.some((e) => e.view === 'sa-home'), JSON.stringify(st.trace.map((e) => e.view)));
 } finally {
   try {
     const c = dev('cleanup');

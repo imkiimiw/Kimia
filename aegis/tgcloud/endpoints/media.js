@@ -7,6 +7,7 @@
  */
 import { EndpointError } from 'sdk';
 import * as errors from '../lib/core/errors.js';
+import * as kv from '../lib/core/kv.js';
 import { base64 } from '../lib/core/files.js';
 import { sniff } from '../lib/core/image.js';
 import { call, createCtx, send } from '../lib/core/tg.js';
@@ -22,6 +23,7 @@ export default async function (input, pctx) {
   const init = (pctx && pctx.initData) || {};
   const user = init.user;
   if (!user) throw new EndpointError('No user', { code: 'NO_USER' });
+  if ((await kv.get('g_media')) === '0') throw new EndpointError('Media tools are turned off', { code: 'OFF' });
   const u = await users.get(user.id);
   const lang = u && Number(u.lang_set) ? u.lang : pickLang(user.language_code);
   const j = await fun.job(toInt(input && input.job));

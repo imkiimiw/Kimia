@@ -3,15 +3,16 @@
 Orientation for AI coding assistants (and humans) working on **Aegis**, a public Telegram group &
 channel management/security bot on **Telegram Serverless**. Keep it short and true. Platform SDK
 reference: [docs/tgcloud-sdk.md](docs/tgcloud-sdk.md). Product spec: `docs/SPEC.md` (Persian, the
-source of truth — it must be added to the repo; it was not present when Phases 1–9 were built, and
-the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
+source of truth — it must be added to the repo; it was not present when Phases 1–10 were built, and
+the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)). All 10 phases are
+deployed (release 1.0.0); further work is maintenance or what the owner asks for.
 
 ## Ground rules
 
 - **Isolation**: everything Aegis lives in `aegis/`. Never import from, edit, or reuse config of the
   other bots in this repository. Always run the CLI through `npm run tg -- …` / `npm run deploy`
   (they use `aegis/.tgcloud/`; a bare `npx tgcloud` elsewhere can hit another bot).
-- **Phases**: the work is split into 10 phases; build only the phase the owner names.
+- **Phases**: the work was split into 10 phases (all done); change only what the owner asks for.
 - **Free only**. Anything that can't be built for free on this platform goes to `docs/NOT_BUILT.md`
   (with the reason) and its menu entry stays hidden. Never promise more than the Bot API allows.
 - **Secrets**: the CLI token is `Aegis_BOT_TGCLOUD_TOKEN` (env or `aegis/.env`), never committed.
@@ -82,12 +83,24 @@ the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
   `panelFun`) and `ui/media.js` (section `panelMedia`); codecs are pure and unit-tested in
   `core/files.js` (zlib, base64, PDF check) and `core/image.js` (JPEG/PNG/GIF, QR). No npm at
   runtime: the browser-side Mini App (`webapp/media.*`) may load free libraries from a CDN.
+- Super Admin & team (Phase 10): the sections in `ui/admin.js` (`sa:` buttons, also the global switch
+  `sy:`), their data in `engines/system.js` (sections `staff`, `globals`, `seals`, `allChats`,
+  `globalBackup`). The owner panel, broadcasts and /status /shutdown /activate stay `OWNER_ID` only;
+  every other `sa:` action declares its level in `NEED` (viewer < support < manager < owner) and the
+  level is read fresh on every press and input — never cache it. Respect the system settings: chats in
+  `ctx.suspended` are ignored at the entry points; `ctx.funOn` / `ctx.mediaOn` gate fun and media.
+- The audit log is append-only **in the database** (triggers): never UPDATE or DELETE `aegis_audit`
+  or `aegis_audit_seals`, not even in tests on the real platform (devtools must not write to it).
+- SQL only through the `sql` tag; `sql.raw()` only with variables holding string constants
+  (`test/static.mjs` enforces both).
 - Multi-step inputs → `lib/core/state.js`; new callback_data codes → document them in the module
   header and in `lib/router.js`; keep callback_data ≤ 64 bytes.
 
 ## Tests
 
 `npm test` = locale completeness/staleness → static platform rules → unit tests → end-to-end
-scenarios (local sdk emulation in `test/sdk/`, strict mock Bot API in `test/mock-telegram.mjs`).
+scenarios (local sdk emulation in `test/sdk/`, strict mock Bot API in `test/mock-telegram.mjs`) →
+security (`test/security.mjs`: authorization matrix, fuzzing) → load, rate limits, 429 and failure
+injection (`test/load.mjs`; budgets per update — a change that doubles an update's work fails there).
 `npm run test:cloud` = smoke test on the real platform with fake users (it temporarily adds
 `tgcloud/endpoints/zz_devtools.js` — never push while it runs).

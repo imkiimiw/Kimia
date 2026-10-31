@@ -106,5 +106,12 @@
   "qa_unblock": "unblocked the anonymous senders",
   "review_upheld": "upheld a decision about {target}",
   "review_overturned": "overturned a decision about {target}",
-  "stats_export": "exported statistics"
+  "stats_export": "exported statistics",
+  "chat_suspend": "(Aegis team) suspended Aegis in this chat",
+  "chat_unsuspend": "(Aegis team) resumed Aegis in this chat",
+  "chat_leave": "(Aegis team) made Aegis leave",
+  "chat_refresh": "(Aegis team) re-checked the chat with Telegram",
+  "chat_backup": "(Aegis team) downloaded the configuration backup",
+  "chat_message": "(Aegis team) posted a message",
+  "chat_refused": "Aegis left: new chats are closed"
 }

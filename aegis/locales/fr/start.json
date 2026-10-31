@@ -4,8 +4,9 @@
   "btn_help": "❓ Aide",
   "btn_owner": "👑 Panneau du propriétaire",
   "help": "❓ <b>Aide</b>\n\nCommandes — chacune fonctionne aussi comme simple mot, en anglais ou en persan :\n/start — menu principal (start · شروع)\n/config — vos groupes et canaux et leurs réglages (config · پیکربندی)\n/language — changer de langue (language · زبان)\n/help — cette aide (help · راهنما)\n/cancel — annuler l’étape en cours (cancel · لغو)\n\n<b>Dans un groupe</b> où Aegis est administrateur, tout administrateur peut envoyer « پیکربندی » ou config pour obtenir un bouton vers le panneau privé de ce groupe.\n\nPour utiliser Aegis dans cette conversation, rejoignez d’abord ses canaux.",
-  "help_owner": "👑 <b>Propriétaire</b>\n/panel — panneau du propriétaire (panel · پنل) : statistiques, canaux d’adhésion obligatoire, diffusions\n/status — état d’Aegis (status · وضعیت)\n/shutdown — ne plus répondre qu’à vous (shutdown · خاموش)\n/activate — réactiver (activate · فعال‌سازی)",
+  "help_owner": "👑 <b>Propriétaire</b>\n/panel — panneau du propriétaire (panel · پنل) : statistiques, canaux d’adhésion obligatoire, diffusions\n/staff — gestion (staff · ستاد) : toutes les discussions, l’équipe du bot, journal d’audit et sceaux, état, erreurs, files, sauvegardes, réglages système\n/status — état d’Aegis (status · وضعیت)\n/shutdown — ne plus répondre qu’à vous (shutdown · خاموش)\n/activate — réactiver (activate · فعال‌سازی)",
   "btn_my_chats": "⚙️ Mes discussions",
   "btn_add_group": "➕ Ajouter à un groupe",
-  "btn_add_channel": "➕ Ajouter à un canal"
+  "btn_add_channel": "➕ Ajouter à un canal",
+  "btn_staff": "🛠 Panneau de l’équipe"
 }

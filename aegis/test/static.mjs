@@ -4,7 +4,8 @@
 // - no foreign keys; handlers/ and endpoints/ flat; handler names are Bot API update types;
 // - no line comments, and still valid with all line breaks removed (a paste can lose them);
 // - every table in schema.js is named aegis_* (the bot's own namespace);
-// - tgcloud/lib/env.js holds no token-looking value.
+// - tgcloud/lib/env.js holds no token-looking value;
+// - SQL only through the sql`…` tag; sql.raw() only with variables that hold string constants.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -97,6 +98,41 @@ function scan(src) {
   return { code: out, lineComment };
 }
 
+/*
+ * SQL injection guard (Phase 10): every query goes through the sql`…` tag (values become parameters);
+ * a raw SQL text call (db.run(`…`) / db.run('…' + x)) is refused, and sql.raw() — the one way to put
+ * text into a query unescaped — may only take a variable whose every value in the file is a string
+ * literal: a `for (const x of ['a', 'b'])` list, or `let/const x = 'a'` and later `x = cond ? 'b' : 'c'`.
+ */
+const LITERAL = /^\s*'[A-Za-z0-9_]*'\s*$/;
+const LITERAL_OR_TERNARY = /^\s*(?:'[A-Za-z0-9_]*'|[^;'`]*\?\s*'[A-Za-z0-9_]*'\s*:\s*'[A-Za-z0-9_]*')\s*$/;
+function sqlSafety(file, src) {
+  for (const m of src.matchAll(/\bdb\.(?:run|all|get|values)\(\s*(?![\s]*sql`)([^)]{0,40})/g)) {
+    const id = (/^\s*([A-Za-z_]\w*)\s*$/.exec(m[1]) || [])[1];
+    /* a small helper (const count = async (q) => … db.get(q) …) is fine when every call of it passes sql`…` */
+    const helper = id && new RegExp(`const (\\w+) = async \\(${id}\\) =>[^\\n]*db\\.\\w+\\(${id}\\)`).exec(src);
+    const helperOk = helper && [...src.matchAll(new RegExp(`(?<![\\w.])${helper[1]}\\(`, 'g'))].every((c) => src.startsWith('sql`', c.index + c[0].length) || src.startsWith('*)', c.index + c[0].length)
+      || /async \($/.test(src.slice(0, c.index + c[0].length)) || src.slice(c.index - 6, c.index) === 'const ');
+    const tagged = /^\s*sql`/.test(m[1]) || (id && new RegExp(`for \\(const ${id} of \\[\\s*sql\``).test(src)) || helperOk;
+    if (!tagged) fail(file, `db call without the sql\`…\` tag: db.${m[0].split('.')[1].slice(0, 40)}`);
+  }
+  for (const m of src.matchAll(/\bsql\.raw\(([^)]*)\)/g)) {
+    const arg = m[1].trim();
+    if (!/^[A-Za-z_]\w*$/.test(arg)) {
+      fail(file, `sql.raw(${arg}): only a variable holding a constant may go in`);
+      continue;
+    }
+    const loops = [...src.matchAll(new RegExp(`for \\(const ${arg} of \\[([^\\]]*)\\]\\)`, 'g'))];
+    const decls = [...src.matchAll(new RegExp(`\\b(?:const|let) ${arg} = ([^;]+);`, 'g'))];
+    const sets = [...src.matchAll(new RegExp(`(?<![\\w.])${arg} = ([^;=][^;]*);`, 'g'))].filter((x) => !/\b(?:const|let)\s*$/.test(src.slice(Math.max(0, x.index - 6), x.index)));
+    const params = new RegExp(`\\(([^)]*\\b${arg}\\b[^)]*)\\)\\s*(?:=>|\\{)`).test(src.replace(/for \([^)]*\)/g, ''));
+    const okLoops = loops.every((l) => l[1].split(',').map((x) => x.trim()).filter(Boolean).every((x) => LITERAL.test(x)));
+    const okDecls = decls.every((d) => LITERAL.test(d[1]));
+    const okSets = sets.every((d) => LITERAL_OR_TERNARY.test(d[1]));
+    if ((!loops.length && !decls.length) || !okLoops || !okDecls || !okSets || params) fail(file, `sql.raw(${arg}): ${arg} must only ever hold string constants`);
+  }
+}
+
 const files = walk(TG);
 /* The platform caps the number of modules per bot: 104 were refused ("Too many modules per app"),
    88 deploy. Keep a margin (and 1 for the cloud smoke test's temporary endpoint). */
@@ -147,6 +183,7 @@ for (const file of files) {
   if (/[\u200B-\u200F\u2066-\u2069\u202A-\u202E\uFEFF]/.test(src) && !file.includes(`${path.sep}strings${path.sep}`)) {
     fail(file, 'invisible bidi/zero-width character in source: write it as an escape (\\u200F)');
   }
+  sqlSafety(file, src.replace(/\/\*[\s\S]*?\*\//g, ''));
   const rel = path.relative(TG, file);
   if (rel.startsWith(`handlers${path.sep}`) && !/export default/.test(code)) fail(file, 'handler without export default');
   if (rel.startsWith(`endpoints${path.sep}`) && !/export default/.test(code)) fail(file, 'endpoint without export default');
@@ -162,4 +199,4 @@ if (failures) {
   console.log(`\nstatic checks: ${failures} problem(s) in ${files.length} modules`);
   process.exit(1);
 }
-console.log(`✔ static checks: ${files.length} modules — syntax, imports, isolate globals, layout, namespace`);
+console.log(`✔ static checks: ${files.length} modules — syntax, imports, isolate globals, layout, namespace, SQL only through sql\`…\``);

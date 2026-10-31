@@ -10,5 +10,6 @@
   "btn_main": "🏠 Main menu",
   "btn_status": "🩺 Status",
   "summary_shutdown": "⛔️ <b>Aegis is shut down</b> — /activate",
-  "title_short": "👑 Owner panel"
+  "title_short": "👑 Owner panel",
+  "btn_admin": "🛠 Management (chats, team, logs, health…)"
 }

@@ -4,8 +4,9 @@
   "btn_help": "❓ 帮助",
   "btn_owner": "👑 所有者面板",
   "help": "❓ <b>帮助</b>\n\n命令 —— 也可以直接发送英文或波斯文单词：\n/start —— 主菜单（start · شروع）\n/config —— 你的群组和频道及其设置（config · پیکربندی）\n/language —— 切换语言（language · زبان）\n/help —— 本帮助（help · راهنما）\n/cancel —— 取消当前步骤（cancel · لغو）\n\n<b>在群组中</b>，若 Aegis 是管理员，任何管理员发送「پیکربندی」或 config 即可获得该群组私人面板的按钮。\n\n要在此聊天中使用 Aegis，请先加入它的频道。",
-  "help_owner": "👑 <b>所有者</b>\n/panel —— 所有者面板（panel · پنل）：统计、强制加入频道、群发\n/status —— Aegis 状态（status · وضعیت）\n/shutdown —— 除你之外不再回应任何人（shutdown · خاموش）\n/activate —— 重新启用（activate · فعال‌سازی）",
+  "help_owner": "👑 <b>所有者</b>\n/panel —— 所有者面板（panel · پنل）：统计、强制加入频道、群发\n/staff —— 管理（staff · ستاد）：所有聊天、机器人团队、审计日志与封印、健康、错误、队列、备份、系统设置\n/status —— Aegis 状态（status · وضعیت）\n/shutdown —— 除你之外不再回应任何人（shutdown · خاموش）\n/activate —— 重新启用（activate · فعال‌سازی）",
   "btn_my_chats": "⚙️ 我的聊天",
   "btn_add_group": "➕ 添加到群组",
-  "btn_add_channel": "➕ 添加到频道"
+  "btn_add_channel": "➕ 添加到频道",
+  "btn_staff": "🛠 团队面板"
 }

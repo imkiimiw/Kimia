@@ -1,14 +1,14 @@
 /*
  * Structured error logging. record() writes one aegis_errors row and one JSON line to the console
  * (visible in `npx tgcloud run` and the platform logs), and tells the owner in private at most once
- * per ERROR_NOTIFY_INTERVAL_SEC. It never throws.
+ * per ERROR_NOTIFY_INTERVAL_SEC (unless g_err_notify is '0' — system settings). It never throws.
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
 import { ERROR_NOTIFY_INTERVAL_SEC, OWNER_ID } from '../config.js';
 import { get as getUser } from '../engines/users.js';
 import { t } from '../i18n/index.js';
-import { claim } from './kv.js';
+import { all as kvAll, claim } from './kv.js';
 import { describeError, isApiError, send } from './tg.js';
 import { esc, nowSec, short } from './util.js';
 
@@ -24,7 +24,8 @@ export async function record(ctx, err, { source = 'unknown', updateId = 0, chatI
       VALUES (${at}, ${source}, ${Number(updateId) || 0}, ${Number(chatId) || 0}, ${Number(userId) || 0}, ${code}, ${message}, ${stack})`);
     if (notify && ctx) {
       const owner = await getUser(OWNER_ID);
-      if (owner && Number(owner.started) && !Number(owner.blocked) && (await claim('err_notify_at', at, ERROR_NOTIFY_INTERVAL_SEC))) {
+      const quiet = (await kvAll(ctx)).g_err_notify === '0'; /* Phase 10: the owner turned the notices off (system settings) */
+      if (owner && !quiet && Number(owner.started) && !Number(owner.blocked) && (await claim('err_notify_at', at, ERROR_NOTIFY_INTERVAL_SEC))) {
         await send(ctx, OWNER_ID, t(owner.lang, 'errors.owner_notice', { source: esc(source), message: esc(message) }), null, 'error-notice');
       }
     }

@@ -1,8 +1,18 @@
 # 🛡 Aegis — Telegram group & channel management / security bot
 
 Aegis runs entirely on **Telegram Serverless** (code, database, webhook and Mini App are hosted by
-Telegram; no VPS, no paid service). It is built in 10 phases; this README describes what is
-deployed **now**.
+Telegram; no VPS, no paid service). **Release 1.0.0** — all 10 phases are built, tested and deployed.
+
+**In one minute**
+- Add Aegis to a group or channel as an admin → it registers the chat, says which rights are missing,
+  and its admins open the chat's panel with «پیکربندی» / `/config` (or from Aegis's private chat).
+- Each chat has its own settings: lists, punishments with undo, warnings, 42 locks, security (anti-link,
+  anti-flood, anti-raid, captcha, …), advanced settings, topics, channel tools, statistics, points,
+  contests, polls, questions, appeals, 30 fun features and media tools — in five languages (fa, en, ru,
+  zh, fr; Persian right-to-left), with commands also as Persian and English words.
+- The owner (`AEGIS_OWNER_ID`) has the Super Admin panel: statistics, forced join, broadcasts, the
+  global switch, and 🛠 Management — every chat, the bot's team with access levels, the sealed audit
+  log, system settings, version, health, errors, queues, global backup and restore.
 
 | Phase | Scope | State |
 |---|---|---|
@@ -15,13 +25,43 @@ deployed **now**.
 | 7 | Channel panel: join requests and joins, members, invite links, impersonation and fakes, admin alerts, post protection (approval, versions, edit history), discussion group, direct messages, crisis/SOS, multi-channel dashboard, backups, extras | ✅ deployed |
 | 8 | Reports, stats & social: group statistics and CSV, points, levels and badges, contests, polls, questions to the admins, moderated anonymous Q&A, appeals, review of decisions; channel analytics and health score | ✅ deployed |
 | 9 | Fun & media: 30 fun features with per-feature settings and anti-abuse limits; media tools (sticker↔photo, sticker packs, GIF maker, image tools, QR, OCR, PDF check); QR and PDF security checks | ✅ deployed |
-| 10 | Full Super Admin panel & release | not started |
+| 10 | Full Super Admin panel & release: global chat management, the bot's team with access levels, a sealed (append-only, hash-chained) audit log, system settings, version, health, errors, queues and timed work, global backup/restore, global stop; security, load and failure-injection tests | ✅ deployed |
 
-Design decisions taken without the master spec (it isn't in the repository yet) are listed in
+Design decisions taken without the master spec (it was never added to the repository) are listed in
 [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md).
 
 Features that can't be built for free on this platform, or only partly, are listed in
 [docs/NOT_BUILT.md](docs/NOT_BUILT.md).
+
+## What Phase 10 does
+
+**🛠 Management** — a button in the owner panel (`/panel`), and for the bot's team `/staff` («ستاد»).
+The owner panel itself, broadcasts, forced join and `/status` `/shutdown` `/activate` stay the
+owner's alone (numeric id only).
+
+| Section | What it does | Level |
+|---|---|---|
+| 👥 **All chats** | Every group and channel Aegis knows: filters (all · groups · channels · ⚠️ rights missing · 🚪 left · ⏸ suspended), pages, search by id, @username or title. A chat's details: id, type, Aegis's status and rights, members, admins known, who added it and when, settings changed, active punishments, lockdowns, logged events. | viewer |
+| | 🔄 Re-check with Telegram (title, username, members, Aegis's own status and rights) | support |
+| | ⏸ **Suspend** / ▶️ resume Aegis in the chat (asks first) · 🚪 **leave** the chat (asks first) · 💾 the chat's configuration backup file · ✉️ post a text message «from the Aegis team» | manager |
+| 👮 **Bot team** | Add people by id, @username (if they opened Aegis) or a forwarded message — up to 20; levels 👁 viewer, 🧰 support, 🛡 manager; change or remove (asks first). They are told in private and get /staff in their menu. The level is read **on every press**: a removed member loses access at once. | owner |
+| 📜 **Audit log** | Every sensitive action (who, what, which chat, when), filtered (all · people · system), paged; CSV of the latest 5000 (manager). | support |
+| 🔏 **Seals** | The log is **append-only in the database** (triggers refuse UPDATE/DELETE) and sealed every 15 minutes in a **SHA-256 hash chain**; «🔍 Verify» re-checks every seal (a changed, deleted or inserted row breaks it); «🔏 Seal now» (manager); with a global log channel set, every seal's hash is also posted there, outside the database. | support |
+| ⚙️ **System settings** | New chats on/off (off: Aegis leaves chats it's newly added to, unless the owner or the team added it) · fun features · media tools · error notices to the owner · timed work · the global log channel. Every change is logged. | owner |
+| 🏷 **Version** | 1.0.0, phase, release date, data migrations, command menus, the bot, database tables, languages, the Mini App address. | viewer |
+| 🩺 **Health** | A verdict and what needs attention: Bot API, webhook (managed by the platform), errors per hour/day, updates left half done, last housekeeping and sweep, forced-join channels where Aegis isn't admin, timed work paused, late items in any queue, the log's database guard, the global switch. | viewer |
+| 🧯 **Errors** | Counts for 1 h / 24 h / 7 days, the commonest sources, the list; an error's details with its stack (support). | viewer |
+| ⏱ **Queues** | Broadcasts, channel posts waiting or scheduled, night locks and cleanups, post-copy jobs, captchas, lockdowns, contests, polls, games, media jobs, pending inputs — each with how many are late. Manager: ⏸ pause / ▶️ resume timed work, 🧹 run the sweeps now, 🔓 release stuck locks. | viewer |
+| 💾 **Backup / restore** | A **global** file (system settings, forced-join channels, the team) and **every chat's configuration** in files of 25 chats; restore from either: the file is checked and summarized, then applied after a confirmation (settings set, missing channels and members added, nothing removed; chats restored 8 per press, only where Aegis is now). | owner |
+| ⛔️ **Global switch** | The `/status` screen and shut down / activate (asks first) — unchanged, linked here. | owner |
+
+**Release work**: security tests (authorization matrix, 1200 fuzzed buttons, 500 fuzzed messages,
+escaping, the Mini App endpoints' caller checks; a static rule refusing SQL outside the `sql` tag),
+load and rate-limit tests (≈ 5,300 updates over 20 groups with budgets per update; what Aegis sends
+stays within Telegram's 20 messages/minute per group and 30/second overall; 429 handling;
+duplicates), and an error-handling review with **failure injection**: every Bot API method and every
+database query of 14 representative updates is made to fail in turn — the handler never throws and a
+pressed button is always answered once. See *Error handling* below.
 
 ## What Phase 9 does
 
@@ -426,7 +466,7 @@ Requirements: Node.js 22+, a bot with **Serverless** and **CLI Access** enabled 
 cd aegis
 npm install
 cp .env.example .env          # fill in Aegis_BOT_TGCLOUD_TOKEN (BotFather → bot → Serverless → CLI Access)
-npm test                      # locales, static platform rules, unit tests, end-to-end scenarios
+npm test                      # locales, static rules, unit, end-to-end, security, load + failure injection
 npm run deploy                # locales + env.js → push → migrate --safe → webhook check
 npm run test:cloud            # smoke test on the real platform with fake users (cleans up after itself)
 ```
@@ -453,30 +493,49 @@ npm run test:cloud            # smoke test on the real platform with fake users 
 
 ## Database and migrations
 
-66 tables, all prefixed `aegis_` (core: `users`, `chats`, `chat_admins`, `access`, `promotions`,
+68 tables, all prefixed `aegis_` (core: `users`, `chats`, `chat_admins`, `access`, `promotions`,
 `join_channels`, `kv`, `states`, `updates`, `audit`, `errors`, `broadcasts`; then each phase's own,
 e.g. Phase 6: `msg_log`, `schedules`, `reports`, `member_flags`, `topics`, `anon_cmds`; Phase 7:
 `join_requests`, `invite_links`, `channel_stats`, `posts`, `post_versions`, `post_queue`, `crises`,
 `backup_jobs`, `dm_chats`; Phase 8: `member_stats`, `stats_day`, `stats_hour`, `badges`, `badge_defs`,
 `contests`, `contest_entries`, `polls`, `poll_votes`, `questions`, `qa_blocks`, `appeals`, `reviews`; Phase 9:
-`fun_use`, `fun_games`, `birthdays`, `fun_daily`, `media_jobs`, `sticker_packs`) — see `tgcloud/schema.js`.
+`fun_use`, `fun_games`, `birthdays`, `fun_daily`, `media_jobs`, `sticker_packs`; Phase 10: `staff`,
+`audit_seals`) — see `tgcloud/schema.js`.
 
 - **Schema** changes: edit `tgcloud/schema.js`, then `npm run deploy` (`tgcloud migrate --safe`
   adds tables/columns/indexes; drops only via `.deprecated()`; type changes are manual).
 - **Data** migrations (seeding, backfills): `tgcloud/lib/core/migrations.js`, applied once each,
-  in order, on the first update after a deploy (`aegis_kv.data_version`).
+  in order, on the first update after a deploy (`aegis_kv.data_version`; 3 = the audit log's
+  database triggers).
 
 ## Engineering notes
 
 - **Idempotent updates**: every `update_id` is recorded; a redelivery is skipped, an update stuck
   "in progress" for 60 s (a dead invocation) is processed again.
-- **Errors**: every failure is caught at the entry point, written to `aegis_errors` and the console
-  as one JSON line, and the owner gets at most one note per 30 minutes.
-- **Audit log** (`aegis_audit`, append-only): forced-join changes, broadcasts, chats joined/left,
+- **Error handling** (reviewed in Phase 10): every entry point runs inside `router.run()` — dedupe,
+  data migrations, the handler, background jobs — and **nothing escapes it**: a failure is written to
+  `aegis_errors` and the console as one JSON line, the owner gets at most one note per 30 minutes
+  (can be turned off), the update still returns `{ trace }`, and a pressed button is answered exactly
+  once. Bot API calls that may fail without harm use `tryCall` (logged, the flow goes on); a 403 from
+  a user marks them as having blocked the bot; a 429 makes a broadcast wait `retry_after`; each
+  background job has its own try/catch so one failing job doesn't stop the others. `test/load.mjs`
+  proves it by failure injection (every Bot API method, then every database query of 14 typical
+  updates, failing in turn). Found and fixed in the review: `getWebhookInfo` is refused to bots on
+  Telegram Serverless, so /status and Health now say the webhook is managed by the platform instead of
+  «Telegram didn't answer»; a game test that failed 1 time in 100 (secret number 1) was corrected.
+- **Security model**: owner = numeric `OWNER_ID`; team levels read fresh on every press; a chat's
+  settings only after a live admin re-check in that chat (`ui/guard.js`); ids from callback_data are
+  always re-checked; user content is escaped and direction-isolated (`iso()`); SQL only through the
+  `sql` tag (parameters), `sql.raw()` only with constants (static rule); the Mini App endpoints act
+  only for the user in Telegram's verified init data; risky actions ask first; sensitive ones are
+  logged in the append-only, sealed audit log.
+- **Audit log** (`aegis_audit`, append-only — database triggers refuse UPDATE/DELETE — and sealed in a SHA-256 hash chain): forced-join changes, broadcasts, chats joined/left,
   registrations, Aegis's rights, admin appointments/edits/removals (and changes made outside Aegis),
-  access levels and revocations, chat settings, shutdown/activate, data migrations. A chat's part of
-  it is its 📜 change log.
-- **Housekeeping** runs on the side of updates (old update ids, expired inputs, stale member counts).
+  access levels and revocations, chat settings, shutdown/activate, data migrations, and (Phase 10) the
+  team, system settings, suspensions, restores and every Management action. A chat's part of it is
+  its 📜 change log.
+- **Housekeeping** runs on the side of updates (old update ids, expired inputs, stale member counts,
+  old security memory, and the audit seals).
 - **i18n**: every string lives in `aegis/locales/<lang>/<namespace>.json`; `npm run locales`
   compiles them into `tgcloud/lib/i18n/strings/*.js` (deployed code can't read files).
   `npm test` fails if any key is missing in any language, placeholders differ, HTML is invalid,
@@ -503,7 +562,7 @@ aegis/
                               message_reaction_count  → lib/router.js
     endpoints/bcLive.js       owner-only: the live broadcast page's batches
     endpoints/joinGuard.js    the join-request captcha Mini App (Aegis as a chat's guard bot)
-    endpoints/media.js        the media Mini App: a member's own photo, and the text read sent back
+    endpoints/media.js        the media Mini App: a member's own photo, and the text read sent back (off with g_media)
     lib/
       router.js               order of checks, callback_data table
       jobs.js                 work on the side of updates (broadcast chunks, housekeeping, timed jobs,
@@ -514,9 +573,11 @@ aegis/
                               a message contains), signals (security), clock (times of day, durations),
                               content (a post's content: read, publish, edit back; link buttons), levels
                               (points, levels, automatic badges, thanks, a channel's health score), files
-                              (zlib, base64, the PDF check), image (JPEG/PNG decoders, JPEG/PNG/GIF
+                              (zlib, base64, the PDF check, SHA-256), image (JPEG/PNG decoders, JPEG/PNG/GIF
                               encoders, colors, image tools, QR codes)
-      engines/                users, chats, join, broadcast, rights, admins, system, settings (+ warning steps),
+      engines/                users, chats, join, broadcast, rights, admins, system (the global switch, status;
+                              Phase 10 sections staff, globals, seals, allChats, globalBackup; health,
+                              queues), settings (+ warning steps),
                               lists, punish, betrayal (+ adminActions), logs, locks, members, guards, feds,
                               msglog, schedules, groupdata, events, channels, invites, posts, crisis, backup,
                               social (stats, badges, contests, polls, questions, appeals), fun (the 30
@@ -530,12 +591,15 @@ aegis/
                               panel_security + panel_fed + panel_adv + panel_topics + panel_channel +
                               panel_posts + panel_social (statistics, points, contests, polls; panelQa;
                               panelAnalytics) (a chat's panel), fun (fun at work + panelFun), media (media
-                              tools + panelMedia), dashboard (channels dashboard), guard, system
+                              tools + panelMedia), dashboard (channels dashboard), guard, admin (🛠 Management
+                              and the team panel, the global switch)
       i18n/                   t(), digits, RTL; strings/ is generated from ../../locales
   locales/<lang>/*.json       fa, en, ru, zh, fr
   webapp/                     Mini App pages (plain HTML/JS): 📡 live broadcast, join-request captcha, media
                               (OCR with Tesseract.js and QR reading with jsQR, from the jsDelivr CDN)
   scripts/                    tg.mjs (CLI wrapper), build-locales.mjs, gen-env.mjs
-  test/                       static.mjs, unit/, e2e.mjs (sdk emulation + strict mock Bot API), cloud/smoke.mjs
+  test/                       static.mjs, unit/, e2e.mjs (sdk emulation + strict mock Bot API), security.mjs,
+                              load.mjs (load, rate limits, 429, failure injection), harness.mjs (their
+                              shared setup), cloud/smoke.mjs (the real platform)
   docs/                       NOT_BUILT.md, ASSUMPTIONS.md, tgcloud-sdk.md (platform SDK reference)
 ```

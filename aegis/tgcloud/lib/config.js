@@ -6,8 +6,9 @@ import { AEGIS_OWNER_ID } from './env.js';
 
 export const OWNER_ID = AEGIS_OWNER_ID;
 export const BOT_NAME = 'Aegis';
-export const VERSION = '0.9.0';
-export const PHASE = 9;
+export const VERSION = '1.0.0';
+export const PHASE = 10;
+export const RELEASED = '2026-10-31';
 
 /* Languages, in picker order. fa is right-to-left. */
 export const LANGS = ['fa', 'en', 'ru', 'zh', 'fr'];
@@ -122,6 +123,19 @@ export const QUESTION_MAX = 1000;
 export const QUESTION_GAP_SEC = 5 * 60; /* one question per member per chat this often */
 export const APPEAL_MAX = 1000;
 export const NOTIFY_ADMINS_MAX = 10; /* admins told privately about a question, appeal or review */
+
+/* Phase 10 — the Super Admin panel, the bot's team, the sealed audit log */
+export const STAFF_MAX = 20; /* people in the bot's team (aegis_staff) */
+export const SUSPEND_MAX = 300; /* chats suspended by the bot's team at once */
+export const ADMIN_PAGE = 8; /* chats / errors per screen */
+export const AUDIT_PAGE = 10; /* audit entries per screen */
+export const SEAL_MAX_ROWS = 1000; /* audit rows one seal covers at most */
+export const SEALS_PER_RUN = 3; /* seals made per housekeeping run or button press */
+export const VERIFY_SEALS = 40; /* seals re-checked per button press */
+export const LATE_SEC = 5 * 60; /* a timed item this far past its time counts as late (health) */
+export const GLOBAL_BACKUP_CHATS = 25; /* chats per part of the global configuration backup */
+export const GLOBAL_BACKUP_MAX = 1024 * 1024; /* a global backup file to restore */
+export const RESTORE_STEP = 8; /* chats restored per button press */
 
 /* Pending inputs (e.g. "send the broadcast message") expire after this. */
 export const STATE_TTL_SEC = 30 * 60;

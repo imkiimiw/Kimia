@@ -5,6 +5,7 @@
  * step must be idempotent (a concurrent first update may run it twice).
  */
 import * as join from '../engines/join.js';
+import { seals } from '../engines/system.js';
 import * as audit from './audit.js';
 import * as kv from './kv.js';
 
@@ -24,6 +25,13 @@ export const MIGRATIONS = [
     async run(ctx) {
       const s = await kv.all(ctx);
       if (s.shutdown === undefined) await kv.set(ctx, 'shutdown', '0');
+    },
+  },
+  {
+    v: 3,
+    name: 'phase 10: the audit log and its seals become append-only (database triggers refuse UPDATE and DELETE)',
+    async run() {
+      await seals.installGuard();
     },
   },
 ];

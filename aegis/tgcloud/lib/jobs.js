@@ -11,7 +11,9 @@
  *   channel posts and a step of copying a channel's older posts to its backup chat (ui/channel.js),
  *   contests whose time is up and polls past their end (ui/social.js);
  * - after every update: Aegis's own group messages are noted for cleanup / self-destructing notices.
- * While the owner has shut Aegis down, broadcasts don't advance (housekeeping still runs).
+ * - Phase 10: every housekeeping run seals the audit rows written since the last seal (engines/system.js).
+ * While the owner has shut Aegis down, broadcasts don't advance (housekeeping still runs). While the team
+ * has paused timed work (system setting g_jobs), neither broadcasts nor the once-a-minute sweeps run.
  * Never throws: failures are recorded (lib/core/errors.js) and the update's own result stands.
  */
 import { BC_CHUNK, BC_CHUNK_BUDGET_MS, BC_PROGRESS_EVERY_SEC, BETRAY_KEEP_SEC, GC_INTERVAL_SEC, LOCK_HITS_KEEP_SEC, UPDATE_KEEP_SEC } from './config.js';
@@ -21,6 +23,7 @@ import * as kv from './core/kv.js';
 import * as state from './core/state.js';
 import { nowSec } from './core/util.js';
 import { adminActions } from './engines/betrayal.js';
+import { globals, seals } from './engines/system.js';
 import * as bc from './engines/broadcast.js';
 import * as channels from './engines/channels.js';
 import * as chats from './engines/chats.js';
@@ -70,6 +73,7 @@ async function housekeeping(ctx) {
     posts: await posts.sweep(now),
     statsDays: await stats.sweep(now),
     fun: await funData.sweep(now),
+    seals: (await seals.sealNow(ctx)).length,
   };
 }
 
@@ -85,8 +89,15 @@ async function securitySweep(ctx) {
 }
 
 export async function afterUpdate(ctx) {
+  /* Phase 10: the team can pause timed work (g_jobs '0'); housekeeping and the audit seals still run. */
+  let jobsOn = true;
   try {
-    if (!ctx.shutdown) await broadcastChunk(ctx);
+    jobsOn = globals.on(await kv.all(ctx), 'g_jobs');
+  } catch (err) {
+    jobsOn = true;
+  }
+  try {
+    if (!ctx.shutdown && jobsOn) await broadcastChunk(ctx);
   } catch (err) {
     await errors.record(ctx, err, { source: 'jobs.broadcast' });
   }
@@ -96,7 +107,7 @@ export async function afterUpdate(ctx) {
     await errors.record(ctx, err, { source: 'jobs.msglog' });
   }
   try {
-    await securitySweep(ctx);
+    if (jobsOn) await securitySweep(ctx);
   } catch (err) {
     await errors.record(ctx, err, { source: 'jobs.security' });
   }

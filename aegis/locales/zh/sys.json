@@ -20,5 +20,6 @@
   "activate_done": "▶️ Aegis 已重新启用。",
   "already_off": "ℹ️ Aegis 已经是关闭状态。",
   "already_on": "ℹ️ Aegis 已经在运行。",
-  "paused_toast": "⏸ Aegis 正在维护，暂时停止服务。请稍后再试。"
+  "paused_toast": "⏸ Aegis 正在维护，暂时停止服务。请稍后再试。",
+  "webhook_managed": "🔗 Webhook：由 Telegram Serverless 管理（机器人自身无权读取；npx tgcloud webhook 可以查看）。"
 }

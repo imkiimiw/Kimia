@@ -10,5 +10,6 @@
   "btn_main": "🏠 Главное меню",
   "btn_status": "🩺 Статус",
   "summary_shutdown": "⛔️ <b>Aegis выключен</b> — /activate",
-  "title_short": "👑 Панель владельца"
+  "title_short": "👑 Панель владельца",
+  "btn_admin": "🛠 Управление (чаты, команда, журналы, состояние…)"
 }

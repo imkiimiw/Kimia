@@ -20,6 +20,8 @@ import { btn, me, send, tryCall, urlBtn } from '../core/tg.js';
 import { fullName, iso, nowSec, parseJson } from '../core/util.js';
 import * as admins from '../engines/admins.js';
 import * as chats from '../engines/chats.js';
+import { globals, staff } from '../engines/system.js';
+import * as kv from '../core/kv.js';
 import { deepLinkRights, REQUIRED } from '../engines/rights.js';
 import * as users from '../engines/users.js';
 import { t } from '../i18n/index.js';
@@ -93,11 +95,29 @@ export async function register(ctx, chat, actor) {
   return fresh;
 }
 
+/*
+ * Phase 10: while the owner has turned «new chats» off (system settings), Aegis leaves a chat it was
+ * just added to — unless the owner or someone in the bot's team added it — after a short notice.
+ */
+async function refuseNewChat(ctx, upd, lang) {
+  if (globals.on(await kv.all(ctx), 'g_new_chats')) return false;
+  const actor = upd.from && !upd.from.is_bot ? upd.from.id : 0;
+  if (actor && (await staff.levelOf(actor))) return false;
+  const chatId = upd.chat.id;
+  if (!ctx.quiet && upd.chat.type !== 'channel') await send(ctx, chatId, t(lang, 'sa.new_chats_closed'), null, 'chat-refused');
+  else if (!ctx.quiet && actor) await send(ctx, actor, t(lang, 'sa.new_chats_closed'), null, 'chat-refused');
+  await tryCall(ctx, 'leaveChat', { chat_id: chatId }, 'chat-refused-leave');
+  await chats.setInactive(chatId, 'left');
+  await audit.log(actor, 'chat.refused', { chatId, target: upd.chat.type });
+  return true;
+}
+
 /* my_chat_member in a group/supergroup/channel. */
 export async function onBotMembership(ctx, upd, lang) {
   const before = await chats.get(upd.chat.id);
   const r = await chats.onBotMembership(ctx, upd, lang);
   const chatId = upd.chat.id;
+  if (r.active && !r.wasActive && (await refuseNewChat(ctx, upd, lang))) return;
   if (!r.active) {
     if (r.wasActive) await channel.botAlert(ctx, before, [], true);
     await chats.unregister(chatId);

@@ -8,5 +8,6 @@
   "status": "status",
   "shutdown": "shutdown",
   "activate": "activate",
-  "appeal": "appeal|appeals"
+  "appeal": "appeal|appeals",
+  "staff": "staff|team"
 }

@@ -106,5 +106,12 @@
   "qa_unblock": "a débloqué les expéditeurs anonymes",
   "review_upheld": "a maintenu une décision concernant {target}",
   "review_overturned": "a annulé une décision concernant {target}",
-  "stats_export": "a exporté les statistiques"
+  "stats_export": "a exporté les statistiques",
+  "chat_suspend": "(équipe Aegis) a suspendu Aegis ici",
+  "chat_unsuspend": "(équipe Aegis) a repris Aegis ici",
+  "chat_leave": "(équipe Aegis) a fait partir Aegis",
+  "chat_refresh": "(équipe Aegis) a revérifié la discussion auprès de Telegram",
+  "chat_backup": "(équipe Aegis) a téléchargé la sauvegarde de configuration",
+  "chat_message": "(équipe Aegis) a publié un message",
+  "chat_refused": "Aegis est parti : nouvelles discussions fermées"
 }

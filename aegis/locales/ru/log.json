@@ -106,5 +106,12 @@
   "qa_unblock": "разблокировал анонимных отправителей",
   "review_upheld": "оставил решение о {target}",
   "review_overturned": "отменил решение о {target}",
-  "stats_export": "выгрузил статистику"
+  "stats_export": "выгрузил статистику",
+  "chat_suspend": "(команда Aegis) приостановила Aegis в этом чате",
+  "chat_unsuspend": "(команда Aegis) возобновила Aegis в этом чате",
+  "chat_leave": "(команда Aegis) вывела Aegis из чата",
+  "chat_refresh": "(команда Aegis) перепроверила чат в Telegram",
+  "chat_backup": "(команда Aegis) скачала копию настроек",
+  "chat_message": "(команда Aegis) опубликовала сообщение",
+  "chat_refused": "Aegis вышел: новые чаты закрыты"
 }

@@ -140,6 +140,7 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     sendsToOthers: 0,
     commands: [],
     failNext: new Map(), // method -> { code, description } for the next call
+    faults: new Map(), // method -> { code, description, parameters, times }: fails `times` calls (Infinity = until removed)
     uploads: new Map(), // file id -> an uploaded file (photos, stickers, animations… sent by the bot)
     stickerSets: new Map(), // name -> { name, title, owner, stickers: [{ file_id, bytes }] }
     nextDice: [], // values the next sendDice calls give (else 3)
@@ -468,6 +469,17 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       state.commands.push(p);
       return ok(true);
     },
+    deleteMyCommands: (p) => {
+      const key = JSON.stringify(p.scope || { type: 'default' });
+      state.commands = state.commands.filter((c) => JSON.stringify(c.scope || { type: 'default' }) !== key || c.language_code !== p.language_code);
+      return ok(true);
+    },
+    leaveChat: (p) => {
+      const c = chat(p.chat_id);
+      if (!c) return err(400, 'Bad Request: chat not found');
+      c.left = true;
+      return ok(true);
+    },
     sendMessage: (p) => {
       const bad = reachable(p.chat_id) || checkText(p);
       if (bad) return bad;
@@ -753,6 +765,11 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       if (state.failNext.has(method)) {
         const f = state.failNext.get(method);
         state.failNext.delete(method);
+        result = err(f.code, f.description, f.parameters);
+      } else if (state.faults.has(method)) {
+        const f = state.faults.get(method);
+        f.times = (f.times === undefined ? Infinity : f.times) - 1;
+        if (f.times <= 0) state.faults.delete(method);
         result = err(f.code, f.description, f.parameters);
       } else {
         const handler = handlers[method];

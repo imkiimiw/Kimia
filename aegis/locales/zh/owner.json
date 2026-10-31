@@ -10,5 +10,6 @@
   "btn_main": "🏠 主菜单",
   "btn_status": "🩺 状态",
   "summary_shutdown": "⛔️ <b>Aegis 已关闭</b> —— /activate",
-  "title_short": "👑 所有者面板"
+  "title_short": "👑 所有者面板",
+  "btn_admin": "🛠 管理（聊天、团队、日志、健康…）"
 }

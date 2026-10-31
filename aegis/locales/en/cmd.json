@@ -8,5 +8,6 @@
   "status": "Status (owner)",
   "shutdown": "Shut down (owner)",
   "activate": "Activate (owner)",
-  "appeal": "Appeal a punishment"
+  "appeal": "Appeal a punishment",
+  "staff": "Team panel (bot team)"
 }

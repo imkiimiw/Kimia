@@ -20,5 +20,6 @@
   "activate_done": "▶️ Aegis снова работает.",
   "already_off": "ℹ️ Aegis уже выключен.",
   "already_on": "ℹ️ Aegis уже работает.",
-  "paused_toast": "⏸ Aegis временно приостановлен на обслуживание. Попробуйте позже."
+  "paused_toast": "⏸ Aegis временно приостановлен на обслуживание. Попробуйте позже.",
+  "webhook_managed": "🔗 Вебхук: управляется Telegram Serverless (сам бот не может его прочитать; его показывает npx tgcloud webhook)."
 }

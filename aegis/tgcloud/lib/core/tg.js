@@ -9,7 +9,7 @@ import { APP_URL } from '../config.js';
 import * as kv from './kv.js';
 
 export function createCtx(extra = {}) {
-  return { trace: [], callbackId: null, answered: false, kv: null, ...extra };
+  return { trace: [], callbackId: null, answered: false, kv: null, suspended: new Set(), funOn: true, mediaOn: true, ...extra };
 }
 
 export function isApiError(err) {
