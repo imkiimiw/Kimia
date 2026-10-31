@@ -27,6 +27,7 @@
  * callback_data (all ≤ 64 bytes):
  *   lang:<code>[:u|:f]                language picked (then u: upload help, f: favourites) lib/menu.js
  *   m:up | m:my | m:help | m:lang     main menu                                        lib/menu.js
+ *   m:adm                             the panel (staff only; button shown to staff)    lib/menu.js → lib/admin.js
  *   up:x:<mediaMsgId>                 cancel the pending upload of that media          lib/upload.js
  *   up:p:<mediaMsgId>                 toggle "save privately" for that media           lib/upload.js
  *   up:s:<mediaMsgId>                 save with the AI's suggested keywords            lib/upload.js
@@ -82,9 +83,9 @@ async function onCommand(ctx, user, msg, cmd, role, nowSec) {
       if (!isLang(user.lang)) return sendLanguagePicker(ctx, { [START_UPLOAD]: 'u', [START_FAV]: 'f' }[cmd.arg] || '');
       if (cmd.arg === START_UPLOAD) return sendUploadHow(ctx);
       if (cmd.arg === START_FAV) return showFavs(ctx, user, 0, nowSec);
-      return sendWelcome(ctx, msg.from, nowSec);
+      return sendWelcome(ctx, msg.from, nowSec, role);
     case 'help':
-      return sendHelp(ctx, nowSec);
+      return sendHelp(ctx, nowSec, null, role);
     case 'lang':
       return sendLanguagePicker(ctx);
     case 'my':
@@ -236,7 +237,7 @@ async function afterLanguage(ctx, user, role, from, next, nowSec) {
   if (!join.ok) return sendLock(ctx, join.missing);
   if (next === 'u') return sendUploadHow(ctx);
   if (next === 'f') return showFavs(ctx, user, 0, nowSec);
-  return sendWelcome(ctx, from, nowSec);
+  return sendWelcome(ctx, from, nowSec, role);
 }
 
 async function onButton(ctx, user, role, cq, inPrivate, nowSec) {
@@ -263,7 +264,7 @@ async function onButton(ctx, user, role, cq, inPrivate, nowSec) {
     }
     await edit(ctx, 'join.ok', msgId, t(ctx.lang, 'join.ok'), null);
     await answer(ctx);
-    return sendWelcome(ctx, cq.from, nowSec);
+    return sendWelcome(ctx, cq.from, nowSec, role);
   }
   if (!join.ok) {
     await answer(ctx, t(ctx.lang, 'join.alert'), true);
@@ -274,7 +275,8 @@ async function onButton(ctx, user, role, cq, inPrivate, nowSec) {
       await answer(ctx);
       if (a === 'up') return sendUploadHow(ctx);
       if (a === 'my') return showList(ctx, user.id, 0);
-      if (a === 'help') return sendHelp(ctx, nowSec, msgId);
+      if (a === 'help') return sendHelp(ctx, nowSec, msgId, role);
+      if (a === 'adm') return role ? adminUi.showPanel(ctx, role) : undefined;
       if (a === 'lang') return sendLanguagePicker(ctx);
       if (a === 'fav') return showFavs(ctx, user, 0, nowSec);
       if (a === 'tags') return showTags(ctx, nowSec);

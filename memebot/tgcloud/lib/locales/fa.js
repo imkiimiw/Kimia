@@ -27,6 +27,8 @@ export default {
   'menu.upload': '📤 آپلود میم',
   'menu.my': '📂 میم\u200Cهای من',
   'menu.search': '🔎 جستجو',
+  'menu.admin_panel': '🛠 پنل مدیریت',
+  'menu.mod_panel': '🛡 پنل ناظر',
   'menu.lang': '🌐 زبان / Language',
   'menu.help': '❓ راهنما',
 

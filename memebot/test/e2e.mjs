@@ -1552,6 +1552,42 @@ scenario('phase 6 — quota: a 429 pauses AI for an hour, uploads go on without 
   assert.match(lastText((await say(ava, '/help')).calls), /Gemini گوگل/);
 });
 
+scenario('the main menu has a panel button for staff only; the owner\'s /start sets the command menus (with /admin) without /setup', async () => {
+  // /start → the welcome (through the language picker for someone who never picked one)
+  const welcome = async (u) => {
+    const r = await say(u, '/start');
+    const m = sends(r.calls)[0];
+    if (!buttons(m)[0].callback_data.startsWith('lang:')) return { m, calls: r.calls };
+    const picked = await press(u, 'lang:fa', m.result.message_id);
+    return { m: sends(picked.calls)[0], calls: [...r.calls, ...picked.calls] };
+  };
+  rawDatabase().prepare("DELETE FROM kv WHERE key = 'menus:ver'").run();
+  mock.state.botTexts.clear();
+  const w = (await welcome(U.owner)).m;
+  assert.deepEqual([buttons(w)[0].callback_data, buttons(w)[0].text], ['m:adm', '🛠 پنل مدیریت'], 'on top of the owner\'s menu');
+  assert.ok(mock.state.botTexts.get(`chat:${OWNER}/`).commands.some((c) => c.command === 'admin'), '/admin in the owner\'s command menu');
+  assert.ok(mock.state.botTexts.get('').commands.some((c) => c.command === 'start'), 'everyone\'s menu too');
+  assert.ok(mock.state.botTexts.get('en').description, 'and the descriptions');
+  const again = await welcome(U.owner);
+  assert.equal(again.calls.filter((c) => c.method === 'setMyCommands').length, 0, 'only once');
+  const open = await press(U.owner, 'm:adm', w.result.message_id);
+  const p = sends(open.calls)[0];
+  assert.match(p.params.text, /پنل مدیریت/);
+  assert.ok(buttons(p).some((b) => b.callback_data === 'a:ad'), 'with 👮 admins and moderators');
+  assert.ok(buttons(sends((await say(U.owner, '/help')).calls)[0]).some((b) => b.callback_data === 'm:adm'), 'under /help too');
+
+  rawDatabase().prepare("INSERT INTO admins (user_id, added_by, added_at, role) VALUES (?, ?, ?, 'mod')").run(U.nima.id, OWNER, nowSec());
+  const mw = (await welcome(U.nima)).m;
+  assert.deepEqual([buttons(mw)[0].callback_data, buttons(mw)[0].text], ['m:adm', '🛡 پنل ناظر']);
+  assert.match(sends((await press(U.nima, 'm:adm', mw.result.message_id)).calls)[0].params.text, /پنل ناظر/);
+  rawDatabase().prepare('DELETE FROM admins WHERE user_id = ?').run(U.nima.id);
+
+  const uw = (await welcome(U.sara)).m;
+  assert.ok(!buttons(uw).some((b) => b.callback_data === 'm:adm'), 'not for ordinary users');
+  const denied = await press(U.sara, 'm:adm', uw.result.message_id);
+  assert.equal(sends(denied.calls).length, 0, 'and pressing an old button does nothing');
+});
+
 // ---------- run ----------
 
 let failedCount = 0;

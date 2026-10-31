@@ -65,7 +65,7 @@ Platform limits, and what in the plan has to work differently: **[docs/PLATFORM.
 
 | Feature | How |
 |---|---|
-| Moderators | Owner panel → **👮 Admins and moderators** → **➕ Moderator (approve/reject)** or **➕ Admin**. Send the person's numeric id or @username, or **forward any message from them**. They are told and get `/admin` in their own command menu. A **🛡 moderator** sees only the approval queue: ✅ approve / ❌ reject / ⏭ next, with no ban button, no reports, no users and no stats, and isn't sent report notifications. A **👮 admin** also gets reports, users and bans, and stats. 🔁 switches a person between the two roles and ❌ removes them; they're told either way and their menu is reset. Staff can't be banned. Everything else (settings, channels, broadcast, this list) stays with the owner. Roles are read fresh on every button press. |
+| Moderators | Owner panel (**🛠 Admin panel** at the top of the `/start` menu, or `/admin`) → **👮 Admins and moderators** → **➕ Moderator (approve/reject)** or **➕ Admin**. Send the person's numeric id or @username, or **forward any message from them**. They are told and get `/admin` in their own command menu. A **🛡 moderator** sees only the approval queue: ✅ approve / ❌ reject / ⏭ next, with no ban button, no reports, no users and no stats, and isn't sent report notifications. A **👮 admin** also gets reports, users and bans, and stats. 🔁 switches a person between the two roles and ❌ removes them; they're told either way and their menu is reset. Staff can't be banned. Everything else (settings, channels, broadcast, this list) stays with the owner. Roles are read fresh on every button press. |
 | Stats | Admin panel → **📊 Stats** (owner and admins). **Overview:** users (total, new in 24 h / 7 days, active in 7 days, blocked the bot, banned); memes (public, waiting, private, rejected or hidden); uploads, searches and the share of searches with no result (today / 7 / 30 days); memes sent and likes in 7 days. **🔎 Most searched** and **😕 No result**: the top 20 queries of the last 7 or 30 days. The no-result list shows the memes people want and the bot lacks; each has a 🔎 button to try it yourself. |
 | How a search is counted | Inline queries arrive per keystroke (س, سل, سلا…), so each user's latest query waits and is counted **once**, when they move on: they send a result, or their next query isn't a continuation of it (typing on or deleting back) within 30 s, or they clear the text. Queries are normalised the same way as search, so ي/ی, digits and ZWNJ variants count together. Favourites (`fav …`) and empty queries aren't counted. Counting happens **after** the answer is sent, so search stays as fast as before. Old data is pruned daily (queries after 60 days). |
 
@@ -120,7 +120,7 @@ npm run deploy           # gen-env → migrate --local --safe → push → migra
 The database is migrated **before** the new code goes live: the old code ignores new tables and
 columns, so a deploy never has new code running against an old database.
 
-Then, as the owner, send **/setup** to the bot. Its report should show ✅ for inline mode and the backup channel.
+Then, as the owner, send **/setup** to the bot (the command menus are also set by themselves at the owner's first `/start`). Its report should show ✅ for inline mode and the backup channel.
 
 For Phase 6, create a free Gemini API key at [aistudio.google.com](https://aistudio.google.com) (from a
 country where the Gemini API is offered) and send `/aikey <key>` to the bot as the owner.
@@ -134,7 +134,7 @@ repository root would act on the to-do bot.
 **Locally (no token needed):**
 
 ```bash
-npm test     # static platform checks → unit tests (normalisation, query syntax, calendar, locales) → 46 end-to-end scenarios
+npm test     # static platform checks → unit tests (normalisation, query syntax, calendar, locales) → 47 end-to-end scenarios
 ```
 
 The end-to-end scenarios run the real handlers against a local stand-in for the SDK

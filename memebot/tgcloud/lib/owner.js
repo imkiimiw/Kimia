@@ -2,7 +2,8 @@
  * Owner tools. /aikey <key> | off — the Gemini API key (Phase 6), kept in the database only; the
  * message holding it is deleted at once. /setup — sets the command menu and the bot descriptions in every language (the
  * default language without language_code), adds /admin to the owner's own menu, and checks inline
- * mode and the backup channel. Inline mode (/setinline) and inline feedback (/setinlinefeedback) can only be turned on
+ * mode and the backup channel. The command menus are also set by themselves the first time the owner
+ * sends /start (ensureOwnerMenus), so /admin shows up even if /setup was never sent. Inline mode (/setinline) and inline feedback (/setinlinefeedback) can only be turned on
  * in @BotFather; the report says so.
  */
 import * as ai from './ai.js';
@@ -14,6 +15,8 @@ import { call, describeError, remove, send } from './tg.js';
 import { esc } from './util.js';
 
 const COMMANDS = ['start', 'my', 'fav', 'tags', 'top', 'profile', 'lang', 'help', 'cancel'];
+/* Bump when COMMANDS or the descriptions change: the owner's next /start applies them again. */
+const MENUS_VER = 1;
 
 /* A staff member's own command menu: the usual commands plus /admin (on), or back to the
    default menu (off). Fails quietly if they never opened the bot. */
@@ -24,6 +27,30 @@ export async function staffMenu(ctx, uid, lang, on) {
     else await call(ctx, 'deleteMyCommands', { scope }, 'staff.menu');
   } catch (err) {
     console.warn(`staff menu for ${uid}: ${describeError(err)}`);
+  }
+}
+
+/* Every language's command menu and descriptions, plus the owner's own menu with /admin. Throws on failure. */
+async function applyMenus(ctx, ownerLang, nowSec) {
+  for (const lang of LANGS) {
+    const scope = lang === DEFAULT_LANG ? {} : { language_code: lang };
+    await call(ctx, 'setMyCommands', { commands: COMMANDS.map((c) => ({ command: c, description: t(lang, `cmd.${c}`) })), ...scope }, 'setup.commands');
+    await call(ctx, 'setMyDescription', { description: t(lang, 'bot.description'), ...scope }, 'setup.description');
+    await call(ctx, 'setMyShortDescription', { short_description: t(lang, 'bot.short'), ...scope }, 'setup.short');
+  }
+  const ownerCommands = [...COMMANDS, 'admin'].map((c) => ({ command: c, description: t(ownerLang, `cmd.${c}`) }));
+  await call(ctx, 'setMyCommands', { commands: ownerCommands, scope: { type: 'chat', chat_id: ENV.ownerId } }, 'setup.owner_commands');
+  await store.kvSet('menus:ver', '', MENUS_VER);
+}
+
+/* Applies the menus once (and again after MENUS_VER changes); a failure is retried at the next /start. */
+export async function ensureOwnerMenus(ctx, nowSec) {
+  const r = await store.kvGet('menus:ver');
+  if (r && r.n >= MENUS_VER) return;
+  try {
+    await applyMenus(ctx, ctx.lang, nowSec);
+  } catch (err) {
+    console.warn(`menus: ${describeError(err)}`);
   }
 }
 
@@ -53,14 +80,7 @@ export async function setup(ctx, nowSec) {
   lines.push(t(ctx.lang, 'owner.setup.feedback'));
 
   try {
-    for (const lang of LANGS) {
-      const scope = lang === DEFAULT_LANG ? {} : { language_code: lang };
-      await call(ctx, 'setMyCommands', { commands: COMMANDS.map((c) => ({ command: c, description: t(lang, `cmd.${c}`) })), ...scope }, 'setup.commands');
-      await call(ctx, 'setMyDescription', { description: t(lang, 'bot.description'), ...scope }, 'setup.description');
-      await call(ctx, 'setMyShortDescription', { short_description: t(lang, 'bot.short'), ...scope }, 'setup.short');
-    }
-    const ownerCommands = [...COMMANDS, 'admin'].map((c) => ({ command: c, description: t(ctx.lang, `cmd.${c}`) }));
-    await call(ctx, 'setMyCommands', { commands: ownerCommands, scope: { type: 'chat', chat_id: ENV.ownerId } }, 'setup.owner_commands');
+    await applyMenus(ctx, ctx.lang, nowSec);
     lines.push(t(ctx.lang, 'owner.setup.commands', { n: LANGS.length }));
   } catch (err) {
     lines.push(t(ctx.lang, 'owner.setup.commands_fail', { err: esc(describeError(err)) }));

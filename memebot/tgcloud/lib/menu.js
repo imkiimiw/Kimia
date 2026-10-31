@@ -1,16 +1,20 @@
 /*
  * Welcome, help, the language picker and the hint for stray text.
  * callback_data: lang:<code>[:u] (u = show the upload help next) | m:up | m:my | m:fav | m:tags | m:top | m:me | m:help | m:lang
+ *   | m:adm (staff only: opens the admin / moderator panel; the button is shown only to staff)
  */
 import { DAILY_UPLOADS } from './config.js';
 import { botUsername } from './bot.js';
 import { LANGS, t } from './i18n.js';
 import { LOCALES } from './locales/index.js';
+import { ensureOwnerMenus } from './owner.js';
 import { edit, send } from './tg.js';
 import { cut, esc } from './util.js';
 
-export function mainKeyboard(lang) {
+/* role: owner | admin | mod | null — staff get the panel button on top. */
+export function mainKeyboard(lang, role = null) {
   return [
+    ...(role ? [[{ text: t(lang, role === 'mod' ? 'menu.mod_panel' : 'menu.admin_panel'), callback_data: 'm:adm' }]] : []),
     [{ text: t(lang, 'menu.upload'), callback_data: 'm:up' }, { text: t(lang, 'menu.my'), callback_data: 'm:my' }],
     [{ text: t(lang, 'menu.fav'), callback_data: 'm:fav' }, { text: t(lang, 'menu.tags'), callback_data: 'm:tags' }],
     [{ text: t(lang, 'menu.top'), callback_data: 'm:top' }, { text: t(lang, 'menu.profile'), callback_data: 'm:me' }],
@@ -26,16 +30,17 @@ export async function sendLanguagePicker(ctx, next = '') {
   await send(ctx, 'lang.pick', text, kb);
 }
 
-export async function sendWelcome(ctx, from, nowSec) {
+export async function sendWelcome(ctx, from, nowSec, role = null) {
+  if (role === 'owner') await ensureOwnerMenus(ctx, nowSec);
   const bot = await botUsername(ctx, nowSec);
-  await send(ctx, 'start', t(ctx.lang, 'start.welcome', { name: esc(cut(from.first_name || '', 40)), bot: esc(bot) }), mainKeyboard(ctx.lang));
+  await send(ctx, 'start', t(ctx.lang, 'start.welcome', { name: esc(cut(from.first_name || '', 40)), bot: esc(bot) }), mainKeyboard(ctx.lang, role));
 }
 
-export async function sendHelp(ctx, nowSec, messageId = null) {
+export async function sendHelp(ctx, nowSec, messageId = null, role = null) {
   const bot = await botUsername(ctx, nowSec);
   const text = t(ctx.lang, 'help', { bot: esc(bot), limit: DAILY_UPLOADS });
-  if (messageId && (await edit(ctx, 'help', messageId, text, mainKeyboard(ctx.lang)))) return;
-  await send(ctx, 'help', text, mainKeyboard(ctx.lang));
+  if (messageId && (await edit(ctx, 'help', messageId, text, mainKeyboard(ctx.lang, role)))) return;
+  await send(ctx, 'help', text, mainKeyboard(ctx.lang, role));
 }
 
 export async function sendUploadHow(ctx) {

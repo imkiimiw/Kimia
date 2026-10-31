@@ -22,6 +22,8 @@ export default {
   'menu.upload': '📤 Upload a meme',
   'menu.my': '📂 My memes',
   'menu.search': '🔎 Search',
+  'menu.admin_panel': '🛠 Admin panel',
+  'menu.mod_panel': '🛡 Moderator panel',
   'menu.lang': '🌐 Language / زبان',
   'menu.help': '❓ Help',
 

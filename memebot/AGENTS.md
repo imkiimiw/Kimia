@@ -54,7 +54,8 @@ plan's constraints: [docs/PLATFORM.md](docs/PLATFORM.md). Features and setup: [R
 - Owner = `ENV.ownerId` (`MEMEBOT_OWNER_ID`, default 5557901897). Staff = the `admins` table with
   `role` admin | mod. `roleOf()` (lib/bot.js) → owner | admin | mod | null, read fresh on every
   message and button, never cached. Owner-only panel codes: `admin.OWNER_ONLY`; the only codes a
-  moderator may use: `admin.MOD_ALLOWED` (the approval queue). Any role is exempt from forced
+  moderator may use: `admin.MOD_ALLOWED` (the approval queue). Staff see a panel button (`m:adm`) on top of
+  the main menu; the owner's first `/start` sets the command menus (`owner.ensureOwnerMenus`, `MENUS_VER`). Any role is exempt from forced
   join, anti-spam, the daily limit and approval.
 - Meme status: `pending` (only the uploader sees it) → `approved` | `rejected`; `approved` →
   `hidden` (reports) → `approved` | `rejected`; `private` (owner only, never public) → publish →
@@ -84,7 +85,7 @@ plan's constraints: [docs/PLATFORM.md](docs/PLATFORM.md). Features and setup: [R
 ## Tests
 
 `npm test` = `gen-env` → `test/static.mjs` (platform rules) → `test/unit.test.mjs` (normalisation,
-locales, query syntax, calendar) → `test/e2e.mjs` (46 scenarios: Phases 1–3 with the channel as an
+locales, query syntax, calendar) → `test/e2e.mjs` (47 scenarios: Phases 1–3 with the channel as an
 archive and moderation first off, then on; Phases 4–6 in public mode; Gemini is faked by the mock
 at `/gemini/`, file downloads at `/file/`: the real handlers against `test/sdk/`, a local
 SQLite stand-in for the SDK, and `test/mock-telegram.mjs`, a strict mock Bot API, with web and timer
