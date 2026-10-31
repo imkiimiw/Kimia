@@ -115,5 +115,12 @@
   "btn_ch_crisis": "🆘 Crise",
   "btn_dashboard": "📊 Tableau de bord des canaux",
   "root_ch_numbers": "👥 {members} · 📥 {requests} demandes en attente · 📝 {waiting} posts en attente",
-  "root_ch_crisis": "🆘 Mode crise ACTIF."
+  "root_ch_crisis": "🆘 Mode crise ACTIF.",
+  "btn_stats": "📊 Statistiques",
+  "btn_points": "🏆 Points",
+  "btn_contests": "🎉 Concours",
+  "btn_polls": "🗳 Sondages",
+  "btn_questions": "❓ Questions",
+  "btn_appeals": "🙋 Appels",
+  "btn_analytics": "📈 Analyse"
 }

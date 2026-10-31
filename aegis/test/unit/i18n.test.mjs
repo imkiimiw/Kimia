@@ -13,9 +13,11 @@ import { LISTS } from '../../tgcloud/lib/engines/lists.js';
 import { LOCKS } from '../../tgcloud/lib/engines/locks.js';
 import { WEIGHTS } from '../../tgcloud/lib/core/signals.js';
 import { CHOICES, DEFAULTS } from '../../tgcloud/lib/engines/settings.js';
-
-const DG = ['as_channel', 'fake', 'imp', 'first', 'members'];
 import { GROUPS as ADV_GROUPS } from '../../tgcloud/lib/ui/panel_adv.js';
+import { AUTO_CODES } from '../../tgcloud/lib/core/levels.js';
+import { contests as contestsEngine } from '../../tgcloud/lib/engines/social.js';
+const CONTEST_KINDS = contestsEngine.KINDS;
+const DG = ['as_channel', 'fake', 'imp', 'first', 'members'];
 
 const LIST_CODES = LISTS.map((l) => l.code);
 const LOCK_CODES = LOCKS.map((l) => l.code);
@@ -66,7 +68,7 @@ test('button labels and command descriptions fit Telegram limits', () => {
     for (const [key, s] of Object.entries(dicts[lang])) {
       if (/\.btn_|^common\.(back|cancel|no|yes_remove|refresh)$|^bc\.(aud|mode)_btn_/.test(key)) assert.ok(s.length <= 64, `${lang} ${key} is too long for a button`);
       if (key.startsWith('cmd.')) assert.ok(s.length >= 1 && s.length <= 256, `${lang} ${key}`);
-      if (/^(app|cmd|alias|modcmd|seccmd|advcmd|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
+      if (/^(app|cmd|alias|modcmd|seccmd|advcmd|soccmd|qacmd|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
     }
   }
 });
@@ -107,6 +109,7 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'lang.': ['name', 'flag', 'pick', 'current', 'saved'],
     'alias.': ['config', 'status', 'shutdown', 'activate'],
     'cmd.': ['config', 'status', 'shutdown', 'activate'],
+    'alias.': ['appeal'], 'cmd.': ['appeal'],
     'chat.type_': ['group', 'supergroup', 'channel'],
     'chat.block_': ['no_rights', 'creator', 'not_admin', 'not_via_aegis', 'higher', 'level'],
     'rights.req_': ['delete', 'restrict', 'ban', 'invite', 'pin', 'promote'],
@@ -197,6 +200,15 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'rights.': ['can_manage_direct_messages'],
   };
   for (const [prefix, names] of Object.entries(p7)) for (const x of names) used.add(`${prefix}${x}`);
+  /* Phase 8: social features build these keys from their codes. */
+  const p8 = {
+    'soc.b_': AUTO_CODES, 'soc.ct_head_': CONTEST_KINDS, 'soc.ct_rule_': CONTEST_KINDS, 'soc.ct_k_': CONTEST_KINDS, 'soc.ct_icon_': CONTEST_KINDS,
+    'soc.ct_s_': ['draft', 'running', 'ended', 'cancelled'], 'soc.ct_': ['joined', 'already', 'full'], 'soc.pl_s_': ['open', 'closed'],
+    'qa.done_': ['p', 'x', 'b'], 'qa.ap_': ['accepted', 'rejected', 'done'], 'qa.rv_': ['upheld', 'overturned', 'done'], 'qa.ap_s_': ['open', 'accepted', 'rejected'],
+    'an.p_': ['growth', 'engagement', 'activity', 'safety'], 'soccmd.': ['me', 'top', 'give', 'take'], 'qacmd.': ['ask', 'anon'],
+    'chp.k_': ['stats_on', 'pts_on', 'pts_msg', 'pts_gap', 'pts_thanks', 'pts_announce', 'qa_on', 'anon_on', 'appeals_on', 'review_all'],
+  };
+  for (const [prefix, names] of Object.entries(p8)) for (const x of names) used.add(`${prefix}${x}`);
   for (const [prefix, names] of Object.entries(more)) for (const x of names) used.add(`${prefix}${x}`);
   for (const kind of ['emergency', 'readonly', 'raid']) for (const sfx of ['ended', 'restored']) used.add(`sec.${kind}_${sfx}`);
   for (const kind of ['emergency', 'readonly']) for (const sfx of ['started', 'title', 'intro', 'q', 'done', 'not_on', 'already']) used.add(`sec.${kind}_${sfx}`);

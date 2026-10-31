@@ -169,5 +169,15 @@
   "btn_buttons": "🔘 Buttons",
   "prompt_footer": "Send the footer added under every new post (up to {max} characters). Send «-» for none.",
   "prompt_buttons": "Send the buttons, one row per line: «Text - https://link» (several in a row with « | »). Send «-» for none.",
-  "need_edit": "⚠️ Aegis needs «Edit messages» for the footer and buttons."
+  "need_edit": "⚠️ Aegis needs «Edit messages» for the footer and buttons.",
+  "k_stats_on": "Count activity",
+  "k_pts_on": "Points",
+  "k_pts_msg": "Points per message",
+  "k_pts_gap": "Points at most every",
+  "k_pts_thanks": "Thanks give points",
+  "k_pts_announce": "Announce levels and badges",
+  "k_qa_on": "Questions to admins",
+  "k_anon_on": "Anonymous questions",
+  "k_appeals_on": "Appeals",
+  "k_review_all": "Review all decisions"
 }

@@ -16,12 +16,11 @@
  */
 import { ADMIN_CACHE_SEC, REMINDER_EVENT_GAP_SEC, REMINDER_INTERVAL_SEC } from '../config.js';
 import * as audit from '../core/audit.js';
-import { me } from '../core/bot.js';
-import { btn, send, tryCall, urlBtn } from '../core/tg.js';
+import { btn, me, send, tryCall, urlBtn } from '../core/tg.js';
 import { fullName, iso, nowSec, parseJson } from '../core/util.js';
 import * as admins from '../engines/admins.js';
 import * as chats from '../engines/chats.js';
-import { REQUIRED, deepLinkRights } from '../engines/rights.js';
+import { deepLinkRights, REQUIRED } from '../engines/rights.js';
 import * as users from '../engines/users.js';
 import { t } from '../i18n/index.js';
 import * as channel from './channel.js';

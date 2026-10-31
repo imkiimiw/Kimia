@@ -169,5 +169,15 @@
   "btn_buttons": "🔘 按钮",
   "prompt_footer": "发送添加在每条新帖下的页脚（最多 {max} 个字符）。发送「-」表示无。",
   "prompt_buttons": "发送按钮，每行一排：「文字 - https://link」（一排多个用「 | 」分隔）。发送「-」表示无。",
-  "need_edit": "⚠️ 页脚和按钮需要 Aegis 拥有「编辑消息」权限。"
+  "need_edit": "⚠️ 页脚和按钮需要 Aegis 拥有「编辑消息」权限。",
+  "k_stats_on": "统计活跃度",
+  "k_pts_on": "积分",
+  "k_pts_msg": "每条消息积分",
+  "k_pts_gap": "积分最多每隔",
+  "k_pts_thanks": "感谢可得积分",
+  "k_pts_announce": "公布等级和徽章",
+  "k_qa_on": "向管理员提问",
+  "k_anon_on": "匿名提问",
+  "k_appeals_on": "申诉",
+  "k_review_all": "复核全部决定"
 }

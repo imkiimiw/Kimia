@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { canPublish, contentOf, hasCaption, same, withFooter } from '../../tgcloud/lib/core/content.js';
-import { utf8Bytes, utf8Text } from '../../tgcloud/lib/core/csv.js';
+import { utf8Bytes, utf8Text } from '../../tgcloud/lib/core/util.js';
 import * as backup from '../../tgcloud/lib/engines/backup.js';
 import * as settings from '../../tgcloud/lib/engines/settings.js';
 import { isFake, postLink } from '../../tgcloud/lib/ui/channel.js';

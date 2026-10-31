@@ -115,5 +115,12 @@
   "btn_ch_crisis": "🆘 بحران",
   "btn_dashboard": "📊 داشبورد کانال‌ها",
   "root_ch_numbers": "👥 {members} · 📥 {requests} درخواست در انتظار · 📝 {waiting} پست در انتظار",
-  "root_ch_crisis": "🆘 حالت بحران روشن است."
+  "root_ch_crisis": "🆘 حالت بحران روشن است.",
+  "btn_stats": "📊 آمار",
+  "btn_points": "🏆 امتیازها",
+  "btn_contests": "🎉 مسابقه‌ها",
+  "btn_polls": "🗳 نظرسنجی‌ها",
+  "btn_questions": "❓ پرسش‌ها",
+  "btn_appeals": "🙋 اعتراض‌ها",
+  "btn_analytics": "📈 تحلیل"
 }

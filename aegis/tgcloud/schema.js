@@ -691,6 +691,8 @@ export const posts = table('aegis_posts', {
   album: text('album'),
   viaAegis: integer('via_aegis').notNull().default(0),
   versions: integer('versions').notNull().default(1),
+  reactions: integer('reactions').notNull().default(0), /* total reactions (message_reaction_count) */
+  comments: integer('comments').notNull().default(0), /* replies in the discussion group */
   postedAt: integer('posted_at').notNull(),
   editedAt: integer('edited_at').notNull().default(0),
 }, (t) => ({
@@ -767,4 +769,194 @@ export const dmChats = table('aegis_dm_chats', {
   at: integer('at').notNull(),
 }, (t) => ({
   byChannel: index('idx_aegis_dm_chats_channel').on(t.channelId),
+}));
+
+/* ---------- Phase 8: reports, stats and social features ---------- */
+
+/* A member's activity in a group: messages, points (levels come from points), thanks, daily streak. */
+export const memberStats = table('aegis_member_stats', {
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  messages: integer('messages').notNull().default(0),
+  points: integer('points').notNull().default(0),
+  thanksGot: integer('thanks_got').notNull().default(0),
+  thanksGiven: integer('thanks_given').notNull().default(0),
+  streak: integer('streak').notNull().default(0), /* days in a row with a message */
+  lastDay: integer('last_day').notNull().default(0), /* days since 1970 (UTC) */
+  firstAt: integer('first_at').notNull().default(0),
+  lastAt: integer('last_at').notNull().default(0),
+  pointAt: integer('point_at').notNull().default(0), /* the last message that earned points */
+  thankAt: integer('thank_at').notNull().default(0), /* the last thanks this member gave */
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_member_stats_key').on(t.chatId, t.userId),
+  byPoints: index('idx_aegis_member_stats_points').on(t.chatId, t.points),
+  byMessages: index('idx_aegis_member_stats_messages').on(t.chatId, t.messages),
+}));
+
+/* A group's activity per day. active = members who wrote that day. */
+export const statsDay = table('aegis_stats_day', {
+  chatId: integer('chat_id').notNull(),
+  day: integer('day').notNull(),
+  messages: integer('messages').notNull().default(0),
+  media: integer('media').notNull().default(0),
+  active: integer('active').notNull().default(0),
+  joins: integer('joins').notNull().default(0),
+  leaves: integer('leaves').notNull().default(0),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_stats_day_key').on(t.chatId, t.day),
+}));
+
+/* Messages per hour of the day (in the chat's time zone), all time: the busiest hours. */
+export const statsHour = table('aegis_stats_hour', {
+  chatId: integer('chat_id').notNull(),
+  hour: integer('hour').notNull(),
+  messages: integer('messages').notNull().default(0),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_stats_hour_key').on(t.chatId, t.hour),
+}));
+
+/* Badges members earned (automatic codes) or were given by admins (custom: code c<def id>). */
+export const badges = table('aegis_badges', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  code: text('code').notNull(),
+  givenBy: integer('given_by').notNull().default(0),
+  at: integer('at').notNull(),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_badges_key').on(t.chatId, t.userId, t.code),
+}));
+
+/* A group's own badges, made by its admins. */
+export const badgeDefs = table('aegis_badge_defs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  emoji: text('emoji').notNull(),
+  name: text('name').notNull(),
+  createdBy: integer('created_by').notNull().default(0),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byChat: index('idx_aegis_badge_defs_chat').on(t.chatId),
+}));
+
+/* Contests: a raffle (members join with a button), the most active members, or a quiz (first right answer). */
+export const contests = table('aegis_contests', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  kind: text('kind').notNull(), /* raffle, activity, quiz */
+  title: text('title').notNull(),
+  winners: integer('winners').notNull().default(1),
+  endsAt: integer('ends_at').notNull(),
+  status: text('status').notNull().default('draft'), /* draft, running, ended, cancelled */
+  msgId: integer('msg_id').notNull().default(0),
+  question: text('question'),
+  answer: text('answer'),
+  result: text('result'), /* JSON: winner ids */
+  createdBy: integer('created_by').notNull().default(0),
+  at: integer('at').notNull(),
+  endedAt: integer('ended_at').notNull().default(0),
+}, (t) => ({
+  byChat: index('idx_aegis_contests_chat').on(t.chatId, t.status, t.at),
+  due: index('idx_aegis_contests_due').on(t.endsAt).where(sql`status = 'running'`),
+}));
+
+/* Who takes part in a contest, and how much (messages for an activity contest). */
+export const contestEntries = table('aegis_contest_entries', {
+  contestId: integer('contest_id').notNull(),
+  userId: integer('user_id').notNull(),
+  n: integer('n').notNull().default(0),
+  at: integer('at').notNull(),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_contest_entries_key').on(t.contestId, t.userId),
+  byCount: index('idx_aegis_contest_entries_count').on(t.contestId, t.n),
+}));
+
+/* Polls Aegis sent (Telegram's native polls) and their results. */
+export const polls = table('aegis_polls', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  msgId: integer('msg_id').notNull().default(0),
+  pollId: text('poll_id'),
+  question: text('question').notNull(),
+  options: text('options').notNull(), /* JSON list of texts */
+  counts: text('counts'), /* JSON list of vote counts */
+  total: integer('total').notNull().default(0),
+  anonymous: integer('anonymous').notNull().default(1),
+  multiple: integer('multiple').notNull().default(0),
+  correct: integer('correct').notNull().default(-1), /* a quiz's right option, -1 = a normal poll */
+  closesAt: integer('closes_at').notNull().default(0),
+  status: text('status').notNull().default('open'), /* open, closed */
+  createdBy: integer('created_by').notNull().default(0),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byChat: index('idx_aegis_polls_chat').on(t.chatId, t.at),
+  byPoll: uniqueIndex('idx_aegis_polls_poll').on(t.pollId),
+  closing: index('idx_aegis_polls_closing').on(t.closesAt).where(sql`status = 'open' AND closes_at > 0`),
+}));
+
+/* Votes in polls that aren't anonymous (poll_answer). */
+export const pollVotes = table('aegis_poll_votes', {
+  pollId: integer('poll_id').notNull(),
+  userId: integer('user_id').notNull(),
+  options: text('options').notNull(), /* JSON list of option indexes */
+  at: integer('at').notNull(),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_poll_votes_key').on(t.pollId, t.userId),
+}));
+
+/* Members' private questions to the admins, and anonymous questions (anon = 1) moderated before posting. */
+export const questions = table('aegis_questions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  anon: integer('anon').notNull().default(0),
+  text: text('text').notNull(),
+  status: text('status').notNull().default('open'), /* open, answered, published, rejected, closed */
+  answer: text('answer'),
+  answeredBy: integer('answered_by').notNull().default(0),
+  answeredAt: integer('answered_at').notNull().default(0),
+  msgId: integer('msg_id').notNull().default(0), /* the published message */
+  at: integer('at').notNull(),
+}, (t) => ({
+  byChat: index('idx_aegis_questions_chat').on(t.chatId, t.status, t.at),
+  byUser: index('idx_aegis_questions_user').on(t.chatId, t.userId, t.at),
+}));
+
+/* Senders an admin blocked from asking anonymous questions in a chat (their identity stays hidden). */
+export const qaBlocks = table('aegis_qa_blocks', {
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  byId: integer('by_id').notNull(),
+  at: integer('at').notNull(),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_qa_blocks_key').on(t.chatId, t.userId),
+}));
+
+/* A punished member's appeal, one per punishment. */
+export const appeals = table('aegis_appeals', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  punishId: integer('punish_id').notNull(),
+  userId: integer('user_id').notNull(),
+  text: text('text').notNull(),
+  status: text('status').notNull().default('open'), /* open, accepted, rejected */
+  decidedBy: integer('decided_by').notNull().default(0),
+  decidedAt: integer('decided_at').notNull().default(0),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byPunish: uniqueIndex('idx_aegis_appeals_punish').on(t.punishId),
+  byChat: index('idx_aegis_appeals_chat').on(t.chatId, t.status, t.at),
+}));
+
+/* A senior admin's review of a moderation decision: upheld or overturned. */
+export const reviews = table('aegis_reviews', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  punishId: integer('punish_id').notNull(),
+  byId: integer('by_id').notNull(),
+  verdict: text('verdict').notNull(), /* upheld, overturned */
+  at: integer('at').notNull(),
+}, (t) => ({
+  byPunish: uniqueIndex('idx_aegis_reviews_punish').on(t.punishId),
+  byChat: index('idx_aegis_reviews_chat').on(t.chatId, t.at),
 }));

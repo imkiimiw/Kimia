@@ -115,5 +115,12 @@
   "btn_ch_crisis": "🆘 危机",
   "btn_dashboard": "📊 频道面板",
   "root_ch_numbers": "👥 {members} · 📥 {requests} 个等待中的申请 · 📝 {waiting} 条等待中的帖子",
-  "root_ch_crisis": "🆘 危机模式已开启。"
+  "root_ch_crisis": "🆘 危机模式已开启。",
+  "btn_stats": "📊 统计",
+  "btn_points": "🏆 积分",
+  "btn_contests": "🎉 比赛",
+  "btn_polls": "🗳 投票",
+  "btn_questions": "❓ 提问",
+  "btn_appeals": "🙋 申诉",
+  "btn_analytics": "📈 分析"
 }

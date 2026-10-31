@@ -16,7 +16,9 @@
 // Phase 6: the six new tables (message log, schedules, member flags, reports, topics, anonymous
 // commands), their SQL, times of day and member commands in the isolate; Phase 7: the nine channel
 // tables and their SQL, post content and UTF-8 decoding in the isolate, the channel_post handlers and
-// the guard bot's Mini App endpoint (joinGuard).
+// the guard bot's Mini App endpoint (joinGuard); Phase 8: the thirteen social tables and their SQL
+// (points, badges, contests, polls, questions, appeals, reviews), levels, the health score and the
+// command words in the isolate, and the poll / poll_answer / message_reaction_count handlers.
 //
 //   cd aegis && npm run test:cloud      (needs Aegis_BOT_TGCLOUD_TOKEN)
 import { spawnSync } from 'node:child_process';
@@ -53,8 +55,16 @@ fs.copyFileSync(DEV_SRC, DEV_DST);
 try {
   const before = dev('read');
   const tables = before.tables.map((t) => t.name);
-  check('47 aegis_ tables exist', tables.length === 47, tables.join(', '));
-  check('indexes exist', before.indexes.length >= 76, `${before.indexes.length} idx_aegis_*`);
+  check('60 aegis_ tables exist', tables.length === 60, tables.join(', '));
+  check('indexes exist', before.indexes.length >= 98, `${before.indexes.length} idx_aegis_*`);
+  for (const t of ['aegis_member_stats', 'aegis_stats_day', 'aegis_stats_hour', 'aegis_badges', 'aegis_badge_defs', 'aegis_contests', 'aegis_contest_entries',
+    'aegis_polls', 'aegis_poll_votes', 'aegis_questions', 'aegis_qa_blocks', 'aegis_appeals', 'aegis_reviews']) check(`Phase 8 table ${t}`, tables.includes(t));
+  const p8 = dev('p8');
+  check('social features on the real platform: points with a gap, thanks once a minute, badges once, a contest started/entered/finished once, votes replaced, a question settled once, appeals and reviews once',
+    p8.points.join() === 'true,true,true,true,10,true' && p8.day.join() === '2,1,2' && p8.badges.join() === 'true,false,true,1'
+    && p8.contest.join() === 'true,false,joined,already,true,false,ended' && p8.poll.join() === 'closed,1,1,[1]' && p8.question.join() === 'true,false,published,true'
+    && p8.appeal.join() === 'true,0,true,false,true,false', JSON.stringify(p8));
+  check('levels, thanks, the health score and command words (Persian) in the isolate', p8.pure.join() === '2,true,E,me,anon,', JSON.stringify(p8.pure));
   for (const t of ['aegis_join_requests', 'aegis_invite_links', 'aegis_channel_stats', 'aegis_posts', 'aegis_post_versions', 'aegis_post_queue', 'aegis_crises',
     'aegis_backup_jobs', 'aegis_dm_chats']) check(`Phase 7 table ${t}`, tables.includes(t));
   const p7 = dev('p7');
@@ -96,7 +106,8 @@ try {
   check('first contact shows the language picker', r1.trace.some((e) => e.view === 'language'));
   const kv = Object.fromEntries(dev('read').kv.map((r) => [r.key, r.value]));
   check('data migrations applied', kv.data_version === '2', `data_version=${kv.data_version}`);
-  check('command menus and default admin rights accepted by Telegram', kv.cmd_rev === '2', `cmd_rev=${kv.cmd_rev}`);
+  const rev = /COMMANDS_REV = '(\d+)'/.exec(fs.readFileSync(path.join(ROOT, 'tgcloud/lib/core/commands.js'), 'utf8'))[1];
+  check('command menus and default admin rights accepted by Telegram', kv.cmd_rev === rev, `cmd_rev=${kv.cmd_rev}, expected ${rev}`);
   check('the global switch is on (not shut down)', kv.shutdown === '0', `shutdown=${kv.shutdown}`);
 
   const cq = { id: 'smoke', from: user(A, 'fa'), chat_instance: 'x', data: 'lg:fa', message: { message_id: 1, chat: { id: A, type: 'private' }, date: 0, text: 'x' } };
@@ -131,6 +142,11 @@ try {
   check('a post in an unknown channel (new handler) is ignored without errors', !r8.error && r8.trace.length === 0, JSON.stringify(r8.trace));
   const r9 = tg(['handlers/edited_channel_post', JSON5.stringify({ message_id: 9, chat: CHN, date: 0, edit_date: 1, text: 'smoke edit' })]);
   check('an edited channel post (new handler) runs without errors', !r9.error, r9.error || '');
+  const r10 = tg(['handlers/poll', JSON5.stringify({ id: 'smoke-unknown', question: 'q', options: [{ text: 'a', voter_count: 1 }], total_voter_count: 1, is_closed: false })]);
+  const r11 = tg(['handlers/poll_answer', JSON5.stringify({ poll_id: 'smoke-unknown', user: user(A, 'en'), option_ids: [0] })]);
+  const r12 = tg(['handlers/message_reaction_count', JSON5.stringify({ chat: CHN, message_id: 9, date: 0, reactions: [{ type: { type: 'emoji', emoji: '👍' }, total_count: 3 }] })]);
+  check('poll, poll answer and reaction count updates (new handlers) run without errors', !r10.error && !r11.error && !r12.error && r10.trace.length + r11.trace.length + r12.trace.length === 0,
+    JSON.stringify([r10.error, r11.error, r12.error]));
   const g1 = tg(['endpoints/joinGuard', JSON5.stringify({ action: 'get' }), '--ctx',
     JSON5.stringify({ initData: { user: { id: A, first_name: 'Smoke' }, chat: { id: CHN.id, type: 'channel', title: 'Smoke channel' }, chat_join_request_query_id: 'smoke' } })]);
   check('the guard bot\'s Mini App endpoint answers (no such request: closed)', g1.done === true && /Smoke channel/.test(g1.title), JSON.stringify(g1));

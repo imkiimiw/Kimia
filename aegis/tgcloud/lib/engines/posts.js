@@ -54,6 +54,32 @@ export async function lastMsgId(chatId) {
   return r && r.m ? Number(r.m) : 0;
 }
 
+/* Engagement from Telegram (reaction counts) and the discussion group (replies to the post). */
+export async function setReactions(chatId, msgId, n) {
+  await db.run(sql`UPDATE aegis_posts SET reactions = ${n} WHERE chat_id = ${chatId} AND msg_id = ${msgId}`);
+}
+
+export async function addComment(chatId, msgId) {
+  await db.run(sql`UPDATE aegis_posts SET comments = comments + 1 WHERE chat_id = ${chatId} AND msg_id = ${msgId}`);
+}
+
+/* Posts of the last `days` days: count, posting days, reactions, comments; and the best ones. */
+export async function engagement(chatId, since) {
+  const r = await db.get(sql`SELECT count(*) AS n, count(DISTINCT posted_at / 86400) AS d, coalesce(sum(reactions), 0) AS re, coalesce(sum(comments), 0) AS co
+    FROM aegis_posts WHERE chat_id = ${chatId} AND posted_at >= ${since}`);
+  return { posts: Number(r.n), days: Number(r.d), reactions: Number(r.re), comments: Number(r.co) };
+}
+
+export async function best(chatId, since, limit = 5) {
+  return db.all(sql`SELECT * FROM aegis_posts WHERE chat_id = ${chatId} AND posted_at >= ${since} ORDER BY reactions + comments DESC, posted_at DESC LIMIT ${limit}`);
+}
+
+/* Reactions and comments per hour of posting (UTC), to find the best hours. */
+export async function byHour(chatId, since) {
+  return db.all(sql`SELECT (posted_at % 86400) / 3600 AS h, count(*) AS n, coalesce(sum(reactions + comments), 0) AS e FROM aegis_posts
+    WHERE chat_id = ${chatId} AND posted_at >= ${since} GROUP BY h ORDER BY h LIMIT 24`);
+}
+
 export async function forget(chatId, msgId) {
   const p = await byMsg(chatId, msgId);
   if (!p) return;

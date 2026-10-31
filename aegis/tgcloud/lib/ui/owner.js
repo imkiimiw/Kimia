@@ -9,11 +9,10 @@
  */
 import { MAX_JOIN_CHANNELS, MEMBER_COUNT_REFRESH, OWNER_ID, STATS_TZ_OFFSET_MIN } from '../config.js';
 import * as audit from '../core/audit.js';
-import { me } from '../core/bot.js';
+import { answer, btn, call, describeError, me, screen, send } from '../core/tg.js';
 import { countSince } from '../core/errors.js';
 import * as kv from '../core/kv.js';
 import * as state from '../core/state.js';
-import { answer, btn, call, describeError, screen, send } from '../core/tg.js';
 import { dayStart, esc, iso, nowSec, toInt } from '../core/util.js';
 import * as bc from '../engines/broadcast.js';
 import * as chats from '../engines/chats.js';

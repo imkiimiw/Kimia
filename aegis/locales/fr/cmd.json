@@ -7,5 +7,6 @@
   "config": "Mes discussions et réglages",
   "status": "Statut (propriétaire)",
   "shutdown": "Arrêter (propriétaire)",
-  "activate": "Réactiver (propriétaire)"
+  "activate": "Réactiver (propriétaire)",
+  "appeal": "Faire appel d'une sanction"
 }

@@ -28,14 +28,11 @@
  */
 import { CAPTCHA_MAX_ATTEMPTS, FED_MAX_CHATS, XGROUP_WINDOW_SEC } from '../config.js';
 import * as audit from '../core/audit.js';
-import { me } from '../core/bot.js';
-import { parseDuration } from '../core/duration.js';
-import { parseArgs } from '../core/modparse.js';
-import {
-  adHits, adjust, buttonUrls, dangerousFile, deobfuscate, fingerprint, invisible, makeCaptcha, mixedScriptWords, nameSignals, RISK_LEVELS, scamHits, score,
-} from '../core/signals.js';
+import { answer, btn, call, describeError, me, send, tryCall } from '../core/tg.js';
+import { parseDuration } from '../core/clock.js';
+import { parseArgs } from '../core/commands.js';
+import { adHits, adjust, buttonUrls, dangerousFile, deobfuscate, fingerprint, invisible, makeCaptcha, mixedScriptWords, nameSignals, RISK_LEVELS, scamHits, score } from '../core/signals.js';
 import { deceptive, domainsOf, hostsOf, linksOf, scan } from '../core/msgscan.js';
-import { answer, btn, call, describeError, send, tryCall } from '../core/tg.js';
 import { esc, fullName, iso, normalizeWord, nowSec, parseJson, short, toInt } from '../core/util.js';
 import * as admins from '../engines/admins.js';
 import * as channels from '../engines/channels.js';

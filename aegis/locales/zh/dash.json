@@ -15,5 +15,6 @@
   "xp_pending": "📨 {title}：已提交审批",
   "xp_failed": "⚠️ {title}：发布失败",
   "xp_no_access": "🚫 {title}：你已没有权限",
-  "btn_back_dash": "📊 频道面板"
+  "btn_back_dash": "📊 频道面板",
+  "health": "   💚 健康度 {score}/100（{grade}）"
 }

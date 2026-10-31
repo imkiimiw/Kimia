@@ -8,7 +8,8 @@
  *   lock hits older than LOCK_HITS_KEEP_SEC, old security memory (flood rows, media/ad fingerprints, risk alerts);
  * - at most once a minute: expired captchas and finished lockdowns of every chat (ui/security.js),
  *   self-destructing messages, the night lock and scheduled cleanup (ui/advanced.js), scheduled
- *   channel posts and a step of copying a channel's older posts to its backup chat (ui/channel.js);
+ *   channel posts and a step of copying a channel's older posts to its backup chat (ui/channel.js),
+ *   contests whose time is up and polls past their end (ui/social.js);
  * - after every update: Aegis's own group messages are noted for cleanup / self-destructing notices.
  * While the owner has shut Aegis down, broadcasts don't advance (housekeeping still runs).
  * Never throws: failures are recorded (lib/core/errors.js) and the update's own result stands.
@@ -19,7 +20,7 @@ import * as errors from './core/errors.js';
 import * as kv from './core/kv.js';
 import * as state from './core/state.js';
 import { nowSec } from './core/util.js';
-import * as adminActions from './engines/admin_actions.js';
+import { adminActions } from './engines/betrayal.js';
 import * as bc from './engines/broadcast.js';
 import * as channels from './engines/channels.js';
 import * as chats from './engines/chats.js';
@@ -28,10 +29,12 @@ import * as guards from './engines/guards.js';
 import * as locks from './engines/locks.js';
 import * as msglog from './engines/msglog.js';
 import * as posts from './engines/posts.js';
+import { stats } from './engines/social.js';
 import { afterBatch, refreshPanel } from './ui/owner_bc.js';
 import * as advanced from './ui/advanced.js';
 import * as channel from './ui/channel.js';
 import * as security from './ui/security.js';
+import * as social from './ui/social.js';
 
 async function broadcastChunk(ctx) {
   let cur = await bc.active();
@@ -63,6 +66,7 @@ async function housekeeping(ctx) {
     anonCmds: await groupdata.sweep(now),
     joinRequests: await channels.sweep(now),
     posts: await posts.sweep(now),
+    statsDays: await stats.sweep(now),
   };
 }
 
@@ -73,6 +77,7 @@ async function securitySweep(ctx) {
   await security.sweep(ctx, null);
   await advanced.sweep(ctx);
   await channel.sweep(ctx);
+  await social.sweep(ctx);
 }
 
 export async function afterUpdate(ctx) {

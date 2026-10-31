@@ -4,7 +4,7 @@
  * apply() does it in Telegram, records who did it (executor), why (reason) and how (source:
  * command, panel, list, step, blacklist, betrayal), mirrors it into its list (muted, restricted,
  * banned, blacklist, quarantine), logs it (audit log + log channel) and, for a warning, applies the
- * step ladder (engines/steps.js) on the member's active warnings.
+ * step ladder (engines/settings.js) on the member's active warnings.
  *
  * Audit Mode (setting audit): punishments Aegis decides on its own (steps, blacklist on join,
  * anti-betrayal, locks, security) are only recorded (status 'audit') and reported, never done. A punishment a person
@@ -25,7 +25,7 @@ import * as lists from './lists.js';
 import * as logs from './logs.js';
 import { demoteParams, promoteParams } from './rights.js';
 import * as settings from './settings.js';
-import { lastStep, stepAt } from './steps.js';
+import { lastStep, stepAt } from './settings.js';
 import * as users from './users.js';
 
 export const KINDS = ['warn', 'mute', 'restrict', 'quarantine', 'kick', 'ban', 'blacklist', 'demote'];

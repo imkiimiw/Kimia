@@ -7,10 +7,9 @@
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
-import { me } from '../core/bot.js';
-import { send, tryCall, urlBtn } from '../core/tg.js';
+import { me, send, tryCall, urlBtn } from '../core/tg.js';
 import { esc, fullName, iso } from '../core/util.js';
-import { parseButtons } from '../engines/buttons.js';
+import { parseButtons } from '../core/content.js';
 import * as chats from '../engines/chats.js';
 import * as guards from '../engines/guards.js';
 import * as settings from '../engines/settings.js';

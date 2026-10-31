@@ -5,21 +5,21 @@
  * and reads/deletes ONLY the fake smoke-test users (ids 990000100-990000199) and the fake chat
  * FAKE_CHAT (lists, admin actions, locks, lock hits, join times, security memory, message log,
  * schedules, member flags, reports, topics, anonymous commands, join requests, channel stats, invite
- * links, posts and their versions, the post queue, crises). It never touches the
+ * links, posts and their versions, the post queue, crises; member stats, badges, contests, polls,
+ * questions, appeals and reviews). It never touches the
  * audit log (federations are not created here for that reason).
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
-import { csv, utf8Bytes } from '../lib/core/csv.js';
-import * as adminActions from '../lib/engines/admin_actions.js';
+import { csv, utf8Bytes as bytesOf, utf8Bytes, utf8Text } from '../lib/core/util.js';
+import { adminActions } from '../lib/engines/betrayal.js';
 import * as lists from '../lib/engines/lists.js';
 import * as locks from '../lib/engines/locks.js';
 import * as members from '../lib/engines/members.js';
 import * as feds from '../lib/engines/feds.js';
 import * as guards from '../lib/engines/guards.js';
 import { deobfuscate, invisible, mixedScriptWords, score } from '../lib/core/signals.js';
-import { hostsOf, linksOf } from '../lib/core/msgscan.js';
-import { scan } from '../lib/core/msgscan.js';
+import { hostsOf, linksOf, scan } from '../lib/core/msgscan.js';
 import * as punish from '../lib/engines/punish.js';
 import * as settings from '../lib/engines/settings.js';
 import * as msglog from '../lib/engines/msglog.js';
@@ -33,8 +33,10 @@ import * as posts from '../lib/engines/posts.js';
 import * as crisis from '../lib/engines/crisis.js';
 import * as backup from '../lib/engines/backup.js';
 import { contentOf, withFooter } from '../lib/core/content.js';
-import { utf8Bytes as bytesOf, utf8Text } from '../lib/core/csv.js';
 import { parseWhen } from '../lib/ui/panel_posts.js';
+import { appeals, badges, contests, polls, questions, stats } from '../lib/engines/social.js';
+import { healthScore, isThanks, levelOf } from '../lib/core/levels.js';
+import { parseCommand as socialCommand, qa as qaUi } from '../lib/ui/social.js';
 
 const LO = 990000100;
 const HI = 990000199;
@@ -190,7 +192,64 @@ export default async function (input) {
       pure: [contentOf({ photo: [{ file_id: 'a' }, { file_id: 'b' }] }).c.f, withFooter('text', 'x', 'f'), utf8Text(bytesOf('سلام')), parseWhen('2026-01-02 00:00', 1767225600, 0) > 0],
     };
   }
+  if (action === 'p8') {
+    /* Phase 8: messages and points (gap, thanks once a minute), badges once, a contest started and finished
+       once with entries counted once, poll votes replaced, a question settled once, a sender blocked, an appeal
+       and a review once per punishment; levels, thanks, the health score and command words in the isolate. */
+    const now = Math.floor(Date.now() / 1000);
+    const FAKE_PUNISH = -990000150;
+    await stats.count(FAKE_CHAT, LO, { media: true, hour: 9, now });
+    await stats.count(FAKE_CHAT, LO + 1, { hour: 9, now });
+    const e1 = await stats.earn(FAKE_CHAT, LO, 5, 60, now);
+    const e2 = await stats.earn(FAKE_CHAT, LO, 5, 60, now);
+    const th1 = await stats.thank(FAKE_CHAT, LO + 1, LO, 5, now);
+    const th2 = await stats.thank(FAKE_CHAT, LO + 1, LO, 5, now);
+    const day = await stats.sum(FAKE_CHAT, 1, now);
+    const top = await stats.top(FAKE_CHAT, 'points', 3);
+    const b1 = await badges.award(FAKE_CHAT, LO, 'first');
+    const b2 = await badges.award(FAKE_CHAT, LO, 'first');
+    const did = await badges.addDef(FAKE_CHAT, '🦉', 'Smoke owl', LO);
+    const cid = await contests.create(FAKE_CHAT, { kind: 'raffle', title: 'Smoke', winners: 1, endsAt: now + 60 }, LO);
+    const s1 = await contests.start(cid, 1);
+    const s2 = await contests.start(cid, 1);
+    const j1 = await contests.enter(cid, LO);
+    const j2 = await contests.enter(cid, LO);
+    const f1 = await contests.finish(cid, [LO]);
+    const f2 = await contests.finish(cid, [LO]);
+    const pid = await polls.create(FAKE_CHAT, { question: 'Smoke?', options: ['a', 'b'], anonymous: false, msgId: 1, pollId: 'smoke990000100' }, LO);
+    await polls.vote(pid, LO, [0]);
+    await polls.vote(pid, LO, [1]);
+    await polls.setCounts('smoke990000100', [0, 1], 1, true);
+    const poll = await polls.byPollId('smoke990000100');
+    const qid = await questions.add(FAKE_CHAT, LO, 'smoke question', true);
+    const q1 = await questions.settle(qid, 'published', LO, null, 2);
+    const q2 = await questions.settle(qid, 'rejected', LO);
+    await questions.block(FAKE_CHAT, LO, LO + 1);
+    const aid = await appeals.add(FAKE_CHAT, FAKE_PUNISH, LO, 'smoke appeal');
+    const a2 = await appeals.add(FAKE_CHAT, FAKE_PUNISH, LO, 'again');
+    const d1 = await appeals.decide(aid, 'accepted', LO + 1);
+    const d2 = await appeals.decide(aid, 'rejected', LO + 1);
+    const r1 = await appeals.review(FAKE_CHAT, FAKE_PUNISH, LO + 1, 'upheld');
+    const r2 = await appeals.review(FAKE_CHAT, FAKE_PUNISH, LO + 1, 'overturned');
+    return {
+      points: [!!e1, e2 === null, !!th1, th2 === null, Number((await stats.member(FAKE_CHAT, LO)).points), Number(top[0].user_id) === LO],
+      day: [day.messages, day.media, await stats.activeSince(FAKE_CHAT, 1, now)],
+      badges: [b1, b2, did > 0, await badges.holders(FAKE_CHAT, 'first')],
+      contest: [s1, s2, j1, j2, f1, f2, (await contests.get(cid)).status],
+      poll: [poll.status, Number(poll.total), (await polls.votes(pid)).length, (await polls.votes(pid))[0].options],
+      question: [q1, q2, (await questions.get(qid)).status, await questions.blocked(FAKE_CHAT, LO)],
+      appeal: [aid > 0, a2, d1, d2, r1, r2],
+      pure: [levelOf(30), isThanks('ممنون!'), healthScore({ members: 1000, net7: 0, posts14: 0, postDays14: 0, rightsOk: true }).grade,
+        (socialCommand('امتیاز من') || {}).cmd, (qaUi.parseCommand('سوال ناشناس') || {}).cmd, socialCommand('my points are low')],
+    };
+  }
   if (action === 'cleanup') {
+    for (const c of await db.all(sql`SELECT id FROM aegis_contests WHERE chat_id = ${FAKE_CHAT} LIMIT 50`)) await db.run(sql`DELETE FROM aegis_contest_entries WHERE contest_id = ${c.id}`);
+    for (const p of await db.all(sql`SELECT id FROM aegis_polls WHERE chat_id = ${FAKE_CHAT} LIMIT 50`)) await db.run(sql`DELETE FROM aegis_poll_votes WHERE poll_id = ${p.id}`);
+    for (const t of ['aegis_member_stats', 'aegis_stats_day', 'aegis_stats_hour', 'aegis_badges', 'aegis_badge_defs', 'aegis_contests', 'aegis_polls', 'aegis_questions',
+      'aegis_qa_blocks', 'aegis_appeals', 'aegis_reviews']) {
+      await db.run(sql`DELETE FROM ${sql.raw(t)} WHERE chat_id = ${FAKE_CHAT}`);
+    }
     for (const t of ['aegis_join_requests', 'aegis_channel_stats', 'aegis_invite_links', 'aegis_post_queue', 'aegis_crises']) {
       await db.run(sql`DELETE FROM ${sql.raw(t)} WHERE chat_id = ${FAKE_CHAT}`);
     }

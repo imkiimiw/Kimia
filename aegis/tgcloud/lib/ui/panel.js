@@ -21,6 +21,9 @@
  *   channels: g:c:J… M… I… Q… A… D… H… E…   join requests, members, invite links, fraud, alerts,
  *                        discussion group, direct messages, extras — ui/panel_channel.js
  *             g:c:C… Z… Y…   posts, crisis, backups — ui/panel_posts.js
+ *   g:c:st… pt… ct… pl…  statistics, points and badges, contests, polls — ui/panel_social.js
+ *   g:c:qa… ap…          questions, appeals and decisions — ui/panel_social.js (panelQa)
+ *   g:c:an…              a channel's analytics and health score — ui/panel_social.js (panelAnalytics)
  *   g:c:L… g:c:P… g:c:W… g:c:B… g:c:U… g:c:O…   lists, punishments, warnings and steps,
  *                        anti-betrayal, Audit Mode, log channel — ui/panel_mod.js
  * Pending inputs (aegis_states): adm_pick { chat } — the member to appoint (shared user, forwarded
@@ -29,9 +32,8 @@
  */
 import { CHATS_PAGE, LANGS, LOG_PAGE } from '../config.js';
 import * as audit from '../core/audit.js';
-import { me } from '../core/bot.js';
+import { answer, btn, call, describeError, me, screen, send, urlBtn } from '../core/tg.js';
 import * as state from '../core/state.js';
-import { answer, btn, call, describeError, screen, send, urlBtn } from '../core/tg.js';
 import { esc, iso, normalizeWord, nowSec, parseJson, short, toInt } from '../core/util.js';
 import * as admins from '../engines/admins.js';
 import * as channels from '../engines/channels.js';
@@ -45,12 +47,14 @@ import { dur, has, langFlag, langName, num, t } from '../i18n/index.js';
 import { grantLink, rightsLines } from './group.js';
 import { back, guard, levelName, pairs, removeKeyboard, rowName, typeIcon } from './guard.js';
 import * as advPanel from './panel_adv.js';
+import { panelAnalytics as analyticsPanel, panelQa as qaPanel } from './panel_social.js';
 import * as chanPanel from './panel_channel.js';
 import * as fedPanel from './panel_fed.js';
 import * as lockPanel from './panel_locks.js';
 import * as mod from './panel_mod.js';
 import * as postPanel from './panel_posts.js';
 import * as secPanel from './panel_security.js';
+import * as socialPanel from './panel_social.js';
 import * as topicPanel from './panel_topics.js';
 
 const { L } = admins;
@@ -110,6 +114,9 @@ async function root(ctx, user, g, place, notice = '') {
     [btn(t(lang, 'chat.btn_warns'), `g:${c}:W`), btn(t(lang, 'chat.btn_betray'), `g:${c}:B`)],
     [btn(t(lang, 'chat.btn_fed'), `g:${c}:F`), btn(t(lang, settings.flag(s, 'audit') ? 'chat.btn_audit_on' : 'chat.btn_audit_off'), `g:${c}:U`)],
     [btn(t(lang, 'chat.btn_adv'), `g:${c}:V`), btn(t(lang, 'chat.btn_topics'), `g:${c}:T`)],
+    [btn(t(lang, 'chat.btn_stats'), `g:${c}:st`), btn(t(lang, 'chat.btn_points'), `g:${c}:pt`)],
+    [btn(t(lang, 'chat.btn_contests'), `g:${c}:ct`), btn(t(lang, 'chat.btn_polls'), `g:${c}:pl`)],
+    [btn(t(lang, 'chat.btn_questions'), `g:${c}:qa`), btn(t(lang, 'chat.btn_appeals'), `g:${c}:ap`)],
     [btn(t(lang, 'chat.btn_logs'), `g:${c}:O`)],
     [btn(t(lang, 'chat.btn_perms'), `g:${c}:p`), btn(t(lang, 'chat.btn_admins'), `g:${c}:a`)],
     [btn(t(lang, 'chat.btn_access'), `g:${c}:l`), btn(t(lang, 'chat.btn_lang'), `g:${c}:g`)],
@@ -135,6 +142,7 @@ async function channelRoot(ctx, user, g, place, lines, s) {
     [btn(t(lang, 'chat.btn_ch_discussion'), `g:${c}:D`), btn(t(lang, 'chat.btn_ch_dms'), `g:${c}:H`)],
     [btn(t(lang, 'chat.btn_ch_extras'), `g:${c}:E`), btn(t(lang, 'chat.btn_ch_backups'), `g:${c}:Y`)],
     [btn(t(lang, 'chat.btn_ch_crisis'), `g:${c}:Z`)],
+    [btn(t(lang, 'chat.btn_analytics'), `g:${c}:an`), btn(t(lang, 'chat.btn_polls'), `g:${c}:pl`)],
     [btn(t(lang, 'chat.btn_lists'), `g:${c}:L`), btn(t(lang, 'chat.btn_punish'), `g:${c}:P`)],
     [btn(t(lang, 'chat.btn_betray'), `g:${c}:B`), btn(t(lang, settings.flag(s, 'audit') ? 'chat.btn_audit_on' : 'chat.btn_audit_off'), `g:${c}:U`)],
     [btn(t(lang, 'chat.btn_logs'), `g:${c}:O`)],
@@ -630,6 +638,10 @@ export async function callback(ctx, user, parts, place) {
     case 'J': case 'M': case 'I': case 'Q': case 'A': case 'D': case 'H': case 'E':
       return (await chanPanel.callback(ctx, user, g, parts, place)) || root(ctx, user, g, place);
     case 'C': case 'Z': case 'Y': return (await postPanel.callback(ctx, user, g, parts, place)) || root(ctx, user, g, place);
+    case 'st': case 'pt': case 'ct': return g.chat.type === 'channel' ? root(ctx, user, g, place) : ((await socialPanel.callback(ctx, user, g, parts, place)) || root(ctx, user, g, place));
+    case 'pl': return (await socialPanel.callback(ctx, user, g, parts, place)) || root(ctx, user, g, place);
+    case 'qa': case 'ap': return (await qaPanel.callback(ctx, user, g, parts, place)) || root(ctx, user, g, place);
+    case 'an': return (await analyticsPanel.callback(ctx, user, g, parts, place)) || root(ctx, user, g, place);
     default: return root(ctx, user, g, place);
   }
 }

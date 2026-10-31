@@ -115,5 +115,12 @@
   "btn_ch_crisis": "🆘 Кризис",
   "btn_dashboard": "📊 Панель каналов",
   "root_ch_numbers": "👥 {members} · 📥 ожидающих заявок: {requests} · 📝 ожидающих постов: {waiting}",
-  "root_ch_crisis": "🆘 Режим кризиса ВКЛ."
+  "root_ch_crisis": "🆘 Режим кризиса ВКЛ.",
+  "btn_stats": "📊 Статистика",
+  "btn_points": "🏆 Очки",
+  "btn_contests": "🎉 Конкурсы",
+  "btn_polls": "🗳 Опросы",
+  "btn_questions": "❓ Вопросы",
+  "btn_appeals": "🙋 Обжалования",
+  "btn_analytics": "📈 Аналитика"
 }

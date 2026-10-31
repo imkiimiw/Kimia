@@ -15,5 +15,6 @@
   "xp_pending": "📨 {title}: отправлено на одобрение",
   "xp_failed": "⚠️ {title}: не удалось опубликовать",
   "xp_no_access": "🚫 {title}: у вас больше нет доступа",
-  "btn_back_dash": "📊 Панель каналов"
+  "btn_back_dash": "📊 Панель каналов",
+  "health": "   💚 Здоровье {score}/100 ({grade})"
 }

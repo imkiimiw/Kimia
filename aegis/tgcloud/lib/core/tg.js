@@ -5,6 +5,8 @@
  */
 import { api, BotApiError } from 'sdk';
 import { markBlocked } from '../engines/users.js';
+import { APP_URL } from '../config.js';
+import * as kv from './kv.js';
 
 export function createCtx(extra = {}) {
   return { trace: [], callbackId: null, answered: false, kv: null, ...extra };
@@ -95,3 +97,23 @@ export async function answer(ctx, text = '', alert = false) {
 export const btn = (text, data) => ({ text, callback_data: data });
 export const urlBtn = (text, url) => ({ text, url });
 export const appBtn = (text, url) => ({ text, web_app: { url } });
+
+/* ========== merged from core/bot.js ========== */
+/*
+ * The bot's own identity (getMe, cached in aegis_kv) and the Mini App address derived from it.
+ */
+export async function me(ctx) {
+  const s = await kv.all(ctx);
+  if (s.bot_id && s.bot_username) return { id: Number(s.bot_id), username: s.bot_username };
+  const r = await call(ctx, 'getMe', {}, 'me');
+  await kv.set(ctx, 'bot_id', r.id);
+  await kv.set(ctx, 'bot_username', r.username);
+  return { id: r.id, username: r.username };
+}
+
+/* The Mini App's URL: APP_URL from config, else https://app<bot id>.tgcloud.ai/. */
+export async function appUrl(ctx) {
+  if (APP_URL) return APP_URL;
+  const b = await me(ctx);
+  return `https://app${b.id}.tgcloud.ai/`;
+}

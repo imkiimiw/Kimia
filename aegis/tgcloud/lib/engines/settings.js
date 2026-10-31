@@ -6,7 +6,7 @@
  *   notify         '1' = post a notice in the group when someone is punished
  *   warn_ttl       seconds after which a warning stops counting ('0' = never)
  *   warn_reset     '1' = clear a member's warnings after the last step was applied
- *   steps          JSON ladder [{ n, a, d }] (lib/engines/steps.js)
+ *   steps          JSON ladder [{ n, a, d }] (the warning steps section below)
  *   betray_on, betray_n, betray_sec, betray_action ('demote' | 'alert')   anti-betrayal
  *   log_chat       the log channel/group id ('0' = none); log_on; log_punish, log_lists, log_admin,
  *                  log_settings, log_locks, log_security — what is posted there
@@ -23,15 +23,75 @@
  *   ch_title_locked; posts ch_archive ch_approval ch_edit_lock ch_edit_grace; the discussion group
  *   dg_members dg_as_channel dg_imp dg_first; direct messages dm_on dm_links dm_scam dm_fakes
  *   dm_flood dm_suggest; extras ch_footer ch_buttons ch_post_ttl ch_protect ch_silent; backup ch_mirror.
+ * Phase 8 — stats_on (count activity), points pts_on pts_msg pts_gap pts_thanks pts_announce,
+ *   questions qa_on anon_on, appeals_on, review_all (decisions of non-Full admins go to review).
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
 import * as audit from '../core/audit.js';
 import { nowSec, parseJson } from '../core/util.js';
-import { CLEAN_MAX_TIMES, FAKES_MAX, FJ_MAX_CHANNELS, FOOTER_MAX, NEW_WINDOWS } from '../config.js';
-import { TZ_OFFSETS } from '../core/clock.js';
-import { DEFAULT_STEPS, validSteps } from './steps.js';
+import { CLEAN_MAX_TIMES, FAKES_MAX, FJ_MAX_CHANNELS, FOOTER_MAX, MAX_STEPS, NEW_WINDOWS } from '../config.js';
+import { asciiDigits, parseDuration, TZ_OFFSETS } from '../core/clock.js';
 
+/* ========== warning steps (was engines/steps.js) ========== */
+/*
+ * Step punishments: a ladder on a member's active warning count, e.g.
+ *     3 mute 1d
+ *     5 ban
+ * One step per line: "<warnings> <action> [duration]"; actions mute, restrict, kick, ban — in any
+ * of our languages (سکوت، محدود، اخراج، بن …). Pure: no platform calls.
+ */
+export const STEP_ACTIONS = ['mute', 'restrict', 'kick', 'ban'];
+const WORDS = new Map([
+  ...['mute', 'سکوت', 'мут', 'заглушить', '禁言', 'muet', 'silence'].map((w) => [w, 'mute']),
+  ...['restrict', 'محدود', 'ограничить', '限制', 'restreindre'].map((w) => [w, 'restrict']),
+  ...['kick', 'اخراج', 'кик', 'выгнать', '踢出', 'expulser'].map((w) => [w, 'kick']),
+  ...['ban', 'بن', 'бан', 'забанить', '封禁', 'bannir'].map((w) => [w, 'ban']),
+]);
+
+export const DEFAULT_STEPS = [{ n: 3, a: 'mute', d: 86400 }, { n: 5, a: 'ban', d: 0 }];
+
+/* { steps } or { error: 'empty' | 'format' | 'action' | 'count' | 'order' | 'duration' | 'too_many', line } */
+export function parseSteps(text) {
+  const lines = String(text || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return { error: 'empty', line: 0 };
+  if (lines.length > MAX_STEPS) return { error: 'too_many', line: MAX_STEPS + 1 };
+  const steps = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const tokens = lines[i].split(/\s+/);
+    if (tokens.length < 2) return { error: 'format', line: i + 1 };
+    const n = Number(asciiDigits(tokens[0]));
+    if (!Number.isInteger(n) || n < 1 || n > 50) return { error: 'count', line: i + 1 };
+    const a = WORDS.get(tokens[1].toLowerCase());
+    if (!a) return { error: 'action', line: i + 1 };
+    let d = 0;
+    const rest = tokens.slice(2);
+    if (rest.length && a !== 'kick') {
+      const r = parseDuration(rest);
+      if (!r || r.invalid || r.used !== rest.length) return { error: 'duration', line: i + 1 };
+      d = r.sec;
+    } else if (rest.length) return { error: 'format', line: i + 1 };
+    if (steps.length && n <= steps[steps.length - 1].n) return { error: 'order', line: i + 1 };
+    steps.push({ n, a, d });
+  }
+  return { steps };
+}
+
+export function validSteps(steps) {
+  if (!Array.isArray(steps) || !steps.length || steps.length > MAX_STEPS) return false;
+  let prev = 0;
+  for (const s of steps) {
+    if (!Number.isInteger(s.n) || s.n <= prev || s.n > 50 || !STEP_ACTIONS.includes(s.a) || !Number.isInteger(s.d) || s.d < 0) return false;
+    prev = s.n;
+  }
+  return true;
+}
+
+/* The step for exactly `count` warnings, or null. */
+export const stepAt = (steps, count) => steps.find((s) => s.n === count) || null;
+export const lastStep = (steps) => steps[steps.length - 1];
+
+/* ========== settings ========== */
 export const DEFAULTS = {
   audit: '0',
   notify: '1',
@@ -69,6 +129,8 @@ export const DEFAULTS = {
   dg_members: '0', dg_as_channel: '0', dg_imp: '0', dg_first: '0',
   dm_on: '0', dm_links: '1', dm_scam: '1', dm_fakes: '1', dm_flood: '10', dm_suggest: '0',
   ch_footer: '', ch_buttons: '', ch_post_ttl: '0', ch_protect: '0', ch_silent: '0', ch_mirror: '0',
+  /* Phase 8 */
+  stats_on: '1', pts_on: '0', pts_msg: '1', pts_gap: '60', pts_thanks: '1', pts_announce: '1', qa_on: '1', anon_on: '0', appeals_on: '1', review_all: '0',
 };
 
 /* Allowed values of the Phase 6 settings (flags are '0'/'1'). */
@@ -78,6 +140,7 @@ export const CHOICES = {
   min_len: [0, 2, 3, 5, 10], max_len: [0, 200, 500, 1000, 2000, 4000], report_dest: ['admins', 'log'], linked: ['keep', 'unpin', 'delete'],
   ch_jr_mode: ['manual', 'approve', 'decline'], ch_jr_flood: [0, 10, 30, 100], ch_imp_action: ['alert', 'remove'], ch_edit_grace: [0, 300, 900, 3600],
   dm_flood: [0, 5, 10, 20], ch_post_ttl: [0, 3600, 21600, 43200, 86400],
+  pts_msg: [1, 2, 5], pts_gap: [0, 30, 60, 300],
 };
 const TEXTS = { rules: 3000, welcome_text: 1000, welcome_btns: 1000, goodbye_text: 500, title_locked: 128, ch_title_locked: 128, ch_footer: FOOTER_MAX,
   ch_buttons: 1000 };
@@ -91,7 +154,7 @@ const FLAGS = new Set(['audit', 'notify', 'warn_reset', 'betray_on', 'log_on', '
   'ev_join', 'ev_leave', 'ev_admin', 'ev_names',
   'ch_jr_captcha', 'ch_jr_names', 'ch_imp', 'ch_al_admins', 'ch_al_info', 'ch_al_edits', 'ch_al_bot', 'ch_title_lock', 'ch_archive',
   'ch_approval', 'ch_edit_lock', 'dg_members', 'dg_as_channel', 'dg_imp', 'dg_first', 'dm_on', 'dm_links', 'dm_scam', 'dm_fakes', 'dm_suggest',
-  'ch_protect', 'ch_silent']);
+  'ch_protect', 'ch_silent', 'stats_on', 'pts_on', 'pts_thanks', 'pts_announce', 'qa_on', 'anon_on', 'appeals_on', 'review_all']);
 export const isFlag = (key) => FLAGS.has(key);
 
 function valid(key, value) {

@@ -350,6 +350,31 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       state.declinedSuggested.push(p);
       return ok(true);
     },
+    sendPoll: (p) => {
+      const bad = reachable(p.chat_id);
+      if (bad) return bad;
+      const c = Number(p.chat_id) < 0 ? chat(p.chat_id) : null;
+      if (!p.question || p.question.length > 300) return err(400, 'Bad Request: poll question length must not exceed 300');
+      if (!Array.isArray(p.options) || p.options.length < 2 || p.options.length > 12) return err(400, 'Bad Request: poll must have 2-12 options');
+      if (p.options.some((o) => !o || typeof o.text !== 'string' || !o.text || o.text.length > 100)) return err(400, 'Bad Request: poll options must be InputPollOption with 1-100 characters');
+      if (c && c.type === 'channel' && p.is_anonymous === false) return err(400, "Bad Request: non-anonymous polls can't be sent to channel chats");
+      if (p.type === 'quiz' && (!Array.isArray(p.correct_option_ids) || !p.correct_option_ids.length || p.correct_option_ids.some((i) => i < 0 || i >= p.options.length))) {
+        return err(400, 'Bad Request: wrong correct option ids specified');
+      }
+      if (p.close_date !== undefined && (p.close_date < Math.floor(Date.now() / 1000) + 5 || p.close_date > Math.floor(Date.now() / 1000) + 2628000)) return err(400, 'Bad Request: close_date must be 5-2628000 seconds in the future');
+      const pollId = `poll${state.nextMessageId}`;
+      const poll = { id: pollId, question: p.question, options: p.options.map((o) => ({ text: o.text, voter_count: 0 })), total_voter_count: 0, is_closed: false,
+        is_anonymous: p.is_anonymous !== false, type: p.type || 'regular', allows_multiple_answers: !!p.allows_multiple_answers };
+      const id = store(p.chat_id, { kind: 'poll', text: p.question, plain: p.question, markup: markupOf(p), poll });
+      return ok({ message_id: id, chat: { id: Number(p.chat_id) }, date: 0, poll });
+    },
+    stopPoll: (p) => {
+      const msg = state.messages.get(k(p.chat_id, p.message_id));
+      if (!msg || msg.kind !== 'poll') return err(400, 'Bad Request: message with poll to stop not found');
+      if (msg.poll.is_closed) return err(400, 'Bad Request: poll has already been closed');
+      msg.poll.is_closed = true;
+      return ok(msg.poll);
+    },
     getFileContent: (p) => {
       const id = typeof p === 'string' ? p : p.file_id;
       const bytes = state.files && state.files.get(id);

@@ -6,8 +6,8 @@ import { AEGIS_OWNER_ID } from './env.js';
 
 export const OWNER_ID = AEGIS_OWNER_ID;
 export const BOT_NAME = 'Aegis';
-export const VERSION = '0.7.0';
-export const PHASE = 7;
+export const VERSION = '0.8.0';
+export const PHASE = 8;
 
 /* Languages, in picker order. fa is right-to-left. */
 export const LANGS = ['fa', 'en', 'ru', 'zh', 'fr'];
@@ -107,6 +107,22 @@ export const DASH_PAGE = 8;
 export const XPOST_MAX = 10; /* channels in one cross-post */
 export const DM_WINDOW_SEC = 60; /* direct-messages flood window */
 
+/* Phase 8 — reports, stats and social features */
+export const TOP_N = 10; /* leaderboards */
+export const STATS_DAYS = 30; /* the stats screen and its CSV */
+export const BADGE_DEFS_MAX = 20; /* a group's own badges */
+export const BADGE_NAME_MAX = 24;
+export const CONTEST_TITLE_MAX = 120;
+export const CONTEST_ANSWER_MAX = 64;
+export const CONTEST_ENTRIES_MAX = 5000;
+export const POLL_QUESTION_MAX = 300; /* Telegram's limit */
+export const POLL_OPTION_MAX = 100; /* Telegram's limit */
+export const POLL_OPTIONS_MAX = 10;
+export const QUESTION_MAX = 1000;
+export const QUESTION_GAP_SEC = 5 * 60; /* one question per member per chat this often */
+export const APPEAL_MAX = 1000;
+export const NOTIFY_ADMINS_MAX = 10; /* admins told privately about a question, appeal or review */
+
 /* Pending inputs (e.g. "send the broadcast message") expire after this. */
 export const STATE_TTL_SEC = 30 * 60;
 
@@ -118,6 +134,6 @@ export const ERROR_NOTIFY_INTERVAL_SEC = 30 * 60; /* the owner hears about failu
 
 /*
  * The Mini App (webapp/) address, as `npx tgcloud push` prints it (https://app<app id>.tgcloud.ai/).
- * When empty it is derived from the bot's id (lib/core/bot.js).
+ * When empty it is derived from the bot's id (appUrl in lib/core/tg.js).
  */
 export const APP_URL = 'https://app8940801714.tgcloud.ai/';

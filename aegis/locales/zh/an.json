@@ -1,0 +1,17 @@
+{
+  "title": "📈 <b>分析 — {title}</b>",
+  "health": "💚 <b>健康度：{score}/100（{grade}）</b>",
+  "part": "• {name}：{got}/{max}",
+  "p_growth": "增长（7 天）",
+  "p_engagement": "互动（14 天）",
+  "p_activity": "发帖（14 天）",
+  "p_safety": "安全",
+  "members": "👥 订阅者：{n}",
+  "flow": "🚪 7 天：+{j7} −{l7} · 30 天：+{j30} −{l30}",
+  "posts": "📝 14 天：{days} 天里发了 {n} 篇帖子 · ❤️ {reactions} 个回应 · 💬 {comments} 条评论 · 每篇每千名订阅者 {per}",
+  "best_hour": "🕐 帖子在 {hour}（{tz}）效果最好",
+  "top": "最佳帖子（30 天）：",
+  "top_line": "• {link} — ❤️ {reactions} · 💬 {comments}",
+  "note": "机器人无法获取浏览量；回应来自 Telegram 的计数，评论来自讨论群，均从 Aegis 加入后开始统计。",
+  "btn_csv": "📄 每日（CSV）"
+}

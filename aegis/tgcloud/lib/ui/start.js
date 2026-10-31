@@ -3,11 +3,10 @@
  * Every screen edits the pressed message when there is one, else sends a new message.
  */
 import { OWNER_ID } from '../config.js';
-import { me } from '../core/bot.js';
-import { btn, screen, urlBtn } from '../core/tg.js';
-import { iso, fullName } from '../core/util.js';
+import { btn, me, screen, urlBtn } from '../core/tg.js';
+import { fullName, iso } from '../core/util.js';
 import { addToChannelUrl, addToGroupUrl } from '../engines/rights.js';
-import { LANGS, langFlag, langName, t } from '../i18n/index.js';
+import { langFlag, langName, LANGS, t } from '../i18n/index.js';
 
 /* Picker text: the prompt in every language (the user may not have one yet). */
 export function pickerText(current) {

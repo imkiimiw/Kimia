@@ -1,7 +1,7 @@
 // Pure helpers: broadcast button lines, channel input, time, text, numbers, content types.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseButtons, countButtons } from '../../tgcloud/lib/engines/buttons.js';
+import { countButtons, parseButtons } from '../../tgcloud/lib/core/content.js';
 import { parseChannelInput } from '../../tgcloud/lib/ui/owner.js';
 import { contentType } from '../../tgcloud/lib/ui/owner_bc.js';
 import { dayStart, esc, iso, normalizeWord, short, toInt, utf8Length } from '../../tgcloud/lib/core/util.js';

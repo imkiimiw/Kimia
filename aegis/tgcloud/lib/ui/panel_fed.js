@@ -16,10 +16,9 @@
  */
 import { InputFile } from 'sdk';
 import { EXPORT_MAX_ROWS, FED_BAN_PAGE, FED_MAX_CHATS, FED_NAME_MAX } from '../config.js';
-import { csv, isoMinute, utf8Bytes } from '../core/csv.js';
+import { csv, fullName, iso, isoMinute, normalizeWord, nowSec, short, toInt, utf8Bytes } from '../core/util.js';
 import * as state from '../core/state.js';
 import { answer, btn, call, describeError, screen, send, tryCall } from '../core/tg.js';
-import { fullName, iso, normalizeWord, nowSec, short, toInt } from '../core/util.js';
 import * as admins from '../engines/admins.js';
 import * as feds from '../engines/feds.js';
 import * as users from '../engines/users.js';

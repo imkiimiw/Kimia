@@ -1,7 +1,7 @@
 # Decisions taken without the master spec
 
 `docs/SPEC.md` (the Persian master spec, "the source of truth") was not in the repository when
-Phases 1–7 were built (for Phases 3–7 the owner said to build them without the spec). Where the build instructions did not settle a detail, the choice below
+Phases 1–8 were built (for Phases 3–8 the owner said to build them without the spec). Where the build instructions did not settle a detail, the choice below
 was made. Each is easy to change once the spec says otherwise — nothing here drops, merges or
 renames a feature from the instructions.
 
@@ -116,3 +116,20 @@ renames a feature from the instructions.
 | Members | Remove = kick (ban and unban), ban and unban go through the punishment engine (logged, reversible). Needs Settings level and «Ban users» (or the creator). |
 | Invite links | Named «Aegis N»; expiry never / 1 h / 1 d / 7 d; limit none / 1 / 10 / 100 / 1000; approval and a limit can't be combined (Telegram). 50 live links per channel. |
 | Dashboard | Channels where the person has View access; member counts refreshed when older than an hour (5 per view). Cross-posting: up to 10 channels, each checked live. |
+
+## Phase 8
+
+| Topic | Decision |
+|---|---|
+| Statistics | On by default for every registered group: per member (messages, points, thanks, streak, first and last seen), per day (messages, media, active members, joins, leaves; kept 400 days) and per hour of the day (in the chat's time zone). Only members' messages with content count (not bots, not messages sent as a channel, not service messages); a message removed by a lock or the security never counts. |
+| Points | Off by default. 1 point per message (choices 1 / 2 / 5) of at least 3 characters or with media, at most once a minute (choices 0 / 30 / 60 / 300 s). A thanks gives the thanked member as many points as a message, a giver at most once a minute, never to bots or oneself. Level n needs 5·n·(n+1) points (max level 100). Admins give or take 1–1000 points as a reply. Announcements on by default. |
+| Badges | Ten automatic badges (checked at level-ups and at 1, 100, 1,000, 10,000 messages, every 50 messages and at 7- and 30-day streaks) and up to 20 of the group's own (an emoji and a name up to 24 characters), given by Settings admins; removing one removes it from everyone. |
+| Contests | Settings level. Default 1 day and 1 winner. Raffles: only current members (checked live), at most 5000 entries. Activity: every counted message of a member is a point; ties go to who wrote first. Quiz: messages during the quiz are attempts (they count as taking part). A discarded draft disappears; a cancelled contest stays listed. |
+| Polls | Settings level. Up to 10 answers (Telegram allows 12), 300-character question, 100-character answers, duplicates dropped. Anonymous by default. Closing time none / 1 h / 1 d / 3 d / 7 d. A quiz has exactly one right answer and no multiple answers. |
+| Questions | On by default; anonymous questions off. A question goes to at most 10 admins who started Aegis (View level or more). Answering and closing: View; publishing: Settings; blocking: Full. One question per member and group every 5 minutes; 1000 characters. |
+| Appeals | On by default. Warnings, mutes, restrictions, quarantine, bans and blacklist bans can be appealed (not kicks or demotions), once per punishment, while it is active. Deciding needs «Ban users» (or the creator). |
+| Review | «Review all» off by default; it sends punishments given with Aegis's commands by admins below Full access to the Full admins who started Aegis. From the panel a Full admin can uphold or overturn any recent decision (30 days). Overturning undoes the punishment and tells the moderator. |
+| Health score | Growth 25 (net subscribers in 7 days: +2 % or more → 25, none → 15, −2 % or worse → 0), engagement 30 (reactions + comments per post per 1,000 subscribers in 14 days: 20 or more → 30), posting 20 (days with a post in the last 14: 10 or more → 20), safety 25 (Aegis has its rights 10, no admins appointed outside Aegis 5, no crisis 5, a protection on 5). Grades A ≥ 85, B ≥ 70, C ≥ 55, D ≥ 40, E. |
+| Command words | Words work only as the whole message (so ordinary chat is never taken for a command): «امتیاز من» / "my points", «برترین‌ها» / "leaderboard", «امتیاز بده ۱۰» / "give points 10", «پرسش از مدیران» / "ask the admins", «سوال ناشناس» / "anonymous question", «اعتراض» / "appeal" (private), and the same in Russian, Chinese and French. |
+| Module cap | The platform refused a deploy of 104 modules. Small modules were merged (no behaviour change): duration → clock, csv → util, health → levels, modparse → commands, steps → settings, buttons → content, bot → tg, admin_actions → a section of betrayal, the six Phase 8 data modules → sections of engines/social.js, ui/qa → a section of ui/social.js, panel_qa and panel_analytics → sections of panel_social.js. 88 modules now; the static test fails above 95. |
+

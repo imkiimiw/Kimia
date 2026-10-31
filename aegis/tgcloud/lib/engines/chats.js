@@ -14,6 +14,7 @@ import * as audit from '../core/audit.js';
 import { call, describeError, isApiError } from '../core/tg.js';
 import { nowSec, parseJson } from '../core/util.js';
 import * as admins from './admins.js';
+import { appeals, badges, contests, polls, questions, stats } from './social.js';
 import * as channels from './channels.js';
 import * as feds from './feds.js';
 import * as groupdata from './groupdata.js';
@@ -99,6 +100,7 @@ export async function migrate(oldId, newId) {
   await schedules.migrate(oldId, newId);
   await groupdata.migrate(oldId, newId);
   await channels.migrate(oldId, newId);
+  for (const m of [stats, badges, contests, polls, questions, appeals]) await m.migrate(oldId, newId);
   await audit.log(0, 'chat.migrated', { chatId: newId, target: String(oldId) });
 }
 

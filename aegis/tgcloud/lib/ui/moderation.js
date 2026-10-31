@@ -15,9 +15,8 @@
  * Notices (settings notify) go to the group with an undo button; with notices off they go to the
  * person's private chat.
  */
-import { me } from '../core/bot.js';
-import { parseArgs, parseModCommand } from '../core/modparse.js';
-import { answer, btn, describeError, send, tryCall } from '../core/tg.js';
+import { answer, btn, describeError, me, send, tryCall } from '../core/tg.js';
+import { parseArgs, parseModCommand } from '../core/commands.js';
 import { fullName, iso, parseJson, toInt } from '../core/util.js';
 import * as admins from '../engines/admins.js';
 import * as betrayal from '../engines/betrayal.js';
@@ -29,7 +28,9 @@ import * as users from '../engines/users.js';
 import { dur, pickLang, t } from '../i18n/index.js';
 import * as enforce from './enforce.js';
 import * as advanced from './advanced.js';
+import { qa } from './social.js';
 import * as security from './security.js';
+import * as social from './social.js';
 import { ensureChat, register } from './group.js';
 
 const MOD_ALLOWED = new Set(['warn', 'unwarn', 'warns', 'mute', 'unmute']);
@@ -100,12 +101,14 @@ function noticeLines(lang, res, targetName, actorName) {
   return lines;
 }
 
-function noticeButtons(lang, res) {
+function noticeButtons(lang, res, appeal = null) {
   const row = [];
   if (!res.auditOnly && res.row.kind !== 'kick') row.push(btn(t(lang, 'pun.btn_undo'), `pu:${res.id}`));
   const step = res.stepResult;
   if (step && step.ok && !step.auditOnly && res.step.a !== 'kick') row.push(btn(t(lang, 'pun.btn_undo_step', { kind: t(lang, `pun.k_${res.step.a}`) }), `pu:${step.id}`));
-  return row.length ? [row] : null;
+  const rows = row.length ? [row] : [];
+  if (appeal) rows.push([appeal]);
+  return rows.length ? rows : null;
 }
 
 /* Posts a punishment notice: to the group, or (notices off) to the person who gave the command. */
@@ -115,7 +118,8 @@ export async function notice(ctx, chat, res, targetName, actorId, message = null
   const actorName = actorId ? await users.displayName(actorId) : null;
   if (settings.flag(s, 'notify') && chat.type !== 'channel') {
     const extra = message ? replyTo(message) : {};
-    return send(ctx, chat.chat_id, noticeLines(chat.lang, res, targetName, actorName).join('\n'), noticeButtons(chat.lang, res), `notice-${res.row.kind}`, extra);
+    const appeal = await qa.appealButton(ctx, chat, res, chat.lang);
+    return send(ctx, chat.chat_id, noticeLines(chat.lang, res, targetName, actorName).join('\n'), noticeButtons(chat.lang, res, appeal), `notice-${res.row.kind}`, extra);
   }
   if (!actorId) return null;
   const u = await users.get(actorId);
@@ -251,6 +255,7 @@ export async function handle(ctx, message) {
     return true;
   }
   const sent = await notice(ctx, chat, res, name, from.id, message);
+  await qa.reviewRequest(ctx, chat, res, from.id);
   if (sent && sent.message_id) await punish.setNotice(res.id, sent.message_id);
   if (cmd === 'ban' || cmd === 'kick') await betrayal.after(ctx, chat, from.id, uid, 'ban');
   return true;
@@ -342,7 +347,11 @@ export async function onMemberChange(ctx, upd) {
   const actorId = upd.from ? upd.from.id : 0;
   const byPerson = !!actorId && actorId !== bot.id && actorId !== target.id;
   await enforce.memberChange(chat.chat_id, target, inChat(before), inChat(after));
-  if (inChat(before) && !inChat(after)) await advanced.onLeave(ctx, chat, target, { removedBy: byPerson ? actorId : 0 });
+  if (inChat(before) && !inChat(after)) {
+    await advanced.onLeave(ctx, chat, target, { removedBy: byPerson ? actorId : 0 });
+    await social.memberChange(chat, false);
+  }
+  if (!inChat(before) && inChat(after)) await social.memberChange(chat, true);
   await advanced.onAdminChange(ctx, chat, target, before, after, actorId);
   if (byPerson && after.status === 'kicked' && before.status !== 'kicked') {
     await users.remember(target);

@@ -15,13 +15,12 @@
  * Pending input: adv_input { chat, key }.
  */
 import { CLEAN_MAX_TIMES, FJ_MAX_CHANNELS } from '../config.js';
-import { me } from '../core/bot.js';
-import { TZ_OFFSETS, fmtTime, parseTimes, tzLabel, tzOf } from '../core/clock.js';
+import { answer, btn, me, screen, send, tryCall } from '../core/tg.js';
+import { fmtTime, parseTimes, TZ_OFFSETS, tzLabel, tzOf } from '../core/clock.js';
 import * as state from '../core/state.js';
-import { answer, btn, screen, send, tryCall } from '../core/tg.js';
 import { esc, iso, normalizeWord, nowSec, parseJson, short } from '../core/util.js';
 import * as admins from '../engines/admins.js';
-import { parseButtons } from '../engines/buttons.js';
+import { parseButtons } from '../core/content.js';
 import * as gd from '../engines/groupdata.js';
 import * as settings from '../engines/settings.js';
 import * as users from '../engines/users.js';

@@ -98,6 +98,10 @@ function scan(src) {
 }
 
 const files = walk(TG);
+/* The platform caps the number of modules per bot: 104 were refused ("Too many modules per app"),
+   88 deploy. Keep a margin (and 1 for the cloud smoke test's temporary endpoint). */
+const MODULE_CAP = 95;
+if (files.length > MODULE_CAP) fail(TG, `${files.length} modules: the platform refuses too many (keep at most ${MODULE_CAP}; merge small modules into sections)`);
 for (const dir of ['handlers', 'endpoints']) {
   const d = path.join(TG, dir);
   if (!fs.existsSync(d)) continue;

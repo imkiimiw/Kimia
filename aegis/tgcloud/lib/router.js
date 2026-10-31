@@ -29,6 +29,8 @@
  *   fj:<chat>     forced join re-check         rp:<id>:d|m|b|x   a member's report: delete/mute/ban/dismiss
  *   an:<id>       a real admin confirms an anonymous admin's command — ui/advanced.js
  *   pq:<id>:a|r   publish / reject a post waiting for approval — ui/channel.js
+ *   ct:<id>:j     join a raffle — ui/social.js
+ *   qa:<id>:…  apl:<id>:y|n  apc:<id>  rv:<id>:u|o   questions, appeals, reviews — ui/social.js (qa)
  * callback_data (private chat):
  *   lg            language picker            lg:<fa|en|ru|zh|fr>   set language
  *   jc            "✅ I joined" (re-check, no cache)
@@ -45,6 +47,10 @@
  * after the locks.
  * chat_join_request: a channel's requests (ui/channel.js); a group's join captcha in the
  * requester's private chat (ui/security.js).
+ * poll / poll_answer / message_reaction_count: poll results and votes, reactions on channel posts
+ * (ui/social.js). Group messages that passed every check count for stats, points and contests;
+ * /me /top /give /take (ui/social.js) and /ask /anon (qa in ui/social.js) come before the moderation commands.
+ * Private: /appeal (or «اعتراض»), /start q_<chat> a_<chat> ap_<punishment> (qa in ui/social.js).
  * my_chat_member: private → the user blocked / unblocked the bot; group/supergroup/channel → the
  * bot's membership and rights there (ui/group.js: registration, warnings).
  * chat_member: someone's admin status changed (cache, revocation, log, reminder); bans and unbans
@@ -52,14 +58,13 @@
  * (banned again).
  */
 import { OWNER_ID } from './config.js';
-import { me } from './core/bot.js';
+import { answer, createCtx, me, send, tryCall } from './core/tg.js';
 import { mentionOf, parseCommand, startPayload, syncCommands, syncOwnerCommands } from './core/commands.js';
 import * as dedupe from './core/dedupe.js';
 import * as errors from './core/errors.js';
 import * as kv from './core/kv.js';
 import * as migrations from './core/migrations.js';
 import * as state from './core/state.js';
-import { answer, createCtx, send, tryCall } from './core/tg.js';
 import { esc, iso, toInt } from './core/util.js';
 import * as chats from './engines/chats.js';
 import * as join from './engines/join.js';
@@ -84,16 +89,20 @@ import * as panelFed from './ui/panel_fed.js';
 import * as panelLocks from './ui/panel_locks.js';
 import * as panelMod from './ui/panel_mod.js';
 import * as panelPosts from './ui/panel_posts.js';
+import { panelQa } from './ui/panel_social.js';
+import * as panelSocial from './ui/panel_social.js';
 import * as panelTopics from './ui/panel_topics.js';
+import { qa } from './ui/social.js';
+import * as social from './ui/social.js';
 import * as start from './ui/start.js';
 import * as sys from './ui/system.js';
 
 const OWNER_HEADS = new Set(['op', 'os', 'oj', 'ob', 'bc', 'ox', 'sy']);
 const PANEL_HEADS = new Set(['cl', 'g']);
 const OWNER_INPUTS = new Set(['join_add', 'bc_content', 'bc_buttons']);
-const GROUP_HEADS = new Set(['pu', 'bt', 'cp', 'rk', 'ld', 'fj', 'rp', 'an', 'pq']);
+const GROUP_HEADS = new Set(['pu', 'bt', 'cp', 'rk', 'ld', 'fj', 'rp', 'an', 'pq', 'ct', 'qa', 'apl', 'apc', 'rv']);
 const DASH_HEADS = new Set(['db', 'xp']);
-const PANELS = [panelMod, panelLocks, panelFed, panelAdv, panelTopics, panelChannel, panelPosts, dashboard];
+const PANELS = [panelMod, panelLocks, panelFed, panelAdv, panelTopics, panelChannel, panelPosts, dashboard, panelSocial, panelQa, qa];
 const isUserInput = (kind) => kind === 'adm_pick' || PANELS.some((p) => p.INPUTS.has(kind));
 const hasKeyboard = (kind) => kind === 'adm_pick' || PANELS.some((p) => p.KEYBOARD_INPUTS.has(kind));
 
@@ -135,6 +144,10 @@ async function openPayload(ctx, user, from, payload, place = null) {
   if (m) return panel.open(ctx, user, toInt(m[1]), place);
   const r = /^r_(-?\d{5,16})$/.exec(String(payload || ''));
   if (r) return showRules(ctx, user, toInt(r[1]));
+  const q = /^([qa])_(-?\d{5,16})$/.exec(String(payload || ''));
+  if (q) return qa.startQuestion(ctx, user, toInt(q[2]), q[1] === 'a');
+  const ap = /^ap_(\d{1,12})$/.exec(String(payload || ''));
+  if (ap) return qa.startAppeal(ctx, user, toInt(ap[1]));
   return start.welcome(ctx, user, from, place);
 }
 
@@ -172,6 +185,9 @@ async function input(ctx, user, message, pending) {
   if (panelChannel.INPUTS.has(pending.kind)) return panelChannel.input(ctx, user, message, pending);
   if (panelPosts.INPUTS.has(pending.kind)) return panelPosts.input(ctx, user, message, pending);
   if (dashboard.INPUTS.has(pending.kind)) return dashboard.input(ctx, user, message, pending);
+  if (panelSocial.INPUTS.has(pending.kind)) return panelSocial.input(ctx, user, message, pending);
+  if (panelQa.INPUTS.has(pending.kind)) return panelQa.input(ctx, user, message, pending);
+  if (qa.INPUTS.has(pending.kind)) return qa.input(ctx, user, message, pending);
   if (pending.kind === 'join_add') return owner.joinAddInput(ctx, lang, message);
   if (pending.kind === 'bc_content') return ownerBc.contentInput(ctx, lang, message, pending.data);
   if (pending.kind === 'bc_buttons') return ownerBc.buttonsInput(ctx, lang, message, pending.data);
@@ -229,6 +245,7 @@ async function handleMessage(ctx, message) {
   if (payload) await openPayload(ctx, user, from, payload);
   else if (cmd === 'help') await start.help(ctx, user);
   else if (cmd === 'config') await panel.chatsList(ctx, user);
+  else if (cmd === 'appeal') await qa.startAppeal(ctx, user);
   else if (isOwner && cmd === 'panel') await owner.panel(ctx, user.lang);
   else if (isOwner && cmd === 'status') await sys.status(ctx, user.lang);
   else if (isOwner && cmd === 'shutdown') await sys.askShutdown(ctx, user.lang);
@@ -257,12 +274,16 @@ async function handleGroupMessage(ctx, message) {
     await group.configInGroup(ctx, message);
     return;
   }
-  if ((await advanced.command(ctx, message)) || (await security.command(ctx, message)) || (await moderation.handle(ctx, message))) {
+  if ((await advanced.command(ctx, message)) || (await social.command(ctx, message)) || (await qa.command(ctx, message))
+    || (await security.command(ctx, message)) || (await moderation.handle(ctx, message))) {
     await deleteCommand(ctx, known, message);
     return;
   }
   const row = await chats.get(chat.id);
-  if (row) await group.onActivity(ctx, row);
+  if (row) {
+    await social.onMessage(ctx, row, message);
+    await group.onActivity(ctx, row);
+  }
 }
 
 /* An edited message: in a group the locks look at it again (and the edit lock catches any edit). */
@@ -301,6 +322,26 @@ export function onChannelPost(message, pctx) {
     if (!message || !message.chat || ctx.shutdown) return;
     ctx.chatId = message.chat.id;
     await channel.onPost(ctx, message);
+  });
+}
+
+/* Poll results (polls Aegis sent), votes in polls that aren't anonymous, reactions on channel posts. */
+export function onPoll(poll, pctx) {
+  return run('poll', pctx, async (ctx) => social.onPoll(ctx, poll));
+}
+
+export function onPollAnswer(answer2, pctx) {
+  return run('poll_answer', pctx, async (ctx) => {
+    if (answer2 && answer2.user) ctx.userId = answer2.user.id;
+    await social.onPollAnswer(ctx, answer2);
+  });
+}
+
+export function onReactionCount(upd, pctx) {
+  return run('message_reaction_count', pctx, async (ctx) => {
+    if (!upd || !upd.chat) return;
+    ctx.chatId = upd.chat.id;
+    await social.onReactionCount(ctx, upd);
   });
 }
 
@@ -355,6 +396,8 @@ async function handleCallback(ctx, cq) {
     const parts = String(cq.data).split(':');
     if (advanced.HEADS.has(head0)) return advanced.callback(ctx, cq, parts, { roleOf: moderation.roleOf, security: security.command, moderation: moderation.handle });
     if (head0 === 'pq') return channel.queueCallback(ctx, cq, parts);
+    if (head0 === 'ct') return social.callback(ctx, cq, parts);
+    if (qa.HEADS.has(head0)) return qa.callback(ctx, cq, parts);
     return security.HEADS.has(head0) ? security.callback(ctx, cq, parts) : moderation.callback(ctx, cq, parts);
   }
   if (msg.chat.type !== 'private') return null;

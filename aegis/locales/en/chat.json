@@ -115,5 +115,12 @@
   "btn_ch_crisis": "🆘 Crisis",
   "btn_dashboard": "📊 Channels dashboard",
   "root_ch_numbers": "👥 {members} · 📥 {requests} waiting requests · 📝 {waiting} waiting posts",
-  "root_ch_crisis": "🆘 Crisis mode is ON."
+  "root_ch_crisis": "🆘 Crisis mode is ON.",
+  "btn_stats": "📊 Statistics",
+  "btn_points": "🏆 Points",
+  "btn_contests": "🎉 Contests",
+  "btn_polls": "🗳 Polls",
+  "btn_questions": "❓ Questions",
+  "btn_appeals": "🙋 Appeals",
+  "btn_analytics": "📈 Analytics"
 }

@@ -16,11 +16,9 @@
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
 import { LOCK_NOTICE_GAP_SEC } from '../config.js';
-import { me } from '../core/bot.js';
-import { SLASH_NAMES } from '../core/commands.js';
-import { MOD_COMMANDS } from '../core/modparse.js';
+import { btn, me, send, tryCall } from '../core/tg.js';
+import { MOD_COMMANDS, SLASH_NAMES } from '../core/commands.js';
 import { scan } from '../core/msgscan.js';
-import { btn, send, tryCall } from '../core/tg.js';
 import { esc, fullName, iso, nowSec, parseJson } from '../core/util.js';
 import * as admins from '../engines/admins.js';
 import * as lists from '../engines/lists.js';

@@ -169,5 +169,15 @@
   "btn_buttons": "🔘 Boutons",
   "prompt_footer": "Envoyez le pied de page ajouté sous chaque nouveau post ({max} caractères au plus). Envoyez « - » pour aucun.",
   "prompt_buttons": "Envoyez les boutons, une rangée par ligne : « Texte - https://lien » (plusieurs par rangée avec « | »). Envoyez « - » pour aucun.",
-  "need_edit": "⚠️ Aegis a besoin de « Modifier des messages » pour le pied de page et les boutons."
+  "need_edit": "⚠️ Aegis a besoin de « Modifier des messages » pour le pied de page et les boutons.",
+  "k_stats_on": "Compter l'activité",
+  "k_pts_on": "Points",
+  "k_pts_msg": "Points par message",
+  "k_pts_gap": "Points au plus toutes les",
+  "k_pts_thanks": "Les mercis donnent des points",
+  "k_pts_announce": "Annoncer niveaux et badges",
+  "k_qa_on": "Questions aux admins",
+  "k_anon_on": "Questions anonymes",
+  "k_appeals_on": "Appels",
+  "k_review_all": "Réviser toutes les décisions"
 }

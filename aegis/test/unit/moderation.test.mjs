@@ -2,12 +2,11 @@
 // group moderation commands, and who may use or undo what.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { csv, isoMinute, utf8Bytes } from '../../tgcloud/lib/core/csv.js';
-import { durationOf, parseDuration } from '../../tgcloud/lib/core/duration.js';
-import { parseArgs, parseModCommand } from '../../tgcloud/lib/core/modparse.js';
+import { csv, isoMinute, utf8Bytes } from '../../tgcloud/lib/core/util.js';
+import { durationOf, parseDuration } from '../../tgcloud/lib/core/clock.js';
+import { parseArgs, parseModCommand } from '../../tgcloud/lib/core/commands.js';
 import * as lists from '../../tgcloud/lib/engines/lists.js';
-import { DEFAULTS } from '../../tgcloud/lib/engines/settings.js';
-import { DEFAULT_STEPS, lastStep, parseSteps, stepAt, validSteps } from '../../tgcloud/lib/engines/steps.js';
+import { DEFAULT_STEPS, DEFAULTS, lastStep, parseSteps, stepAt, validSteps } from '../../tgcloud/lib/engines/settings.js';
 import { L } from '../../tgcloud/lib/engines/admins.js';
 import { mayUndo, mayUse } from '../../tgcloud/lib/ui/moderation.js';
 import { dur, modCommand } from '../../tgcloud/lib/i18n/index.js';

@@ -22,6 +22,7 @@ import * as posts from '../engines/posts.js';
 import { num, t } from '../i18n/index.js';
 import { notifyApprovers, publishItem } from './channel.js';
 import { removeKeyboard } from './guard.js';
+import { panelAnalytics } from './panel_social.js';
 
 const { L } = admins;
 export const INPUTS = new Set(['xp_input']);
@@ -64,6 +65,8 @@ export async function show(ctx, user, page = 0, place = null) {
     if ((parseJson(chat.missing, []) || []).length) marks.push('⚠\uFE0F');
     lines.push(t(lang, 'dash.line', { title: iso(chat.title || '', 32), marks: marks.length ? ` ${marks.join(' ')}` : '', members: num(lang, await count(ctx, chat, budget)),
       joins: num(lang, flow.joins), leaves: num(lang, flow.leaves), requests: num(lang, pend), waiting: num(lang, waiting), alerts: num(lang, alerts) }));
+    const h = await panelAnalytics.healthOf(ctx, chat);
+    lines.push(t(lang, 'dash.health', { score: num(lang, h.score), grade: h.grade }));
     kb.push([btn(`📢 ${short(chat.title || String(c), 28)}`, `g:${c}`)]);
   }
   const nav = [];

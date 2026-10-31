@@ -13,13 +13,62 @@ deployed **now**.
 | 5 | Group security: anti-link, anti-ads/tabchi, anti-flood, anti-raid, captcha, quarantine, emergency lock, read-only, suspicious content, risk score with feedback, federations | ✅ deployed |
 | 6 | Advanced group settings (26 + extras: welcome/goodbye, forced join/add for members, scheduled cleanup, night lock, time zone, message length, member reports, event channel, linked-channel posts) and forum topics | ✅ deployed |
 | 7 | Channel panel: join requests and joins, members, invite links, impersonation and fakes, admin alerts, post protection (approval, versions, edit history), discussion group, direct messages, crisis/SOS, multi-channel dashboard, backups, extras | ✅ deployed |
-| 8–10 | Reports & stats, fun & media, full Super Admin panel | not started |
+| 8 | Reports, stats & social: group statistics and CSV, points, levels and badges, contests, polls, questions to the admins, moderated anonymous Q&A, appeals, review of decisions; channel analytics and health score | ✅ deployed |
+| 9–10 | Fun & media, full Super Admin panel | not started |
 
 Design decisions taken without the master spec (it isn't in the repository yet) are listed in
 [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md).
 
 Features that can't be built for free on this platform, or only partly, are listed in
 [docs/NOT_BUILT.md](docs/NOT_BUILT.md).
+
+## What Phase 8 does
+
+**Groups** get five new sections in their panel; **channels** get analytics and polls.
+- **📊 Statistics** — messages today / 7 days / 30 days, active members, the share of media, joins
+  and leaves, punishments, the busiest hours (in the chat's time zone), the last days one by one
+  and the most active members; counting can be switched off. CSV of the last 90 days and of the
+  members (messages, points, level, thanks, streak, first and last seen). Counting starts when
+  Aegis is added — a bot can't read older messages.
+- **🏆 Points and badges** (off by default) — 1, 2 or 5 points per message of 3+ characters or
+  media, at most once every 0 / 30 / 60 / 300 seconds; a **thanks** (a short reply that only
+  thanks, in any of the five languages, or 👍 🙏 ❤️ +1) gives the thanked member the same points
+  (a giver at most once a minute). Levels: 10, 30, 60, 100… points. Ten automatic badges (first
+  message, 100 / 1,000 / 10,000 messages, 10 and 100 thanks, 7- and 30-day streaks, level 10, a
+  year in the group) and up to 20 of the group's own badges, given by admins (pick, forward, id or
+  @username). Level-ups and new badges are announced in the group (switchable). Members: `/me`
+  (their card, or a member's when replying) and `/top` (the leaderboard; by messages when points
+  are off) — or the words «امتیاز من», «برترین‌ها», "my points", "leaderboard"… only as the whole
+  message. Admins: `/give 10`, `/take 10` as a reply (or «امتیاز بده ۱۰»). Resetting points needs
+  Full access and asks first.
+- **🎉 Contests** — a **raffle** (members join with a button, only members of the group, winners
+  drawn at random), an **activity contest** (who writes most until the end) and a **quiz** (the
+  first right answer wins; case and spacing don't matter). 1 h – 7 days, 1 / 3 / 5 / 10 winners;
+  end now (asks first) or cancel. Winners are announced in the group and the log channel.
+- **🗳 Polls** — Telegram's own polls sent by Aegis: anonymous or not, several answers, a quiz with
+  the right answer, closing after 1 h – 7 days; results kept from Telegram's poll updates; the
+  voters of a non-anonymous poll as CSV; stop. In channels polls are always anonymous (Telegram).
+- **❓ Questions to the admins** — `/ask` (or «پرسش از مدیران») gives a button to Aegis's private
+  chat; the question goes privately to every admin who started Aegis (Answer / Close) and the
+  answer comes back privately. One question per member and group every 5 minutes. The panel lists
+  open questions and can post «Ask us» buttons in the group.
+- **🕶 Anonymous questions** (off by default) — `/anon`: the admins see the question without the
+  sender's name and **Publish** it in the group (with or without an answer; Settings level),
+  **Reject** it, or **Block the sender** (Full access; the sender stays unknown to them).
+- **⚖️ Appeals** — a punished member appeals once per decision: from the button under the
+  punishment notice or `/appeal` («اعتراض») in private (warnings, mutes, restrictions, quarantine,
+  bans, blacklist bans). Admins who may ban get it with Accept (the punishment is undone) / Reject;
+  the member hears the decision.
+- **Review of decisions** — with «Review all» (off by default) every punishment given by an admin
+  below Full access is sent to the Full admins: Uphold / Overturn (undone; the moderator is told).
+  The 🙋 Appeals section lists recent decisions (⚖️ appealed · ✅ upheld · ↩️ overturned) and each
+  moderator's record (decisions, appealed, accepted, overturned); any decision can be reviewed there.
+- **📈 Channel analytics** — subscribers and their flow (7 and 30 days), posts, **reactions**
+  (Telegram's reaction counts on posts) and **comments** (replies in the discussion group) in 14
+  days, per post per 1,000 subscribers, the best hour and the best posts, and a **health score**
+  0–100 with grade A–E: growth 25, engagement 30, posting 20, safety 25 (Aegis has its rights, no
+  admins appointed outside Aegis, no crisis, a protection on). Views aren't available to bots.
+  CSV of 90 days. The 📊 channels dashboard shows each channel's health.
 
 ## What Phase 7 does
 
@@ -352,7 +401,8 @@ npm run test:cloud            # smoke test on the real platform with fake users 
   where it is an admin. Until then those channels are skipped (⚠️ in the panel).
 - Webhook: managed by the platform (`https://cloud.telegram.org/app<id>/webhook`), refreshed on push
   from the handlers present (`message`, `edited_message`, `channel_post`, `edited_channel_post`,
-  `callback_query`, `my_chat_member`, `chat_member`, `chat_join_request`).
+  `callback_query`, `my_chat_member`, `chat_member`, `chat_join_request`, `poll`, `poll_answer`,
+  `message_reaction_count`).
 - In a **channel**, Aegis needs to be an admin with «Post», «Edit» and «Delete messages», «Invite
   users», «Ban users», «Add new admins» (and «Manage direct messages» for direct messages); for the
   join-request Mini App, the owner chooses Aegis as the channel's guard bot in Telegram.
@@ -361,11 +411,13 @@ npm run test:cloud            # smoke test on the real platform with fake users 
 
 ## Database and migrations
 
-47 tables, all prefixed `aegis_` (core: `users`, `chats`, `chat_admins`, `access`, `promotions`,
+60 tables, all prefixed `aegis_` (core: `users`, `chats`, `chat_admins`, `access`, `promotions`,
 `join_channels`, `kv`, `states`, `updates`, `audit`, `errors`, `broadcasts`; then each phase's own,
 e.g. Phase 6: `msg_log`, `schedules`, `reports`, `member_flags`, `topics`, `anon_cmds`; Phase 7:
 `join_requests`, `invite_links`, `channel_stats`, `posts`, `post_versions`, `post_queue`, `crises`,
-`backup_jobs`, `dm_chats`) — see `tgcloud/schema.js`.
+`backup_jobs`, `dm_chats`; Phase 8: `member_stats`, `stats_day`, `stats_hour`, `badges`, `badge_defs`,
+`contests`, `contest_entries`, `polls`, `poll_votes`, `questions`, `qa_blocks`, `appeals`, `reviews`) — see
+`tgcloud/schema.js`.
 
 - **Schema** changes: edit `tgcloud/schema.js`, then `npm run deploy` (`tgcloud migrate --safe`
   adds tables/columns/indexes; drops only via `.deprecated()`; type changes are manual).
@@ -387,6 +439,10 @@ e.g. Phase 6: `msg_log`, `schedules`, `reports`, `member_flags`, `topics`, `anon
   compiles them into `tgcloud/lib/i18n/strings/*.js` (deployed code can't read files).
   `npm test` fails if any key is missing in any language, placeholders differ, HTML is invalid,
   or the code uses a key that doesn't exist.
+- **Module cap**: the platform refuses a deploy with too many modules (104 were refused, 88
+  deploy). Small modules are merged into sections of a related module — e.g. `engines/social.js`
+  exports `stats`, `badges`, `contests`, `polls`, `questions`, `appeals`, each the object a module
+  used to be — and `test/static.mjs` fails above 95.
 - Only **block comments** in `tgcloud/` (a paste that loses line breaks still works); no globals the
   isolate lacks (`Intl`, timers, `URL`, `Buffer`…) — `test/static.mjs` enforces both.
 
@@ -397,7 +453,8 @@ aegis/
   tgcloud/
     schema.js                 aegis_* tables
     handlers/                 message, edited_message, channel_post, edited_channel_post, callback_query,
-                              my_chat_member, chat_member, chat_join_request  → lib/router.js
+                              my_chat_member, chat_member, chat_join_request, poll, poll_answer,
+                              message_reaction_count  → lib/router.js
     endpoints/bcLive.js       owner-only: the live broadcast page's batches
     endpoints/joinGuard.js    the join-request captcha Mini App (Aegis as a chat's guard bot)
     lib/
@@ -405,20 +462,24 @@ aegis/
       jobs.js                 work on the side of updates (broadcast chunks, housekeeping, timed jobs,
                               scheduled posts, backup copies)
       config.js, env.js       settings; env.js is generated (AEGIS_OWNER_ID)
-      core/                   tg (Bot API + trace), kv, dedupe, errors, audit, state, migrations, commands, bot, util,
-                              duration, modparse, csv, msgscan (what a message contains), signals (security),
-                              clock (times of day in a chat's time zone), content (a post's content:
-                              read, publish, edit back)
-      engines/                users, chats, join, broadcast, buttons, rights, admins, system, settings, lists,
-                              punish, steps, betrayal, admin_actions, logs, locks, members, guards, feds,
-                              msglog, schedules, groupdata, events, channels, invites, posts, crisis, backup
+      core/                   tg (Bot API + trace, the bot itself), kv, dedupe, errors, audit, state, migrations,
+                              commands (menus, moderation command parsing), util (+ CSV, UTF-8), msgscan (what
+                              a message contains), signals (security), clock (times of day, durations),
+                              content (a post's content: read, publish, edit back; link buttons), levels
+                              (points, levels, automatic badges, thanks, a channel's health score)
+      engines/                users, chats, join, broadcast, rights, admins, system, settings (+ warning steps),
+                              lists, punish, betrayal (+ adminActions), logs, locks, members, guards, feds,
+                              msglog, schedules, groupdata, events, channels, invites, posts, crisis, backup,
+                              social (stats, badges, contests, polls, questions, appeals)
       ui/                     start, owner, owner_bc, group (in-group messages), moderation (group commands,
                               undo buttons, bans/joins), enforce (locks at work), security (security at
                               work, captcha, lockdowns, federation bans), advanced (advanced settings at
                               work, member commands, reports, night lock, cleanup), welcome, channel
-                              (channels at work), panel + panel_mod + panel_locks + panel_security +
-                              panel_fed + panel_adv + panel_topics + panel_channel + panel_posts (a
-                              chat's panel), dashboard (channels dashboard), guard, system
+                              (channels at work), social (points, contests, polls, reactions at work; qa:
+                              questions, anonymous Q&A, appeals, review), panel + panel_mod + panel_locks +
+                              panel_security + panel_fed + panel_adv + panel_topics + panel_channel +
+                              panel_posts + panel_social (statistics, points, contests, polls; panelQa;
+                              panelAnalytics) (a chat's panel), dashboard (channels dashboard), guard, system
       i18n/                   t(), digits, RTL; strings/ is generated from ../../locales
   locales/<lang>/*.json       fa, en, ru, zh, fr
   webapp/                     Mini App pages (plain HTML/JS): 📡 live broadcast, join-request captcha

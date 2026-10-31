@@ -5,10 +5,10 @@ Updated at the end of each phase. Constraint for all entries: **free only** — 
 or tier; only what Telegram Serverless and the Bot API allow.
 
 > **Note on the spec.** `aegis/docs/SPEC.md` (the Persian master spec) was not in the repository
-> when Phases 1–7 were built (searched the working tree, all branches on GitHub, and the
-> container). They were built from their descriptions in the build instructions (Phases 3–7 by the
+> when Phases 1–8 were built (searched the working tree, all branches on GitHub, and the
+> container). They were built from their descriptions in the build instructions (Phases 3–8 by the
 > owner's decision to go ahead without it — the 42 locks, the security modules, the 26 advanced
-> settings and the channel panel are Aegis's own design, see ASSUMPTIONS); details the spec would normally settle are listed in
+> settings, the channel panel and the social features are Aegis's own design, see ASSUMPTIONS); details the spec would normally settle are listed in
 > [ASSUMPTIONS.md](ASSUMPTIONS.md). They will be re-checked against the spec once it is added.
 
 ## Phase 1 — Core
@@ -127,4 +127,20 @@ or tier; only what Telegram Serverless and the Bot API allow.
 | Scheduled posts and self-destructing posts **exactly on time** | **Partial** | No scheduler: they happen on the first update after their time, checked at most once a minute. Self-destruct is at most 1 day (Telegram deletes only messages younger than 48 h). | A platform scheduler. |
 | Channel **direct messages** where Telegram doesn't deliver them | **Partial** | Aegis can only act on direct messages Telegram sends it (it needs «Manage direct messages»). It deletes or declines; it doesn't write back to the sender. | — |
 | Backups of **punishments and history** | **Not built (by design)** | A backup holds configuration (settings, configuration lists, locks and security of groups). Punishments and logs are records of what happened, not settings to copy. | Phase 10 (global backups) if wanted. |
-| Channel **analytics and health score** | **Phase 8** | Phase 7 counts joins, leaves and subscribers per day for the dashboard; analytics come in Phase 8. | Phase 8. |
+| Channel **analytics and health score** | **Built in Phase 8** | Phase 7 counted joins, leaves and subscribers per day; Phase 8 adds the analytics and the health score (limits below). | — |
+
+## Phase 8 — Reports, statistics and social features
+
+| Feature | State | Why | What it would need |
+|---|---|---|---|
+| Statistics of **messages sent before Aegis** was added | **Not possible** | A bot can't read a chat's history; counting starts with the first message Aegis sees (and only while Telegram delivers it every message — it must be an admin in the group). | — (Bot API). |
+| Post **views**, reach and subscriber demographics | **Not possible** | The Bot API gives bots no view counts or channel statistics. The health score uses what bots get: reactions, comments, posting days, joins and leaves, and Aegis's own checks. | — (Bot API). |
+| **Reactions** in channels | **Partial** | Telegram sends bots anonymous reaction **counts** for channel posts (message_reaction_count, Aegis must be an admin), only for posts it knows and only after Aegis was added. Who reacted is not available in channels. | — (Bot API). |
+| **Comments** on channel posts | **Partial** | Counted when Aegis is an admin in the linked discussion group (comments are replies there); comments deleted later are still counted (no deletion updates). | — (Bot API). |
+| Contests and polls ending **exactly on time** | **Partial** | No scheduler: a contest ends (winners drawn and announced) on the first update the bot gets after its end time, checked at most once a minute. Telegram closes a poll on time itself; Aegis marks it closed the same lazy way. | A platform scheduler. |
+| A **verifiable** (provably fair) raffle draw | **Not built** | Winners are drawn with the isolate's random numbers; there is no free way to publish a commitment that members could check. | A public randomness source (none free and reliable on this platform). |
+| Voters of **anonymous** polls | **Not possible** | Telegram doesn't tell bots who voted in an anonymous poll — only the counts. Non-anonymous polls in groups are tracked (and exported). | — (Bot API). |
+| Anonymous questions that are anonymous **even to the bot** | **Partial** | Admins never see the sender. Aegis keeps the sender's id with the question so it can tell them the outcome and so «Block sender» works; it is not shown anywhere (not in the change log either). | — (needed for answers and blocking). |
+| Review of decisions made **outside Aegis** | **Partial** | «Review all» covers punishments given with Aegis's commands. Bans and restrictions made in Telegram's own interface are recorded (Phase 3) and appear in the decisions list, but are not sent for review; undoing them works where Aegis can. | — |
+| **Charts** (images) in statistics | **Not built** | Statistics are text with bars and CSV files; the isolate has no free image library at runtime. | Phase 9 (media) if a free way exists. |
+

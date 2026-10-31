@@ -14,12 +14,11 @@
  * Pending inputs (aegis_states): bc_content { audience, mode }, bc_buttons { id }.
  */
 import { BC_BATCH, BC_BUDGET_MS, BC_PROGRESS_EVERY_SEC, OWNER_ID } from '../config.js';
-import { appUrl } from '../core/bot.js';
+import { answer, appBtn, appUrl, btn, edit, screen, send, tryCall } from '../core/tg.js';
 import * as state from '../core/state.js';
-import { answer, appBtn, btn, edit, screen, send, tryCall } from '../core/tg.js';
 import { toInt } from '../core/util.js';
 import * as bc from '../engines/broadcast.js';
-import { countButtons, parseButtons } from '../engines/buttons.js';
+import { countButtons, parseButtons } from '../core/content.js';
 import * as users from '../engines/users.js';
 import { dur, t } from '../i18n/index.js';
 

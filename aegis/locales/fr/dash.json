@@ -15,5 +15,6 @@
   "xp_pending": "📨 {title} : envoyé pour approbation",
   "xp_failed": "⚠️ {title} : non publié",
   "xp_no_access": "🚫 {title} : vous n'y avez plus accès",
-  "btn_back_dash": "📊 Tableau de bord"
+  "btn_back_dash": "📊 Tableau de bord",
+  "health": "   💚 Santé {score}/100 ({grade})"
 }

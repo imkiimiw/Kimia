@@ -20,12 +20,11 @@
  */
 import { FAKES_MAX, FOOTER_MAX, INVITE_LINKS_MAX, INVITE_NAME_MAX } from '../config.js';
 import * as audit from '../core/audit.js';
-import { me } from '../core/bot.js';
+import { answer, btn, call, describeError, me, screen, send, tryCall, urlBtn } from '../core/tg.js';
 import * as state from '../core/state.js';
-import { answer, btn, call, describeError, screen, send, tryCall, urlBtn } from '../core/tg.js';
 import { esc, fullName, iso, normalizeWord, nowSec, parseJson, short, toInt } from '../core/util.js';
 import * as admins from '../engines/admins.js';
-import { parseButtons } from '../engines/buttons.js';
+import { parseButtons } from '../core/content.js';
 import * as channels from '../engines/channels.js';
 import * as chats from '../engines/chats.js';
 import * as invites from '../engines/invites.js';
@@ -45,7 +44,7 @@ const flag = settings.flag;
 const title = (g) => iso(g.chat.title || '', 48);
 const EXPIRES = [0, 3600, 86400, 7 * 86400];
 const LIMITS = [0, 1, 10, 100, 1000];
-const SECONDS = new Set(['ch_edit_grace', 'ch_post_ttl']);
+const SECONDS = new Set(['ch_edit_grace', 'ch_post_ttl', 'pts_gap']);
 const PER_MIN = new Set(['ch_jr_flood', 'dm_flood']);
 
 /* ---------- shared by the channel screens ---------- */
@@ -54,6 +53,7 @@ export function show(lang, key, v) {
   if (settings.isFlag(key)) return t(lang, v === '1' ? 'common.on' : 'common.off');
   if (SECONDS.has(key)) return Number(v) ? dur(lang, Number(v)) : t(lang, 'common.off');
   if (PER_MIN.has(key)) return Number(v) ? t(lang, 'chp.v_per_min', { n: num(lang, Number(v)) }) : t(lang, 'common.off');
+  if (key === 'pts_msg') return num(lang, Number(v));
   return t(lang, `chp.v_${key}_${v}`);
 }
 

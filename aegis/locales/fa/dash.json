@@ -15,5 +15,6 @@
   "xp_pending": "📨 {title}: برای تأیید فرستاده شد",
   "xp_failed": "⚠️ {title}: منتشر نشد",
   "xp_no_access": "🚫 {title}: دیگر دسترسی ندارید",
-  "btn_back_dash": "📊 داشبورد"
+  "btn_back_dash": "📊 داشبورد",
+  "health": "   💚 سلامت {score}/۱۰۰ ({grade})"
 }

@@ -7,5 +7,6 @@
   "config": "My chats and settings",
   "status": "Status (owner)",
   "shutdown": "Shut down (owner)",
-  "activate": "Activate (owner)"
+  "activate": "Activate (owner)",
+  "appeal": "Appeal a punishment"
 }
