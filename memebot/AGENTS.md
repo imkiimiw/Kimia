@@ -9,7 +9,7 @@ plan's constraints: [docs/PLATFORM.md](docs/PLATFORM.md). Features and setup: [R
 - **Isolation**: everything for this bot lives in `memebot/`. Never import from, edit, or reuse the
   config of the other bots in this repository.
 - **CLI only through `npm run tg -- …` / `npm run deploy`.** The wrapper reads
-  `MemeBot_BOT_TGCLOUD_TOKEN` (the CLI access token `app<id>:<secret>`, never the bot token) and runs
+  `Meme_BOT_TGCLOUD_TOKEN` (the CLI access token `app<id>:<secret>`, never the bot token) and runs
   from `memebot/` with `memebot/.tgcloud/`. A bare `npx tgcloud` at the repository root hits the to-do bot.
 - **Phases**: the owner builds this bot phase by phase. Finish a phase, summarise it, and wait for
   the go-ahead before the next one. Phase 1 (core) is built.

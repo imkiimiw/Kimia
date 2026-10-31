@@ -21,6 +21,7 @@ Whisper), so they can change without notice.
 | Modules | A deploy with 104 modules was refused; 88 and 94 deployed. | ✱ measured |
 | Database | One SQLite store per bot, kept between updates. Every call is async. **No foreign keys** (declaring one throws). Tables, columns and indexes are dropped only with `.deprecated()`. Type changes are manual. A batch insert counts against SQLite's variable limit (rows × columns). | Official |
 | Database size / row quota | **Not published.** | — |
+| SQL functions | The database runs with a function whitelist: `sqlite_version()` fails with "not authorized to use function". `count`, `RETURNING`, upserts and subqueries work (checked on the real database). | ✱ measured |
 | Media storage | None of its own. Files live on Telegram's servers and the bot keeps `file_id`s, which is what this plan does anyway. | Official |
 | Bot API uploads | 50 MB per file, 10 MB per photo. | Official |
 | Bot API downloads (`getFile`) | **20 MB.** | Official |
@@ -49,7 +50,7 @@ Whisper), so they can change without notice.
 
 | # | Plan item | Problem | What I'll do |
 |---|---|---|---|
-| 1 | Bot token env var `MemeBot_BOT_TGCLOUD_TOKEN` | Deployed code has no env vars and needs no bot token. Only the CLI needs a token, and it is the **CLI access token**, not the BotFather bot token. | `MemeBot_BOT_TGCLOUD_TOKEN` holds the CLI access token. `memebot/scripts/tg.mjs` hands it to the CLI as `TGCLOUD_TOKEN` for that one process. It is never written to disk, and `memebot/.tgcloud/` keeps the CLI away from your other bots. **Note:** this environment has `Meme_BOT_TGCLOUD_TOKEN` (app8856706875), not `MemeBot_BOT_TGCLOUD_TOKEN`. |
+| 1 | Bot token env var | Deployed code has no env vars and needs no bot token. Only the CLI needs a token, and it is the **CLI access token**, not the BotFather bot token. | `Meme_BOT_TGCLOUD_TOKEN` (the owner chose this name over the originally planned `MemeBot_BOT_TGCLOUD_TOKEN`; it points to app8856706875) holds the CLI access token. `memebot/scripts/tg.mjs` hands it to the CLI as `TGCLOUD_TOKEN` for that one process. It is never written to disk, and `memebot/.tgcloud/` keeps the CLI away from your other bots. |
 | 2 | Backup channel id (and later the meme-of-the-day channel) in env vars | Deployed code can't read env vars. | At deploy time, `scripts/gen-env.mjs` reads `MEMEBOT_BACKUP_CHANNEL_ID` (env or `memebot/.env`) and writes it into `tgcloud/lib/env.js`. A channel id isn't secret, so it can sit in code. Phase 2 can add an override from the admin panel. |
 | 3 | "Meme of the day auto-posted" (Phase 4), weekly leaderboard posts | **No scheduler.** | The first update after the day boundary (Tehran time) posts it. The day is claimed atomically in the DB, so it posts once. A busy inline bot gets updates all the time; with zero traffic the post comes late. A leaderboard you *view* needs no scheduler. |
 | 4 | Broadcast to all users (Phase 2) | No background jobs, ≈ 3 s CPU per update, Telegram's ~30 msg/s limit. | A resumable queue in the DB, moved forward in batches by the admin's "next batch" button and on the side of other updates (as in your to-do bot / Aegis). It won't run unattended. |

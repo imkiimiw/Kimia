@@ -52,7 +52,7 @@ cp .env.example .env     # then fill it in (or set the same variables in the env
 
 | Variable | What |
 |---|---|
-| `MemeBot_BOT_TGCLOUD_TOKEN` | The CLI access token from step 1. Only `scripts/tg.mjs` reads it, and it passes it to the CLI for that one process. |
+| `Meme_BOT_TGCLOUD_TOKEN` | The CLI access token from step 1. Only `scripts/tg.mjs` reads it, and it passes it to the CLI for that one process. |
 | `MEMEBOT_BACKUP_CHANNEL_ID` | Backup channel id (`-100…` or `@username`). Written into `tgcloud/lib/env.js` at build time, because deployed code can't read env vars. |
 | `MEMEBOT_OWNER_ID` | Your numeric Telegram id. Defaults to `5557901897`. |
 

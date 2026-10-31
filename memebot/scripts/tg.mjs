@@ -2,7 +2,7 @@
 //   npm run tg -- <command> [args]   any CLI command (status, diff, push, migrate, run, webhook, …)
 //   npm run deploy                   gen-env → push → migrate --safe → webhook check
 //
-// - The token comes from MemeBot_BOT_TGCLOUD_TOKEN (environment or memebot/.env) and is given to the
+// - The token comes from Meme_BOT_TGCLOUD_TOKEN (environment or memebot/.env) and is given to the
 //   CLI as TGCLOUD_TOKEN for the child process only. It is never printed or written to disk.
 // - The CLI acts on the nearest folder that has a `.tgcloud/` directory. This script creates
 //   memebot/.tgcloud/ and runs from memebot/, so it can never touch another bot in this repository
@@ -15,7 +15,7 @@ import path from 'node:path';
 import { loadEnv, ROOT } from './dotenv.mjs';
 
 const CLI = path.join(ROOT, 'node_modules/@tgcloud/cli/bin/tgcloud.js');
-const TOKEN_VAR = 'MemeBot_BOT_TGCLOUD_TOKEN';
+const TOKEN_VAR = 'Meme_BOT_TGCLOUD_TOKEN';
 const token = loadEnv()[TOKEN_VAR];
 
 if (!fs.existsSync(CLI)) {
