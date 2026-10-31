@@ -72,7 +72,8 @@ export const countStatus = async (status) => (await db.get(sql`SELECT count(*) A
 
 const CARD_COLS = sql`m.id AS id, m.kind AS kind, m.file_id AS file_id, m.keywords AS keywords, m.uploader_id AS uploader_id,
   m.status AS status, m.uses AS uses, m.reports AS reports, m.created_at AS created_at,
-  u.first_name AS first_name, u.username AS username, u.approved_n AS approved_n, u.banned AS banned`;
+  u.first_name AS first_name, u.username AS username, u.approved_n AS approved_n, u.banned AS banned,
+  m.ai_flag AS ai_flag, m.ai_reason AS ai_reason, m.ocr AS ocr`;
 
 /* The oldest pending meme after `afterId` (0 = from the start), with its uploader. */
 export const nextPending = (afterId) => db.get(sql`

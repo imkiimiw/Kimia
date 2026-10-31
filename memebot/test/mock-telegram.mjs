@@ -81,6 +81,12 @@ const MEDIA_METHODS = {
   sendVoice: ['voice', true],
 };
 
+/** A Gemini generateContent answer carrying our JSON fields. */
+export function geminiAnswer({ keywords = ['گربه', 'خنده دار'], text = 'وقتی سلام می کنی', nsfw = false, reason = '' }) {
+  const json = JSON.stringify({ keywords, text, nsfw, reason });
+  return { status: 200, json: { candidates: [{ content: { role: 'model', parts: [{ text: json }] }, finishReason: 'STOP' }] } };
+}
+
 export function createMockTelegram({ botId = 7100000001, botUsername = 'meme_test_bot' } = {}) {
   const state = {
     calls: [],
@@ -103,6 +109,14 @@ export function createMockTelegram({ botId = 7100000001, botUsername = 'meme_tes
     inlineMessages: new Map(), // inline_message_id -> markup (JSON) of memes sent through inline mode
     rateLimitAt: null, // copyMessage number (1-based, counted from when it was set) that gets one 429
     rateLimitCount: 0,
+    // Phase 6: file downloads (getFile + /file/…) and a fake Gemini API (/gemini/…, see test/sdk/fetch.mjs)
+    downloads: [], // file ids downloaded
+    gemini: {
+      keys: new Set(), // API keys Google accepts
+      calls: [], // { method, path, key, body }
+      reply: null, // (body) => { status, json } — default: a normal answer (geminiAnswer)
+      onCall: null, // async hook before answering (a test can deliver other updates meanwhile)
+    },
   };
 
   const ok = (result) => ({ ok: true, result });
@@ -250,7 +264,7 @@ export function createMockTelegram({ botId = 7100000001, botUsername = 'meme_tes
     },
     deleteMessage: (p) => {
       const key = `${chatKey(p.chat_id)}:${p.message_id}`;
-      if (!state.messages.delete(key)) return err(400, 'Bad Request: message to delete not found');
+      if (!state.messages.delete(key) && !state.userMessages.delete(`${p.chat_id}:${p.message_id}`)) return err(400, 'Bad Request: message to delete not found');
       return ok(true);
     },
     answerCallbackQuery: (p) => {
@@ -286,6 +300,10 @@ export function createMockTelegram({ botId = 7100000001, botUsername = 'meme_tes
       return ok({ ...src, message_id, chat: chatObject(ch.id), forward_origin: { type: 'user', sender_user: src.from } });
     },
     ...Object.fromEntries(Object.keys(MEDIA_METHODS).map((m) => [m, mediaSend(m)])),
+    getFile: (p) => {
+      if (!p.file_id || state.badFiles.has(p.file_id)) return err(400, 'Bad Request: wrong file_id or the file is temporarily unavailable');
+      return ok({ file_id: p.file_id, file_unique_id: `u${p.file_id}`, file_size: fileBytes(p.file_id).length, file_path: `files/${p.file_id}` });
+    },
     getChat: (p) => {
       const ch = channelOf(p.chat_id);
       return ch ? ok(chatObject(ch.id)) : err(400, 'Bad Request: chat not found');
@@ -340,10 +358,43 @@ export function createMockTelegram({ botId = 7100000001, botUsername = 'meme_tes
     return state.botTexts.get(k);
   }
 
+  const fileBytes = (fileId) => Buffer.from(`IMG:${fileId}`, 'utf8');
+
+  async function gemini(req, body, res) {
+    const key = req.headers['x-goog-api-key'] || '';
+    let parsed = null;
+    try {
+      parsed = body.length ? JSON.parse(body.toString('utf8')) : null;
+    } catch {
+      parsed = null;
+    }
+    state.gemini.calls.push({ method: req.method, path: req.url.slice('/gemini/'.length), key, body: parsed });
+    let out;
+    if (!state.gemini.keys.has(key)) out = { status: 400, json: { error: { code: 400, message: 'API key not valid. Please pass a valid API key.', status: 'INVALID_ARGUMENT' } } };
+    else if (req.method === 'GET') out = { status: 200, json: { name: `models/${req.url.split('/').pop()}` } };
+    else {
+      if (state.gemini.onCall) await state.gemini.onCall(parsed);
+      out = state.gemini.reply ? state.gemini.reply(parsed) : geminiAnswer({});
+    }
+    res.writeHead(out.status, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(out.json));
+  }
+
   const server = http.createServer((req, res) => {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => {
+      if (req.url.startsWith('/gemini/')) {
+        gemini(req, Buffer.concat(chunks), res);
+        return;
+      }
+      if (req.url.startsWith('/file/')) {
+        const fileId = req.url.split('/').pop();
+        state.downloads.push(fileId);
+        res.writeHead(200, { 'content-type': 'application/octet-stream' });
+        res.end(fileBytes(fileId));
+        return;
+      }
       const method = req.url.split('/').pop();
       let params = {};
       try {

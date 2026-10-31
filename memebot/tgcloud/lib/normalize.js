@@ -13,7 +13,7 @@
  * No regex Unicode property escapes and no String.prototype.normalize: both need ICU, which the
  * platform's isolate may not have. Invisible characters are written as escapes on purpose.
  */
-import { KW_MAX_WORDS, QUERY_MAX_WORDS, WORD_MAX_LEN } from './config.js';
+import { AI_OCR_WORDS, KW_MAX_WORDS, QUERY_MAX_WORDS, WORD_MAX_LEN } from './config.js';
 
 const LETTERS = {
   '\u064A': '\u06CC',
@@ -107,6 +107,12 @@ export function indexWords(text) {
   }
   return out;
 }
+
+/* Words indexed from the text the AI read in a meme (Phase 6), at most AI_OCR_WORDS. */
+export const ocrWords = (text) => (text ? indexWords(text).filter((w) => !w.startsWith('#')).slice(0, AI_OCR_WORDS) : []);
+
+/* Keyword words plus OCR words, without duplicates. */
+export const withOcr = (words, ocr) => [...new Set([...words, ...ocrWords(ocr)])];
 
 /* Modifier words (Phase 3) from every locale's _words ({ fav: [...], photo: [...], animation: [...] }),
    normalised like a query, plus the star emoji for favourites: word -> 'fav' | <kind>. */

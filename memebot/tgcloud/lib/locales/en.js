@@ -17,7 +17,7 @@ export default {
   'lang.saved': '✅ The bot will speak English.',
 
   'start.welcome': '😎 Hi {name}!\n\n📤 <b>Upload a meme:</b> send me a photo, GIF, video, sticker or voice message, then write a few keywords for it.\n🔎 <b>Search:</b> in any chat, type <code>@{bot} word</code> and pick a meme.',
-  'help': '❓ <b>Help</b>\n\n📤 <b>Upload:</b> send the meme (photo, GIF, video, sticker or voice) here, then write its keywords: names, the famous line, the mood. Up to {limit} memes a day.\n\n🔎 <b>Search:</b> in any chat, type <code>@{bot} word</code>. With nothing after the name you get your recent memes and the most popular ones.\n\n🛡 New memes are checked by an admin first; until then only you can see them.\n🚩 <b>Report:</b> send or forward a bad meme to me and press "🚩 Report".\n⭐ <b>Favourites:</b> send me a meme and press \"⭐\"; then <code>@{bot} fav</code>.\n🔒 <b>Private:</b> turn on \"Save privately\" when uploading.\n#️⃣ <b>Hashtags:</b> <code>@{bot} #football</code> · <b>One type only:</b> <code>@{bot} gif lol</code> (photo, gif, video, sticker, voice)\n👍 <b>Likes:</b> memes you send carry a 👍 button; likes and sends raise a meme\'s rank.\n\n📂 /my — my memes (view, edit, delete)\n🏆 /top — weekly leaderboard · 👤 /profile — your profile\n⭐ /fav — favourites · #️⃣ /tags — hashtags\n🌐 /lang — change language\n✖️ /cancel — cancel an upload',
+  'help': '❓ <b>Help</b>\n\n📤 <b>Upload:</b> send the meme (photo, GIF, video, sticker or voice) here, then write its keywords: names, the famous line, the mood. Up to {limit} memes a day.\n\n🔎 <b>Search:</b> in any chat, type <code>@{bot} word</code>. With nothing after the name you get your recent memes and the most popular ones.\n\n🛡 New memes are checked by an admin first; until then only you can see them.\n🚩 <b>Report:</b> send or forward a bad meme to me and press "🚩 Report".\n⭐ <b>Favourites:</b> send me a meme and press \"⭐\"; then <code>@{bot} fav</code>.\n🔒 <b>Private:</b> turn on \"Save privately\" when uploading.\n#️⃣ <b>Hashtags:</b> <code>@{bot} #football</code> · <b>One type only:</b> <code>@{bot} gif lol</code> (photo, gif, video, sticker, voice)\n👍 <b>Likes:</b> memes you send carry a 👍 button; likes and sends raise a meme\'s rank.\n🤖 <b>AI:</b> after an upload you get keyword suggestions, and text inside the image becomes searchable; for this a small copy of the image is sent to Google Gemini.\n\n📂 /my — my memes (view, edit, delete)\n🏆 /top — weekly leaderboard · 👤 /profile — your profile\n⭐ /fav — favourites · #️⃣ /tags — hashtags\n🌐 /lang — change language\n✖️ /cancel — cancel an upload',
 
   'menu.upload': '📤 Upload a meme',
   'menu.my': '📂 My memes',
@@ -185,7 +185,7 @@ export default {
   'adm.admin_added': '✅ {name} is now an admin.',
   'adm.admin_exists': 'This user is already an admin.',
   'adm.admin_removed': 'Admin removed.',
-  'adm.settings_title': '⚙️ <b>Settings</b>\n\n🛡 Admin approval for new memes: {moderation}\n⭐️ Publish automatically after: {trust}\n🙈 Hide automatically after: {hide}\n📢 Forced join: {join}\n👍 Like button under memes: {likebtn}\n🏆 Meme of the day in the channel: {motd}',
+  'adm.settings_title': '⚙️ <b>Settings</b>\n\n🛡 Admin approval for new memes: {moderation}\n⭐️ Publish automatically after: {trust}\n🙈 Hide automatically after: {hide}\n📢 Forced join: {join}\n👍 Like button under memes: {likebtn}\n🏆 Meme of the day in the channel: {motd}\n🤖 AI (Gemini): {ai} · {aistate}',
   'adm.on': 'on',
   'adm.off': 'off',
   'adm.never': 'never',
@@ -318,7 +318,7 @@ export default {
   'staff.removed': 'You are no longer on the bot\'s team.',
 
   'adm.stats_btn': '📊 Stats',
-  'st.overview': '📊 <b>Stats</b>\n\n👥 <b>Users:</b> {users}\nNew: {new1} in 24 h · {new7} in 7 days\nActive in 7 days: {active7} · blocked the bot: {blocked} · banned: {banned}\n\n📦 <b>Memes:</b> {public} public · {pending} waiting · {private} private · {removed} rejected or hidden\n📤 <b>Uploads:</b> today {up1} · 7 days {up7} · 30 days {up30}\n🔎 <b>Searches:</b> today {s1} · 7 days {s7} · 30 days {s30}\n😕 No result in 7 days: {miss7}%\n📨 Memes sent in 7 days: {send7} · 👍 likes: {like7}',
+  'st.overview': '📊 <b>Stats</b>\n\n👥 <b>Users:</b> {users}\nNew: {new1} in 24 h · {new7} in 7 days\nActive in 7 days: {active7} · blocked the bot: {blocked} · banned: {banned}\n\n📦 <b>Memes:</b> {public} public · {pending} waiting · {private} private · {removed} rejected or hidden\n📤 <b>Uploads:</b> today {up1} · 7 days {up7} · 30 days {up30}\n🔎 <b>Searches:</b> today {s1} · 7 days {s7} · 30 days {s30}\n😕 No result in 7 days: {miss7}%\n📨 Memes sent in 7 days: {send7} · 👍 likes: {like7}\n🤖 AI calls: today {ai1} · 30 days {ai30}',
   'st.top': '🔎 <b>Most searched</b> (last {n} days)',
   'st.misses': '😕 <b>Searches with no result</b> (last {n} days)',
   'st.misses_hint': 'These are memes people looked for and the bot didn\'t have.',
@@ -329,4 +329,22 @@ export default {
   'st.back': '« Stats',
   'st.d7': '7 days',
   'st.d30': '30 days',
+
+  /* Phase 6: AI */
+  'ai.suggest': '🤖 <b>AI suggestions:</b> {kw}\nUse them with the button below, or write your own.',
+  'ai.use_btn': '✅ Use the suggested keywords',
+  'adm.ai_flag': '⚠️ <b>AI:</b> may be inappropriate ({reason})',
+  'adm.ai_ocr': '📝 Text in the image: {text}',
+  'adm.toggle_ai': '🤖 AI: {v}',
+  'adm.ai_nokey': 'no key set (/aikey)',
+  'adm.ai_paused': 'Google\'s quota ran out, paused for now',
+  'adm.ai_today': 'today {n} of {max}',
+  'owner.aikey.usage': '🤖 <b>Gemini key:</b> {state}\n\nSet: <code>/aikey KEY</code> (your message is deleted at once)\nRemove: <code>/aikey off</code>\nFree key: aistudio.google.com',
+  'owner.aikey.set': 'set ✅',
+  'owner.aikey.unset': 'not set',
+  'owner.aikey.removed': '🗑 Gemini key removed; AI is off.',
+  'owner.aikey.bad': '❌ That doesn\'t look like an API key.',
+  'owner.aikey.rejected': '❌ Google rejected this key; it was not saved.',
+  'owner.aikey.saved': '✅ Gemini key saved and working. Your message was deleted.',
+  'owner.aikey.saved_unchecked': '✅ Key saved, but I couldn\'t test it right now. Your message was deleted.',
 };

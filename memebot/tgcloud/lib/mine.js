@@ -14,7 +14,7 @@ import { APPROVED, FAV_MAX, KIND_ICON, MY_PAGE, PENDING, PRIVATE } from './confi
 import { keywordsChanged, memePublished, memeRemoved } from './backup.js';
 import { canSee, favButton } from './collection.js';
 import { ago, num, t } from './i18n.js';
-import { firstWord } from './normalize.js';
+import { firstWord, withOcr } from './normalize.js';
 import * as store from './store.js';
 import { answer, captionable, edit, editKeyboard, remove, send, sendMeme } from './tg.js';
 import { checkKeywords, initialStatus, notifyQueue } from './upload.js';
@@ -123,7 +123,7 @@ export async function onEditKeywords(ctx, user, msg, role, settings, nowSec) {
   const kw = await checkKeywords(ctx, msg);
   if (!kw) return null;
   const status = m.status === APPROVED ? initialStatus(user, role, settings) : m.status;
-  await store.updateKeywords(m.id, user.id, kw.keywords, kw.words, status, nowSec);
+  await store.updateKeywords(m.id, user.id, kw.keywords, withOcr(kw.words, m.ocr), status, nowSec);
   await store.clearState(user.id);
   const backToQueue = m.status === APPROVED && status === PENDING;
   await send(ctx, 'edit.done', t(ctx.lang, backToQueue ? 'edit.done_pending' : 'edit.done', { kw: iso(kw.keywords) }));

@@ -69,6 +69,19 @@ Platform limits, and what in the plan has to work differently: **[docs/PLATFORM.
 | Stats | Admin panel → **📊 Stats** (owner and admins). **Overview:** users (total, new in 24 h / 7 days, active in 7 days, blocked the bot, banned); memes (public, waiting, private, rejected or hidden); uploads, searches and the share of searches with no result (today / 7 / 30 days); memes sent and likes in 7 days. **🔎 Most searched** and **😕 No result**: the top 20 queries of the last 7 or 30 days. The no-result list shows the memes people want and the bot lacks; each has a 🔎 button to try it yourself. |
 | How a search is counted | Inline queries arrive per keystroke (س, سل, سلا…), so each user's latest query waits and is counted **once**, when they move on: they send a result, or their next query isn't a continuation of it (typing on or deleting back) within 30 s, or they clear the text. Queries are normalised the same way as search, so ي/ی, digits and ZWNJ variants count together. Favourites (`fav …`) and empty queries aren't counted. Counting happens **after** the answer is sent, so search stays as fast as before. Old data is pruned daily (queries after 60 days). |
 
+## Phase 6 — AI (Google Gemini, free tier)
+
+| Feature | How |
+|---|---|
+| Keyword suggestions | After you send a meme, the keywords question appears at once as before; about 2–5 s later it is edited to add **🤖 AI suggestions** (mostly Persian, plus names of well-known people, films or games) and a **✅ Use the suggested keywords** button. You can press it, or ignore it and type your own. |
+| Text in the image (OCR) | The text inside the meme is read, saved (`memes.ocr`), and its words are added to the search index (up to 20), so `@bot <a word written on the meme>` finds it even if the keywords don't mention it. Editing the keywords keeps those words. |
+| "May be inappropriate" flag | If the AI thinks a meme may be inappropriate (nudity, gore, hate symbols), the meme **always waits for approval**, even from a trusted user, and the queue card shows **⚠️ AI: may be inappropriate (reason)**. The card also shows the text read from the image. Staff uploads and private memes aren't held. The admin decides; the AI never rejects anything. |
+| If you answer before the AI | The meme is saved with your keywords; when the AI result arrives it is added to the saved meme (OCR words indexed). If it was flagged and had gone public, it goes back to the queue and its channel post is deleted. |
+| What is analysed | Photos (a size of at most 800 px), the thumbnail of GIFs, videos and animated stickers, static stickers as they are. Voice messages have no image, so no AI. One Gemini call per upload; nothing AI runs during inline search. |
+| Key and limits | The owner sets the key with **`/aikey <key>`** (the bot deletes that message at once and checks the key with Google first), `/aikey` shows whether one is set, `/aikey off` removes it. It is stored only in the bot's database, never in code. At most 500 calls a day; if Google answers "quota exceeded" (429), AI pauses for an hour. Without AI (no key, switched off, paused, or any error) uploads work exactly as before. |
+| Switch and status | ⚙️ Settings → **🤖 AI** on/off, with today's calls or "paused". 📊 Stats shows AI calls today and in 30 days. |
+| Privacy | The image is sent to Google. On the free tier Google may use it to improve its products; `/help` tells users. |
+
 All limits are in `tgcloud/lib/config.js`; the switches and thresholds are in ⚙️ Settings.
 
 ## Setup
@@ -109,6 +122,9 @@ columns, so a deploy never has new code running against an old database.
 
 Then, as the owner, send **/setup** to the bot. Its report should show ✅ for inline mode and the backup channel.
 
+For Phase 6, create a free Gemini API key at [aistudio.google.com](https://aistudio.google.com) (from a
+country where the Gemini API is offered) and send `/aikey <key>` to the bot as the owner.
+
 Always run the CLI through `npm run tg -- <command>` (e.g. `npm run tg -- status`, `npm run tg -- diff`).
 It uses `memebot/.tgcloud/`, so it can never touch your other bots. A bare `npx tgcloud` from the
 repository root would act on the to-do bot.
@@ -118,7 +134,7 @@ repository root would act on the to-do bot.
 **Locally (no token needed):**
 
 ```bash
-npm test     # static platform checks → unit tests (normalisation, query syntax, calendar, locales) → 41 end-to-end scenarios
+npm test     # static platform checks → unit tests (normalisation, query syntax, calendar, locales) → 46 end-to-end scenarios
 ```
 
 The end-to-end scenarios run the real handlers against a local stand-in for the SDK
@@ -186,6 +202,14 @@ trace still shows the results it built.
 3. 🔁 switches them to admin (they now see reports, users and 📊), and ❌ removes them.
 4. Search for a few things inline, including something that doesn't exist, then send a result or search something else. `/admin` → 📊 Stats → 🔎 Most searched / 😕 No result.
 
+**Phase 6 checklist:**
+
+1. `/aikey` as the owner: it should say the key is set. ⚙️ Settings shows 🤖 AI: on · today N of 500.
+2. Send a meme with text on it. A few seconds later the question shows 🤖 suggestions; press ✅ Use the suggested keywords.
+3. Search inline for a word that is written on the meme but isn't in its keywords: it is found.
+4. Upload again and type your own keywords quickly, before the suggestions appear: the meme is saved with yours, and the text on it is still searchable a moment later.
+5. From an untrusted account, upload something the AI should flag; `/admin` → 📥 queue: the card shows ⚠️ and the reason.
+
 ## Layout
 
 ```
@@ -208,6 +232,7 @@ memebot/
       collection.js                favourites (⭐), likes (👍), /fav, /tags
       social.js  socialstore.js    profile, weekly leaderboard, public meme card; likes and counters
       motd.js  jobs.js             meme of the day; work done on the side of updates (no scheduler)
+      ai.js                        Gemini: image choice, key, quota, one call → keywords, OCR, flag
       stats.js  statsstore.js      stats screens; daily counters and once-per-query search counting
       store.js  adminstore.js      every database query (Phase 1 / Phase 2)
       normalize.js                 Persian normalisation and search words

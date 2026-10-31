@@ -32,7 +32,7 @@ export async function showOverview(ctx, nowSec, messageId = null) {
     public: m.approved, pending: m.pending, private: m.private, removed: m.rejected + m.hidden,
     up1: d1.upload, up7: d7.upload, up30: d30.upload,
     s1: d1.search, s7: d7.search, s30: d30.search, miss7: pct(d7.search_miss, d7.search),
-    send7: d7.send, like7: d7.like,
+    send7: d7.send, like7: d7.like, ai1: d1.ai || 0, ai30: d30.ai || 0,
   });
   const kb = [
     [{ text: t(ctx.lang, 'st.top_btn'), callback_data: 'a:sq:7' }, { text: t(ctx.lang, 'st.misses_btn'), callback_data: 'a:sm:7' }],

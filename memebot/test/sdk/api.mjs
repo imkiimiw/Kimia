@@ -68,4 +68,24 @@ async function call(method, params = {}) {
   return data.result;
 }
 
-export const api = new Proxy({}, { get: (_, method) => (params) => call(method, params) });
+function download(path) {
+  const base = process.env.TG_MOCK_URL.replace(/^http:\/\//, '');
+  const [host, port] = base.split(':');
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host, port: Number(port), path, method: 'GET' }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+// The SDK's file helper: getFile, then the whole file as a Uint8Array.
+async function getFileContent(f) {
+  const file = await call('getFile', { file_id: typeof f === 'string' ? f : f.file_id });
+  return new Uint8Array(await download(`/file/botSERVERLESS/${file.file_path}`));
+}
+
+export const api = new Proxy({}, { get: (_, method) => (method === 'getFileContent' ? getFileContent : (params) => call(method, params)) });

@@ -34,6 +34,10 @@ export function who(lang, u) {
 
 const label = (text) => [[{ text, callback_data: 'nop' }]];
 
+/* Phase 6: what the AI said about a meme, for the cards. */
+const aiLines = (lang, m) => (m.ai_flag ? `\n${t(lang, 'adm.ai_flag', { reason: esc(m.ai_reason || '—') })}` : '')
+  + (m.ocr ? `\n${t(lang, 'adm.ai_ocr', { text: iso(cut(m.ocr, 200)) })}` : '');
+
 async function tellUser(ctx, uid, key, vars, extraKey = null) {
   const u = await store.getUser(uid);
   if (!u || u.blocked) return;
@@ -78,7 +82,7 @@ export async function showQueue(ctx, afterId, nowSec, role = 'admin') {
     await send(ctx, 'adm.queue_empty', t(ctx.lang, afterId ? 'adm.queue_end' : 'adm.queue_empty'), [[{ text: t(ctx.lang, 'adm.back'), callback_data: 'a:p' }]]);
     return;
   }
-  const text = t(ctx.lang, 'adm.queue_card', { id: String(m.id), kw: iso(m.keywords), who: who(ctx.lang, m), approved: m.approved_n || 0, ago: ago(ctx.lang, m.created_at, nowSec) });
+  const text = t(ctx.lang, 'adm.queue_card', { id: String(m.id), kw: iso(m.keywords), who: who(ctx.lang, m), approved: m.approved_n || 0, ago: ago(ctx.lang, m.created_at, nowSec) }) + aiLines(ctx.lang, m);
   await sendCard(ctx, 'adm.queue_card', m, text, queueKeyboard(ctx.lang, m.id, role));
 }
 
@@ -150,7 +154,7 @@ export async function showReports(ctx, afterId, nowSec) {
   const reasons = (await admin.reportReasons(m.id)).map((r) => `${t(ctx.lang, `report.reason.${r.reason}`)} ${num(ctx.lang, r.n)}`).join(' · ');
   const text = t(ctx.lang, 'adm.report_card', {
     n: m.reports, id: String(m.id), status: t(ctx.lang, `status.${m.status}`), kw: iso(m.keywords), reasons, who: who(ctx.lang, m), ago: ago(ctx.lang, m.created_at, nowSec),
-  });
+  }) + aiLines(ctx.lang, m);
   await sendCard(ctx, 'adm.report_card', m, text, reportKeyboard(ctx.lang, m.id));
 }
 

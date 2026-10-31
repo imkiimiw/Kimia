@@ -3,7 +3,8 @@
 // (test/mock-telegram.mjs). Web and timer globals are removed first, like the platform's isolate.
 // Run: npm test
 import assert from 'node:assert/strict';
-import { createMockTelegram } from './mock-telegram.mjs';
+import { Buffer } from 'node:buffer';
+import { createMockTelegram, geminiAnswer } from './mock-telegram.mjs';
 import { rawDatabase, setupDatabase, stats } from './sdk/db.mjs';
 import * as schema from '../tgcloud/schema.js';
 import { ENV } from '../tgcloud/lib/env.js';
@@ -1375,6 +1376,180 @@ scenario('phase 5 — stats: a search counts once per typed query (not per keyst
   advance(86401);
   await say(U.sara, 'سلام');
   assert.equal(qRow('خیلی قدیمی').n, null, 'pruned after 60 days');
+});
+
+// ---------- phase 6 ----------
+
+const KEY = 'AQ.test-key_0123456789abcdef';
+const ava = person(810000012, 'Ava');
+const geminiPosts = () => mock.state.gemini.calls.filter((c) => c.method === 'POST');
+const secret = () => (one("SELECT value FROM kv WHERE key = 'secret:gemini'") || {}).value;
+
+scenario('phase 6 — /aikey: owner only; the message holding the key is deleted; the key is checked and kept in the database only', async () => {
+  mock.state.gemini.keys.add(KEY);
+  advance(3600);
+  await upload(ava, 'photo', 'AI0', 'بدون هوش');
+  assert.equal(mock.state.gemini.calls.length, 0, 'no key: no AI');
+  assert.deepEqual(mock.state.downloads, []);
+  await say(ava, `/aikey ${KEY}`);
+  assert.equal(secret(), undefined, 'not the owner');
+  assert.match(lastText((await say(U.owner, '/aikey')).calls), /کلید Gemini:<\/b> تنظیم نشده/);
+  const bad = await say(U.owner, '/aikey AQ.wrong-key_0123456789abcdef');
+  assert.ok(bad.calls.some((c) => c.method === 'deleteMessage' && c.params.message_id === bad.message.message_id && c.ok), 'deleted');
+  assert.match(lastText(bad.calls), /قبول نکرد/);
+  assert.equal(secret(), undefined);
+  assert.match(lastText((await say(U.owner, '/aikey short')).calls), /شبیه کلید API نیست/);
+  const good = await say(U.owner, `/aikey ${KEY}`);
+  assert.ok(good.calls.some((c) => c.method === 'deleteMessage' && c.params.message_id === good.message.message_id && c.ok), 'deleted');
+  assert.match(lastText(good.calls), /ذخیره شد و کار می/);
+  assert.equal(secret(), KEY);
+  assert.equal(mock.state.gemini.calls.at(-1).method, 'GET', 'checked with a free metadata request');
+  assert.match(lastText((await say(U.owner, '/aikey')).calls), /تنظیم شده/);
+});
+
+scenario('phase 6 — suggestions on the keywords question, saved with one button; the text in the image is searchable; own keywords still work; image choice per type', async () => {
+  advance(60);
+  const m = await media(ava, 'photo', 'AI1');
+  assert.deepEqual(mock.state.downloads.slice(-1), ['S_AI1'], 'the largest photo size that fits 800 px');
+  const post = geminiPosts().at(-1);
+  assert.equal(post.key, KEY);
+  assert.match(post.path, /^models\/gemini-[\w.-]+:generateContent$/);
+  const img = post.body.contents[0].parts[0].inline_data;
+  assert.equal(img.mime_type, 'image/jpeg');
+  assert.equal(Buffer.from(img.data, 'base64').toString('utf8'), 'IMG:S_AI1', 'the image itself, base64');
+  const ask = sends(m.calls)[0];
+  const ed = m.calls.find((c) => c.method === 'editMessageText');
+  assert.equal(ed.params.message_id, ask.result.message_id, 'the question itself is edited');
+  assert.match(ed.params.text, /پیشنهاد هوش مصنوعی:<\/b> .*گربه، خنده دار/);
+  const mid = m.message.message_id;
+  const codes = [`up:s:${mid}`, `up:p:${mid}`, `up:x:${mid}`];
+  assert.deepEqual(buttons(ed).map((b) => b.callback_data), codes);
+  const tg = await press(ava, `up:p:${mid}`, ask.result.message_id);
+  assert.deepEqual(buttons(tg.calls.find((c) => c.method === 'editMessageReplyMarkup')).map((b) => b.callback_data), codes, 'the private switch keeps the button');
+  await press(ava, `up:p:${mid}`, ask.result.message_id);
+  const use = await press(ava, `up:s:${mid}`, ask.result.message_id);
+  const row = one('SELECT id, keywords, ocr, ai_flag, status FROM memes WHERE file_unique_id = ?', 'AI1');
+  assert.deepEqual([row.keywords, row.ocr, row.ai_flag, row.status], ['گربه، خنده دار', 'وقتی سلام می کنی', 0, 'pending']);
+  assert.match(lastText(use.calls), /منتظر تأیید/);
+  assert.ok((await inline(ava, 'سلام')).ids.includes(`m${row.id}`), 'found by the text inside the image');
+  assert.ok((await inline(ava, 'خنده دار')).ids.includes(`m${row.id}`), 'and by the suggested keywords');
+  assert.equal((await press(ava, `up:s:${mid}`, ask.result.message_id)).answer.show_alert, true, 'only once');
+
+  advance(60);
+  await media(ava, 'photo', 'AI2');
+  await say(ava, 'دست ساز');
+  const r2 = one('SELECT keywords, ocr FROM memes WHERE file_unique_id = ?', 'AI2');
+  assert.deepEqual([r2.keywords, r2.ocr], ['دست ساز', 'وقتی سلام می کنی'], 'typed keywords, the OCR text still kept');
+
+  mock.state.gemini.reply = () => geminiAnswer({ keywords: [], text: '' });
+  const st = await media(ava, 'sticker', 'AI3');
+  assert.deepEqual([mock.state.downloads.at(-1), geminiPosts().at(-1).body.contents[0].parts[0].inline_data.mime_type], ['F_AI3', 'image/webp'], 'a static sticker as it is');
+  assert.equal(st.calls.filter((c) => c.method === 'editMessageText').length, 0, 'nothing to suggest: the question stays');
+  const thumb = { file_id: 'T_AI6', file_unique_id: 'tAI6', width: 320, height: 180 };
+  await say(ava, { video: { file_id: 'F_AI6', file_unique_id: 'AI6', width: 640, height: 360, duration: 9, thumbnail: thumb } });
+  assert.deepEqual([mock.state.downloads.at(-1), geminiPosts().at(-1).body.contents[0].parts[0].inline_data.mime_type], ['T_AI6', 'image/jpeg'], 'a video: its thumbnail');
+  const n = geminiPosts().length;
+  await media(ava, 'voice', 'AI4');
+  await media(ava, 'video', 'AI5');
+  assert.equal(geminiPosts().length, n, 'voice, or a video without a thumbnail: no AI');
+  await say(ava, '/cancel');
+  mock.state.gemini.reply = null;
+});
+
+scenario('phase 6 — a flagged meme always waits for approval, even from a trusted user; the queue card says why; staff uploads are not held', async () => {
+  mock.state.gemini.reply = () => geminiAnswer({ keywords: ['خشن'], text: '', nsfw: true, reason: 'graphic violence' });
+  assert.ok(one('SELECT approved_n FROM users WHERE id = ?', U.mina.id).approved_n >= 2, 'Mina is trusted');
+  advance(3600);
+  const k = await upload(U.mina, 'photo', 'AF1', 'پرچم خورده');
+  const f1 = memeId('AF1');
+  assert.ok(k > 0);
+  assert.equal(status(f1), 'pending');
+  const f = one('SELECT ai_flag, ai_reason FROM memes WHERE id = ?', f1);
+  assert.deepEqual([f.ai_flag, f.ai_reason], [1, 'graphic violence']);
+  assert.equal(backupOf(f1), null, 'not posted to the channel');
+  const card = (await press(U.owner, `a:qs:${f1 - 1}`, 1)).calls.find((c) => c.method === 'sendPhoto');
+  assert.match(card.params.caption, new RegExp(`#m${f1}\\b`));
+  assert.match(card.params.caption, /هوش مصنوعی:<\/b> شاید نامناسب باشه \(graphic violence\)/);
+  await press(U.owner, `a:ok:${f1}`, card.result.message_id);
+  assert.equal(status(f1), 'approved', 'an admin can still approve it');
+  await upload(U.owner, 'photo', 'AF2', 'مالک پرچم');
+  assert.equal(status(memeId('AF2')), 'approved', 'staff uploads are never held');
+  mock.state.gemini.reply = null;
+  const ocrCard = await upload(ava, 'photo', 'AF3', 'کارت متن');
+  const card2 = (await press(U.owner, `a:qs:${ocrCard - 1}`, 1)).calls.find((c) => c.method === 'sendPhoto');
+  assert.match(card2.params.caption, /متن داخل تصویر: .*وقتی سلام می کنی/);
+  assert.doesNotMatch(card2.params.caption, /شاید نامناسب/);
+});
+
+scenario('phase 6 — the user is faster than the AI: the late result goes on the saved meme; a late flag takes a public meme off the channel; a newer upload is never touched', async () => {
+  advance(3600);
+  mock.state.gemini.onCall = async () => { mock.state.gemini.onCall = null; await say(U.mina, 'سریع تر از هوش'); };
+  const m = await media(U.mina, 'photo', 'AR1');
+  const r1 = memeId('AR1');
+  const row = one('SELECT status, ocr FROM memes WHERE id = ?', r1);
+  assert.deepEqual([row.status, row.ocr], ['approved', 'وقتی سلام می کنی'], 'saved first, the OCR text added afterwards');
+  assert.equal(m.calls.filter((c) => c.method === 'editMessageText').length, 0, 'no suggestions on a question already answered');
+  assert.ok((await inline(U.sara, 'سلام')).ids.includes(`m${r1}`), 'late OCR words are indexed too');
+
+  mock.state.gemini.reply = () => geminiAnswer({ nsfw: true, reason: 'nudity' });
+  mock.state.gemini.onCall = async () => { mock.state.gemini.onCall = null; await say(U.mina, 'دیر پرچم خورده'); };
+  const from = mock.state.calls.length;
+  await media(U.mina, 'photo', 'AR2');
+  const r2 = memeId('AR2');
+  const calls = mock.state.calls.slice(from);
+  const posted = toChannel(calls, 'sendPhoto')[0];
+  assert.ok(posted, 'trusted: posted at once');
+  assert.deepEqual([status(r2), one('SELECT ai_flag FROM memes WHERE id = ?', r2).ai_flag], ['pending', 1]);
+  assert.ok(toChannel(calls, 'deleteMessage').some((c) => c.params.message_id === posted.result.message_id && c.ok), 'taken off the channel');
+  assert.equal(backupOf(r2), null);
+  assert.deepEqual((await inline(U.sara, 'دیر پرچم')).ids, [], 'not public any more');
+  mock.state.gemini.reply = null;
+
+  advance(60);
+  mock.state.gemini.onCall = async () => { mock.state.gemini.onCall = null; await media(U.mina, 'photo', 'AR4'); };
+  await media(U.mina, 'photo', 'AR3');
+  const st = one('SELECT state, state_data FROM users WHERE id = ?', U.mina.id);
+  const data = JSON.parse(st.state_data);
+  assert.deepEqual([st.state, data.fileUniqueId, data.ai.k], ['kw', 'AR4', ['گربه', 'خنده دار']], 'the newer upload keeps its own result');
+  assert.equal(one('SELECT count(*) AS n FROM memes WHERE file_unique_id = ?', 'AR3').n, 0);
+  await say(U.mina, '/cancel');
+});
+
+scenario('phase 6 — quota: a 429 pauses AI for an hour, uploads go on without it; the settings switch and status; stats; /aikey off', async () => {
+  advance(3600);
+  mock.state.gemini.reply = () => ({ status: 429, json: { error: { code: 429, message: 'Resource has been exhausted', status: 'RESOURCE_EXHAUSTED' } } });
+  const n0 = geminiPosts().length;
+  await upload(ava, 'photo', 'AQ1', 'سهمیه یک');
+  assert.equal(geminiPosts().length, n0 + 1);
+  assert.equal(one('SELECT ocr FROM memes WHERE file_unique_id = ?', 'AQ1').ocr, null, 'saved without AI');
+  mock.state.gemini.reply = null;
+  await upload(ava, 'photo', 'AQ2', 'سهمیه دو');
+  assert.equal(geminiPosts().length, n0 + 1, 'paused');
+  const p = await panel(U.owner);
+  const id = p.result.message_id;
+  const view = async () => (await press(U.owner, 'a:st', id)).calls.find((c) => c.method === 'editMessageText');
+  assert.match((await view()).params.text, /هوش مصنوعی \(Gemini\): روشن · سهمیه/);
+  advance(3601);
+  const v2 = await view();
+  assert.match(v2.params.text, /هوش مصنوعی \(Gemini\): روشن · امروز [۰-۹]+ از ۵۰۰/);
+  assert.ok(buttons(v2).some((b) => b.callback_data === 'a:st:ai:t'));
+  await upload(ava, 'photo', 'AQ3', 'سهمیه سه');
+  assert.equal(geminiPosts().length, n0 + 2, 'back after an hour');
+  await press(U.owner, 'a:st:ai:t', id);
+  assert.equal(kvN('set:ai'), 0);
+  advance(60);
+  await upload(ava, 'photo', 'AQ4', 'سهمیه چهار');
+  assert.equal(geminiPosts().length, n0 + 2, 'switched off');
+  await press(U.owner, 'a:st:ai:t', id);
+  const ov = (await press(U.owner, 'a:ss', id)).calls.find((c) => c.method === 'editMessageText');
+  assert.match(ov.params.text, /هوش مصنوعی: امروز [۱-۹][۰-۹]* · ۳۰ روز/);
+  assert.match(lastText((await say(U.owner, '/aikey off')).calls), /کلید Gemini پاک شد/);
+  assert.equal(secret() || null, null);
+  advance(60);
+  await upload(ava, 'photo', 'AQ5', 'سهمیه پنج');
+  assert.equal(geminiPosts().length, n0 + 2, 'no key: no AI');
+  assert.ok(!JSON.stringify(mock.state.calls).includes(KEY), 'the key is in nothing the bot sent');
+  assert.match(lastText((await say(ava, '/help')).calls), /Gemini گوگل/);
 });
 
 // ---------- run ----------

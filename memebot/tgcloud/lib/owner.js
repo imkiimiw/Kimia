@@ -1,14 +1,16 @@
 /*
- * Owner tools. /setup — sets the command menu and the bot descriptions in every language (the
+ * Owner tools. /aikey <key> | off — the Gemini API key (Phase 6), kept in the database only; the
+ * message holding it is deleted at once. /setup — sets the command menu and the bot descriptions in every language (the
  * default language without language_code), adds /admin to the owner's own menu, and checks inline
  * mode and the backup channel. Inline mode (/setinline) and inline feedback (/setinlinefeedback) can only be turned on
  * in @BotFather; the report says so.
  */
+import * as ai from './ai.js';
 import { ENV } from './env.js';
 import { LANGS, t } from './i18n.js';
 import { DEFAULT_LANG } from './locales/index.js';
 import * as store from './store.js';
-import { call, describeError, send } from './tg.js';
+import { call, describeError, remove, send } from './tg.js';
 import { esc } from './util.js';
 
 const COMMANDS = ['start', 'my', 'fav', 'tags', 'top', 'profile', 'lang', 'help', 'cancel'];
@@ -23,6 +25,24 @@ export async function staffMenu(ctx, uid, lang, on) {
   } catch (err) {
     console.warn(`staff menu for ${uid}: ${describeError(err)}`);
   }
+}
+
+export async function setAiKey(ctx, msg, arg, nowSec) {
+  if (!arg) {
+    const s = await ai.aiStatus(nowSec);
+    return send(ctx, 'aikey', t(ctx.lang, 'owner.aikey.usage', { state: t(ctx.lang, s.key ? 'owner.aikey.set' : 'owner.aikey.unset') }));
+  }
+  await remove(ctx, 'aikey.delete', msg.message_id);
+  if (arg.toLowerCase() === 'off') {
+    await ai.setKey('', nowSec);
+    return send(ctx, 'aikey', t(ctx.lang, 'owner.aikey.removed'));
+  }
+  if (!/^[A-Za-z0-9._-]{20,200}$/.test(arg)) return send(ctx, 'aikey', t(ctx.lang, 'owner.aikey.bad'));
+  const check = await ai.checkKey(arg);
+  if (check === 'rejected') return send(ctx, 'aikey', t(ctx.lang, 'owner.aikey.rejected'));
+  await ai.setKey(arg, nowSec);
+  await store.kvSet('ai:pause', '', 0);
+  return send(ctx, 'aikey', t(ctx.lang, check === 'ok' ? 'owner.aikey.saved' : 'owner.aikey.saved_unchecked'));
 }
 
 export async function setup(ctx, nowSec) {

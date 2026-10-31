@@ -69,6 +69,10 @@ export const memes = table('memes', {
   /* Phase 4: likes, and the ranking score = uses + LIKE_WEIGHT × likes (kept up to date by lib/store.js) */
   likes: integer('likes').notNull().default(0),
   score: integer('score').notNull().default(0),
+  /* Phase 6: AI — text read from the image (searchable), and a "may be inappropriate" flag for admins */
+  ocr: text('ocr'),
+  aiFlag: integer('ai_flag').notNull().default(0),
+  aiReason: text('ai_reason'),
 }, (t) => ({
   byUploader: index('idx_memes_uploader').on(t.uploaderId, t.id),
   byPopular: index('idx_memes_popular').on(t.status, t.uses, t.id),
@@ -181,6 +185,10 @@ export const memeWeek = table('meme_week', {
   uses: integer('uses').notNull().default(0),
   likes: integer('likes').notNull().default(0),
   score: integer('score').notNull().default(0),
+  /* Phase 6: AI — text read from the image (searchable), and a "may be inappropriate" flag for admins */
+  ocr: text('ocr'),
+  aiFlag: integer('ai_flag').notNull().default(0),
+  aiReason: text('ai_reason'),
 }, (t) => ({
   pair: uniqueIndex('uidx_meme_week').on(t.week, t.memeId),
   byScore: index('idx_meme_week_score').on(t.week, t.score),
@@ -192,6 +200,10 @@ export const userWeek = table('user_week', {
   uses: integer('uses').notNull().default(0),
   likes: integer('likes').notNull().default(0),
   score: integer('score').notNull().default(0),
+  /* Phase 6: AI — text read from the image (searchable), and a "may be inappropriate" flag for admins */
+  ocr: text('ocr'),
+  aiFlag: integer('ai_flag').notNull().default(0),
+  aiReason: text('ai_reason'),
 }, (t) => ({
   pair: uniqueIndex('uidx_user_week').on(t.week, t.userId),
   byScore: index('idx_user_week_score').on(t.week, t.score),

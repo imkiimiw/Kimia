@@ -70,6 +70,7 @@ export const SETTINGS = {
   join: { key: 'set:join', def: 1, min: 0, max: 1 },
   likebtn: { key: 'set:likebtn', def: 1, min: 0, max: 1 },
   motd: { key: 'set:motd', def: 1, min: 0, max: 1 },
+  ai: { key: 'set:ai', def: 1, min: 0, max: 1 },
 };
 
 /* Reports: reasons a user can pick, and how many reports one user may file per day. */
@@ -122,3 +123,16 @@ export const SEARCH_SETTLE = 30;
 export const STATS_TOP = 20;
 export const KEEP_SEARCH_DAYS = 60;
 export const KEEP_STAT_DAYS = 400;
+
+/* Phase 6: AI (Google Gemini, free tier). One call per upload, on a small image; the key is kept in
+   the database (owner command /aikey), never in code. At most AI_DAILY calls per Tehran day (free
+   tier quotas); after a 429 the bot pauses AI for AI_PAUSE seconds. Uploads always work without AI. */
+export const AI_MODEL = 'gemini-3.5-flash-lite';
+export const AI_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+export const AI_DAILY = 500;
+export const AI_PAUSE = 3600;
+export const AI_IMG_MAX = 800;
+export const AI_MAX_BYTES = 1500000;
+export const AI_SUGGEST = 8;
+export const AI_OCR_MAX = 500;
+export const AI_OCR_WORDS = 20;

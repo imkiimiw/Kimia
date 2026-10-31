@@ -14,12 +14,14 @@ plan's constraints: [docs/PLATFORM.md](docs/PLATFORM.md). Features and setup: [R
 - **Phases**: the owner builds this bot phase by phase. Finish a phase, summarise it, and wait for
   the go-ahead before the next one. Phases 1 (core), 2 (moderation, admin panel), 3 (favourites,
   private collection, keyword editing, hashtags, type filter) and 4 (public channel feed, likes,
-  score ranking, profiles, weekly leaderboard, meme of the day) and 5 (stats; moderator role) are
-  built and deployed.
+  score ranking, profiles, weekly leaderboard, meme of the day), 5 (stats; moderator role) and 6
+  (AI with Gemini: keyword suggestions, OCR, "may be inappropriate" flag) are built and deployed.
 - **One channel**: the bot posts only to `ENV.backupChannelId` / `ENV.motdChannelId` (both default
   to @WangerChaos, -1004475337598, in `scripts/gen-env.mjs`). It is public, so `backupMode` is
   `public`: only approved memes, as clean copies, never the uploader's name; removals delete the
   post. Never post to forced-join channels or anywhere else.
+- **Secrets never go into files.** The Gemini key lives only in kv `secret:gemini` (owner `/aikey`);
+  never put it in code, `env.js`, `.env`, tests or commits, and never print it.
 - **Free only.** Anything a free tier or the platform can't do goes into `docs/PLATFORM.md` with an
   alternative, not into code.
 
@@ -71,14 +73,20 @@ plan's constraints: [docs/PLATFORM.md](docs/PLATFORM.md). Features and setup: [R
   is then the presser's private chat, so nothing is ever sent into a channel or group.
 - Work without a scheduler runs in `lib/jobs.js sideTasks` after messages, buttons and
   chosen_inline_result (never inline queries): broadcast batches, the meme of the day, daily pruning.
+- AI (`lib/ai.js`) is optional everywhere: no key, the switch off, a pause or any error means
+  "no AI", and an upload must never fail or wait for it beyond the one call. It runs only in the
+  upload flow (never inline). A late result may meet a saved meme or a newer upload: the pending
+  state is replaced compare-and-set (`store.updatePendingData`), otherwise `store.attachAi`.
+  OCR words come from `normalize.ocrWords` and are kept when keywords are edited (`withOcr`).
 - Stats (`lib/statsstore.js`): a search is counted once per typed query (settled on send, on a
   non-continuation, or on clearing), after the inline answer is sent — keep it after the answer.
 
 ## Tests
 
 `npm test` = `gen-env` → `test/static.mjs` (platform rules) → `test/unit.test.mjs` (normalisation,
-locales, query syntax, calendar) → `test/e2e.mjs` (41 scenarios: Phases 1–3 with the channel as an
-archive and moderation first off, then on; Phase 4 in public mode: the real handlers against `test/sdk/`, a local
+locales, query syntax, calendar) → `test/e2e.mjs` (46 scenarios: Phases 1–3 with the channel as an
+archive and moderation first off, then on; Phases 4–6 in public mode; Gemini is faked by the mock
+at `/gemini/`, file downloads at `/file/`: the real handlers against `test/sdk/`, a local
 SQLite stand-in for the SDK, and `test/mock-telegram.mjs`, a strict mock Bot API, with web and timer
 globals removed like the isolate).
 

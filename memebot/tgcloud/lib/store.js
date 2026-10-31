@@ -82,7 +82,7 @@ export async function refundUpload(id, day) {
 
 /* ---------- memes ---------- */
 
-const MEME_COLS = sql`id, kind, file_id, file_unique_id, keywords, uploader_id, uses, likes, score, created_at, status, reports, backup_chat_id, backup_msg_id`;
+const MEME_COLS = sql`id, kind, file_id, file_unique_id, keywords, uploader_id, uses, likes, score, created_at, status, reports, backup_chat_id, backup_msg_id, ocr, ai_flag, ai_reason`;
 
 export const memeByUniqueId = (uid) => db.get(sql`SELECT ${MEME_COLS} FROM memes WHERE file_unique_id = ${uid}`);
 
@@ -93,10 +93,10 @@ export const publicKeyOf = (key) => String(key).replace(/^p\d+:/, '');
 export const memeById = (id) => db.get(sql`SELECT ${MEME_COLS} FROM memes WHERE id = ${id}`);
 
 /* Inserts a meme and its search words. Returns the new id, or null if the file is already there. */
-export async function insertMeme({ fileId, fileUniqueId, kind, keywords, uploaderId, words, t, status = APPROVED }) {
+export async function insertMeme({ fileId, fileUniqueId, kind, keywords, uploaderId, words, t, status = APPROVED, ocr = null, aiFlag = 0, aiReason = null }) {
   const r = await db.run(sql`
-    INSERT INTO memes (file_id, file_unique_id, kind, keywords, uploader_id, status, uses, created_at, updated_at)
-    VALUES (${fileId}, ${fileUniqueId}, ${kind}, ${keywords}, ${uploaderId}, ${status}, 0, ${t}, ${t})
+    INSERT INTO memes (file_id, file_unique_id, kind, keywords, uploader_id, status, uses, created_at, updated_at, ocr, ai_flag, ai_reason)
+    VALUES (${fileId}, ${fileUniqueId}, ${kind}, ${keywords}, ${uploaderId}, ${status}, 0, ${t}, ${t}, ${ocr}, ${aiFlag ? 1 : 0}, ${aiReason})
     ON CONFLICT(file_unique_id) DO NOTHING
     RETURNING id`);
   if (!r.rows.length) return null;
@@ -123,6 +123,31 @@ async function replaceWords(id, words) {
   let values = null;
   for (const w of words) values = values ? sql`${values}, (${w}, ${id})` : sql`(${w}, ${id})`;
   if (values) await db.run(sql`INSERT OR IGNORE INTO meme_words (word, meme_id) VALUES ${values}`);
+}
+
+/* The AI's result arrived after the meme was saved (the user was faster): attach the OCR text, its
+   words and the flag. Returns the meme row before the change, or null. */
+export async function attachAi(fileUniqueId, ocr, words, aiFlag, aiReason) {
+  const m = await db.get(sql`SELECT ${MEME_COLS} FROM memes WHERE file_unique_id = ${fileUniqueId}`);
+  if (!m) return null;
+  await db.run(sql`UPDATE memes SET ocr = ${ocr || null}, ai_flag = ${aiFlag ? 1 : 0}, ai_reason = ${aiReason || null} WHERE id = ${m.id}`);
+  let values = null;
+  for (const w of words) values = values ? sql`${values}, (${w}, ${m.id})` : sql`(${w}, ${m.id})`;
+  if (values) await db.run(sql`INSERT OR IGNORE INTO meme_words (word, meme_id) VALUES ${values}`);
+  return m;
+}
+
+/* Moves a meme to another status (used when a late AI flag sends a public meme to the queue). */
+export async function setStatus(id, from, to, t) {
+  const r = await db.run(sql`UPDATE memes SET status = ${to}, updated_at = ${t} WHERE id = ${id} AND status = ${from}`);
+  return r.rowsAffected > 0;
+}
+
+/* Replaces the pending upload's state only if it is still the same one (compare-and-set), so a
+   slow AI answer never overwrites a newer upload or brings back a finished one. */
+export async function updatePendingData(id, oldData, newData) {
+  const r = await db.run(sql`UPDATE users SET state_data = ${JSON.stringify(newData)} WHERE id = ${id} AND state = 'kw' AND state_data = ${oldData}`);
+  return r.rowsAffected > 0;
 }
 
 /* New keywords for one of the user's own memes (and its search words). `status` = the status

@@ -79,3 +79,23 @@ export function parseJson(s) {
     return null;
   }
 }
+
+/* Links, t.me addresses and @usernames (refused in keywords; dropped from AI suggestions). */
+export const LINK_RE = /(https?:\/\/|www\.|t\.me\/|telegram\.(me|dog)\/|tg:\/\/|@[a-z0-9_]{4,})/i;
+
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/* Base64 of a Uint8Array (no Buffer or btoa in the isolate). */
+export function base64(bytes) {
+  const out = [];
+  let i = 0;
+  for (; i + 2 < bytes.length; i += 3) {
+    const n = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
+    out.push(B64[n >> 18] + B64[(n >> 12) & 63] + B64[(n >> 6) & 63] + B64[n & 63]);
+  }
+  if (i < bytes.length) {
+    const n = (bytes[i] << 16) | ((i + 1 < bytes.length ? bytes[i + 1] : 0) << 8);
+    out.push(B64[n >> 18] + B64[(n >> 12) & 63] + (i + 1 < bytes.length ? B64[(n >> 6) & 63] : '=') + '=');
+  }
+  return out.join('');
+}

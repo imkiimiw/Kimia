@@ -16,7 +16,8 @@
  * Text inputs (users.state): adm:user, adm:admin, adm:chan (and adm:bc in lib/broadcast.js).
  */
 import { ENV } from './env.js';
-import { ADMIN_PAGE, APPROVED, HIDDEN, MAX_CHANNELS, PENDING, ROLE_ADMIN, ROLE_MOD, SETTINGS } from './config.js';
+import { ADMIN_PAGE, AI_DAILY, APPROVED, HIDDEN, MAX_CHANNELS, PENDING, ROLE_ADMIN, ROLE_MOD, SETTINGS } from './config.js';
+import { aiStatus } from './ai.js';
 import * as admin from './adminstore.js';
 import { memeRemoved } from './backup.js';
 import { ago, langOf, t } from './i18n.js';
@@ -25,7 +26,7 @@ import { staffMenu } from './owner.js';
 import { banUser, isProtected } from './review.js';
 import * as store from './store.js';
 import { answer, call, edit, send } from './tg.js';
-import { cut, esc, iso, parseJson } from './util.js';
+import { cut, esc, iso, now, parseJson } from './util.js';
 
 export const OWNER_ONLY = ['ad', 'ada', 'adm', 'adt', 'adr', 'st', 'ch', 'cha', 'chr', 'bc', 'bcy', 'bcn', 'bcx', 'bcs'];
 export const MOD_ALLOWED = ['p', 'x', 'q', 'qs', 'ok', 'no', 'qk'];
@@ -206,7 +207,11 @@ export async function showSettings(ctx, messageId) {
   const s = await admin.getSettings();
   const trust = s.trust ? t(ctx.lang, 'adm.trust_n', { n: s.trust }) : t(ctx.lang, 'adm.never');
   const hide = s.hide ? t(ctx.lang, 'adm.hide_n', { n: s.hide }) : t(ctx.lang, 'adm.never');
-  const text = t(ctx.lang, 'adm.settings_title', { moderation: onOff(ctx.lang, s.moderation), trust, hide, join: onOff(ctx.lang, s.join), likebtn: onOff(ctx.lang, s.likebtn), motd: onOff(ctx.lang, s.motd) });
+  const st = await aiStatus(now());
+  const aistate = !st.key ? t(ctx.lang, 'adm.ai_nokey') : st.paused ? t(ctx.lang, 'adm.ai_paused') : t(ctx.lang, 'adm.ai_today', { n: st.today, max: AI_DAILY });
+  const text = t(ctx.lang, 'adm.settings_title', {
+    moderation: onOff(ctx.lang, s.moderation), trust, hide, join: onOff(ctx.lang, s.join), likebtn: onOff(ctx.lang, s.likebtn), motd: onOff(ctx.lang, s.motd), ai: onOff(ctx.lang, s.ai), aistate,
+  });
   const step = (name, shown) => [
     { text: '➖', callback_data: `a:st:${name}:-` },
     { text: shown, callback_data: 'nop' },
@@ -219,6 +224,7 @@ export async function showSettings(ctx, messageId) {
     [{ text: t(ctx.lang, 'adm.toggle_join', { v: onOff(ctx.lang, s.join) }), callback_data: 'a:st:join:t' }],
     [{ text: t(ctx.lang, 'adm.toggle_likebtn', { v: onOff(ctx.lang, s.likebtn) }), callback_data: 'a:st:likebtn:t' }],
     [{ text: t(ctx.lang, 'adm.toggle_motd', { v: onOff(ctx.lang, s.motd) }), callback_data: 'a:st:motd:t' }],
+    [{ text: t(ctx.lang, 'adm.toggle_ai', { v: onOff(ctx.lang, s.ai) }), callback_data: 'a:st:ai:t' }],
     back(ctx.lang),
   ];
   if (messageId && (await edit(ctx, 'adm.settings', messageId, text, kb))) return;

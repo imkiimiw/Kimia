@@ -9,7 +9,7 @@
  *   3. /lang, and /start before a language is chosen, work without the join check
  *   4. forced join (lib/join.js): not a member → the lock message, nothing else
  *   5. a command: /start [upload|join|fav] /help /lang /my /fav /tags /top /profile /cancel /upload,
- *      /admin (admins), /setup (owner)
+ *      /admin (staff), /setup and /aikey (owner)
  *   6. an input in progress: admin (users.state adm:*) → lib/admin.js / lib/broadcast.js;
  *      new keywords for a meme (edkw) → lib/mine.js
  *   7. a meme (photo, animation, video, sticker, voice) → upload.onMedia
@@ -29,6 +29,7 @@
  *   m:up | m:my | m:help | m:lang     main menu                                        lib/menu.js
  *   up:x:<mediaMsgId>                 cancel the pending upload of that media          lib/upload.js
  *   up:p:<mediaMsgId>                 toggle "save privately" for that media           lib/upload.js
+ *   up:s:<mediaMsgId>                 save with the AI's suggested keywords            lib/upload.js
  *   my:<page>                         "my memes" page (edits the list)                 lib/mine.js
  *   mv:<id>:<page>                    open a meme card                                 lib/mine.js
  *   md | mn | mx:<id>:<page>:<listId> delete? / keep / delete for real                 lib/mine.js
@@ -60,7 +61,7 @@ import { showLeaderboard, showOtherProfile, showProfile, showPublicCard, toggleV
 import { showOverview, showQueries } from './stats.js';
 import * as mine from './mine.js';
 import { confirmDelete, doDelete, showCard, showList } from './mine.js';
-import { setup } from './owner.js';
+import { setAiKey, setup } from './owner.js';
 import * as review from './review.js';
 import * as store from './store.js';
 import { answer, createCtx, edit, editKeyboard, send } from './tg.js';
@@ -114,6 +115,9 @@ async function onCommand(ctx, user, msg, cmd, role, nowSec) {
     case 'setup':
       if (role === 'owner') return setup(ctx, nowSec);
       return sendHint(ctx, '', nowSec);
+    case 'aikey':
+      if (role === 'owner') return setAiKey(ctx, msg, cmd.arg, nowSec);
+      return sendHint(ctx, '', nowSec);
     default:
       return sendHint(ctx, '', nowSec);
   }
@@ -125,7 +129,7 @@ async function onContent(ctx, user, msg, role, settings, nowSec) {
     if (user.state === bc.STATE_BROADCAST && role === 'owner') return bc.onDraft(ctx, user, msg, nowSec);
     if (await adminUi.onInput(ctx, user, role, msg, nowSec)) return;
   }
-  if (upload.mediaOf(msg)) return upload.onMedia(ctx, user, msg, role, nowSec);
+  if (upload.mediaOf(msg)) return upload.onMedia(ctx, user, msg, role, settings, nowSec);
   if (typeof msg.text === 'string') {
     if (user.state === upload.STATE_KEYWORDS) return upload.onKeywords(ctx, user, msg, role, settings, nowSec);
     if (user.state === mine.STATE_EDIT) return mine.onEditKeywords(ctx, user, msg, role, settings, nowSec);
@@ -279,6 +283,7 @@ async function onButton(ctx, user, role, cq, inPrivate, nowSec) {
       return;
     case 'up': {
       if (a === 'p') return int(b) === null ? answer(ctx) : upload.togglePrivate(ctx, user, int(b), msgId, nowSec);
+      if (a === 's') return int(b) === null ? answer(ctx) : upload.useSuggestions(ctx, user, int(b), role, settings, nowSec);
       const done = a === 'x' && (await upload.cancel(ctx, user, int(b)));
       if (done) await edit(ctx, 'cancel', msgId, t(ctx.lang, 'cancel.done'), null);
       return answer(ctx, t(ctx.lang, done ? 'cancel.done' : 'cancel.none'));
