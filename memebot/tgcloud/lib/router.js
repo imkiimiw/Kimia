@@ -8,18 +8,20 @@
  *      SPAM_WINDOW → muted for SPAM_MUTE with one warning (admins are exempt from all three)
  *   3. /lang, and /start before a language is chosen, work without the join check
  *   4. forced join (lib/join.js): not a member → the lock message, nothing else
- *   5. a command: /start [upload|join|fav] /help /lang /my /fav /tags /cancel /upload,
+ *   5. a command: /start [upload|join|fav] /help /lang /my /fav /tags /top /profile /cancel /upload,
  *      /admin (admins), /setup (owner)
  *   6. an input in progress: admin (users.state adm:*) → lib/admin.js / lib/broadcast.js;
  *      new keywords for a meme (edkw) → lib/mine.js
  *   7. a meme (photo, animation, video, sticker, voice) → upload.onMedia
  *   8. text: a meme waits for keywords → upload.onKeywords; otherwise a hint
  *   9. other content (files, audio, round videos, …) → "unsupported"; service messages → nothing
- *  10. a running broadcast sends a few more copies (lib/broadcast.js sideStep)
- * callback_query — the user is ensured; banned / muted users get an alert; "a:" buttons need a
- *   role (owner-only codes in admin.OWNER_ONLY); other buttons need the join check; every query is
- *   answered exactly once; then the broadcast side step.
- * inline_query / chosen_inline_result → lib/inline.js (no user row is created there).
+ *  10. side tasks (lib/jobs.js): the next broadcast batch, the meme of the day
+ * callback_query — the user is ensured; banned / muted users get an alert. Outside the private
+ *   chat (an inline message, a channel post) only 👍 (lk) works, and nothing is ever sent to that
+ *   chat. "a:" buttons need a role (owner-only codes in admin.OWNER_ONLY); other buttons need the
+ *   join check (not lk); every query is answered exactly once; then the side tasks.
+ * inline_query → lib/inline.js (no user row is created there).
+ * chosen_inline_result → usage count (lib/inline.js), then the side tasks.
  *
  * callback_data (all ≤ 64 bytes):
  *   lang:<code>[:u|:f]                language picked (then u: upload help, f: favourites) lib/menu.js
@@ -33,6 +35,10 @@
  *   ek:x                              cancel editing keywords                          lib/mine.js
  *   fv:<id> | fl:<page> | fo:<id>:<page>  favourite toggle / list / card                 lib/collection.js
  *   m:fav | m:tags                    menu: favourites, hashtags                       lib/collection.js
+ *   lk:<id>                           like / unlike (any chat, inline messages too)    lib/collection.js
+ *   lb:w | lb:l                       leaderboard this / last week                     lib/social.js
+ *   lm:<id> | pf:<uid> | pv:t         top meme card / someone's profile / hide my name lib/social.js
+ *   m:top | m:me                      menu: leaderboard, my profile                    lib/social.js
  *   rp:<id>[:<reason>|:x]             report a meme (reasons in config.REPORT_REASONS)  lib/review.js
  *   j:chk                             "I joined" (fresh membership check)              lib/join.js
  *   a:…                               admin panel (table in lib/admin.js, lib/review.js, lib/broadcast.js)
@@ -47,7 +53,9 @@ import { isLang, langOf, t } from './i18n.js';
 import { onChosenResult, onInlineQuery } from './inline.js';
 import { checkJoin, lockKeyboard, sendLock } from './join.js';
 import { sendHelp, sendHint, sendLanguagePicker, sendUploadHow, sendWelcome } from './menu.js';
-import { showFavCard, showFavs, showTags, toggleFav } from './collection.js';
+import { showFavCard, showFavs, showTags, toggleFav, toggleLike } from './collection.js';
+import { sideTasks } from './jobs.js';
+import { showLeaderboard, showOtherProfile, showProfile, showPublicCard, toggleVisibility } from './social.js';
 import * as mine from './mine.js';
 import { confirmDelete, doDelete, showCard, showList } from './mine.js';
 import { setup } from './owner.js';
@@ -82,6 +90,10 @@ async function onCommand(ctx, user, msg, cmd, role, nowSec) {
       return showFavs(ctx, user, 0, nowSec);
     case 'tags':
       return showTags(ctx, nowSec);
+    case 'top':
+      return showLeaderboard(ctx, 'w', nowSec);
+    case 'profile':
+      return showProfile(ctx, user, nowSec);
     case 'upload':
       return sendUploadHow(ctx);
     case 'cancel':
@@ -149,7 +161,7 @@ export async function onMessage(msg) {
     else if (cmd) await onCommand(ctx, user, msg, cmd, role, nowSec);
     else await onContent(ctx, user, msg, role, settings, nowSec);
   }
-  await bc.sideStep(ctx, nowSec);
+  await sideTasks(ctx, nowSec);
   return { trace: ctx.trace };
 }
 
@@ -214,11 +226,12 @@ async function afterLanguage(ctx, user, role, from, next, nowSec) {
   return sendWelcome(ctx, from, nowSec);
 }
 
-async function onButton(ctx, user, role, cq, nowSec) {
+async function onButton(ctx, user, role, cq, inPrivate, nowSec) {
   const parts = String(cq.data || '').split(':');
   const [code, a, b, c] = parts;
-  const msgId = cq.message ? cq.message.message_id : null;
-  if (!msgId || code === 'nop') return;
+  if (code === 'lk') return int(a) === null ? undefined : toggleLike(ctx, user, int(a), cq, nowSec);
+  if (!inPrivate || code === 'nop') return;
+  const msgId = cq.message.message_id;
   if (code === 'a') return onAdminButton(ctx, user, role, cq, parts.slice(1), msgId, nowSec);
   if (code === 'lang') {
     if (!isLang(a)) return;
@@ -252,6 +265,8 @@ async function onButton(ctx, user, role, cq, nowSec) {
       if (a === 'lang') return sendLanguagePicker(ctx);
       if (a === 'fav') return showFavs(ctx, user, 0, nowSec);
       if (a === 'tags') return showTags(ctx, nowSec);
+      if (a === 'top') return showLeaderboard(ctx, 'w', nowSec);
+      if (a === 'me') return showProfile(ctx, user, nowSec);
       return;
     case 'up': {
       if (a === 'p') return int(b) === null ? answer(ctx) : upload.togglePrivate(ctx, user, int(b), msgId, nowSec);
@@ -289,6 +304,17 @@ async function onButton(ctx, user, role, cq, nowSec) {
     case 'fo':
       if (int(a) === null) return;
       return showFavCard(ctx, user, int(a));
+    case 'lb':
+      await answer(ctx);
+      return showLeaderboard(ctx, a === 'l' ? 'l' : 'w', nowSec, msgId);
+    case 'lm':
+      if (int(a) === null) return;
+      return showPublicCard(ctx, user, int(a));
+    case 'pf':
+      if (int(a) === null) return;
+      return showOtherProfile(ctx, int(a), nowSec);
+    case 'pv':
+      return toggleVisibility(ctx, user, msgId, nowSec);
     case 'rp':
       if (int(a) === null) return;
       if (b) return review.fileReport(ctx, user, int(a), b, msgId, settings, nowSec);
@@ -303,15 +329,17 @@ export async function onCallback(cq) {
   const nowSec = now();
   try {
     const user = await store.ensureUser(cq.from, nowSec);
-    Object.assign(ctx, { userId: user.id, chatId: cq.message ? cq.message.chat.id : cq.from.id, lang: langOf(user, cq.from) });
+    const inPrivate = !!cq.message && cq.message.chat && cq.message.chat.type === 'private';
+    /* Replies go to the user's private chat, never to a channel or group the button was in. */
+    Object.assign(ctx, { userId: user.id, chatId: inPrivate ? cq.message.chat.id : cq.from.id, lang: langOf(user, cq.from) });
     const role = await roleOf(user.id);
     if (!role && user.banned) await answer(ctx, t(ctx.lang, 'ban.alert'), true);
     else if (!role && user.mute_until > nowSec) await answer(ctx, t(ctx.lang, 'spam.wait'), true);
-    else await onButton(ctx, user, role, cq, nowSec);
+    else await onButton(ctx, user, role, cq, inPrivate, nowSec);
   } finally {
     await answer(ctx);
   }
-  await bc.sideStep(ctx, nowSec);
+  await sideTasks(ctx, nowSec);
   return { trace: ctx.trace };
 }
 
@@ -323,6 +351,8 @@ export async function onInline(q) {
 
 export async function onChosen(r) {
   const ctx = createCtx();
-  const counted = r ? await onChosenResult(ctx, r, now()) : false;
+  const nowSec = now();
+  const counted = r ? await onChosenResult(ctx, r, nowSec) : false;
+  await sideTasks(ctx, nowSec);
   return { trace: ctx.trace, counted };
 }

@@ -10,6 +10,39 @@ export const now = () => Math.floor(Date.now() / 1000);
 /* The Tehran calendar day number of a unix time (changes at 00:00 Tehran time). */
 export const tehranDay = (t) => Math.floor((t + TEHRAN_OFFSET) / 86400);
 
+/* The hour (0-23) in Tehran. */
+export const tehranHour = (t) => Math.floor(((t + TEHRAN_OFFSET) % 86400) / 3600);
+
+/* Week number of a Tehran day; Iranian weeks start on Saturday (day 2 since 1970 was a Saturday). */
+export const weekOfDay = (day) => Math.floor((day + 5) / 7);
+export const tehranWeek = (t) => weekOfDay(tehranDay(t));
+export const firstDayOfWeek = (week) => week * 7 - 5;
+
+/* [year, month, day] of a Tehran day number, in the Gregorian calendar. */
+export function gregorian(day) {
+  const d = new Date(day * 86400000);
+  return [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()];
+}
+
+/* [year, month, day] in the Solar Hijri (Jalali) calendar; plain arithmetic, no Intl. */
+export function jalali(day) {
+  const [gy, gm, gd] = gregorian(day);
+  const before = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+  const gy2 = gm > 2 ? gy + 1 : gy;
+  let days = 355666 + 365 * gy + Math.floor((gy2 + 3) / 4) - Math.floor((gy2 + 99) / 100) + Math.floor((gy2 + 399) / 400) + gd + before[gm - 1];
+  let jy = -1595 + 33 * Math.floor(days / 12053);
+  days %= 12053;
+  jy += 4 * Math.floor(days / 1461);
+  days %= 1461;
+  if (days > 365) {
+    jy += Math.floor((days - 1) / 365);
+    days = (days - 1) % 365;
+  }
+  const jm = days < 186 ? 1 + Math.floor(days / 31) : 7 + Math.floor((days - 186) / 30);
+  const jd = days < 186 ? 1 + (days % 31) : 1 + ((days - 186) % 30);
+  return [jy, jm, jd];
+}
+
 /* Escapes text for parse_mode HTML. */
 export function esc(s) {
   return String(s === undefined || s === null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

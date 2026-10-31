@@ -139,3 +139,22 @@ test('query modifiers come from every locale\'s _words: fav and a type, in any o
   assert.deepEqual(parseQuery('خنده gif', A), { fav: false, kind: null, words: ['خنده', 'gif'] }, 'modifiers lead');
   assert.deepEqual(parseQuery('عکس', A).kind, 'photo');
 });
+
+test('calendar: Jalali dates, Saturday-first weeks, Tehran hours, dates in each language', async () => {
+  const { jalali, weekOfDay, firstDayOfWeek, tehranDay, tehranHour } = await import('../tgcloud/lib/util.js');
+  const { date } = await import('../tgcloud/lib/i18n.js');
+  const day = (y, m, d) => tehranDay(Date.UTC(y, m - 1, d, 12) / 1000);
+  assert.deepEqual(jalali(day(2025, 3, 21)), [1404, 1, 1], 'Nowruz 1404');
+  assert.deepEqual(jalali(day(2024, 3, 20)), [1403, 1, 1], 'Nowruz 1403');
+  assert.deepEqual(jalali(day(2026, 10, 31)), [1405, 8, 9]);
+  assert.deepEqual(jalali(day(2027, 3, 20)), [1405, 12, 29]);
+  const sat = day(2026, 10, 31);
+  assert.equal(firstDayOfWeek(weekOfDay(sat)), sat, '2026-10-31 is a Saturday: a week starts');
+  assert.equal(weekOfDay(sat - 1), weekOfDay(sat) - 1, 'Friday belongs to the week before');
+  assert.equal(weekOfDay(sat + 6), weekOfDay(sat), 'and the next Friday to this one');
+  assert.equal(tehranHour(Date.UTC(2026, 9, 31, 8, 30) / 1000), 12, '08:30 UTC = 12:00 Tehran');
+  assert.equal(tehranDay(Date.UTC(2026, 9, 31, 20, 29) / 1000), sat, '23:59 Tehran is still the same day');
+  assert.equal(tehranDay(Date.UTC(2026, 9, 31, 20, 30) / 1000), sat + 1, '00:00 Tehran is the next day');
+  assert.equal(date('fa', sat), '۱۴۰۵/۰۸/۰۹');
+  assert.equal(date('en', sat), '2026/10/31');
+});

@@ -12,8 +12,13 @@ plan's constraints: [docs/PLATFORM.md](docs/PLATFORM.md). Features and setup: [R
   `Meme_BOT_TGCLOUD_TOKEN` (the CLI access token `app<id>:<secret>`, never the bot token) and runs
   from `memebot/` with `memebot/.tgcloud/`. A bare `npx tgcloud` at the repository root hits the to-do bot.
 - **Phases**: the owner builds this bot phase by phase. Finish a phase, summarise it, and wait for
-  the go-ahead before the next one. Phases 1 (core), 2 (moderation, admin panel) and 3 (favourites,
-  private collection, keyword editing, hashtags, type filter) are built and deployed.
+  the go-ahead before the next one. Phases 1 (core), 2 (moderation, admin panel), 3 (favourites,
+  private collection, keyword editing, hashtags, type filter) and 4 (public channel feed, likes,
+  score ranking, profiles, weekly leaderboard, meme of the day) are built and deployed.
+- **One channel**: the bot posts only to `ENV.backupChannelId` / `ENV.motdChannelId` (both default
+  to @WangerChaos, -1004475337598, in `scripts/gen-env.mjs`). It is public, so `backupMode` is
+  `public`: only approved memes, as clean copies, never the uploader's name; removals delete the
+  post. Never post to forced-join channels or anywhere else.
 - **Free only.** Anything a free tier or the platform can't do goes into `docs/PLATFORM.md` with an
   alternative, not into code.
 
@@ -55,11 +60,20 @@ plan's constraints: [docs/PLATFORM.md](docs/PLATFORM.md). Features and setup: [R
   in one query. Changing channels or the join switch bumps `join:ver` (all cached checks go stale).
 - Deploys are migrate-first (`npm run deploy`): schema changes must stay additive so the old code
   keeps working until the push.
+- Ranking = `memes.score` = uses + LIKE_WEIGHT × likes, kept up to date where uses and likes change
+  (`store.recordUse`, `socialstore.toggleLike`); week/day counters only for approved memes.
+  Channel hooks in `lib/backup.js`: `memePublished` / `memeRemoved` / `keywordsChanged` must be
+  called wherever a meme becomes public, stops being public, or changes keywords.
+- Callbacks outside the private chat (inline messages, channel posts) may only do `lk`; `ctx.chatId`
+  is then the presser's private chat, so nothing is ever sent into a channel or group.
+- Work without a scheduler runs in `lib/jobs.js sideTasks` after messages, buttons and
+  chosen_inline_result (never inline queries): broadcast batches and the meme of the day.
 
 ## Tests
 
 `npm test` = `gen-env` → `test/static.mjs` (platform rules) → `test/unit.test.mjs` (normalisation,
-locales, query syntax) → `test/e2e.mjs` (35 scenarios, Phase 1 with moderation off, then Phases 2–3: the real handlers against `test/sdk/`, a local
+locales, query syntax, calendar) → `test/e2e.mjs` (39 scenarios: Phases 1–3 with the channel as an
+archive and moderation first off, then on; Phase 4 in public mode: the real handlers against `test/sdk/`, a local
 SQLite stand-in for the SDK, and `test/mock-telegram.mjs`, a strict mock Bot API, with web and timer
 globals removed like the isolate).
 

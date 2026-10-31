@@ -10,14 +10,21 @@
  *
  * /tags lists the most used public #hashtags as buttons that start an inline search.
  *
- * callback_data: fv:<id> | fl:<page> | fo:<id>:<page>
+ * Likes (Phase 4): 👍 under memes sent through inline mode (if the likebtn setting is on), under
+ * channel posts, and on "already in the bot" answers. lk:<id> toggles; one like per user per meme,
+ * not on your own memes. The pressed button shows the new total: an inline message is edited by
+ * inline_message_id, any other message by swapping the button in its keyboard (in its own chat —
+ * a channel post is edited in the channel). The score is uses + 3 × likes (lib/socialstore.js).
+ *
+ * callback_data: fv:<id> | fl:<page> | fo:<id>:<page> | lk:<id>
  */
 import { APPROVED, FAV_MAX, KIND_ICON, MY_PAGE, PENDING, PRIVATE, TAGS_TOP } from './config.js';
 import { botUsername } from './bot.js';
 import { num, t } from './i18n.js';
 import { firstWord } from './normalize.js';
+import * as social from './socialstore.js';
 import * as store from './store.js';
-import { answer, captionable, edit, editKeyboard, send, sendMeme } from './tg.js';
+import { answer, call, captionable, edit, editKeyboard, keyboard, send, sendMeme } from './tg.js';
 import { cut, esc, iso } from './util.js';
 
 /* Can this user see (and so star) this meme? */
@@ -25,12 +32,18 @@ export const canSee = (m, uid) => !!m && (m.status === APPROVED || (m.uploader_i
 
 export const favButton = (lang, id, on) => ({ text: t(lang, on ? 'fav.remove_btn' : 'fav.add_btn'), callback_data: `fv:${id}` });
 
-/* The buttons under "this meme is already in the bot": ⭐ and, for someone else's public meme, 🚩. */
+export const likeButton = (id, n) => ({ text: n > 0 ? `\uD83D\uDC4D ${n}` : '\uD83D\uDC4D', callback_data: `lk:${id}` });
+
+/* The buttons under "this meme is already in the bot": ⭐, and for someone else's public meme 👍 and 🚩. */
 export function existingKeyboard(lang, m, uid, starred, withReport = true) {
-  const row = [];
-  if (canSee(m, uid)) row.push(favButton(lang, m.id, starred));
-  if (withReport && m.status === APPROVED && m.uploader_id !== uid) row.push({ text: t(lang, 'report.btn'), callback_data: `rp:${m.id}` });
-  return row.length ? [row] : null;
+  const rows = [];
+  if (canSee(m, uid)) rows.push([favButton(lang, m.id, starred)]);
+  if (m.status === APPROVED && m.uploader_id !== uid) {
+    const row = [likeButton(m.id, m.likes || 0)];
+    if (withReport) row.push({ text: t(lang, 'report.btn'), callback_data: `rp:${m.id}` });
+    rows.push(row);
+  }
+  return rows.length ? rows : null;
 }
 
 /* Replaces the button whose callback_data is `data` in a message's keyboard; null if absent. */
@@ -59,6 +72,27 @@ export async function toggleFav(ctx, user, id, cq, nowSec) {
   const kb = cq.message ? swapButton(cq.message.reply_markup, `fv:${id}`, favButton(ctx.lang, id, !starred)) : null;
   if (kb) await editKeyboard(ctx, 'fav.toggle', cq.message.message_id, kb);
   return answer(ctx, t(ctx.lang, starred ? 'fav.removed' : 'fav.added'));
+}
+
+/* lk:<id> — like / unlike (from an inline message, a channel post or the private chat). */
+export async function toggleLike(ctx, user, id, cq, nowSec) {
+  const m = await store.memeById(id);
+  if (!m || m.status !== APPROVED) return answer(ctx, t(ctx.lang, 'like.gone'), true);
+  if (m.uploader_id === user.id) return answer(ctx, t(ctx.lang, 'like.own'), true);
+  const r = await social.toggleLike(user.id, id, nowSec);
+  if (!r) return answer(ctx, t(ctx.lang, 'like.gone'), true);
+  const button = likeButton(id, r.likes);
+  if (cq.inline_message_id) {
+    try {
+      await call(ctx, 'editMessageReplyMarkup', { inline_message_id: cq.inline_message_id, reply_markup: keyboard([[button]]) }, 'like.inline');
+    } catch (err) {
+      /* "message is not modified" or an old message: the like still counts */
+    }
+  } else if (cq.message) {
+    const kb = swapButton(cq.message.reply_markup, `lk:${id}`, button);
+    if (kb) await editKeyboard(ctx, 'like.toggle', cq.message.message_id, kb, cq.message.chat.id);
+  }
+  return answer(ctx, t(ctx.lang, r.liked ? 'like.added' : 'like.removed'));
 }
 
 /* /fav, /start fav, fl:<page> */

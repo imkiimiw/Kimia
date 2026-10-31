@@ -22,6 +22,8 @@ export const users = table('users', {
   albumId: text('album_id'),
   createdAt: integer('created_at').notNull().default(0),
   seenAt: integer('seen_at').notNull().default(0),
+  /* Phase 4: hide this user's name from the leaderboards */
+  lbHidden: integer('lb_hidden').notNull().default(0),
   /* Phase 2 */
   uname: text('uname'),
   banned: integer('banned').notNull().default(0),
@@ -61,6 +63,9 @@ export const memes = table('memes', {
   reviewedBy: integer('reviewed_by'),
   reviewedAt: integer('reviewed_at'),
   reports: integer('reports').notNull().default(0),
+  /* Phase 4: likes, and the ranking score = uses + LIKE_WEIGHT × likes (kept up to date by lib/store.js) */
+  likes: integer('likes').notNull().default(0),
+  score: integer('score').notNull().default(0),
 }, (t) => ({
   byUploader: index('idx_memes_uploader').on(t.uploaderId, t.id),
   byPopular: index('idx_memes_popular').on(t.status, t.uses, t.id),
@@ -68,6 +73,8 @@ export const memes = table('memes', {
   byStatus: index('idx_memes_status').on(t.status, t.id),
   reported: index('idx_memes_reported').on(t.reports, t.id).where(sql`reports > 0`),
   byKind: index('idx_memes_kind').on(t.status, t.kind, t.uses, t.id),
+  byScore: index('idx_memes_score').on(t.status, t.score, t.id),
+  byKindScore: index('idx_memes_kind_score').on(t.status, t.kind, t.score, t.id),
 }));
 
 /* Search index: one row per normalised keyword word per meme (lib/normalize.js). */
@@ -150,3 +157,55 @@ export const favorites = table('favorites', {
   byTime: index('idx_favorites_time').on(t.userId, t.createdAt),
   byMeme: index('idx_favorites_meme').on(t.memeId),
 }));
+
+/* Phase 4: one like per user per meme. */
+export const likes = table('likes', {
+  userId: integer('user_id').notNull(),
+  memeId: integer('meme_id').notNull(),
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  pair: uniqueIndex('uidx_likes').on(t.userId, t.memeId),
+  byMeme: index('idx_likes_meme').on(t.memeId),
+}));
+
+/* Phase 4: counters per week (Saturday–Friday, Tehran) for the leaderboards, and per day for the
+   meme of the day. score = uses + LIKE_WEIGHT × likes. Old rows are pruned. */
+export const memeWeek = table('meme_week', {
+  week: integer('week').notNull(),
+  memeId: integer('meme_id').notNull(),
+  uses: integer('uses').notNull().default(0),
+  likes: integer('likes').notNull().default(0),
+  score: integer('score').notNull().default(0),
+}, (t) => ({
+  pair: uniqueIndex('uidx_meme_week').on(t.week, t.memeId),
+  byScore: index('idx_meme_week_score').on(t.week, t.score),
+}));
+
+export const userWeek = table('user_week', {
+  week: integer('week').notNull(),
+  userId: integer('user_id').notNull(),
+  uses: integer('uses').notNull().default(0),
+  likes: integer('likes').notNull().default(0),
+  score: integer('score').notNull().default(0),
+}, (t) => ({
+  pair: uniqueIndex('uidx_user_week').on(t.week, t.userId),
+  byScore: index('idx_user_week_score').on(t.week, t.score),
+}));
+
+export const memeDay = table('meme_day', {
+  day: integer('day').notNull(),
+  memeId: integer('meme_id').notNull(),
+  score: integer('score').notNull().default(0),
+}, (t) => ({
+  pair: uniqueIndex('uidx_meme_day').on(t.day, t.memeId),
+  byScore: index('idx_meme_day_score').on(t.day, t.score),
+}));
+
+/* Phase 4: memes of the day already posted (one per Tehran day). */
+export const motd = table('motd', {
+  day: integer('day').primaryKey(),
+  memeId: integer('meme_id').notNull(),
+  chatId: integer('chat_id').notNull(),
+  msgId: integer('msg_id').notNull(),
+  postedAt: integer('posted_at').notNull(),
+});

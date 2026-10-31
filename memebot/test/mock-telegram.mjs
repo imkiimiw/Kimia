@@ -100,6 +100,7 @@ export function createMockTelegram({ botId = 7100000001, botUsername = 'meme_tes
     members: new Map(), // `${channelId}:${userId}` -> ChatMember fields ({ status, is_member })
     noInviteRight: new Set(), // channel ids where the bot may not create invite links
     copies: [], // copyMessage: { to, from_chat_id, message_id, new_id }
+    inlineMessages: new Map(), // inline_message_id -> markup (JSON) of memes sent through inline mode
     rateLimitAt: null, // copyMessage number (1-based, counted from when it was set) that gets one 429
     rateLimitCount: 0,
   };
@@ -219,6 +220,15 @@ export function createMockTelegram({ botId = 7100000001, botUsername = 'meme_tes
       return ok(true);
     },
     editMessageReplyMarkup: (p) => {
+      if (p.inline_message_id !== undefined) {
+        if (!state.inlineMessages.has(p.inline_message_id)) return err(400, 'Bad Request: MESSAGE_ID_INVALID');
+        const m = checkMarkup(p.reply_markup);
+        if (m) return err(400, `Bad Request: ${m}`);
+        const markup = JSON.stringify(p.reply_markup || null);
+        if (state.inlineMessages.get(p.inline_message_id) === markup) return err(400, 'Bad Request: message is not modified');
+        state.inlineMessages.set(p.inline_message_id, markup);
+        return ok(true);
+      }
       const msg = state.messages.get(`${chatKey(p.chat_id)}:${p.message_id}`);
       if (!msg) return err(400, 'Bad Request: message to edit not found');
       const m = checkMarkup(p.reply_markup);
@@ -226,6 +236,16 @@ export function createMockTelegram({ botId = 7100000001, botUsername = 'meme_tes
       const markup = JSON.stringify(p.reply_markup && p.reply_markup.inline_keyboard && p.reply_markup.inline_keyboard.length ? p.reply_markup : null);
       if (msg.markup === markup) return err(400, 'Bad Request: message is not modified');
       msg.markup = markup;
+      return ok(true);
+    },
+    editMessageCaption: (p) => {
+      const msg = state.messages.get(`${chatKey(p.chat_id)}:${p.message_id}`);
+      if (!msg || !msg.media) return err(400, 'Bad Request: message to edit not found');
+      const e = p.caption ? checkText(p.caption, p.parse_mode, 1024) : null;
+      if (e) return err(400, `Bad Request: ${e}`);
+      if (msg.caption === p.caption) return err(400, 'Bad Request: message is not modified');
+      msg.caption = p.caption;
+      if (p.reply_markup) msg.markup = JSON.stringify(p.reply_markup);
       return ok(true);
     },
     deleteMessage: (p) => {

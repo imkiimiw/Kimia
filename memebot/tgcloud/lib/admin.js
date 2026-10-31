@@ -14,6 +14,7 @@
 import { ENV } from './env.js';
 import { ADMIN_PAGE, APPROVED, HIDDEN, MAX_CHANNELS, PENDING, SETTINGS } from './config.js';
 import * as admin from './adminstore.js';
+import { memeRemoved } from './backup.js';
 import { ago, t } from './i18n.js';
 import { LOCALES } from './locales/index.js';
 import { banUser, isProtected } from './review.js';
@@ -105,6 +106,7 @@ export async function hideAll(ctx, from, uid, confirmed, messageId, nowSec) {
     ]]);
     return answer(ctx);
   }
+  for (const m of await admin.postedOf(uid, 100)) await memeRemoved(ctx, m);
   const n = await admin.rejectAllOf(uid, [APPROVED, PENDING, HIDDEN], from.id, nowSec);
   await answer(ctx, t(ctx.lang, 'adm.hidden_done', { n }), true);
   await showUser(ctx, uid, nowSec, messageId);
@@ -152,7 +154,7 @@ export async function showSettings(ctx, messageId) {
   const s = await admin.getSettings();
   const trust = s.trust ? t(ctx.lang, 'adm.trust_n', { n: s.trust }) : t(ctx.lang, 'adm.never');
   const hide = s.hide ? t(ctx.lang, 'adm.hide_n', { n: s.hide }) : t(ctx.lang, 'adm.never');
-  const text = t(ctx.lang, 'adm.settings_title', { moderation: onOff(ctx.lang, s.moderation), trust, hide, join: onOff(ctx.lang, s.join) });
+  const text = t(ctx.lang, 'adm.settings_title', { moderation: onOff(ctx.lang, s.moderation), trust, hide, join: onOff(ctx.lang, s.join), likebtn: onOff(ctx.lang, s.likebtn), motd: onOff(ctx.lang, s.motd) });
   const step = (name, shown) => [
     { text: '➖', callback_data: `a:st:${name}:-` },
     { text: shown, callback_data: 'nop' },
@@ -163,6 +165,8 @@ export async function showSettings(ctx, messageId) {
     step('trust', `⭐\uFE0F ${trust}`),
     step('hide', `🙈 ${hide}`),
     [{ text: t(ctx.lang, 'adm.toggle_join', { v: onOff(ctx.lang, s.join) }), callback_data: 'a:st:join:t' }],
+    [{ text: t(ctx.lang, 'adm.toggle_likebtn', { v: onOff(ctx.lang, s.likebtn) }), callback_data: 'a:st:likebtn:t' }],
+    [{ text: t(ctx.lang, 'adm.toggle_motd', { v: onOff(ctx.lang, s.motd) }), callback_data: 'a:st:motd:t' }],
     back(ctx.lang),
   ];
   if (messageId && (await edit(ctx, 'adm.settings', messageId, text, kb))) return;

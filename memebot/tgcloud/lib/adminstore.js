@@ -13,8 +13,10 @@ import { APPROVED, HIDDEN, PENDING, REJECTED, SETTINGS } from './config.js';
 /* All settings in one query, plus the number of forced-join channels (as `channels`). `join` is
    the switch; forced join applies only when it is on AND channels exist (`joinActive`). */
 export async function getSettings() {
+  let keys = sql`${'join:ver'}`;
+  for (const s of Object.values(SETTINGS)) keys = sql`${keys}, ${s.key}`;
   const rows = await db.all(sql`
-    SELECT key, n FROM kv WHERE key IN (${SETTINGS.moderation.key}, ${SETTINGS.trust.key}, ${SETTINGS.hide.key}, ${SETTINGS.join.key}, ${'join:ver'})
+    SELECT key, n FROM kv WHERE key IN (${keys})
     UNION ALL SELECT 'channels' AS key, count(*) AS n FROM channels`);
   const byKey = Object.fromEntries(rows.map((r) => [r.key, r.n]));
   const out = { joinVer: byKey['join:ver'] || 0, channels: byKey.channels || 0 };
@@ -158,6 +160,11 @@ export async function rejectAllOf(uid, statuses, by, t) {
     WHERE uploader_id = ${uid} AND status IN (${statuses[0]}, ${statuses[1] || statuses[0]}, ${statuses[2] || statuses[0]})`);
   return r.rowsAffected;
 }
+
+/* A user's memes that have a channel post (to delete before rejecting them all). */
+export const postedOf = (uid, limit) => db.all(sql`
+  SELECT id, backup_chat_id, backup_msg_id FROM memes
+  WHERE uploader_id = ${uid} AND backup_msg_id > 0 AND status IN (${APPROVED}, ${HIDDEN}) ORDER BY id LIMIT ${limit}`);
 
 export const bannedPage = (limit, offset) => db.all(sql`
   SELECT id, first_name, username FROM users WHERE banned = 1 ORDER BY id LIMIT ${limit} OFFSET ${offset}`);

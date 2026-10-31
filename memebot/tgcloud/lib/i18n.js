@@ -5,6 +5,7 @@
  * escape user content (the texts are Telegram HTML).
  */
 import { DEFAULT_LANG, LOCALES } from './locales/index.js';
+import { gregorian, jalali } from './util.js';
 
 export const LANGS = Object.keys(LOCALES);
 export const isLang = (l) => typeof l === 'string' && Object.prototype.hasOwnProperty.call(LOCALES, l);
@@ -53,4 +54,12 @@ export function ago(lang, at, nowSec) {
   if (diff < 3600) return t(lang, 'ago.m', { n: Math.floor(diff / 60) });
   if (diff < 86400) return t(lang, 'ago.h', { n: Math.floor(diff / 3600) });
   return t(lang, 'ago.d', { n: Math.floor(diff / 86400) });
+}
+
+/* A Tehran day number as a date: the Jalali calendar for locales with _calendar 'jalali' (Persian),
+   otherwise Gregorian, as y/m/d in the language's digits. */
+export function date(lang, day) {
+  const [y, m, d] = dict(lang)._calendar === 'jalali' ? jalali(day) : gregorian(day);
+  const two = (n) => (n < 10 ? `0${n}` : String(n));
+  return num(lang, `${y}/${two(m)}/${two(d)}`);
 }

@@ -16,6 +16,8 @@
  *  Phase 3 query syntax (lib/normalize.js parseQuery): leading modifier words from the locales'
  *  _words — "fav" (the user's favourites) and a type ("gif", "گیف", "sticker", …) — then words and
  *  #tags. "@bot fav" alone lists favourites (next_offset "<n>"), with the type too if given.
+ *  Phase 4: results are ranked by score (uses + 3 × likes); with the likebtn setting on, each sent
+ *  meme carries a 👍 button.
  *
  * Result ids are "m<meme id>"; chosen_inline_result (BotFather /setinlinefeedback) turns them into
  * usage counts and the user's recent list.
@@ -31,22 +33,25 @@ import { checkJoin } from './join.js';
 import { LOCALES } from './locales/index.js';
 import { aliasMap, parseQuery } from './normalize.js';
 import * as store from './store.js';
-import { call, describeError } from './tg.js';
+import { likeButton } from './collection.js';
+import { call, describeError, keyboard } from './tg.js';
 import { cut } from './util.js';
 
 /* Modifier words of every language, built once when the module loads. */
 const ALIASES = aliasMap(LOCALES);
 
-/* Video and voice results need a title (Bot API); stickers take none. */
-export function toResult(m) {
+/* Video and voice results need a title (Bot API); stickers take none. With `like`, the sent
+   message gets a 👍 button (lib/collection.js toggleLike). */
+export function toResult(m, like = false) {
   const id = `m${m.id}`;
   const title = cut(m.keywords, 64);
+  const extra = like ? { reply_markup: keyboard([[likeButton(m.id, m.likes || 0)]]) } : {};
   switch (m.kind) {
-    case 'photo': return { type: 'photo', id, photo_file_id: m.file_id, title };
-    case 'animation': return { type: 'gif', id, gif_file_id: m.file_id, title };
-    case 'video': return { type: 'video', id, video_file_id: m.file_id, title };
-    case 'sticker': return { type: 'sticker', id, sticker_file_id: m.file_id };
-    case 'voice': return { type: 'voice', id, voice_file_id: m.file_id, title };
+    case 'photo': return { type: 'photo', id, photo_file_id: m.file_id, title, ...extra };
+    case 'animation': return { type: 'gif', id, gif_file_id: m.file_id, title, ...extra };
+    case 'video': return { type: 'video', id, video_file_id: m.file_id, title, ...extra };
+    case 'sticker': return { type: 'sticker', id, sticker_file_id: m.file_id, ...extra };
+    case 'voice': return { type: 'voice', id, voice_file_id: m.file_id, title, ...extra };
     default: return null;
   }
 }
@@ -100,9 +105,8 @@ async function homePage(q, lang) {
 /* Banned or not a member of the forced-join channels: an empty page (with a join button).
    Someone who never opened the bot has no cached check, so with forced join on they are sent to
    the bot first (/start join checks them and adds them to the users). */
-async function gate(ctx, q, user, lang, nowSec) {
+async function gate(ctx, q, user, lang, settings, nowSec) {
   if (user && user.banned) return { results: [], next: '' };
-  const settings = await admin.getSettings();
   if (!settings.joinActive) return null;
   const locked = { results: [], next: '', button: { text: t(lang, 'join.inline'), start_parameter: START_JOIN } };
   if (!user) return (await roleOf(q.from.id)) ? null : locked;
@@ -118,11 +122,12 @@ export async function onInlineQuery(ctx, q, nowSec) {
   let mode = 'home';
   if (query.fav && !query.words.length) mode = 'fav';
   else if (query.words.length || query.kind || query.fav) mode = 'search';
-  const page = (await gate(ctx, q, user, lang, nowSec))
+  const settings = await admin.getSettings();
+  const page = (await gate(ctx, q, user, lang, settings, nowSec))
     || (mode === 'fav' ? await favPage(q, query.kind, lang) : mode === 'search' ? await searchPage(q, query, lang) : await homePage(q, lang));
   const params = {
     inline_query_id: q.id,
-    results: page.results.map(toResult).filter(Boolean),
+    results: page.results.map((m) => toResult(m, !!settings.likebtn)).filter(Boolean),
     cache_time: mode === 'search' ? INLINE_CACHE : INLINE_PERSONAL_CACHE,
     is_personal: true,
     next_offset: page.next,

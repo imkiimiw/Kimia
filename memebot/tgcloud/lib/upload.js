@@ -158,7 +158,7 @@ export async function onKeywords(ctx, user, msg, role, settings, nowSec) {
     if (dup) await sayDuplicate(ctx, user, dup, p.msgId);
     return;
   }
-  await backupMeme(ctx, { id, kind: p.kind, file_id: p.fileId }, user.id, p.msgId, nowSec);
+  await backupMeme(ctx, { id, kind: p.kind, file_id: p.fileId, keywords, status, likes: 0 }, user.id, p.msgId, nowSec);
 
   const bot = await botUsername(ctx, nowSec);
   const q = firstWord(keywords);

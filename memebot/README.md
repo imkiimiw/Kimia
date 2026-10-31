@@ -50,7 +50,18 @@ Platform limits, and what in the plan has to work differently: **[docs/PLATFORM.
 | Hashtags | Write `#football` or `#جام_جهانی` among the keywords. `@bot #football` finds memes **tagged** that way (prefix works: `#جام`); a plain `football` finds them too. `/tags` (or ⭐/#️⃣ in the menu) lists the most used public tags; tap one to search it. |
 | Type filter | Start the query with a type word: `@bot gif lol`, `@bot گیف خنده`, `@bot sticker`, `@bot ویس`, `@bot عکس #فوتبال`. Words: photo/pic/image/عکس · gif/گیف · video/ویدیو/فیلم · sticker/استیکر · voice/ویس. It combines with favourites: `@bot fav gif`. Each locale file declares its own words in `_words`, so a new language brings its own. A type word only counts as **the first word**, so a meme can still have "gif" as a keyword. |
 
-All limits are in `tgcloud/lib/config.js`; the Phase 2 switches and thresholds are in the panel.
+## Phase 4 — social
+
+| Feature | How |
+|---|---|
+| The channel | One channel only: **Wanger Chaos** (`@WangerChaos`, `-1004475337598`), set as the default in `scripts/gen-env.mjs`. The bot never posts anywhere else; forced-join channels are only checked. The channel is **public**, so it runs in `public` mode. A meme is posted when it becomes public (a trusted or admin upload, an admin approval, a private meme published), as a clean copy: keywords, the bot's @username and a 👍 button, **never the uploader's name**. Private, waiting and rejected memes are never posted. If a meme is removed (after reports, by its uploader, or sent back to the queue by an edit), its post is deleted; edited keywords update the caption. Approved memes that aren't in the channel yet go out two at a time with each new post. A failed post never blocks anything; the owner is alerted. (`MEMEBOT_BACKUP_MODE=all` forwards every upload as-is; use it only with a private channel.) |
+| Likes | 👍 is under every meme sent through inline mode (it can be switched off in ⚙️ Settings), under channel posts, and on "already in the bot" answers. One like per person per meme, tap again to unlike; you can't like your own meme. The button shows the new total. Outside the private chat only 👍 works, and the bot never writes into a channel or group because of a button. |
+| Ranking | Every result is ranked by **score = uses + 3 × likes**, newest first on ties. The score is a stored, indexed column, so ranking stays fast. |
+| Profile | `/profile` (👤 in the menu) shows your public memes, total sends, likes received, and this week's points and rank, plus **🙈 Hide my name**: you then appear as "anonymous" in the leaderboard and your profile can't be opened. Others' profiles open from the leaderboard. |
+| Weekly leaderboard | `/top` (🏆) lists the top 5 memes and top 5 uploaders of **this week** or **last week** (⏮). Weeks run Saturday to Friday, Tehran time, with Jalali dates. Points = sends + 3 × likes of public memes in that week; banned users are left out. 🥇🥈🥉 open the meme (⭐, 👍, try it); 👤 opens an uploader's profile. |
+| Meme of the day | Posted to Wanger Chaos once a day. There is no scheduler, so the first message, button press or sent meme after **12:00 Tehran** posts it. It picks yesterday's best public meme by that day's points, otherwise the week's best, otherwise the best ever, never one posted in the last 30 days. Each post has 👍 and a link to the bot. It can be switched off in ⚙️ Settings. A failure alerts the owner and retries 30 minutes later. |
+
+All limits are in `tgcloud/lib/config.js`; the switches and thresholds are in ⚙️ Settings.
 
 ## Setup
 
@@ -74,7 +85,9 @@ cp .env.example .env     # then fill it in (or set the same variables in the env
 | Variable | What |
 |---|---|
 | `Meme_BOT_TGCLOUD_TOKEN` | The CLI access token from step 1. Only `scripts/tg.mjs` reads it, and it passes it to the CLI for that one process. |
-| `MEMEBOT_BACKUP_CHANNEL_ID` | Backup channel id (`-100…` or `@username`). Written into `tgcloud/lib/env.js` at build time, because deployed code can't read env vars. |
+| `MEMEBOT_BACKUP_CHANNEL_ID` | The one channel the bot posts to (default `-1004475337598` = @WangerChaos; `off` = none). Written into `tgcloud/lib/env.js` at build time, because deployed code can't read env vars. |
+| `MEMEBOT_BACKUP_MODE` | `public` (default): only approved memes, clean copies. `all`: every upload forwarded (private channels only). |
+| `MEMEBOT_MOTD_CHANNEL_ID` | Meme of the day; defaults to the same channel (`off` = none). |
 | `MEMEBOT_OWNER_ID` | Your numeric Telegram id. Defaults to `5557901897`. |
 
 ### 3. Deploy
@@ -97,7 +110,7 @@ repository root would act on the to-do bot.
 **Locally (no token needed):**
 
 ```bash
-npm test     # static platform checks → unit tests (normalisation, query syntax, locales) → 35 end-to-end scenarios
+npm test     # static platform checks → unit tests (normalisation, query syntax, calendar, locales) → 39 end-to-end scenarios
 ```
 
 The end-to-end scenarios run the real handlers against a local stand-in for the SDK
@@ -149,13 +162,23 @@ trace still shows the results it built.
 4. `/my` → a meme → ✏️ Edit keywords → `گل #فوتبال`. From an untrusted account, a public meme goes back to the queue.
 5. `@yourbot #فوتبال`, `@yourbot گیف`, `@yourbot sticker`, and `/tags`.
 
+**Phase 4 checklist** (send `/setup` once more for /top and /profile):
+
+1. Upload a meme as the owner. It appears in Wanger Chaos at once: keywords, @bot and 👍, no uploader name. A meme from an untrusted account appears only after ✅ Approve.
+2. Send a meme to a group through `@yourbot …`, then tap 👍 under it from another account: it shows 👍 1. Tap again: 👍.
+3. Tap 👍 under a post in the channel.
+4. `/top` (this week / ⏮ last week), `/profile`, then 🙈 Hide my name and look at `/top` again.
+5. After 12:00 Tehran, the first message to the bot posts the meme of the day in the channel.
+6. `/my` → delete a public meme: its channel post disappears.
+
 ## Layout
 
 ```
 memebot/
   tgcloud/                         deployed to Telegram Serverless
     schema.js                      users, memes, meme_words (search index), recent_uses, kv,
-                                   reports, admins, channels, broadcasts, favorites
+                                   reports, admins, channels, broadcasts, favorites,
+                                   likes, meme_week, user_week, meme_day, motd
     handlers/                      message, callback_query, inline_query, chosen_inline_result → lib/router.js
     lib/
       router.js                    order of checks + table of every callback_data
@@ -166,7 +189,9 @@ memebot/
       admin.js                     admin panel: users, bans, admins, settings, channels
       review.js                    approval queue, reports (admin and user side), banUser
       join.js  broadcast.js        forced join (cached checks), resumable broadcast
-      collection.js                favourites (⭐ toggle, /fav, cards) and /tags
+      collection.js                favourites (⭐), likes (👍), /fav, /tags
+      social.js  socialstore.js    profile, weekly leaderboard, public meme card; likes and counters
+      motd.js  jobs.js             meme of the day; work done on the side of updates (no scheduler)
       store.js  adminstore.js      every database query (Phase 1 / Phase 2)
       normalize.js                 Persian normalisation and search words
       i18n.js  locales/            t(), digits, plurals; fa.js (default), en.js, index.js (add languages here)

@@ -1,13 +1,22 @@
 // Writes tgcloud/lib/env.js: the deploy-time settings the modules read (deployed code gets no
 // environment variables). Only non-secret values go here, never a token.
-//   MEMEBOT_BACKUP_CHANNEL_ID  backup channel: -100… or @username (empty = backups off, with a warning)
 //   MEMEBOT_OWNER_ID           owner's numeric Telegram id (default 5557901897)
+//   MEMEBOT_BACKUP_CHANNEL_ID  THE channel the bot posts to: -100… or @username
+//                              (default -1004475337598 = @WangerChaos; "off" = no channel)
+//   MEMEBOT_BACKUP_MODE        public: only approved memes, as clean copies (no uploader name);
+//                              a removed meme's post is deleted. Right for a PUBLIC channel.
+//                              all: every upload is forwarded (private archive). Only for a
+//                              PRIVATE channel: it would expose private and unmoderated memes.
+//                              (default public)
+//   MEMEBOT_MOTD_CHANNEL_ID    meme-of-the-day channel (default: the same channel; "off" = none)
+// The bot never posts to any other channel (forced-join channels are only checked).
 // Run by `npm run build`, `npm test` and before every CLI command (scripts/tg.mjs).
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadEnv, ROOT } from './dotenv.mjs';
 
 const DEFAULT_OWNER = 5557901897;
+const DEFAULT_CHANNEL = '-1004475337598'; // @WangerChaos, the owner's channel
 const env = loadEnv();
 const quiet = process.argv.includes('--quiet');
 
@@ -17,15 +26,22 @@ if (!/^[1-9]\d{4,15}$/.test(ownerRaw)) {
   process.exit(1);
 }
 
-const backupRaw = (env.MEMEBOT_BACKUP_CHANNEL_ID || '').trim();
-let backup = '0';
-if (backupRaw) {
-  if (/^-100\d{5,15}$/.test(backupRaw)) backup = backupRaw;
-  else if (/^@[A-Za-z][A-Za-z0-9_]{3,31}$/.test(backupRaw)) backup = JSON.stringify(backupRaw);
-  else {
-    console.error(`MEMEBOT_BACKUP_CHANNEL_ID must be a channel id like -1001234567890 or @username, got "${backupRaw}"`);
-    process.exit(1);
-  }
+function channel(name, raw) {
+  const v = String(raw || '').trim();
+  if (!v || v === 'off') return { code: '0', shown: 'off' };
+  if (/^-100\d{5,15}$/.test(v)) return { code: v, shown: v };
+  if (/^@[A-Za-z][A-Za-z0-9_]{3,31}$/.test(v)) return { code: JSON.stringify(v), shown: v };
+  console.error(`${name} must be a channel id like -1001234567890, @username or "off", got "${v}"`);
+  process.exit(1);
+}
+
+const backupRaw = env.MEMEBOT_BACKUP_CHANNEL_ID === undefined ? DEFAULT_CHANNEL : env.MEMEBOT_BACKUP_CHANNEL_ID;
+const backup = channel('MEMEBOT_BACKUP_CHANNEL_ID', backupRaw);
+const motd = channel('MEMEBOT_MOTD_CHANNEL_ID', env.MEMEBOT_MOTD_CHANNEL_ID === undefined ? backupRaw : env.MEMEBOT_MOTD_CHANNEL_ID);
+const mode = (env.MEMEBOT_BACKUP_MODE || 'public').trim();
+if (!['public', 'all'].includes(mode)) {
+  console.error(`MEMEBOT_BACKUP_MODE must be "public" or "all", got "${mode}"`);
+  process.exit(1);
 }
 
 const file = path.join(ROOT, 'tgcloud/lib/env.js');
@@ -36,12 +52,14 @@ const src = `/*
  */
 export const ENV = {
   ownerId: ${Number(ownerRaw)},
-  backupChannelId: ${backup},
+  backupChannelId: ${backup.code},
+  backupMode: ${JSON.stringify(mode)},
+  motdChannelId: ${motd.code},
 };
 `;
 const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
 if (before !== src) fs.writeFileSync(file, src);
 if (!quiet) {
-  console.log(`✔ tgcloud/lib/env.js: owner ${ownerRaw}${ownerRaw === String(DEFAULT_OWNER) ? ' (default)' : ''}, backup channel ${backupRaw || 'NOT SET'}`);
-  if (!backupRaw) console.log('  ⚠ MEMEBOT_BACKUP_CHANNEL_ID is not set: uploads will NOT be backed up (see .env.example).');
+  console.log(`✔ tgcloud/lib/env.js: owner ${ownerRaw}${ownerRaw === String(DEFAULT_OWNER) ? ' (default)' : ''}, channel ${backup.shown} (${mode})${backupRaw === DEFAULT_CHANNEL ? ' = @WangerChaos (default)' : ''}, meme of the day ${motd.shown}`);
+  if (backup.code === '0') console.log('  ⚠ no channel: memes are not backed up or published.');
 }

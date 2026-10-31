@@ -68,6 +68,8 @@ export const SETTINGS = {
   trust: { key: 'set:trust', def: 5, min: 0, max: 100 },
   hide: { key: 'set:hide', def: 3, min: 0, max: 50 },
   join: { key: 'set:join', def: 1, min: 0, max: 1 },
+  likebtn: { key: 'set:likebtn', def: 1, min: 0, max: 1 },
+  motd: { key: 'set:motd', def: 1, min: 0, max: 1 },
 };
 
 /* Reports: reasons a user can pick, and how many reports one user may file per day. */
@@ -92,3 +94,19 @@ export const BAN_NOTICE_EVERY = 86400;
 
 /* Admin panel lists. */
 export const ADMIN_PAGE = 8;
+
+/* Phase 4: ranking score = uses + LIKE_WEIGHT × likes (memes.score, kept up to date). */
+export const LIKE_WEIGHT = 3;
+
+/* Leaderboards: the top N memes and uploaders of a week (Saturday to Friday, Tehran time). */
+export const LB_TOP = 5;
+
+/* Meme of the day: posted by the first update after MOTD_HOUR (Tehran) — there is no scheduler —
+   tried at most every MOTD_RETRY seconds, never the same meme twice within MOTD_NO_REPEAT days. */
+export const MOTD_HOUR = 12;
+export const MOTD_RETRY = 1800;
+export const MOTD_NO_REPEAT = 30;
+
+/* Per-day and per-week counters are kept this long, then pruned (when the meme of the day posts). */
+export const KEEP_DAYS = 14;
+export const KEEP_WEEKS = 12;

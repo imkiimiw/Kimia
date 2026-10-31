@@ -6,6 +6,7 @@
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
 import { APPROVED, PENDING, PRIVATE } from './config.js';
+import { bumpStats } from './socialstore.js';
 
 /* ---------- users ---------- */
 
@@ -81,7 +82,7 @@ export async function refundUpload(id, day) {
 
 /* ---------- memes ---------- */
 
-const MEME_COLS = sql`id, kind, file_id, file_unique_id, keywords, uploader_id, uses, created_at, status, reports`;
+const MEME_COLS = sql`id, kind, file_id, file_unique_id, keywords, uploader_id, uses, likes, score, created_at, status, reports, backup_chat_id, backup_msg_id`;
 
 export const memeByUniqueId = (uid) => db.get(sql`SELECT ${MEME_COLS} FROM memes WHERE file_unique_id = ${uid}`);
 
@@ -113,6 +114,7 @@ export async function deleteOwnMeme(id, uploaderId) {
   await db.run(sql`DELETE FROM meme_words WHERE meme_id = ${id}`);
   await db.run(sql`DELETE FROM reports WHERE meme_id = ${id}`);
   await db.run(sql`DELETE FROM favorites WHERE meme_id = ${id}`);
+  await db.run(sql`DELETE FROM likes WHERE meme_id = ${id}`);
   return true;
 }
 
@@ -152,13 +154,15 @@ export async function setBackup(id, chatId, msgId) {
   await db.run(sql`UPDATE memes SET backup_chat_id = ${chatId}, backup_msg_id = ${msgId} WHERE id = ${id}`);
 }
 
-/* Memes whose backup failed earlier (partial index idx_memes_no_backup). */
-export const pendingBackups = (before, limit) => db.all(sql`
-  SELECT id, kind, file_id FROM memes WHERE backup_msg_id IS NULL AND created_at < ${before} ORDER BY id LIMIT ${limit}`);
+/* Memes not in the channel yet (partial index idx_memes_no_backup); `onlyPublic` = approved ones only. */
+export const pendingBackups = (before, limit, onlyPublic = false) => db.all(sql`
+  SELECT id, kind, file_id, keywords, likes FROM memes
+  WHERE backup_msg_id IS NULL AND created_at < ${before} ${onlyPublic ? sql`AND status = ${APPROVED}` : sql``}
+  ORDER BY id LIMIT ${limit}`);
 
 /* ---------- inline search ---------- */
 
-const INLINE_COLS = sql`id, kind, file_id, keywords`;
+const INLINE_COLS = sql`id, kind, file_id, keywords, likes`;
 const TOP = String.fromCodePoint(0x10ffff);
 
 /* What a user may see in inline mode: public memes, plus their own memes waiting for approval and
@@ -167,7 +171,7 @@ const visibleTo = (uid) => sql`(status = ${APPROVED} OR (status IN (${PENDING}, 
 
 /* Memes matching every word: a one-letter word must equal a keyword word, a longer one is a prefix
    of one (an index range scan on uidx_meme_words; #tags are words too). Optional filters: `kind`
-   (one type) and `fav` (only the user's favourites). Ranked by usage, newest first on ties. */
+   (one type) and `fav` (only the user's favourites). Ranked by score (uses + 3 × likes), newest first on ties. */
 export function search({ words, kind = null, fav = false }, limit, offset, uid) {
   let where = visibleTo(uid);
   if (kind) where = sql`${where} AND kind = ${kind}`;
@@ -178,15 +182,15 @@ export function search({ words, kind = null, fav = false }, limit, offset, uid) 
       : sql`word >= ${w} AND word < ${w + TOP}`;
     where = sql`${where} AND id IN (SELECT meme_id FROM meme_words WHERE ${match})`;
   }
-  return db.all(sql`SELECT ${INLINE_COLS} FROM memes WHERE ${where} ORDER BY uses DESC, id DESC LIMIT ${limit} OFFSET ${offset}`);
+  return db.all(sql`SELECT ${INLINE_COLS} FROM memes WHERE ${where} ORDER BY score DESC, id DESC LIMIT ${limit} OFFSET ${offset}`);
 }
 
 export const popular = (limit, offset) => db.all(sql`
-  SELECT ${INLINE_COLS} FROM memes WHERE status = ${APPROVED} ORDER BY uses DESC, id DESC LIMIT ${limit} OFFSET ${offset}`);
+  SELECT ${INLINE_COLS} FROM memes WHERE status = ${APPROVED} ORDER BY score DESC, id DESC LIMIT ${limit} OFFSET ${offset}`);
 
 /* The memes this user sent most recently through inline mode. */
 export const recentUsed = (uid, limit) => db.all(sql`
-  SELECT m.id AS id, m.kind AS kind, m.file_id AS file_id, m.keywords AS keywords
+  SELECT m.id AS id, m.kind AS kind, m.file_id AS file_id, m.keywords AS keywords, m.likes AS likes
   FROM recent_uses r JOIN memes m ON m.id = r.meme_id
   WHERE r.user_id = ${uid} AND ${visibleTo(uid)}
   ORDER BY r.used_at DESC LIMIT ${limit}`);
@@ -201,7 +205,7 @@ export const ownLatest = (uid, limit) => db.all(sql`
 export function favList(uid, kind, limit, offset) {
   const k = kind ? sql`AND m.kind = ${kind}` : sql``;
   return db.all(sql`
-    SELECT m.id AS id, m.kind AS kind, m.file_id AS file_id, m.keywords AS keywords, m.uses AS uses, m.status AS status
+    SELECT m.id AS id, m.kind AS kind, m.file_id AS file_id, m.keywords AS keywords, m.uses AS uses, m.likes AS likes, m.status AS status
     FROM favorites f JOIN memes m ON m.id = f.meme_id
     WHERE f.user_id = ${uid} AND ${visibleTo(uid)} ${k}
     ORDER BY f.created_at DESC, f.meme_id DESC LIMIT ${limit} OFFSET ${offset}`);
@@ -244,7 +248,8 @@ export async function recordUse(uid, memeId, t, cooldown, keep) {
         SELECT used_at FROM recent_uses WHERE user_id = ${uid} ORDER BY used_at DESC LIMIT 1 OFFSET ${keep - 1})`);
   }
   if (prev && t - prev.used_at < cooldown) return false;
-  await db.run(sql`UPDATE memes SET uses = uses + 1 WHERE id = ${memeId}`);
+  const r = await db.run(sql`UPDATE memes SET uses = uses + 1, score = score + 1 WHERE id = ${memeId} RETURNING status, uploader_id`);
+  if (r.rows[0] && r.rows[0].status === APPROVED) await bumpStats(memeId, r.rows[0].uploader_id, t, 1, 0);
   return true;
 }
 

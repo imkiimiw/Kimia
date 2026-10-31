@@ -11,6 +11,7 @@
  * callback_data (≤ 64 bytes): my:<page> | mv:<id>:<page> | md / mn / mx / me / mp:<id>:<page>:<listMsgId> | ek:x
  */
 import { APPROVED, FAV_MAX, KIND_ICON, MY_PAGE, PENDING, PRIVATE } from './config.js';
+import { keywordsChanged, memePublished, memeRemoved } from './backup.js';
 import { canSee, favButton } from './collection.js';
 import { ago, num, t } from './i18n.js';
 import { firstWord } from './normalize.js';
@@ -91,7 +92,9 @@ export async function confirmDelete(ctx, userId, id, page, listId, cardId, ask) 
 
 /* mx: delete, remove the card, refresh the list it came from. */
 export async function doDelete(ctx, userId, id, page, listId, cardId) {
+  const before = await store.memeById(id);
   if (!(await store.deleteOwnMeme(id, userId))) return void (await answer(ctx, t(ctx.lang, 'my.gone'), true));
+  await memeRemoved(ctx, before);
   if (!(await remove(ctx, 'my.card.delete', cardId))) await editKeyboard(ctx, 'my.card.deleted', cardId, null);
   if (listId) await showList(ctx, userId, page, listId);
   await answer(ctx, t(ctx.lang, 'my.deleted'));
@@ -124,7 +127,12 @@ export async function onEditKeywords(ctx, user, msg, role, settings, nowSec) {
   await store.clearState(user.id);
   const backToQueue = m.status === APPROVED && status === PENDING;
   await send(ctx, 'edit.done', t(ctx.lang, backToQueue ? 'edit.done_pending' : 'edit.done', { kw: iso(kw.keywords) }));
-  if (backToQueue) await notifyQueue(ctx, nowSec);
+  if (backToQueue) {
+    await memeRemoved(ctx, m);
+    await notifyQueue(ctx, nowSec);
+  } else if (status === APPROVED) {
+    await keywordsChanged(ctx, m.id, nowSec);
+  }
   if (p.listId) await showList(ctx, user.id, p.page || 0, p.listId);
   return null;
 }
@@ -151,6 +159,7 @@ export async function publish(ctx, user, role, id, page, listId, cardId, setting
     return answer(ctx, t(ctx.lang, 'my.gone'), true);
   }
   if (status === PENDING) await notifyQueue(ctx, nowSec);
+  else await memePublished(ctx, id, nowSec);
   if (listId) {
     await editKeyboard(ctx, 'my.card', cardId, cardKeyboard(ctx, await store.memeById(id), page, listId, await store.isFav(user.id, id)));
     await showList(ctx, user.id, page, listId);

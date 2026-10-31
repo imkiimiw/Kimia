@@ -17,6 +17,7 @@
  */
 import { APPROVED, HIDDEN, PENDING, REJECTED, REPORT_REASONS, REPORTS_PER_DAY } from './config.js';
 import * as admin from './adminstore.js';
+import { memePublished, memeRemoved } from './backup.js';
 import { notifyAdmins, roleOf } from './bot.js';
 import { existingKeyboard } from './collection.js';
 import { ago, langOf, num, t } from './i18n.js';
@@ -89,6 +90,7 @@ export async function decide(ctx, from, id, approve, cardId, settings, nowSec) {
   await editKeyboard(ctx, 'adm.card.done', cardId, label(t(ctx.lang, approve ? 'adm.approved_by' : 'adm.rejected_by', { name })));
   await answer(ctx, t(ctx.lang, approve ? 'adm.approved_by' : 'adm.rejected_by', { name }));
   if (approve) {
+    await memePublished(ctx, id, nowSec);
     const n = await admin.incApproved(done.uploader_id);
     const trusted = settings.trust > 0 && n === settings.trust;
     await tellUser(ctx, done.uploader_id, 'mod.approved', { kw: iso(done.keywords) }, trusted ? 'mod.trusted' : null);
@@ -161,7 +163,10 @@ export async function resolve(ctx, from, id, action, cardId, nowSec) {
   const done = await admin.resolveReports(id, action === 'keep', from.id, nowSec);
   if (!done) return void (await answer(ctx, t(ctx.lang, 'adm.done_already'), true));
   if (action === 'ban') await banUser(done.uploader_id, from.id, nowSec);
-  if (action !== 'keep') await tellUser(ctx, done.uploader_id, 'mod.removed', { kw: iso(done.keywords) });
+  if (action !== 'keep') {
+    await memeRemoved(ctx, m);
+    await tellUser(ctx, done.uploader_id, 'mod.removed', { kw: iso(done.keywords) });
+  }
   const name = cut(from.first_name || String(from.id), 24);
   const key = { keep: 'adm.kept_by', remove: 'adm.removed_by', ban: 'adm.banned_by' }[action];
   await editKeyboard(ctx, 'adm.card.done', cardId, label(t(ctx.lang, key, { name })));
