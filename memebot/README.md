@@ -40,6 +40,16 @@ Platform limits, and what in the plan has to work differently: **[docs/PLATFORM.
 | Forced join | Optional. The owner adds up to 5 channels: @username, a t.me link, a `-100…` id, or a forwarded post. The bot must be an **admin** there; for private channels it creates an invite link. Non-members get a lock message with the channel buttons and "✅ I joined". In inline mode they get no results and a "join the channels" button (`/start join`). Membership is cached (10 min if they're a member, 15 s if not), so inline stays fast. If a channel can't be checked, it is skipped (so it can't lock everyone out) and the owner is alerted. Admins are exempt. |
 | Broadcast | 📣 → send any single message → "send to N users?" → ✅. It is copied to every user who wrote to the bot, except banned users and those who blocked it. There is no scheduler, so it goes out in batches: 25 per "▶️ Next batch", plus 5 with every other message the bot receives, until done (the owner is told). Nobody gets it twice. Telegram's rate limit (429) pauses it and it then continues. Users who blocked the bot are marked and skipped. Keep your message until it's done. |
 
+## Phase 3 — personal features
+
+| Feature | How |
+|---|---|
+| Favourites | Send or forward any meme to the bot: the reply has **⭐ Add to favourites** (for someone else's public meme there's also 🚩). Tap it again to remove it; the button changes in place. Favourites are also on `/my` and `/fav` cards. In any chat, `@bot fav` lists them, newest starred first; `@bot fav word` searches inside them. `/fav` shows a paged list, and each item opens as a card. Up to 500 per user. If a meme is deleted, it disappears from everyone's favourites. |
+| Private collection | The keywords question has **🔒 Save privately: off/on**. A private meme needs no approval and only its owner sees it, in search, on the empty-query page and in `/my` (marked 🔒). It counts toward the daily limit and is backed up like any upload. It never blocks someone else's public upload of the same file. **🌍 Publish** (on the `/my` card, or when you send it again) makes it public under the usual approval rules; if the same file is already public, you get that one as a favourite instead. |
+| Edit keywords | `/my` → a meme → **✏️ Edit keywords** → send the new ones (same rules as uploading; `/cancel` or ✖️ stops). Private and pending memes, and memes of trusted users or admins, are updated directly. A public meme of an untrusted user **goes back to the approval queue**, so approved keywords can't be swapped for spam. |
+| Hashtags | Write `#football` or `#جام_جهانی` among the keywords. `@bot #football` finds memes **tagged** that way (prefix works: `#جام`); a plain `football` finds them too. `/tags` (or ⭐/#️⃣ in the menu) lists the most used public tags; tap one to search it. |
+| Type filter | Start the query with a type word: `@bot gif lol`, `@bot گیف خنده`, `@bot sticker`, `@bot ویس`, `@bot عکس #فوتبال`. Words: photo/pic/image/عکس · gif/گیف · video/ویدیو/فیلم · sticker/استیکر · voice/ویس. It combines with favourites: `@bot fav gif`. Each locale file declares its own words in `_words`, so a new language brings its own. A type word only counts as **the first word**, so a meme can still have "gif" as a keyword. |
+
 All limits are in `tgcloud/lib/config.js`; the Phase 2 switches and thresholds are in the panel.
 
 ## Setup
@@ -87,7 +97,7 @@ repository root would act on the to-do bot.
 **Locally (no token needed):**
 
 ```bash
-npm test     # static platform checks → unit tests (normalisation, locales) → 31 end-to-end scenarios
+npm test     # static platform checks → unit tests (normalisation, query syntax, locales) → 35 end-to-end scenarios
 ```
 
 The end-to-end scenarios run the real handlers against a local stand-in for the SDK
@@ -130,13 +140,22 @@ trace still shows the results it built.
 7. 📢 Forced join → ➕ → `@yourchannel` (make the bot an admin there first). The other account gets the lock until it joins. Turn it off again if you like.
 8. 📣 Broadcast → send a test message → ✅ Send → watch the counters; press ▶️ until it says done.
 
+**Phase 3 checklist** (send `/setup` once more so the menu gets /fav and /tags):
+
+1. Forward a public meme to the bot → ⭐ → the button turns into ★. In any chat type `@yourbot fav` → it's there. `@yourbot fav gif` → only GIFs.
+2. `/fav` → open it → ★ to remove it.
+3. Send a new meme → on the keywords question tap 🔒 (it shows "on ✅") → keywords → "saved to your private collection".
+   `@yourbot <word>` finds it for you, not from another account. `/my` shows it with 🔒 → 🌍 Publish.
+4. `/my` → a meme → ✏️ Edit keywords → `گل #فوتبال`. From an untrusted account, a public meme goes back to the queue.
+5. `@yourbot #فوتبال`, `@yourbot گیف`, `@yourbot sticker`, and `/tags`.
+
 ## Layout
 
 ```
 memebot/
   tgcloud/                         deployed to Telegram Serverless
     schema.js                      users, memes, meme_words (search index), recent_uses, kv,
-                                   reports, admins, channels, broadcasts
+                                   reports, admins, channels, broadcasts, favorites
     handlers/                      message, callback_query, inline_query, chosen_inline_result → lib/router.js
     lib/
       router.js                    order of checks + table of every callback_data
@@ -147,6 +166,7 @@ memebot/
       admin.js                     admin panel: users, bans, admins, settings, channels
       review.js                    approval queue, reports (admin and user side), banUser
       join.js  broadcast.js        forced join (cached checks), resumable broadcast
+      collection.js                favourites (⭐ toggle, /fav, cards) and /tags
       store.js  adminstore.js      every database query (Phase 1 / Phase 2)
       normalize.js                 Persian normalisation and search words
       i18n.js  locales/            t(), digits, plurals; fa.js (default), en.js, index.js (add languages here)

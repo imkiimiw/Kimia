@@ -1,6 +1,6 @@
 /*
  * Welcome, help, the language picker and the hint for stray text.
- * callback_data: lang:<code>[:u] (u = show the upload help next) | m:up | m:my | m:help | m:lang
+ * callback_data: lang:<code>[:u] (u = show the upload help next) | m:up | m:my | m:fav | m:tags | m:help | m:lang
  */
 import { DAILY_UPLOADS } from './config.js';
 import { botUsername } from './bot.js';
@@ -12,6 +12,7 @@ import { cut, esc } from './util.js';
 export function mainKeyboard(lang) {
   return [
     [{ text: t(lang, 'menu.upload'), callback_data: 'm:up' }, { text: t(lang, 'menu.my'), callback_data: 'm:my' }],
+    [{ text: t(lang, 'menu.fav'), callback_data: 'm:fav' }, { text: t(lang, 'menu.tags'), callback_data: 'm:tags' }],
     [{ text: t(lang, 'menu.search'), switch_inline_query_current_chat: '' }],
     [{ text: t(lang, 'menu.lang'), callback_data: 'm:lang' }, { text: t(lang, 'menu.help'), callback_data: 'm:help' }],
   ];

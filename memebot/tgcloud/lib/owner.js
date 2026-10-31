@@ -11,7 +11,7 @@ import * as store from './store.js';
 import { call, describeError, send } from './tg.js';
 import { esc } from './util.js';
 
-const COMMANDS = ['start', 'my', 'lang', 'help', 'cancel'];
+const COMMANDS = ['start', 'my', 'fav', 'tags', 'lang', 'help', 'cancel'];
 
 export async function setup(ctx, nowSec) {
   const lines = [];

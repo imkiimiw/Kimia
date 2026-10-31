@@ -8,8 +8,10 @@
  *      SPAM_WINDOW → muted for SPAM_MUTE with one warning (admins are exempt from all three)
  *   3. /lang, and /start before a language is chosen, work without the join check
  *   4. forced join (lib/join.js): not a member → the lock message, nothing else
- *   5. a command: /start [upload|join] /help /lang /my /cancel /upload, /admin (admins), /setup (owner)
- *   6. an admin input in progress (users.state adm:*) → lib/admin.js / lib/broadcast.js
+ *   5. a command: /start [upload|join|fav] /help /lang /my /fav /tags /cancel /upload,
+ *      /admin (admins), /setup (owner)
+ *   6. an input in progress: admin (users.state adm:*) → lib/admin.js / lib/broadcast.js;
+ *      new keywords for a meme (edkw) → lib/mine.js
  *   7. a meme (photo, animation, video, sticker, voice) → upload.onMedia
  *   8. text: a meme waits for keywords → upload.onKeywords; otherwise a hint
  *   9. other content (files, audio, round videos, …) → "unsupported"; service messages → nothing
@@ -20,18 +22,23 @@
  * inline_query / chosen_inline_result → lib/inline.js (no user row is created there).
  *
  * callback_data (all ≤ 64 bytes):
- *   lang:<code>[:u]                   language picked (u: show the upload help next)   lib/menu.js
+ *   lang:<code>[:u|:f]                language picked (then u: upload help, f: favourites) lib/menu.js
  *   m:up | m:my | m:help | m:lang     main menu                                        lib/menu.js
  *   up:x:<mediaMsgId>                 cancel the pending upload of that media          lib/upload.js
+ *   up:p:<mediaMsgId>                 toggle "save privately" for that media           lib/upload.js
  *   my:<page>                         "my memes" page (edits the list)                 lib/mine.js
  *   mv:<id>:<page>                    open a meme card                                 lib/mine.js
  *   md | mn | mx:<id>:<page>:<listId> delete? / keep / delete for real                 lib/mine.js
+ *   me | mp:<id>:<page>:<listId>      edit keywords / publish a private meme            lib/mine.js
+ *   ek:x                              cancel editing keywords                          lib/mine.js
+ *   fv:<id> | fl:<page> | fo:<id>:<page>  favourite toggle / list / card                 lib/collection.js
+ *   m:fav | m:tags                    menu: favourites, hashtags                       lib/collection.js
  *   rp:<id>[:<reason>|:x]             report a meme (reasons in config.REPORT_REASONS)  lib/review.js
  *   j:chk                             "I joined" (fresh membership check)              lib/join.js
  *   a:…                               admin panel (table in lib/admin.js, lib/review.js, lib/broadcast.js)
  *   nop                               a label button (does nothing)
  */
-import { BAN_NOTICE_EVERY, SPAM_MAX, SPAM_MUTE, SPAM_WINDOW, START_UPLOAD } from './config.js';
+import { BAN_NOTICE_EVERY, SPAM_MAX, SPAM_MUTE, SPAM_WINDOW, START_FAV, START_UPLOAD } from './config.js';
 import * as adminUi from './admin.js';
 import * as adminStore from './adminstore.js';
 import * as bc from './broadcast.js';
@@ -40,6 +47,8 @@ import { isLang, langOf, t } from './i18n.js';
 import { onChosenResult, onInlineQuery } from './inline.js';
 import { checkJoin, lockKeyboard, sendLock } from './join.js';
 import { sendHelp, sendHint, sendLanguagePicker, sendUploadHow, sendWelcome } from './menu.js';
+import { showFavCard, showFavs, showTags, toggleFav } from './collection.js';
+import * as mine from './mine.js';
 import { confirmDelete, doDelete, showCard, showList } from './mine.js';
 import { setup } from './owner.js';
 import * as review from './review.js';
@@ -59,20 +68,30 @@ export function parseCommand(text) {
 async function onCommand(ctx, user, msg, cmd, role, nowSec) {
   switch (cmd.name) {
     case 'start':
-      if (!isLang(user.lang)) return sendLanguagePicker(ctx, cmd.arg === START_UPLOAD ? 'u' : '');
-      return cmd.arg === START_UPLOAD ? sendUploadHow(ctx) : sendWelcome(ctx, msg.from, nowSec);
+      if (!isLang(user.lang)) return sendLanguagePicker(ctx, { [START_UPLOAD]: 'u', [START_FAV]: 'f' }[cmd.arg] || '');
+      if (cmd.arg === START_UPLOAD) return sendUploadHow(ctx);
+      if (cmd.arg === START_FAV) return showFavs(ctx, user, 0, nowSec);
+      return sendWelcome(ctx, msg.from, nowSec);
     case 'help':
       return sendHelp(ctx, nowSec);
     case 'lang':
       return sendLanguagePicker(ctx);
     case 'my':
       return showList(ctx, user.id, 0);
+    case 'fav':
+      return showFavs(ctx, user, 0, nowSec);
+    case 'tags':
+      return showTags(ctx, nowSec);
     case 'upload':
       return sendUploadHow(ctx);
     case 'cancel':
       if (user.state && user.state.startsWith('adm:')) {
         await store.clearState(user.id);
         return send(ctx, 'cancel', t(ctx.lang, 'adm.input_cancelled'));
+      }
+      if (user.state === mine.STATE_EDIT) {
+        await store.clearState(user.id);
+        return send(ctx, 'cancel', t(ctx.lang, 'edit.cancelled'));
       }
       return send(ctx, 'cancel', t(ctx.lang, (await upload.cancel(ctx, user)) ? 'cancel.done' : 'cancel.none'));
     case 'admin':
@@ -95,6 +114,7 @@ async function onContent(ctx, user, msg, role, settings, nowSec) {
   if (upload.mediaOf(msg)) return upload.onMedia(ctx, user, msg, role, nowSec);
   if (typeof msg.text === 'string') {
     if (user.state === upload.STATE_KEYWORDS) return upload.onKeywords(ctx, user, msg, role, settings, nowSec);
+    if (user.state === mine.STATE_EDIT) return mine.onEditKeywords(ctx, user, msg, role, settings, nowSec);
     return sendHint(ctx, msg.text, nowSec);
   }
   if (OTHER_CONTENT.some((k) => msg[k] !== undefined)) await send(ctx, 'upload.unsupported', t(ctx.lang, 'upload.unsupported'));
@@ -189,7 +209,9 @@ async function onAdminButton(ctx, user, role, cq, [op, x, y], msgId, nowSec) {
 async function afterLanguage(ctx, user, role, from, next, nowSec) {
   const join = await checkJoin(ctx, user, await adminStore.getSettings(), nowSec, { role });
   if (!join.ok) return sendLock(ctx, join.missing);
-  return next === 'u' ? sendUploadHow(ctx) : sendWelcome(ctx, from, nowSec);
+  if (next === 'u') return sendUploadHow(ctx);
+  if (next === 'f') return showFavs(ctx, user, 0, nowSec);
+  return sendWelcome(ctx, from, nowSec);
 }
 
 async function onButton(ctx, user, role, cq, nowSec) {
@@ -228,8 +250,11 @@ async function onButton(ctx, user, role, cq, nowSec) {
       if (a === 'my') return showList(ctx, user.id, 0);
       if (a === 'help') return sendHelp(ctx, nowSec, msgId);
       if (a === 'lang') return sendLanguagePicker(ctx);
+      if (a === 'fav') return showFavs(ctx, user, 0, nowSec);
+      if (a === 'tags') return showTags(ctx, nowSec);
       return;
     case 'up': {
+      if (a === 'p') return int(b) === null ? answer(ctx) : upload.togglePrivate(ctx, user, int(b), msgId, nowSec);
       const done = a === 'x' && (await upload.cancel(ctx, user, int(b)));
       if (done) await edit(ctx, 'cancel', msgId, t(ctx.lang, 'cancel.done'), null);
       return answer(ctx, t(ctx.lang, done ? 'cancel.done' : 'cancel.none'));
@@ -247,6 +272,23 @@ async function onButton(ctx, user, role, cq, nowSec) {
     case 'mx':
       if (int(a) === null) return;
       return doDelete(ctx, user.id, int(a), int(b) || 0, int(c) || 0, msgId);
+    case 'me':
+      if (int(a) === null) return;
+      return mine.startEdit(ctx, user, int(a), int(b) || 0, int(c) || 0, nowSec);
+    case 'ek':
+      return mine.cancelEdit(ctx, user, msgId);
+    case 'mp':
+      if (int(a) === null) return;
+      return mine.publish(ctx, user, role, int(a), int(b) || 0, int(c) || 0, msgId, settings, nowSec);
+    case 'fv':
+      if (int(a) === null) return;
+      return toggleFav(ctx, user, int(a), cq, nowSec);
+    case 'fl':
+      await answer(ctx);
+      return showFavs(ctx, user, int(a) || 0, nowSec, msgId);
+    case 'fo':
+      if (int(a) === null) return;
+      return showFavCard(ctx, user, int(a));
     case 'rp':
       if (int(a) === null) return;
       if (b) return review.fileReport(ctx, user, int(a), b, msgId, settings, nowSec);

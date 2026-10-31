@@ -51,10 +51,16 @@ export const PENDING = 'pending';
 export const APPROVED = 'approved';
 export const HIDDEN = 'hidden';
 export const REJECTED = 'rejected';
+export const PRIVATE = 'private';
 
 /* Deep-link parameters (/start <param>) of the "upload a meme" and "join the channels" buttons. */
 export const START_UPLOAD = 'upload';
 export const START_JOIN = 'join';
+export const START_FAV = 'fav';
+
+/* Phase 3: favourites per user, hashtags listed by /tags. */
+export const FAV_MAX = 500;
+export const TAGS_TOP = 20;
 
 /* Phase 2 settings (changed in the admin panel, stored in kv): defaults and limits. */
 export const SETTINGS = {

@@ -13,6 +13,9 @@
  *    channels" button (/start join); membership is cached (lib/join.js), so this costs no Bot API
  *    call on most keystrokes.
  *  Results differ per user (own pending memes, join, ban), so every answer is is_personal.
+ *  Phase 3 query syntax (lib/normalize.js parseQuery): leading modifier words from the locales'
+ *  _words — "fav" (the user's favourites) and a type ("gif", "گیف", "sticker", …) — then words and
+ *  #tags. "@bot fav" alone lists favourites (next_offset "<n>"), with the type too if given.
  *
  * Result ids are "m<meme id>"; chosen_inline_result (BotFather /setinlinefeedback) turns them into
  * usage counts and the user's recent list.
@@ -20,15 +23,19 @@
 import {
   INLINE_CACHE, INLINE_MAX_OFFSET, INLINE_PAGE, INLINE_PERSONAL_CACHE, OWN_SHOW, RECENT_KEEP, RECENT_SHOW, START_UPLOAD, USE_COOLDOWN,
 } from './config.js';
-import { START_JOIN } from './config.js';
+import { START_FAV, START_JOIN } from './config.js';
 import * as admin from './adminstore.js';
 import { roleOf } from './bot.js';
 import { langOf, t } from './i18n.js';
 import { checkJoin } from './join.js';
-import { queryWords } from './normalize.js';
+import { LOCALES } from './locales/index.js';
+import { aliasMap, parseQuery } from './normalize.js';
 import * as store from './store.js';
 import { call, describeError } from './tg.js';
 import { cut } from './util.js';
+
+/* Modifier words of every language, built once when the module loads. */
+const ALIASES = aliasMap(LOCALES);
 
 /* Video and voice results need a title (Bot API); stickers take none. */
 export function toResult(m) {
@@ -49,12 +56,23 @@ function parseOffset(s, prefix = '') {
   return m ? Number(m[1]) : 0;
 }
 
-async function searchPage(q, words, lang) {
+/* Words, and/or a type filter, and/or "fav" with words. */
+async function searchPage(q, query, lang) {
   const off = parseOffset(q.offset);
   if (off > INLINE_MAX_OFFSET) return { results: [], next: '' };
-  const rows = await store.search(words, INLINE_PAGE + 1, off, q.from.id);
+  const rows = await store.search(query, INLINE_PAGE + 1, off, q.from.id);
   const out = { results: rows.slice(0, INLINE_PAGE), next: rows.length > INLINE_PAGE ? String(off + INLINE_PAGE) : '' };
   if (!off && !rows.length) out.button = { text: t(lang, 'inline.none'), start_parameter: START_UPLOAD };
+  return out;
+}
+
+/* "@bot fav" (optionally with a type): the user's favourites, newest starred first. */
+async function favPage(q, kind, lang) {
+  const off = parseOffset(q.offset);
+  if (off > INLINE_MAX_OFFSET) return { results: [], next: '' };
+  const rows = await store.favList(q.from.id, kind, INLINE_PAGE + 1, off);
+  const out = { results: rows.slice(0, INLINE_PAGE), next: rows.length > INLINE_PAGE ? String(off + INLINE_PAGE) : '' };
+  if (!off && !rows.length) out.button = { text: t(lang, 'inline.fav_empty'), start_parameter: START_FAV };
   return out;
 }
 
@@ -94,20 +112,24 @@ async function gate(ctx, q, user, lang, nowSec) {
 }
 
 export async function onInlineQuery(ctx, q, nowSec) {
-  const words = queryWords(q.query);
+  const query = parseQuery(q.query, ALIASES);
   const user = await store.getUser(q.from.id);
   const lang = langOf(user, q.from);
-  const page = (await gate(ctx, q, user, lang, nowSec)) || (words.length ? await searchPage(q, words, lang) : await homePage(q, lang));
+  let mode = 'home';
+  if (query.fav && !query.words.length) mode = 'fav';
+  else if (query.words.length || query.kind || query.fav) mode = 'search';
+  const page = (await gate(ctx, q, user, lang, nowSec))
+    || (mode === 'fav' ? await favPage(q, query.kind, lang) : mode === 'search' ? await searchPage(q, query, lang) : await homePage(q, lang));
   const params = {
     inline_query_id: q.id,
     results: page.results.map(toResult).filter(Boolean),
-    cache_time: words.length ? INLINE_CACHE : INLINE_PERSONAL_CACHE,
+    cache_time: mode === 'search' ? INLINE_CACHE : INLINE_PERSONAL_CACHE,
     is_personal: true,
     next_offset: page.next,
   };
   if (page.button) params.button = page.button;
   try {
-    await call(ctx, 'answerInlineQuery', params, words.length ? 'inline.search' : 'inline.home');
+    await call(ctx, 'answerInlineQuery', params, `inline.${mode}`);
   } catch (err) {
     console.warn(`answerInlineQuery failed: ${describeError(err)}`);
   }

@@ -5,7 +5,7 @@
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
-import { APPROVED, PENDING } from './config.js';
+import { APPROVED, PENDING, PRIVATE } from './config.js';
 
 /* ---------- users ---------- */
 
@@ -81,9 +81,13 @@ export async function refundUpload(id, day) {
 
 /* ---------- memes ---------- */
 
-const MEME_COLS = sql`id, kind, file_id, keywords, uploader_id, uses, created_at, status, reports`;
+const MEME_COLS = sql`id, kind, file_id, file_unique_id, keywords, uploader_id, uses, created_at, status, reports`;
 
 export const memeByUniqueId = (uid) => db.get(sql`SELECT ${MEME_COLS} FROM memes WHERE file_unique_id = ${uid}`);
+
+/* A private meme's file_unique_id column holds this key, so it never collides with a public copy. */
+export const privateKey = (userId, fileUniqueId) => `p${userId}:${fileUniqueId}`;
+export const publicKeyOf = (key) => String(key).replace(/^p\d+:/, '');
 
 export const memeById = (id) => db.get(sql`SELECT ${MEME_COLS} FROM memes WHERE id = ${id}`);
 
@@ -108,7 +112,35 @@ export async function deleteOwnMeme(id, uploaderId) {
   if (!r.rowsAffected) return false;
   await db.run(sql`DELETE FROM meme_words WHERE meme_id = ${id}`);
   await db.run(sql`DELETE FROM reports WHERE meme_id = ${id}`);
+  await db.run(sql`DELETE FROM favorites WHERE meme_id = ${id}`);
   return true;
+}
+
+async function replaceWords(id, words) {
+  await db.run(sql`DELETE FROM meme_words WHERE meme_id = ${id}`);
+  let values = null;
+  for (const w of words) values = values ? sql`${values}, (${w}, ${id})` : sql`(${w}, ${id})`;
+  if (values) await db.run(sql`INSERT OR IGNORE INTO meme_words (word, meme_id) VALUES ${values}`);
+}
+
+/* New keywords for one of the user's own memes (and its search words). `status` = the status
+   it should have afterwards. False if the meme isn't theirs. */
+export async function updateKeywords(id, uploaderId, keywords, words, status, t) {
+  const r = await db.run(sql`UPDATE memes SET keywords = ${keywords}, status = ${status}, updated_at = ${t} WHERE id = ${id} AND uploader_id = ${uploaderId}`);
+  if (!r.rowsAffected) return false;
+  await replaceWords(id, words);
+  return true;
+}
+
+/* A private meme becomes public (status pending or approved) under its real file_unique_id.
+   False if it isn't the user's private meme, or the file is public already (UNIQUE). */
+export async function publishPrivate(id, uploaderId, status, t) {
+  const m = await db.get(sql`SELECT file_unique_id FROM memes WHERE id = ${id} AND uploader_id = ${uploaderId} AND status = ${PRIVATE}`);
+  if (!m) return false;
+  const key = publicKeyOf(m.file_unique_id);
+  if (await db.get(sql`SELECT id FROM memes WHERE file_unique_id = ${key}`)) return false;
+  const r = await db.run(sql`UPDATE memes SET file_unique_id = ${key}, status = ${status}, updated_at = ${t} WHERE id = ${id} AND status = ${PRIVATE}`);
+  return r.rowsAffected > 0;
 }
 
 export const countOwn = async (uid) => (await db.get(sql`SELECT count(*) AS n FROM memes WHERE uploader_id = ${uid}`)).n;
@@ -129,13 +161,17 @@ export const pendingBackups = (before, limit) => db.all(sql`
 const INLINE_COLS = sql`id, kind, file_id, keywords`;
 const TOP = String.fromCodePoint(0x10ffff);
 
-/* What a user may see in inline mode: public memes, and their own memes still waiting for approval. */
-const visibleTo = (uid) => sql`(status = ${APPROVED} OR (status = ${PENDING} AND uploader_id = ${uid}))`;
+/* What a user may see in inline mode: public memes, plus their own memes waiting for approval and
+   their private collection. */
+const visibleTo = (uid) => sql`(status = ${APPROVED} OR (status IN (${PENDING}, ${PRIVATE}) AND uploader_id = ${uid}))`;
 
 /* Memes matching every word: a one-letter word must equal a keyword word, a longer one is a prefix
-   of one (an index range scan on uidx_meme_words). Ranked by usage, newest first on ties. */
-export function search(words, limit, offset, uid) {
+   of one (an index range scan on uidx_meme_words; #tags are words too). Optional filters: `kind`
+   (one type) and `fav` (only the user's favourites). Ranked by usage, newest first on ties. */
+export function search({ words, kind = null, fav = false }, limit, offset, uid) {
   let where = visibleTo(uid);
+  if (kind) where = sql`${where} AND kind = ${kind}`;
+  if (fav) where = sql`${where} AND id IN (SELECT meme_id FROM favorites WHERE user_id = ${uid})`;
   for (const w of words) {
     const match = Array.from(w).length === 1
       ? sql`word = ${w}`
@@ -152,12 +188,46 @@ export const popular = (limit, offset) => db.all(sql`
 export const recentUsed = (uid, limit) => db.all(sql`
   SELECT m.id AS id, m.kind AS kind, m.file_id AS file_id, m.keywords AS keywords
   FROM recent_uses r JOIN memes m ON m.id = r.meme_id
-  WHERE r.user_id = ${uid} AND (m.status = ${APPROVED} OR (m.status = ${PENDING} AND m.uploader_id = ${uid}))
+  WHERE r.user_id = ${uid} AND ${visibleTo(uid)}
   ORDER BY r.used_at DESC LIMIT ${limit}`);
 
-/* The user's own latest uploads that they may send (public or waiting for approval). */
+/* The user's own latest uploads that they may send (public, waiting for approval, or private). */
 export const ownLatest = (uid, limit) => db.all(sql`
-  SELECT ${INLINE_COLS} FROM memes WHERE uploader_id = ${uid} AND status IN (${APPROVED}, ${PENDING}) ORDER BY id DESC LIMIT ${limit}`);
+  SELECT ${INLINE_COLS} FROM memes WHERE uploader_id = ${uid} AND status IN (${APPROVED}, ${PENDING}, ${PRIVATE}) ORDER BY id DESC LIMIT ${limit}`);
+
+/* ---------- favourites (Phase 3) ---------- */
+
+/* The user's favourites they can still see, newest starred first (optionally one type). */
+export function favList(uid, kind, limit, offset) {
+  const k = kind ? sql`AND m.kind = ${kind}` : sql``;
+  return db.all(sql`
+    SELECT m.id AS id, m.kind AS kind, m.file_id AS file_id, m.keywords AS keywords, m.uses AS uses, m.status AS status
+    FROM favorites f JOIN memes m ON m.id = f.meme_id
+    WHERE f.user_id = ${uid} AND ${visibleTo(uid)} ${k}
+    ORDER BY f.created_at DESC, f.meme_id DESC LIMIT ${limit} OFFSET ${offset}`);
+}
+
+export const countFav = async (uid) => (await db.get(sql`SELECT count(*) AS n FROM favorites WHERE user_id = ${uid}`)).n;
+
+export const isFav = async (uid, memeId) => !!(await db.get(sql`SELECT meme_id FROM favorites WHERE user_id = ${uid} AND meme_id = ${memeId}`));
+
+/* Stars a meme: 'added' | 'exists' | 'full' (at most `max` per user). */
+export async function addFav(uid, memeId, t, max) {
+  if ((await countFav(uid)) >= max) return (await isFav(uid, memeId)) ? 'exists' : 'full';
+  const r = await db.run(sql`INSERT INTO favorites (user_id, meme_id, created_at) VALUES (${uid}, ${memeId}, ${t}) ON CONFLICT(user_id, meme_id) DO NOTHING`);
+  return r.rowsAffected ? 'added' : 'exists';
+}
+
+export async function removeFav(uid, memeId) {
+  const r = await db.run(sql`DELETE FROM favorites WHERE user_id = ${uid} AND meme_id = ${memeId}`);
+  return r.rowsAffected > 0;
+}
+
+/* The most used public #tags: an index range over meme_words ('#' … '$'). */
+export const topTags = (limit) => db.all(sql`
+  SELECT w.word AS tag, count(*) AS n FROM meme_words w JOIN memes m ON m.id = w.meme_id
+  WHERE w.word >= '#' AND w.word < '$' AND m.status = ${APPROVED}
+  GROUP BY w.word ORDER BY n DESC, w.word LIMIT ${limit}`);
 
 /* Records that a user sent a meme: refreshes their recent list (keeping the newest `keep`) and
    counts a use unless they sent the same meme within `cooldown` seconds. True if counted. */

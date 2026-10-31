@@ -70,7 +70,24 @@ export function normalize(text) {
 
 const clip = (w) => Array.from(w).slice(0, WORD_MAX_LEN).join('');
 
-/* Words to index for a meme's keywords: every word without its ZWNJ, plus the ZWNJ parts. */
+/* #hashtags (Phase 3): "#جام_جهانی" or "#World_Cup" anywhere in the text. A tag is normalised like
+   any word and its parts are joined with "_": "#جام_جهانی", "#world_cup". */
+const TAG_RE = /(^|[\s,.!?;:()"'«»،؛؟])#([^\s#,.!?;:()"'«»،؛؟]+)/g;
+
+export function tags(text) {
+  const out = [];
+  for (const m of String(text || '').matchAll(TAG_RE)) {
+    const body = normalize(m[2]).split(' ').map((w) => w.split(ZWNJ).join('')).filter(Boolean).join('_');
+    const tag = body ? clip(`#${body}`) : '';
+    if (tag && !out.includes(tag)) out.push(tag);
+  }
+  return out;
+}
+
+const withoutTags = (text) => String(text || '').replace(TAG_RE, '$1 ');
+
+/* Words to index for a meme's keywords: its #tags, every word without its ZWNJ (a tag's words too,
+   so "فوتبال" also finds "#فوتبال"), plus the ZWNJ parts. */
 export function indexWords(text) {
   const out = [];
   const seen = new Set();
@@ -81,6 +98,7 @@ export function indexWords(text) {
       out.push(c);
     }
   };
+  tags(text).forEach(add);
   const words = normalize(text).split(' ').filter(Boolean);
   for (const w of words) add(w.split(ZWNJ).join(''));
   for (const w of words) {
@@ -90,16 +108,46 @@ export function indexWords(text) {
   return out;
 }
 
-/* Words of an inline query (each matched as a prefix of an indexed word; one letter = exact). */
-export function queryWords(text) {
-  const out = [];
-  for (const w of normalize(text).split(' ')) {
-    const c = clip(w.split(ZWNJ).join(''));
-    if (c && !out.includes(c)) out.push(c);
-    if (out.length >= QUERY_MAX_WORDS) break;
+/* Modifier words (Phase 3) from every locale's _words ({ fav: [...], photo: [...], animation: [...] }),
+   normalised like a query, plus the star emoji for favourites: word -> 'fav' | <kind>. */
+export function aliasMap(locales) {
+  const map = { '⭐': 'fav' };
+  for (const loc of Object.values(locales)) {
+    for (const [mod, list] of Object.entries(loc._words || {})) {
+      for (const w of list) {
+        const k = normalize(w).split(' ').join('').split(ZWNJ).join('');
+        if (k) map[k] = mod;
+      }
+    }
   }
-  return out;
+  return map;
 }
+
+/*
+ * An inline query: { words, fav, kind }. Leading modifier words (see aliasMap) turn on the
+ * favourites filter ("fav") and/or a type filter ("gif", "گیف"); #tags match tags only; every other
+ * word is matched as a prefix of an indexed word (one letter = exact).
+ */
+export function parseQuery(text, aliases = {}) {
+  const words = [];
+  for (const w of normalize(withoutTags(text)).split(' ')) {
+    const c = clip(w.split(ZWNJ).join(''));
+    if (c && !words.includes(c)) words.push(c);
+  }
+  let fav = false;
+  let kind = null;
+  while (words.length && aliases[words[0]]) {
+    const mod = aliases[words[0]];
+    if (mod === 'fav' ? fav : kind) break;
+    if (mod === 'fav') fav = true;
+    else kind = mod;
+    words.shift();
+  }
+  return { fav, kind, words: [...tags(text), ...words].slice(0, QUERY_MAX_WORDS) };
+}
+
+/* The search words of a query, without modifiers. */
+export const queryWords = (text) => parseQuery(text).words;
 
 /* The keywords as shown to people: invisible characters removed (ZWNJ kept), yeh/kaf unified,
    whitespace and line breaks collapsed. */

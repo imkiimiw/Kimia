@@ -4,12 +4,20 @@
  */
 export default {
   _name: 'English',
+  _words: {
+    fav: ['fav', 'favs', 'favorites', 'favourites'],
+    photo: ['photo', 'pic', 'image'],
+    animation: ['gif', 'gifs'],
+    video: ['video'],
+    sticker: ['sticker'],
+    voice: ['voice'],
+  },
 
   'lang.prompt': '🌐 Choose the bot language:',
   'lang.saved': '✅ The bot will speak English.',
 
   'start.welcome': '😎 Hi {name}!\n\n📤 <b>Upload a meme:</b> send me a photo, GIF, video, sticker or voice message, then write a few keywords for it.\n🔎 <b>Search:</b> in any chat, type <code>@{bot} word</code> and pick a meme.',
-  'help': '❓ <b>Help</b>\n\n📤 <b>Upload:</b> send the meme (photo, GIF, video, sticker or voice) here, then write its keywords: names, the famous line, the mood. Up to {limit} memes a day.\n\n🔎 <b>Search:</b> in any chat, type <code>@{bot} word</code>. With nothing after the name you get your recent memes and the most popular ones.\n\n🛡 New memes are checked by an admin first; until then only you can see them.\n🚩 <b>Report:</b> send or forward a bad meme to me and press "🚩 Report".\n\n📂 /my — my memes (view and delete)\n🌐 /lang — change language\n✖️ /cancel — cancel an upload',
+  'help': '❓ <b>Help</b>\n\n📤 <b>Upload:</b> send the meme (photo, GIF, video, sticker or voice) here, then write its keywords: names, the famous line, the mood. Up to {limit} memes a day.\n\n🔎 <b>Search:</b> in any chat, type <code>@{bot} word</code>. With nothing after the name you get your recent memes and the most popular ones.\n\n🛡 New memes are checked by an admin first; until then only you can see them.\n🚩 <b>Report:</b> send or forward a bad meme to me and press "🚩 Report".\n⭐ <b>Favourites:</b> send me a meme and press \"⭐\"; then <code>@{bot} fav</code>.\n🔒 <b>Private:</b> turn on \"Save privately\" when uploading.\n#️⃣ <b>Hashtags:</b> <code>@{bot} #football</code> · <b>One type only:</b> <code>@{bot} gif lol</code> (photo, gif, video, sticker, voice)\n\n📂 /my — my memes (view, edit, delete)\n⭐ /fav — favourites · #️⃣ /tags — hashtags\n🌐 /lang — change language\n✖️ /cancel — cancel an upload',
 
   'menu.upload': '📤 Upload a meme',
   'menu.my': '📂 My memes',
@@ -18,7 +26,7 @@ export default {
   'menu.help': '❓ Help',
 
   'upload.how': '📤 Send your meme: a photo, GIF, video, sticker or voice message.',
-  'upload.ask': '🔤 Now write a few keywords for this meme.\nFor example: <i>character name, famous line, mood</i>\n\nThe more precise, the easier it is to find.',
+  'upload.ask': '🔤 Now write a few keywords for this meme.\nFor example: <i>character name, famous line, mood</i>; hashtags work too: <code>#football</code>\n\nThe more precise, the easier it is to find.',
   'upload.replaced': '♻️ The previous meme that was waiting for keywords was dropped.',
   'upload.cancel_btn': '✖️ Cancel',
   'upload.saved': '✅ Meme saved!\n🔤 {kw}\n\nTry it: <code>@{bot} {q}</code>\n📊 Uploads today: {used} of {limit}',
@@ -218,4 +226,43 @@ export default {
 
   'owner.join_broken': '⚠️ These channels can\'t be checked and are skipped for now:\n<code>{list}</code>\nThe bot must be an admin of the channel.',
   'cmd.admin': 'Admin panel',
+
+  'upload.private_off': '🔒 Save privately: off',
+  'upload.private_on': '🔒 Save privately: on ✅',
+  'upload.private_toast_on': '🔒 It will be saved privately (only for you).',
+  'upload.private_toast_off': '🌍 It will be saved publicly.',
+  'upload.saved_private': '🔒 Saved to your private collection: only you can see it, no approval needed.\n🔤 {kw}\n\nTry it: <code>@{bot} {q}</code>\n📊 Uploads today: {used} of {limit}',
+  'upload.dup_private': '🔒 This meme is in your private collection.\n🔤 {kw}',
+  'status.private': '🔒 private',
+
+  'fav.add_btn': '⭐ Add to favourites',
+  'fav.remove_btn': '★ Remove from favourites',
+  'fav.added': '⭐ Added to favourites.',
+  'fav.removed': 'Removed from favourites.',
+  'fav.full': 'You can have at most {n} favourites.',
+  'fav.gone': 'This meme is no longer available.',
+  'fav.empty': '⭐ No favourites yet.\nSend or forward a meme you like to me and press "⭐"; then send it in any chat with <code>@{bot} fav</code>.',
+  'fav.title': '⭐ <b>Favourites</b> ({n})\nIn any chat: <code>@{bot} fav</code>\nPage {p} of {pages}',
+  'fav.card': '🔤 {kw}',
+  'inline.fav_empty': '⭐ No favourites yet: tap to see how',
+
+  'tags.empty': '#️⃣ No hashtags yet. Add them to keywords when uploading, e.g. <code>#football</code>.',
+  'tags.title': '#️⃣ <b>Popular hashtags</b>\nTap one to search it. In any chat: <code>@{bot} #tag</code>',
+
+  'edit.btn': '✏️ Edit keywords',
+  'edit.ask': '✏️ Send the new keywords for this meme (hashtags work too).\nNow: {kw}',
+  'edit.done': '✅ Keywords updated:\n🔤 {kw}',
+  'edit.done_pending': '✅ Keywords updated; the meme waits for an admin\'s approval again:\n🔤 {kw}',
+  'edit.cancelled': '✖️ Editing cancelled.',
+
+  'publish.btn': '🌍 Publish',
+  'publish.done': '🌍 The meme is public now and everyone can find it.',
+  'publish.done_pending': '🌍 The meme waits for an admin\'s approval to go public.',
+  'publish.exists': 'This meme is already public in the bot; it was added to your favourites.',
+
+  'menu.fav': '⭐ Favourites',
+  'menu.tags': '#️⃣ Hashtags',
+  'cmd.fav': 'Favourites',
+  'cmd.tags': 'Popular hashtags',
+  'edit.locked': 'This meme can\'t be edited right now.',
 };

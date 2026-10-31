@@ -2,7 +2,8 @@
 // placeholders, valid HTML in every language).
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { cleanKeywords, firstWord, indexWords, normalize, queryWords } from '../tgcloud/lib/normalize.js';
+import { aliasMap, cleanKeywords, firstWord, indexWords, normalize, parseQuery, queryWords, tags } from '../tgcloud/lib/normalize.js';
+import { KINDS } from '../tgcloud/lib/config.js';
 import { LOCALES, DEFAULT_LANG } from '../tgcloud/lib/locales/index.js';
 import { ago, langOf, num, t } from '../tgcloud/lib/i18n.js';
 import { parseHtml } from './mock-telegram.mjs';
@@ -112,4 +113,29 @@ test('inline results: video and voice get a title, stickers none', () => {
   assert.equal(m('animation').type, 'gif');
   assert.ok(m('video').title && m('voice').title);
   assert.deepEqual(m('sticker'), { type: 'sticker', id: 'm7', sticker_file_id: 'F' });
+});
+
+test('hashtags: extracted anywhere, normalised, parts joined with _; indexed first, their words too', () => {
+  assert.deepEqual(tags('گل زیبا #جام_جهانی، #فوتبالي! #World_Cup x#no #'), ['#جام_جهانی', '#فوتبالی', '#world_cup']);
+  assert.deepEqual(indexWords('گل #فوتبال'), ['#فوتبال', 'گل', 'فوتبال']);
+  assert.deepEqual(queryWords('#فوتبال'), ['#فوتبال'], 'a #tag query matches tags only');
+  assert.deepEqual(queryWords('#فوت گل'), ['#فوت', 'گل']);
+});
+
+test('query modifiers come from every locale\'s _words: fav and a type, in any order, once each', () => {
+  const A = aliasMap(LOCALES);
+  for (const loc of Object.values(LOCALES)) {
+    assert.ok(loc._words, `${loc._name}: _words`);
+    for (const k of Object.keys(loc._words)) assert.ok(k === 'fav' || KINDS.includes(k), `${loc._name}: _words.${k}`);
+  }
+  assert.deepEqual(parseQuery('gif خنده', A), { fav: false, kind: 'animation', words: ['خنده'] });
+  assert.deepEqual(parseQuery('گیف', A), { fav: false, kind: 'animation', words: [] });
+  assert.deepEqual(parseQuery('fav', A), { fav: true, kind: null, words: [] });
+  assert.deepEqual(parseQuery(`علاقه${ZWNJ}مندی${ZWNJ}ها استیکر سلام`, A), { fav: true, kind: 'sticker', words: ['سلام'] });
+  assert.deepEqual(parseQuery('⭐️ ویدیو', A), { fav: true, kind: 'video', words: [] });
+  assert.deepEqual(parseQuery('fav fav', A), { fav: true, kind: null, words: [] }, 'repeated words count once');
+  assert.deepEqual(parseQuery('gif sticker', A), { fav: false, kind: 'animation', words: ['sticker'] }, 'one type: the second is a word');
+  assert.deepEqual(parseQuery('#فوتبال گیف', A), { fav: false, kind: 'animation', words: ['#فوتبال'] });
+  assert.deepEqual(parseQuery('خنده gif', A), { fav: false, kind: null, words: ['خنده', 'gif'] }, 'modifiers lead');
+  assert.deepEqual(parseQuery('عکس', A).kind, 'photo');
 });

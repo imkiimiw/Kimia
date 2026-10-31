@@ -39,8 +39,11 @@ export const users = table('users', {
 }));
 
 /* The memes. kind: photo | animation | video | sticker | voice.
-   status: pending (only the uploader sees it) | approved (public) | hidden (by reports, until reviewed) | rejected.
-   The column default is a Phase 1 leftover (changing it would rebuild the table): inserts always set it. */
+   status: pending (only the uploader sees it) | approved (public) | hidden (by reports, until reviewed) |
+   rejected | private (Phase 3: the uploader's private collection, never public, no approval).
+   file_unique_id is UNIQUE: a private meme stores "p<uploader id>:<file_unique_id>" there, so a
+   private copy never blocks a public upload of the same file (lib/store.js privateKey).
+   The status default is a Phase 1 leftover (changing it would rebuild the table): inserts always set it. */
 export const memes = table('memes', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   fileId: text('file_id').notNull(),
@@ -64,6 +67,7 @@ export const memes = table('memes', {
   noBackup: index('idx_memes_no_backup').on(t.id).where(sql`backup_msg_id IS NULL`),
   byStatus: index('idx_memes_status').on(t.status, t.id),
   reported: index('idx_memes_reported').on(t.reports, t.id).where(sql`reports > 0`),
+  byKind: index('idx_memes_kind').on(t.status, t.kind, t.uses, t.id),
 }));
 
 /* Search index: one row per normalised keyword word per meme (lib/normalize.js). */
@@ -134,4 +138,15 @@ export const broadcasts = table('broadcasts', {
   retryAt: integer('retry_at').notNull().default(0),
 }, (t) => ({
   byStatus: index('idx_broadcasts_status').on(t.status, t.id),
+}));
+
+/* Phase 3: favourites (a user's starred memes, theirs or anyone's public ones). */
+export const favorites = table('favorites', {
+  userId: integer('user_id').notNull(),
+  memeId: integer('meme_id').notNull(),
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  pair: uniqueIndex('uidx_favorites').on(t.userId, t.memeId),
+  byTime: index('idx_favorites_time').on(t.userId, t.createdAt),
+  byMeme: index('idx_favorites_meme').on(t.memeId),
 }));

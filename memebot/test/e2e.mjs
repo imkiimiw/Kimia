@@ -120,11 +120,12 @@ async function upload(u, kind, uid, keywords) {
   return row.id;
 }
 
-async function press(u, data, messageId) {
+/** A button press. `markup` = the pressed message's keyboard, which Telegram sends along. */
+async function press(u, data, messageId, markup = null) {
   since();
   const id = `cb${seq++}`;
   pressed.push(id);
-  const cq = { id, from: u, chat_instance: 'ci', data, message: { message_id: messageId, chat: { id: u.id, type: 'private' }, date: nowSec() } };
+  const cq = { id, from: u, chat_instance: 'ci', data, message: { message_id: messageId, chat: { id: u.id, type: 'private' }, date: nowSec(), ...(markup ? { reply_markup: markup } : {}) } };
   const r = check(await onCallback(cq));
   const calls = since();
   const answers = calls.filter((c) => c.method === 'answerCallbackQuery' && c.params.callback_query_id === id);
@@ -168,7 +169,7 @@ scenario('first /start asks for the language in every language; picking it shows
   const welcome = sends(r.calls)[0];
   assert.match(welcome.params.text, /@meme_test_bot/);
   assert.match(welcome.params.text, /سلام Ali/);
-  assert.deepEqual(buttons(welcome).map((b) => b.callback_data || 'inline'), ['m:up', 'm:my', 'inline', 'm:lang', 'm:help']);
+  assert.deepEqual(buttons(welcome).map((b) => b.callback_data || 'inline'), ['m:up', 'm:my', 'm:fav', 'm:tags', 'inline', 'm:lang', 'm:help']);
   assert.equal(one('SELECT lang FROM users WHERE id = ?', U.ali.id).lang, 'fa');
 });
 
@@ -193,7 +194,7 @@ scenario('upload a photo: asks for keywords, saves file ids only, forwards to th
   const ask = sends(m.calls)[0];
   assert.match(ask.params.text, /کلمه‌ی کلیدی/);
   assert.equal(ask.params.reply_parameters.message_id, m.message.message_id);
-  assert.deepEqual(buttons(ask).map((b) => b.callback_data), [`up:x:${m.message.message_id}`]);
+  assert.deepEqual(buttons(ask).map((b) => b.callback_data), [`up:p:${m.message.message_id}`, `up:x:${m.message.message_id}`]);
   assert.equal(one('SELECT state FROM users WHERE id = ?', U.ali.id).state, 'kw');
 
   const k = await say(U.ali, `  گربه${ZWNJ}ي عصباني ۲  `);
@@ -440,7 +441,7 @@ scenario('my memes: pages, card, delete with confirmation, list refreshed; nobod
   assert.equal(photo.params.chat_id, U.reza.id);
   assert.match(photo.params.caption, /بار ارسال شده/);
   const cardId = photo.result.message_id;
-  assert.deepEqual(buttons(photo).map((b) => b.callback_data || 'inline'), [`md:${target}:0:${listId}`, 'inline']);
+  assert.deepEqual(buttons(photo).map((b) => b.callback_data || 'inline'), [`md:${target}:0:${listId}`, 'inline', `me:${target}:0:${listId}`, `fv:${target}`]);
 
   const ask = await press(U.reza, `md:${target}:0:${listId}`, cardId);
   assert.deepEqual(buttons(ask.calls.find((c) => c.method === 'editMessageReplyMarkup')).map((b) => b.callback_data), [`mx:${target}:0:${listId}`, `mn:${target}:0:${listId}`]);
@@ -518,10 +519,10 @@ scenario('owner /setup: commands and descriptions in both languages, inline mode
   const { calls } = await say(U.owner, '/setup');
   const fa = mock.state.botTexts.get('');
   const en = mock.state.botTexts.get('en');
-  assert.deepEqual(fa.commands.map((c) => c.command), ['start', 'my', 'lang', 'help', 'cancel']);
+  assert.deepEqual(fa.commands.map((c) => c.command), ['start', 'my', 'fav', 'tags', 'lang', 'help', 'cancel']);
   assert.equal(fa.commands[1].description, 'میم‌های من');
   assert.equal(en.commands[1].description, 'My memes');
-  assert.deepEqual(mock.state.botTexts.get(`chat:${OWNER}/`).commands.map((c) => c.command), ['start', 'my', 'lang', 'help', 'cancel', 'admin'], 'the owner\'s own menu has /admin');
+  assert.deepEqual(mock.state.botTexts.get(`chat:${OWNER}/`).commands.map((c) => c.command), ['start', 'my', 'fav', 'tags', 'lang', 'help', 'cancel', 'admin'], 'the owner\'s own menu has /admin');
   assert.ok(fa.description && en.short);
   const report = lastText(calls);
   assert.match(report, /حالت اینلاین روشنه/);
@@ -691,7 +692,7 @@ scenario('phase 2 — reports: send someone\'s public meme to the bot and pick a
   const id = memeId('U1');
   const r = await media(U.sara, 'photo', 'U1');
   const msg = sends(r.calls)[0];
-  assert.deepEqual(buttons(msg).map((b) => b.callback_data), [`rp:${id}`]);
+  assert.deepEqual(buttons(msg).map((b) => b.callback_data), [`fv:${id}`, `rp:${id}`]);
   const pick = await press(U.sara, `rp:${id}`, msg.result.message_id);
   assert.deepEqual(buttons(pick.calls.find((c) => c.method === 'editMessageReplyMarkup')).map((b) => b.callback_data), [`rp:${id}:nsfw`, `rp:${id}:hate`, `rp:${id}:spam`, `rp:${id}:other`, `rp:${id}:x`]);
   await press(U.sara, `rp:${id}:x`, msg.result.message_id);
@@ -701,7 +702,7 @@ scenario('phase 2 — reports: send someone\'s public meme to the bot and pick a
   assert.match(toUser(done.calls, OWNER)[0].params.text, /گزارش‌شده منتظر بررسیه/);
   assert.equal((await press(U.sara, `rp:${id}:spam`, msg.result.message_id)).answer.text, 'قبلاً این میم رو گزارش کردی.');
   const own = await media(U.ali, 'photo', 'U1');
-  assert.deepEqual(buttons(sends(own.calls)[0]), [], 'no report button on your own meme');
+  assert.deepEqual(buttons(sends(own.calls)[0]).map((b) => b.callback_data), [`fv:${id}`], 'no report button on your own meme');
   assert.equal((await press(U.ali, `rp:${id}`, 1)).answer.text, 'میم خودت رو نمی‌تونی گزارش کنی.');
   assert.equal((await press(U.ali, `rp:${id}:spam`, 1)).answer.text, 'این میم دیگه قابل گزارش نیست.');
   await press(U.joe, `rp:${id}:hate`, 1);
@@ -898,6 +899,171 @@ scenario('phase 2 — broadcast: draft, confirm, batches of 25, a 429 waits and 
   await press(U.owner, 'a:bc', p.result.message_id);
   assert.match(lastText((await say(U.owner, '/cancel')).calls), /لغو شد/);
   assert.equal(one('SELECT state FROM users WHERE id = ?', OWNER).state, null);
+});
+
+// ---------- Phase 3: favourites, private collection, editing keywords, hashtags, type filter ----------
+
+const markupOf = (call) => call.params.reply_markup;
+const favCount = (uid) => one('SELECT count(*) AS n FROM favorites WHERE user_id = ?', uid).n;
+
+scenario('phase 3 — favourites: star a meme by sending it, the button flips in place, @bot fav, /fav list and card, unstar', async () => {
+  const gif = memeId('U2');
+  const voice = memeId('U5');
+  const d = await media(U.sara, 'animation', 'U2');
+  const msg = sends(d.calls)[0];
+  assert.deepEqual(buttons(msg).map((b) => b.callback_data), [`fv:${gif}`, `rp:${gif}`]);
+  const star = await press(U.sara, `fv:${gif}`, msg.result.message_id, markupOf(msg));
+  assert.equal(star.answer.text, '⭐ به علاقه‌مندی‌ها اضافه شد.');
+  const flipped = buttons(star.calls.find((c) => c.method === 'editMessageReplyMarkup'));
+  assert.deepEqual(flipped.map((b) => [b.text, b.callback_data]), [['★ حذف از علاقه‌مندی‌ها', `fv:${gif}`], ['🚩 گزارش این میم', `rp:${gif}`]]);
+  advance(5);
+  const v = sends((await media(U.sara, 'voice', 'U5')).calls)[0];
+  await press(U.sara, `fv:${voice}`, v.result.message_id, markupOf(v));
+  assert.equal(favCount(U.sara.id), 2);
+
+  const fav = await inline(U.sara, 'fav');
+  assert.deepEqual(fav.ids, [`m${voice}`, `m${gif}`], 'newest starred first');
+  assert.equal(fav.p.is_personal, true);
+  assert.deepEqual((await inline(U.sara, '⭐️ گیف')).ids, [`m${gif}`], 'favourites of one type');
+  assert.deepEqual((await inline(U.sara, `علاقه‌مندی رقص`)).ids, [`m${gif}`], 'favourites matching words');
+  const none = await inline(U.nima, 'fav');
+  assert.deepEqual([none.ids, none.p.button.start_parameter], [[], 'fav']);
+  const pick = sends((await say(U.nima, '/start fav')).calls)[0];
+  assert.deepEqual(buttons(pick).map((b) => b.callback_data), ['lang:fa:f', 'lang:en:f'], 'no language yet: the picker remembers where to go');
+  assert.match(lastText((await press(U.nima, 'lang:fa:f', pick.result.message_id)).calls), /هنوز علاقه‌مندی نداری/);
+  assert.match(lastText((await say(U.nima, '/start fav')).calls), /هنوز علاقه‌مندی نداری/);
+
+  const list = sends((await say(U.sara, '/fav')).calls)[0];
+  assert.match(list.params.text, /علاقه‌مندی‌ها<\/b> \(۲\)/);
+  assert.deepEqual(buttons(list).map((b) => b.callback_data), [`fo:${voice}:0`, `fo:${gif}:0`]);
+  const card = (await press(U.sara, `fo:${gif}:0`, list.result.message_id)).calls.find((c) => c.method === 'sendAnimation');
+  assert.deepEqual(buttons(card).map((b) => b.callback_data || 'inline'), [`fv:${gif}`, 'inline']);
+  const off = await press(U.sara, `fv:${gif}`, card.result.message_id, markupOf(card));
+  assert.equal(off.answer.text, 'از علاقه‌مندی‌ها حذف شد.');
+  assert.deepEqual((await inline(U.sara, 'fav')).ids, [`m${voice}`]);
+
+  assert.deepEqual([(await press(U.sara, `fv:${memeId('U3')}`, 1)).answer.text], ['این میم دیگه در دسترس نیست.'], 'a removed meme can\'t be starred');
+  const t0 = nowSec();
+  const ins = rawDatabase().prepare('INSERT INTO favorites (user_id, meme_id, created_at) VALUES (?, ?, ?)');
+  for (let i = 0; i < 500; i += 1) ins.run(U.joe.id, 100000 + i, t0);
+  assert.equal((await press(U.joe, `fv:${gif}`, 1)).answer.text, 'You can have at most 500 favourites.');
+
+  const m4 = memeId('M4');
+  await press(U.sara, `fv:${m4}`, 1);
+  assert.equal(one('SELECT count(*) AS n FROM favorites WHERE meme_id = ?', m4).n, 1);
+  await press(U.mina, `mx:${m4}:0:0`, 1);
+  assert.equal(one('SELECT count(*) AS n FROM favorites WHERE meme_id = ?', m4).n, 0, 'deleting a meme removes it from favourites');
+});
+
+scenario('phase 3 — private collection: switch on the keywords question; only the owner sees it, no approval; a public copy is still possible; publish later', async () => {
+  const pendingBefore = one("SELECT count(*) AS n FROM memes WHERE status = 'pending'").n;
+  const m = await media(U.sara, 'photo', 'PV1');
+  const ask = sends(m.calls)[0];
+  const on = await press(U.sara, `up:p:${m.message.message_id}`, ask.result.message_id);
+  assert.match(buttons(on.calls.find((c) => c.method === 'editMessageReplyMarkup'))[0].text, /روشن ✅/);
+  assert.match(on.answer.text, /خصوصی ذخیره/);
+  await press(U.sara, `up:p:${m.message.message_id}`, ask.result.message_id);
+  await press(U.sara, `up:p:${m.message.message_id}`, ask.result.message_id);
+  assert.equal((await press(U.sara, 'up:p:999', ask.result.message_id)).answer.show_alert, true, 'a stale switch does nothing');
+  const k = await say(U.sara, 'خصوصی من');
+  const row = one('SELECT * FROM memes WHERE file_unique_id = ?', `p${U.sara.id}:PV1`);
+  assert.equal(row.status, 'private');
+  assert.match(toUser(k.calls, U.sara.id).pop().params.text, /مجموعه‌ی خصوصی/);
+  assert.deepEqual(toUser(k.calls, OWNER), [], 'no admin is told');
+  assert.ok(k.calls.some((c) => c.method === 'forwardMessage'), 'backed up like every upload');
+  assert.equal(one("SELECT count(*) AS n FROM memes WHERE status = 'pending'").n, pendingBefore, 'not in the queue');
+  assert.deepEqual((await inline(U.sara, 'خصوصی')).ids, [`m${row.id}`]);
+  assert.deepEqual((await inline(U.ali, 'خصوصی')).ids, []);
+  assert.ok((await inline(U.sara, '')).ids.includes(`m${row.id}`));
+  assert.match(buttons(sends((await say(U.sara, '/my')).calls)[0])[0].text, /^🔒/);
+  const again = sends((await media(U.sara, 'photo', 'PV1')).calls)[0];
+  assert.match(again.params.text, /مجموعه‌ی خصوصی خودته/);
+  assert.deepEqual(buttons(again).map((b) => b.callback_data), [`mp:${row.id}:0:0`]);
+
+  await upload(U.ali, 'photo', 'PV1', 'عمومی علی');
+  const pub = one('SELECT * FROM memes WHERE file_unique_id = ?', 'PV1');
+  assert.equal(pub.status, 'pending', 'someone else can still upload the same file publicly');
+
+  await media(U.sara, 'photo', 'PV2');
+  const ask2 = sends(mock.state.calls.slice(-3)).pop();
+  await press(U.sara, `up:p:${ask2.params.reply_markup.inline_keyboard[1][0].callback_data.split(':')[2]}`, ask2.result.message_id);
+  await say(U.sara, 'دومی خصوصی');
+  const pv2 = one('SELECT id, status FROM memes WHERE file_unique_id = ?', `p${U.sara.id}:PV2`);
+  assert.equal(pv2.status, 'private');
+  const pubBtn = await press(U.sara, `mp:${pv2.id}:0:0`, 1);
+  assert.equal(pubBtn.answer.text, '🌍 میم برای انتشار عمومی منتظر تأیید ادمینه.');
+  assert.deepEqual(Object.values(one('SELECT status, file_unique_id FROM memes WHERE id = ?', pv2.id)), ['pending', 'PV2']);
+
+  const qc = (await press(U.owner, 'a:q', 1)).calls.find((c) => c.method === 'sendPhoto');
+  assert.match(qc.params.caption, new RegExp(`#m${pub.id}`));
+  await press(U.owner, `a:ok:${pub.id}`, qc.result.message_id);
+  const exists = await press(U.sara, `mp:${row.id}:0:0`, 1);
+  assert.equal(exists.answer.text, 'این میم قبلاً به‌صورت عمومی توی رباته؛ به علاقه‌مندی‌هات اضافه شد.');
+  assert.ok(one('SELECT meme_id FROM favorites WHERE user_id = ? AND meme_id = ?', U.sara.id, pub.id));
+  assert.equal(one('SELECT status FROM memes WHERE id = ?', row.id).status, 'private', 'the private copy stays');
+});
+
+scenario('phase 3 — edit keywords from the /my card: public memes of untrusted users go back to the queue; trusted, pending and private edit freely', async () => {
+  const pv2 = one('SELECT id FROM memes WHERE file_unique_id = ?', 'PV2').id;
+  const ask = await press(U.sara, `me:${pv2}:0:0`, 1);
+  const prompt = sends(ask.calls)[0];
+  assert.match(prompt.params.text, /کلمه‌های کلیدی جدید/);
+  assert.match(prompt.params.text, /دومی خصوصی/);
+  assert.equal(one('SELECT state FROM users WHERE id = ?', U.sara.id).state, 'edkw');
+  assert.match(lastText((await say(U.sara, 'see t.me/x')).calls), /لینک و آیدی/);
+  assert.equal(one('SELECT state FROM users WHERE id = ?', U.sara.id).state, 'edkw', 'still waiting after a refused text');
+  const done = await say(U.sara, 'جدید #تست');
+  assert.match(lastText(done.calls), /به‌روز شد/);
+  assert.equal(one('SELECT keywords FROM memes WHERE id = ?', pv2).keywords, 'جدید #تست');
+  assert.ok(one('SELECT word FROM meme_words WHERE meme_id = ? AND word = ?', pv2, '#تست'));
+  assert.equal(one('SELECT count(*) AS n FROM meme_words WHERE meme_id = ? AND word = ?', pv2, 'دومی').n, 0, 'old words gone');
+  assert.equal(one('SELECT status FROM memes WHERE id = ?', pv2).status, 'pending');
+
+  const sticker = memeId('U4');
+  assert.ok(one('SELECT approved_n FROM users WHERE id = ?', U.ali.id).approved_n < 2, 'ali is not trusted (trust = 2)');
+  await press(U.ali, `me:${sticker}:0:0`, 1);
+  const back = await say(U.ali, 'سلام دوباره 😂');
+  assert.match(lastText(back.calls), /دوباره منتظر تأیید/);
+  assert.equal(one('SELECT status FROM memes WHERE id = ?', sticker).status, 'pending', 'untrusted: back to the queue');
+
+  const m1 = memeId('M1');
+  await press(U.mina, `me:${m1}:0:0`, 1);
+  await say(U.mina, 'مینا ویرایش');
+  assert.deepEqual(Object.values(one('SELECT status, keywords FROM memes WHERE id = ?', m1)), ['approved', 'مینا ویرایش'], 'trusted: stays public');
+
+  await press(U.mina, `me:${m1}:0:0`, 1);
+  assert.match(lastText((await say(U.mina, '/cancel')).calls), /ویرایش لغو شد/);
+  await press(U.mina, `me:${m1}:0:0`, 1);
+  const cx = await press(U.mina, 'ek:x', 1);
+  assert.equal(one('SELECT state FROM users WHERE id = ?', U.mina.id).state, null);
+  assert.ok(cx);
+  assert.equal((await press(U.sara, `me:${m1}:0:0`, 1)).answer.text, 'این میم دیگه وجود نداره.', 'not yours');
+  assert.equal((await press(U.mina, `me:${memeId('M2')}:0:0`, 1)).answer.text, 'این میم الان قابل ویرایش نیست.', 'rejected');
+});
+
+scenario('phase 3 — hashtags and type filter: #tag finds tags only, words find tagged memes, /tags lists public tags, type words in both languages', async () => {
+  await upload(U.mina, 'photo', 'H1', 'گل زیبا #فوتبال #جام_جهانی');
+  await upload(U.mina, 'animation', 'H2', 'گل دیدنی #فوتبال');
+  const h1 = memeId('H1');
+  const h2 = memeId('H2');
+  assert.deepEqual([h1, h2].map((id) => one('SELECT status FROM memes WHERE id = ?', id).status), ['approved', 'approved']);
+  assert.deepEqual((await inline(U.nima, '#فوتبال')).ids, [`m${h2}`, `m${h1}`]);
+  assert.deepEqual((await inline(U.nima, '#جام')).ids, [`m${h1}`]);
+  assert.deepEqual((await inline(U.nima, '#جام_جهانی')).ids, [`m${h1}`]);
+  assert.ok((await inline(U.nima, 'فوتبال')).ids.includes(`m${h1}`), 'the tag\'s word is searchable too');
+  assert.deepEqual((await inline(U.nima, 'gif #فوتبال')).ids, [`m${h2}`]);
+  assert.deepEqual((await inline(U.nima, 'عکس #فوتبال')).ids, [`m${h1}`]);
+  const gifs = await inline(U.nima, 'گیف');
+  assert.ok(gifs.ids.length > 0 && gifs.p.results.every((r) => r.type === 'gif'), 'only GIFs');
+  assert.ok(gifs.queries <= 3, `type filter used ${gifs.queries} queries`);
+  assert.ok((await inline(U.nima, 'sticker')).p.results.every((r) => r.type === 'sticker'));
+  assert.ok((await inline(U.ann, 'voice')).p.results.every((r) => r.type === 'voice'));
+
+  const tagsMsg = sends((await say(U.nima, '/tags')).calls)[0];
+  const tagButtons = buttons(tagsMsg).map((b) => [b.text, b.switch_inline_query_current_chat]);
+  assert.deepEqual(tagButtons.slice(0, 2), [['#فوتبال · ۲', '#فوتبال'], ['#جام_جهانی · ۱', '#جام_جهانی']]);
+  assert.ok(!tagButtons.some(([, q]) => q === '#تست'), 'tags of non-public memes are not listed');
+  assert.match(lastText((await press(U.nima, 'm:tags', 1)).calls), /هشتگ‌های پرکاربرد/);
 });
 
 // ---------- run ----------

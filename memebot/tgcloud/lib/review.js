@@ -18,6 +18,7 @@
 import { APPROVED, HIDDEN, PENDING, REJECTED, REPORT_REASONS, REPORTS_PER_DAY } from './config.js';
 import * as admin from './adminstore.js';
 import { notifyAdmins, roleOf } from './bot.js';
+import { existingKeyboard } from './collection.js';
 import { ago, langOf, num, t } from './i18n.js';
 import * as store from './store.js';
 import { answer, captionable, editKeyboard, send, sendMeme } from './tg.js';
@@ -170,8 +171,6 @@ export async function resolve(ctx, from, id, action, cardId, nowSec) {
 
 /* ---------- users reporting a meme (they sent or forwarded it to the bot) ---------- */
 
-export const reportButton = (lang, id) => [[{ text: t(lang, 'report.btn'), callback_data: `rp:${id}` }]];
-
 /* rp:<id> — show the reasons on the same message. */
 export async function pickReason(ctx, user, id, msgId) {
   const m = await store.memeById(id);
@@ -187,16 +186,17 @@ export async function pickReason(ctx, user, id, msgId) {
 
 /* rp:<id>:<reason> — file the report; enough distinct reports hide the meme until reviewed. */
 export async function fileReport(ctx, user, id, reason, msgId, settings, nowSec) {
+  const m = await store.memeById(id);
+  const restore = async (withReport) => editKeyboard(ctx, 'report.keyboard', msgId, m ? existingKeyboard(ctx.lang, m, user.id, await store.isFav(user.id, id), withReport) : null);
   if (reason === 'x') {
-    await editKeyboard(ctx, 'report.cancel', msgId, reportButton(ctx.lang, id));
+    await restore(true);
     return answer(ctx);
   }
   if (!REPORT_REASONS.includes(reason)) return answer(ctx);
-  const m = await store.memeById(id);
   if (!m || (m.status !== APPROVED && m.status !== HIDDEN) || m.uploader_id === user.id) return answer(ctx, t(ctx.lang, 'report.gone'), true);
   if (!(await admin.consumeReport(user.id, tehranDay(nowSec), REPORTS_PER_DAY))) return answer(ctx, t(ctx.lang, 'report.limit'), true);
   const count = await admin.addReport(id, user.id, reason, nowSec);
-  await editKeyboard(ctx, 'report.done', msgId, null);
+  await restore(false);
   if (count === null) return answer(ctx, t(ctx.lang, 'report.again'), true);
   if (settings.hide > 0 && count >= settings.hide) await admin.hideReported(id, nowSec);
   await answer(ctx, t(ctx.lang, 'report.done'), true);
