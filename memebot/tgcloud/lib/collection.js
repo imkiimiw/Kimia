@@ -23,6 +23,7 @@ import { botUsername } from './bot.js';
 import { num, t } from './i18n.js';
 import { firstWord } from './normalize.js';
 import * as social from './socialstore.js';
+import { bumpDay } from './statsstore.js';
 import * as store from './store.js';
 import { answer, call, captionable, edit, editKeyboard, keyboard, send, sendMeme } from './tg.js';
 import { cut, esc, iso } from './util.js';
@@ -81,6 +82,7 @@ export async function toggleLike(ctx, user, id, cq, nowSec) {
   if (m.uploader_id === user.id) return answer(ctx, t(ctx.lang, 'like.own'), true);
   const r = await social.toggleLike(user.id, id, nowSec);
   if (!r) return answer(ctx, t(ctx.lang, 'like.gone'), true);
+  if (r.liked) await bumpDay('like', nowSec);
   const button = likeButton(id, r.likes);
   if (cq.inline_message_id) {
     try {

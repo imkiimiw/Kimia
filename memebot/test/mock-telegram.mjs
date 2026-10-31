@@ -272,6 +272,7 @@ export function createMockTelegram({ botId = 7100000001, botUsername = 'meme_tes
         if (b.start_parameter !== undefined && !/^[A-Za-z0-9_-]{1,64}$/.test(b.start_parameter)) return err(400, 'Bad Request: START_PARAM_INVALID');
       }
       state.answeredInline.set(p.inline_query_id, p);
+      if (state.onInlineAnswer) state.onInlineAnswer(p);
       return ok(true);
     },
     forwardMessage: (p) => {

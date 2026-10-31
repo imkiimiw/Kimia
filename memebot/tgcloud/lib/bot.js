@@ -25,17 +25,20 @@ export async function botUsername(ctx, nowSec) {
 
 export const isOwner = (id) => Number(id) === Number(ENV.ownerId);
 
-/* 'owner' | 'admin' | null — read fresh from the database on every use, never cached. */
+/* 'owner' | 'admin' | 'mod' | null — read fresh from the database on every use, never cached.
+   admin: approval queue, reports, bans, stats. mod (Phase 5): approve / reject only. */
 export async function roleOf(id) {
   if (isOwner(id)) return 'owner';
-  return (await admin.isAdminRow(id)) ? 'admin' : null;
+  return admin.staffRole(id);
 }
 
-/* Tells the owner and every admin (each in their language) about waiting work, at most once per
-   NOTIFY_EVERY for the same kind. `build(lang)` returns [text, keyboard]. */
-export async function notifyAdmins(ctx, kind, build, nowSec) {
+/* Tells the owner and the staff (each in their language) about waiting work, at most once per
+   NOTIFY_EVERY for the same kind. `build(lang)` returns [text, keyboard]. `withMods`: moderators
+   too (they handle the approval queue, not reports). */
+export async function notifyAdmins(ctx, kind, build, nowSec, withMods = true) {
   if (!(await store.claimEvery(`notify:${kind}`, nowSec, NOTIFY_EVERY))) return 0;
-  const ids = [ENV.ownerId, ...(await admin.listAdmins()).map((a) => a.user_id)].filter(Boolean);
+  const staff = (await admin.listAdmins()).filter((a) => withMods || a.role !== 'mod');
+  const ids = [ENV.ownerId, ...staff.map((a) => a.user_id)].filter(Boolean);
   let n = 0;
   for (const id of [...new Set(ids)]) {
     const lang = langOf(await store.getUser(id), null);

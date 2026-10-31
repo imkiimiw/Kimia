@@ -144,12 +144,16 @@ async function inline(u, query, offset = '') {
   const id = `iq${seq++}`;
   const q = { id, from: u, query, offset, chat_type: 'private' };
   const before = stats.queries;
+  let atAnswer = null;
+  mock.state.onInlineAnswer = () => { atAnswer = stats.queries; };
   const r = check(await onInline(q));
+  mock.state.onInlineAnswer = null;
   const calls = since();
   assert.equal(calls.length, 1, `inline query made ${calls.length} Bot API calls`);
   assert.ok(calls[0].ok, `answerInlineQuery failed: ${calls[0].error}`);
   const p = mock.state.answeredInline.get(id);
-  return { p, ids: p.results.map((x) => x.id), queries: stats.queries - before, r };
+  // queries = the database work done before the answer went out (stats bookkeeping comes after)
+  return { p, ids: p.results.map((x) => x.id), queries: atAnswer - before, r };
 }
 
 async function chosen(u, resultId, query = '', inlineMessageId = undefined) {
@@ -582,13 +586,13 @@ const status = (id) => one('SELECT status FROM memes WHERE id = ?', id).status;
 async function panel(u) {
   const { calls } = await say(u, '/admin');
   const p = sends(calls)[0];
-  assert.match(p.params.text, /پنل مدیریت|Admin panel/);
+  assert.match(p.params.text, /پنل مدیریت|Admin panel|پنل ناظر|Moderator panel/);
   return p;
 }
 
 scenario('phase 2 — settings: the owner turns moderation on and changes the thresholds from the panel', async () => {
   const p = await panel(U.owner);
-  assert.deepEqual(buttons(p).map((b) => b.callback_data), ['a:q', 'a:r', 'a:u', 'a:bl:0', 'a:ch', 'a:bc', 'a:st', 'a:ad']);
+  assert.deepEqual(buttons(p).map((b) => b.callback_data), ['a:q', 'a:r', 'a:u', 'a:bl:0', 'a:ss', 'a:ch', 'a:bc', 'a:st', 'a:ad']);
   const id = p.result.message_id;
   const st = await press(U.owner, 'a:st', id);
   assert.match(st.calls.find((c) => c.method === 'editMessageText').params.text, /میم‌های جدید: خاموش/);
@@ -687,10 +691,11 @@ scenario('phase 2 — admins: the owner adds one; they get the queue, reports an
   await say(U.nima, '/start');
   await press(U.owner, 'a:ada', p.result.message_id);
   const add = await say(U.owner, '@NIMA_T');
-  assert.match(sends(add.calls)[0].params.text, /Nima.*ادمین شد/);
+  assert.match(sends(add.calls)[0].params.text, /Nima.*ادمین اضافه شد/);
+  assert.match(toUser(add.calls, U.nima.id)[0].params.text, /ادمین ربات شدید/, 'the new admin is told');
   assert.ok(one('SELECT user_id FROM admins WHERE user_id = ?', U.nima.id));
   const np = await panel(U.nima);
-  assert.deepEqual(buttons(np).map((b) => b.callback_data), ['a:q', 'a:r', 'a:u', 'a:bl:0']);
+  assert.deepEqual(buttons(np).map((b) => b.callback_data), ['a:q', 'a:r', 'a:u', 'a:bl:0', 'a:ss']);
   for (const data of ['a:st', 'a:bc', 'a:ch', 'a:ad', `a:adr:${U.nima.id}`]) assert.equal((await press(U.nima, data, np.result.message_id)).answer.text, '⛔️ دسترسی نداری.', data);
   advance(1900);
   await media(U.kian, 'photo', 'K1');
@@ -1268,6 +1273,108 @@ scenario('phase 4 — meme of the day: posted once after 12:00 Tehran on the sid
   const sent = await chosen(U.nima, `m${c5}`);
   assert.ok(sent.trace.some((x) => x.m === 'sendPhoto' && x.view === 'motd'), 'a sent meme can post it too');
   ENV.motdChannelId = 0;
+});
+
+// ---------- Phase 5: staff roles (moderators), stats ----------
+
+scenario('phase 5 — staff: the owner adds a moderator by forwarding their message; moderators approve or reject only; switch role; remove', async () => {
+  const p = await panel(U.owner);
+  const staff = (await press(U.owner, 'a:ad', p.result.message_id)).calls.find((c) => c.method === 'editMessageText');
+  assert.ok(buttons(staff).some((b) => b.callback_data === 'a:adm') && buttons(staff).some((b) => b.callback_data === 'a:ada'));
+  await press(U.owner, 'a:adm', p.result.message_id);
+  const hidden = await say(U.owner, { text: 'hi', forward_origin: { type: 'hidden_user', sender_user_name: 'X', date: 0 } });
+  assert.match(sends(hidden.calls)[0].params.text, /مخفی کرده/, 'a hidden forward can\'t be used');
+  await press(U.owner, 'a:adm', p.result.message_id);
+  const add = await say(U.owner, { text: 'hi', forward_origin: { type: 'user', sender_user: U.kian, date: 0 } });
+  assert.match(sends(add.calls)[0].params.text, /Kian.*ناظر اضافه شد/);
+  assert.equal(one('SELECT role FROM admins WHERE user_id = ?', U.kian.id).role, 'mod');
+  assert.match(toUser(add.calls, U.kian.id)[0].params.text, /ناظر ربات شدید/, 'the moderator is told');
+  assert.deepEqual(mock.state.botTexts.get(`chat:${U.kian.id}/`).commands.map((c) => c.command).slice(-1), ['admin'], '/admin in their menu');
+
+  const mp = await panel(U.kian);
+  assert.match(mp.params.text, /پنل ناظر/);
+  assert.deepEqual(buttons(mp).map((b) => b.callback_data), ['a:q']);
+  await upload(U.pari, 'photo', 'MD1', 'برای ناظر');
+  const md1 = memeId('MD1');
+  assert.equal(one('SELECT status FROM memes WHERE id = ?', md1).status, 'pending');
+  const q = await press(U.kian, 'a:q', mp.result.message_id);
+  const card = q.calls.find((c) => (c.method === 'sendPhoto' || c.method === 'sendMessage' || c.method === 'sendSticker') && buttons(c).length && buttons(c)[0].callback_data.startsWith('a:ok:'));
+  assert.ok(!buttons(card).some((b) => b.callback_data.startsWith('a:nb:')), 'no reject + ban for a moderator');
+  const ok = await press(U.kian, `a:ok:${md1}`, card.result.message_id);
+  assert.deepEqual(Object.values(one('SELECT status, reviewed_by FROM memes WHERE id = ?', md1)), ['approved', U.kian.id]);
+  assert.ok(ok);
+  for (const data of [`a:nb:${md1}`, `a:nby:${md1}`, 'a:r', 'a:u', 'a:ss', 'a:sq:7', 'a:st', 'a:bl:0', 'a:ad', `a:ub:${U.sara.id}`]) {
+    assert.equal((await press(U.kian, data, mp.result.message_id)).answer.text, '⛔️ دسترسی نداری.', data);
+  }
+  assert.equal((await press(U.owner, `a:ub:${U.kian.id}`, 1)).answer.text, 'مالک و ادمین‌ها رو نمی‌شه مسدود کرد (اول از ادمینی حذفش کن).');
+
+  advance(1900);
+  await press(U.ann, `rp:${memeId('C5')}:spam`, 1);
+  assert.equal(allTo(U.kian.id, /گزارش‌شده منتظر بررسی/).length, 0, 'moderators aren\'t told about reports');
+
+  const sw = await press(U.owner, `a:adt:${U.kian.id}`, p.result.message_id);
+  assert.match(sw.answer.text, /ادمین/);
+  assert.equal(one('SELECT role FROM admins WHERE user_id = ?', U.kian.id).role, 'admin');
+  assert.match(toUser(sw.calls, U.kian.id)[0].params.text, /ادمین ربات شدید/);
+  assert.ok(buttons(await panel(U.kian)).some((b) => b.callback_data === 'a:ss'), 'admins get stats');
+  const rm = await press(U.owner, `a:adr:${U.kian.id}`, p.result.message_id);
+  assert.equal(one('SELECT user_id FROM admins WHERE user_id = ?', U.kian.id), undefined);
+  assert.ok(rm.calls.some((c) => c.method === 'deleteMyCommands' && c.params.scope.chat_id === U.kian.id), 'their menu is reset');
+  assert.match(toUser(rm.calls, U.kian.id)[0].params.text, /دیگه جزو تیم/);
+  assert.doesNotMatch(lastText((await say(U.kian, '/admin')).calls), /پنل/);
+});
+
+scenario('phase 5 — stats: a search counts once per typed query (not per keystroke); no-result searches are listed; overview; pruning', async () => {
+  const sumOf = (name) => (one('SELECT sum(n) AS n FROM stat_day WHERE name = ?', name).n || 0);
+  const qRow = (q) => one('SELECT sum(n) AS n, sum(miss) AS miss FROM search_q WHERE q = ?', q) || {};
+  const s0 = sumOf('search');
+  const m0 = sumOf('search_miss');
+  for (const q of ['ک', 'کا', 'کان', 'کانا', 'کانال']) await inline(U.sara, q);
+  assert.equal(sumOf('search'), s0, 'still typing: nothing counted yet');
+  await inline(U.sara, 'سگ گربه پرنده');
+  assert.equal(sumOf('search'), s0 + 1, 'moving on to another query counts the finished one, once');
+  assert.deepEqual([qRow('کانال').n, qRow('کا').n], [1, null], 'only the final query, not its prefixes');
+  advance(40);
+  await inline(U.sara, 'ناموجودترین');
+  assert.equal(sumOf('search_miss'), m0 + 1, '"سگ گربه پرنده" found nothing');
+  await inline(U.sara, 'ناموجودتر');
+  advance(5);
+  await inline(U.sara, 'ناموجودترین');
+  await inline(U.sara, '');
+  const sent = await chosen(U.sara, `m${memeId('C5')}`, '');
+  assert.ok(sent);
+  assert.equal(qRow('ناموجودترین').miss, 1, 'deleting back is the same search; clearing it ends the search');
+  const k0 = qRow('کانال پنج').n || 0;
+  await inline(U.sara, 'کانال پنج');
+  await chosen(U.sara, `m${memeId('C5')}`, 'کانال پنج');
+  assert.equal(qRow('کانال پنج').n, k0 + 1, 'sending a result counts the search at once, once');
+  assert.equal(one('SELECT count(*) AS n FROM search_pending WHERE user_id = ?', U.sara.id).n, 0);
+  const fav0 = sumOf('search');
+  await inline(U.sara, 'fav کانال');
+  await inline(U.sara, 'سگ');
+  assert.equal(sumOf('search'), fav0, 'favourite searches are not counted');
+  const before = sumOf('upload');
+  await upload(U.mina, 'photo', 'ST1', 'آمار یک');
+  assert.equal(sumOf('upload'), before + 1);
+
+  const p = await panel(U.owner);
+  const ov = (await press(U.owner, 'a:ss', p.result.message_id)).calls.find((c) => c.method === 'editMessageText');
+  assert.match(ov.params.text, /کاربران:<\/b> [۰-۹]+/);
+  assert.match(ov.params.text, /جستجو:<\/b> امروز [۰-۹]+/);
+  assert.deepEqual(buttons(ov).map((b) => b.callback_data), ['a:sq:7', 'a:sm:7', 'a:ss', 'a:p']);
+  const top = (await press(U.owner, 'a:sq:7', p.result.message_id)).calls.find((c) => c.method === 'editMessageText');
+  assert.match(top.params.text, /پرجستجوترین/);
+  assert.match(top.params.text, /کانال/);
+  const miss = (await press(U.owner, 'a:sm:30', p.result.message_id)).calls.find((c) => c.method === 'editMessageText');
+  assert.match(miss.params.text, /ناموجودترین/);
+  assert.ok(buttons(miss).some((b) => b.switch_inline_query_current_chat === 'ناموجودترین'), 'try it');
+  assert.ok(buttons(miss).some((b) => b.callback_data === 'a:sm:7') && buttons(miss).some((b) => b.text.startsWith('• ')));
+
+  const today = Math.floor((nowSec() + 12600) / 86400);
+  rawDatabase().prepare('INSERT INTO search_q (day, q, n, miss) VALUES (?, ?, 1, 1)').run(today - 61, 'خیلی قدیمی');
+  advance(86401);
+  await say(U.sara, 'سلام');
+  assert.equal(qRow('خیلی قدیمی').n, null, 'pruned after 60 days');
 });
 
 // ---------- run ----------

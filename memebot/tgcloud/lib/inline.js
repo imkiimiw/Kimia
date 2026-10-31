@@ -34,6 +34,7 @@ import { LOCALES } from './locales/index.js';
 import { aliasMap, parseQuery } from './normalize.js';
 import * as store from './store.js';
 import { likeButton } from './collection.js';
+import { bumpDay, settleChosen, trackQuery } from './statsstore.js';
 import { call, describeError, keyboard } from './tg.js';
 import { cut } from './util.js';
 
@@ -123,7 +124,8 @@ export async function onInlineQuery(ctx, q, nowSec) {
   if (query.fav && !query.words.length) mode = 'fav';
   else if (query.words.length || query.kind || query.fav) mode = 'search';
   const settings = await admin.getSettings();
-  const page = (await gate(ctx, q, user, lang, settings, nowSec))
+  const gated = await gate(ctx, q, user, lang, settings, nowSec);
+  const page = gated
     || (mode === 'fav' ? await favPage(q, query.kind, lang) : mode === 'search' ? await searchPage(q, query, lang) : await homePage(q, lang));
   const params = {
     inline_query_id: q.id,
@@ -138,11 +140,19 @@ export async function onInlineQuery(ctx, q, nowSec) {
   } catch (err) {
     console.warn(`answerInlineQuery failed: ${describeError(err)}`);
   }
+  /* Stats (Phase 5), after the answer so search stays fast: first pages of real searches only. */
+  if (!gated && mode === 'search' && !query.fav && query.words.length && !q.offset) {
+    await trackQuery(q.from.id, query.words.join(' '), params.results.length, nowSec);
+  }
 }
 
 /* A user sent one of the results (needs BotFather /setinlinefeedback). */
 export async function onChosenResult(ctx, r, nowSec) {
   const m = /^m(\d{1,15})$/.exec(String(r.result_id || ''));
   if (!m || !r.from) return false;
-  return store.recordUse(r.from.id, Number(m[1]), nowSec, USE_COOLDOWN, RECENT_KEEP);
+  const counted = await store.recordUse(r.from.id, Number(m[1]), nowSec, USE_COOLDOWN, RECENT_KEEP);
+  await bumpDay('send', nowSec);
+  const query = parseQuery(r.query || '', ALIASES);
+  await settleChosen(r.from.id, query.fav ? '' : query.words.join(' '), nowSec);
+  return counted;
 }

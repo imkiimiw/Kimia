@@ -1,28 +1,34 @@
 /*
- * Admin panel (/admin, private chat). Admins = the owner + users the owner added. Admins get the
- * approval queue, reports, user lookup and bans; the owner also gets settings, forced-join
- * channels, broadcast and the admin list. lib/router.js checks the role (fresh from the database)
- * before anything here runs; owner-only codes are listed in OWNER_ONLY.
+ * Admin panel (/admin, private chat). Staff = the owner + people the owner added, as one of two
+ * roles: admin (approval queue, reports, user lookup and bans, stats) or mod (Phase 5: the approval
+ * queue only — approve / reject). The owner also gets settings, forced-join channels, broadcast and
+ * the staff list. lib/router.js checks the role (fresh from the database) before anything here
+ * runs; owner-only codes are in OWNER_ONLY, the only codes a mod may use in MOD_ALLOWED.
+ * Staff are added by numeric id, @username, or a forwarded message from them; they are told, and
+ * get /admin in their own command menu.
  *
  * callback_data (besides lib/review.js and lib/broadcast.js):
  *   a:p panel | a:x cancel input | a:u ask for a user | a:uc:<uid> user card
  *   a:ub:<uid> ban | a:uu:<uid> unban | a:uh:<uid> → a:uhy:<uid> reject all their public memes
- *   a:bl:<page> banned users | a:ad admins | a:ada add admin | a:adr:<uid> remove admin
+ *   a:bl:<page> banned users | a:ad staff | a:ada add admin | a:adm add moderator
+ *   a:adt:<uid> switch admin ↔ moderator | a:adr:<uid> remove from staff | a:ss / a:sq / a:sm stats
  *   a:st settings | a:st:<name>:<+|-|t> change one | a:ch channels | a:cha add | a:chr:<chatId> remove
  * Text inputs (users.state): adm:user, adm:admin, adm:chan (and adm:bc in lib/broadcast.js).
  */
 import { ENV } from './env.js';
-import { ADMIN_PAGE, APPROVED, HIDDEN, MAX_CHANNELS, PENDING, SETTINGS } from './config.js';
+import { ADMIN_PAGE, APPROVED, HIDDEN, MAX_CHANNELS, PENDING, ROLE_ADMIN, ROLE_MOD, SETTINGS } from './config.js';
 import * as admin from './adminstore.js';
 import { memeRemoved } from './backup.js';
-import { ago, t } from './i18n.js';
+import { ago, langOf, t } from './i18n.js';
 import { LOCALES } from './locales/index.js';
+import { staffMenu } from './owner.js';
 import { banUser, isProtected } from './review.js';
 import * as store from './store.js';
 import { answer, call, edit, send } from './tg.js';
-import { cut, esc, iso } from './util.js';
+import { cut, esc, iso, parseJson } from './util.js';
 
-export const OWNER_ONLY = ['ad', 'ada', 'adr', 'st', 'ch', 'cha', 'chr', 'bc', 'bcy', 'bcn', 'bcx', 'bcs'];
+export const OWNER_ONLY = ['ad', 'ada', 'adm', 'adt', 'adr', 'st', 'ch', 'cha', 'chr', 'bc', 'bcy', 'bcn', 'bcx', 'bcs'];
+export const MOD_ALLOWED = ['p', 'x', 'q', 'qs', 'ok', 'no', 'qk'];
 export const STATE_USER = 'adm:user';
 export const STATE_ADMIN = 'adm:admin';
 export const STATE_CHANNEL = 'adm:chan';
@@ -32,11 +38,20 @@ const cancelRow = (lang) => [{ text: t(lang, 'upload.cancel_btn'), callback_data
 
 /* Shows (or with messageId, edits into) the panel. */
 export async function showPanel(ctx, role, messageId = null) {
-  const [pending, reported, users, banned] = [await admin.countStatus(PENDING), await admin.countReported(), await admin.countUsers(), await admin.countBanned()];
+  const pending = await admin.countStatus(PENDING);
+  if (role === ROLE_MOD) {
+    const kb = [[{ text: t(ctx.lang, 'adm.queue_btn', { n: pending }), callback_data: 'a:q' }]];
+    const text = t(ctx.lang, 'adm.title_mod', { pending });
+    if (messageId && (await edit(ctx, 'adm.panel', messageId, text, kb))) return;
+    await send(ctx, 'adm.panel', text, kb);
+    return;
+  }
+  const [reported, users, banned] = [await admin.countReported(), await admin.countUsers(), await admin.countBanned()];
   const text = t(ctx.lang, 'adm.title', { pending, reported, users, banned });
   const kb = [
     [{ text: t(ctx.lang, 'adm.queue_btn', { n: pending }), callback_data: 'a:q' }, { text: t(ctx.lang, 'adm.reports_btn', { n: reported }), callback_data: 'a:r' }],
     [{ text: t(ctx.lang, 'adm.users_btn'), callback_data: 'a:u' }, { text: t(ctx.lang, 'adm.banned_btn', { n: banned }), callback_data: 'a:bl:0' }],
+    [{ text: t(ctx.lang, 'adm.stats_btn'), callback_data: 'a:ss' }],
   ];
   if (role === 'owner') {
     kb.push([{ text: t(ctx.lang, 'adm.channels_btn'), callback_data: 'a:ch' }, { text: t(ctx.lang, 'adm.broadcast_btn'), callback_data: 'a:bc' }]);
@@ -48,8 +63,8 @@ export async function showPanel(ctx, role, messageId = null) {
 
 /* ---------- users and bans ---------- */
 
-export async function askInput(ctx, user, state, key, nowSec) {
-  await store.setState(user.id, state, null, nowSec);
+export async function askInput(ctx, user, state, key, nowSec, data = null) {
+  await store.setState(user.id, state, data, nowSec);
   await send(ctx, key, t(ctx.lang, key), [cancelRow(ctx.lang)]);
 }
 
@@ -130,20 +145,57 @@ export async function showBanned(ctx, page, messageId) {
 
 /* ---------- admins (owner) ---------- */
 
+const roleName = (lang, role) => t(lang, role === ROLE_MOD ? 'adm.role_mod' : 'adm.role_admin');
+
 export async function showAdmins(ctx, messageId) {
   const list = await admin.listAdmins();
-  const lines = list.map((a) => `• ${iso(cut(a.first_name || '—', 30))}${a.username ? ` @${esc(a.username)}` : ''} · <code>${a.user_id}</code>`);
-  const kb = list.map((a) => [{ text: `❌ ${cut(a.first_name || String(a.user_id), 24)}`, callback_data: `a:adr:${a.user_id}` }]);
-  kb.push([{ text: t(ctx.lang, 'adm.admin_add'), callback_data: 'a:ada' }]);
+  const lines = list.map((a) => `• ${iso(cut(a.first_name || '—', 30))}${a.username ? ` @${esc(a.username)}` : ''} · <code>${a.user_id}</code> · ${roleName(ctx.lang, a.role)}`);
+  const kb = list.map((a) => [
+    { text: `🔁 ${cut(a.first_name || String(a.user_id), 18)} → ${roleName(ctx.lang, a.role === ROLE_MOD ? ROLE_ADMIN : ROLE_MOD)}`, callback_data: `a:adt:${a.user_id}` },
+    { text: '❌', callback_data: `a:adr:${a.user_id}` },
+  ]);
+  kb.push([{ text: t(ctx.lang, 'adm.mod_add'), callback_data: 'a:adm' }, { text: t(ctx.lang, 'adm.admin_add'), callback_data: 'a:ada' }]);
   kb.push(back(ctx.lang));
   const text = t(ctx.lang, 'adm.admins_title', { list: lines.length ? lines.join('\n') : t(ctx.lang, 'adm.admins_none') });
   if (messageId && (await edit(ctx, 'adm.admins', messageId, text, kb))) return;
   await send(ctx, 'adm.admins', text, kb);
 }
 
+/* Tells a (former) staff member about their role, in their language, and sets their menu. */
+async function tellStaff(ctx, uid, role) {
+  const u = await store.getUser(uid);
+  const lang = langOf(u, null);
+  await staffMenu(ctx, uid, lang, !!role);
+  if (!u || u.blocked) return;
+  const key = !role ? 'staff.removed' : role === ROLE_MOD ? 'staff.now_mod' : 'staff.now_admin';
+  await send(ctx, key, t(lang, key), null, { chatId: uid });
+}
+
 export async function removeAdmin(ctx, uid, messageId) {
-  await answer(ctx, t(ctx.lang, (await admin.removeAdmin(uid)) ? 'adm.admin_removed' : 'adm.done_already'));
+  const removed = await admin.removeAdmin(uid);
+  if (removed) await tellStaff(ctx, uid, null);
+  await answer(ctx, t(ctx.lang, removed ? 'adm.admin_removed' : 'adm.done_already'));
   await showAdmins(ctx, messageId);
+}
+
+/* a:adt:<uid> — admin ↔ moderator. */
+export async function switchRole(ctx, uid, messageId) {
+  const role = await admin.switchRole(uid);
+  if (role) await tellStaff(ctx, uid, role);
+  await answer(ctx, role ? t(ctx.lang, 'adm.role_now', { role: roleName(ctx.lang, role) }) : t(ctx.lang, 'adm.done_already'));
+  await showAdmins(ctx, messageId);
+}
+
+/* Who an "add staff" message points at: a forwarded message from them, a numeric id or @username. */
+async function staffTarget(msg) {
+  const o = msg.forward_origin;
+  if (o && o.type === 'user' && o.sender_user && !o.sender_user.is_bot) return { id: o.sender_user.id, name: o.sender_user.first_name };
+  if (msg.forward_from && !msg.forward_from.is_bot) return { id: msg.forward_from.id, name: msg.forward_from.first_name };
+  if (o && o.type === 'hidden_user') return { hidden: true };
+  const u = await admin.findUser(msg.text);
+  if (u) return { id: u.id, name: u.first_name };
+  const s = String(msg.text || '').trim();
+  return /^\d{4,15}$/.test(s) ? { id: Number(s), name: s } : null;
 }
 
 /* ---------- settings (owner) ---------- */
@@ -265,14 +317,16 @@ export async function onInput(ctx, user, role, msg, nowSec) {
     return true;
   }
   if (state === STATE_ADMIN && role === 'owner') {
-    const u = await admin.findUser(msg.text);
-    const id = u ? u.id : (/^\d{4,15}$/.test(String(msg.text || '').trim()) ? Number(msg.text.trim()) : null);
+    const want = (parseJson(user.state_data) || {}).role === ROLE_MOD ? ROLE_MOD : ROLE_ADMIN;
+    const who = await staffTarget(msg);
     await store.clearState(user.id);
-    if (!id) await send(ctx, 'adm.user_none', t(ctx.lang, 'adm.user_none'));
-    else if (id === Number(ENV.ownerId) || !(await admin.addAdmin(id, user.id, nowSec))) {
+    if (!who || who.hidden) {
+      await send(ctx, 'adm.user_none', t(ctx.lang, who ? 'adm.staff_hidden' : 'adm.user_none'));
+    } else if (who.id === Number(ENV.ownerId) || !(await admin.addAdmin(who.id, user.id, nowSec, want))) {
       await send(ctx, 'adm.admin_exists', t(ctx.lang, 'adm.admin_exists'));
     } else {
-      await send(ctx, 'adm.admin_added', t(ctx.lang, 'adm.admin_added', { name: iso(u ? u.first_name || String(id) : String(id)) }));
+      await send(ctx, 'adm.admin_added', t(ctx.lang, 'adm.staff_added', { name: iso(who.name || String(who.id)), role: roleName(ctx.lang, want) }));
+      await tellStaff(ctx, who.id, want);
     }
     await showAdmins(ctx);
     return true;

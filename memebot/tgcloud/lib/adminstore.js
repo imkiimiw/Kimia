@@ -6,7 +6,7 @@
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
-import { APPROVED, HIDDEN, PENDING, REJECTED, SETTINGS } from './config.js';
+import { APPROVED, HIDDEN, PENDING, REJECTED, ROLE_ADMIN, ROLE_MOD, SETTINGS } from './config.js';
 
 /* ---------- settings (kv rows set:*, numeric value in n) ---------- */
 
@@ -37,15 +37,28 @@ export async function bumpJoinVersion() {
 
 /* ---------- admins ---------- */
 
-export const isAdminRow = async (uid) => !!(await db.get(sql`SELECT user_id FROM admins WHERE user_id = ${uid}`));
+/* The staff role stored for a user: 'admin' | 'mod' | null (the owner is not stored). */
+export async function staffRole(uid) {
+  const r = await db.get(sql`SELECT role FROM admins WHERE user_id = ${uid}`);
+  if (!r) return null;
+  return r.role === ROLE_MOD ? ROLE_MOD : ROLE_ADMIN;
+}
 
 export const listAdmins = () => db.all(sql`
-  SELECT a.user_id AS user_id, u.first_name AS first_name, u.username AS username
+  SELECT a.user_id AS user_id, a.role AS role, u.first_name AS first_name, u.username AS username, u.lang AS lang
   FROM admins a LEFT JOIN users u ON u.id = a.user_id ORDER BY a.added_at LIMIT 50`);
 
-export async function addAdmin(uid, by, t) {
-  const r = await db.run(sql`INSERT INTO admins (user_id, added_by, added_at) VALUES (${uid}, ${by}, ${t}) ON CONFLICT(user_id) DO NOTHING`);
+export async function addAdmin(uid, by, t, role = ROLE_ADMIN) {
+  const r = await db.run(sql`INSERT INTO admins (user_id, added_by, added_at, role) VALUES (${uid}, ${by}, ${t}, ${role}) ON CONFLICT(user_id) DO NOTHING`);
   return r.rowsAffected > 0;
+}
+
+/* admin ↔ mod. Returns the new role, or null if the user isn't staff. */
+export async function switchRole(uid) {
+  const r = await db.run(sql`
+    UPDATE admins SET role = CASE WHEN role = ${ROLE_MOD} THEN ${ROLE_ADMIN} ELSE ${ROLE_MOD} END
+    WHERE user_id = ${uid} RETURNING role`);
+  return r.rows.length ? r.rows[0].role : null;
 }
 
 export async function removeAdmin(uid) {

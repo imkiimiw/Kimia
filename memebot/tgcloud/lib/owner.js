@@ -13,6 +13,18 @@ import { esc } from './util.js';
 
 const COMMANDS = ['start', 'my', 'fav', 'tags', 'top', 'profile', 'lang', 'help', 'cancel'];
 
+/* A staff member's own command menu: the usual commands plus /admin (on), or back to the
+   default menu (off). Fails quietly if they never opened the bot. */
+export async function staffMenu(ctx, uid, lang, on) {
+  const scope = { type: 'chat', chat_id: uid };
+  try {
+    if (on) await call(ctx, 'setMyCommands', { commands: [...COMMANDS, 'admin'].map((c) => ({ command: c, description: t(lang, `cmd.${c}`) })), scope }, 'staff.menu');
+    else await call(ctx, 'deleteMyCommands', { scope }, 'staff.menu');
+  } catch (err) {
+    console.warn(`staff menu for ${uid}: ${describeError(err)}`);
+  }
+}
+
 export async function setup(ctx, nowSec) {
   const lines = [];
   const me = await call(ctx, 'getMe', {}, 'setup.getMe');

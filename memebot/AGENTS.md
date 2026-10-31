@@ -14,7 +14,8 @@ plan's constraints: [docs/PLATFORM.md](docs/PLATFORM.md). Features and setup: [R
 - **Phases**: the owner builds this bot phase by phase. Finish a phase, summarise it, and wait for
   the go-ahead before the next one. Phases 1 (core), 2 (moderation, admin panel), 3 (favourites,
   private collection, keyword editing, hashtags, type filter) and 4 (public channel feed, likes,
-  score ranking, profiles, weekly leaderboard, meme of the day) are built and deployed.
+  score ranking, profiles, weekly leaderboard, meme of the day) and 5 (stats; moderator role) are
+  built and deployed.
 - **One channel**: the bot posts only to `ENV.backupChannelId` / `ENV.motdChannelId` (both default
   to @WangerChaos, -1004475337598, in `scripts/gen-env.mjs`). It is public, so `backupMode` is
   `public`: only approved memes, as clean copies, never the uploader's name; removals delete the
@@ -48,9 +49,11 @@ plan's constraints: [docs/PLATFORM.md](docs/PLATFORM.md). Features and setup: [R
 - Search words come only from `lib/normalize.js` (`indexWords` for keywords, `parseQuery` for
   queries). Change both sides together. `#tags` are indexed as words starting with `#`; query
   modifiers (fav, types) come from each locale's `_words` via `aliasMap`, leading words only.
-- Owner = `ENV.ownerId` (`MEMEBOT_OWNER_ID`, default 5557901897). Admins = the `admins` table.
-  `roleOf()` (lib/bot.js) is read fresh on every message and button, never cached; owner-only
-  panel codes are in `admin.OWNER_ONLY`.
+- Owner = `ENV.ownerId` (`MEMEBOT_OWNER_ID`, default 5557901897). Staff = the `admins` table with
+  `role` admin | mod. `roleOf()` (lib/bot.js) → owner | admin | mod | null, read fresh on every
+  message and button, never cached. Owner-only panel codes: `admin.OWNER_ONLY`; the only codes a
+  moderator may use: `admin.MOD_ALLOWED` (the approval queue). Any role is exempt from forced
+  join, anti-spam, the daily limit and approval.
 - Meme status: `pending` (only the uploader sees it) → `approved` | `rejected`; `approved` →
   `hidden` (reports) → `approved` | `rejected`; `private` (owner only, never public) → publish →
   `pending` | `approved`. A private meme's `file_unique_id` column holds `store.privateKey()`
@@ -67,12 +70,14 @@ plan's constraints: [docs/PLATFORM.md](docs/PLATFORM.md). Features and setup: [R
 - Callbacks outside the private chat (inline messages, channel posts) may only do `lk`; `ctx.chatId`
   is then the presser's private chat, so nothing is ever sent into a channel or group.
 - Work without a scheduler runs in `lib/jobs.js sideTasks` after messages, buttons and
-  chosen_inline_result (never inline queries): broadcast batches and the meme of the day.
+  chosen_inline_result (never inline queries): broadcast batches, the meme of the day, daily pruning.
+- Stats (`lib/statsstore.js`): a search is counted once per typed query (settled on send, on a
+  non-continuation, or on clearing), after the inline answer is sent — keep it after the answer.
 
 ## Tests
 
 `npm test` = `gen-env` → `test/static.mjs` (platform rules) → `test/unit.test.mjs` (normalisation,
-locales, query syntax, calendar) → `test/e2e.mjs` (39 scenarios: Phases 1–3 with the channel as an
+locales, query syntax, calendar) → `test/e2e.mjs` (41 scenarios: Phases 1–3 with the channel as an
 archive and moderation first off, then on; Phase 4 in public mode: the real handlers against `test/sdk/`, a local
 SQLite stand-in for the SDK, and `test/mock-telegram.mjs`, a strict mock Bot API, with web and timer
 globals removed like the isolate).
@@ -81,5 +86,7 @@ To check SQL on the real database without deploying, put a temporary module in
 `tgcloud/endpoints/` and `npm run tg -- run endpoints/<name> '{}' --ctx '{ initData: { user: { id: 1 } } }'`
 (run executes local code on the platform). Use fake ids, clean up in `finally`, and delete the
 module before any push. The database whitelists SQL functions (`sqlite_version()` is refused).
+Smoke tests with `npm run tg -- run handlers/…` touch the real database: always use fake user ids
+(99000000x), never a real user's — handlers write state and stats.
 Writing `\uXXXX` escapes through a tool that takes JSON input can turn them into the real
 character before the file is written; check with `npm test` (static check) after such edits.

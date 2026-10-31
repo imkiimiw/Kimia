@@ -18,7 +18,8 @@
  *  10. side tasks (lib/jobs.js): the next broadcast batch, the meme of the day
  * callback_query — the user is ensured; banned / muted users get an alert. Outside the private
  *   chat (an inline message, a channel post) only 👍 (lk) works, and nothing is ever sent to that
- *   chat. "a:" buttons need a role (owner-only codes in admin.OWNER_ONLY); other buttons need the
+ *   chat. "a:" buttons need a role (owner-only codes in admin.OWNER_ONLY; a moderator may only use
+ *   admin.MOD_ALLOWED — the approval queue); other buttons need the
  *   join check (not lk); every query is answered exactly once; then the side tasks.
  * inline_query → lib/inline.js (no user row is created there).
  * chosen_inline_result → usage count (lib/inline.js), then the side tasks.
@@ -56,6 +57,7 @@ import { sendHelp, sendHint, sendLanguagePicker, sendUploadHow, sendWelcome } fr
 import { showFavCard, showFavs, showTags, toggleFav, toggleLike } from './collection.js';
 import { sideTasks } from './jobs.js';
 import { showLeaderboard, showOtherProfile, showProfile, showPublicCard, toggleVisibility } from './social.js';
+import { showOverview, showQueries } from './stats.js';
 import * as mine from './mine.js';
 import { confirmDelete, doDelete, showCard, showList } from './mine.js';
 import { setup } from './owner.js';
@@ -170,20 +172,22 @@ const chatIdOf = (s) => (/^-?\d{1,16}$/.test(s || '') ? Number(s) : null);
 
 /* "a:<op>:<x>:<y>" — the admin panel. The role is checked here, fresh, for every press. */
 async function onAdminButton(ctx, user, role, cq, [op, x, y], msgId, nowSec) {
-  if (!role || (adminUi.OWNER_ONLY.includes(op) && role !== 'owner')) return answer(ctx, t(ctx.lang, 'adm.denied'), true);
+  if (!role || (adminUi.OWNER_ONLY.includes(op) && role !== 'owner') || (role === 'mod' && !adminUi.MOD_ALLOWED.includes(op))) {
+    return answer(ctx, t(ctx.lang, 'adm.denied'), true);
+  }
   const id = int(x);
-  const needId = ['qs', 'ok', 'no', 'nb', 'nby', 'qk', 'rs', 'rk', 'rd', 'rb', 'rby', 'rq', 'uc', 'ub', 'uu', 'uh', 'uhy', 'adr', 'bcy', 'bcn', 'bcx', 'bcs'];
+  const needId = ['qs', 'ok', 'no', 'nb', 'nby', 'qk', 'rs', 'rk', 'rd', 'rb', 'rby', 'rq', 'uc', 'ub', 'uu', 'uh', 'uhy', 'adr', 'adt', 'bcy', 'bcn', 'bcx', 'bcs'];
   if (needId.includes(op) && id === null) return answer(ctx);
   switch (op) {
     case 'p': await answer(ctx); return adminUi.showPanel(ctx, role, msgId);
     case 'x': return adminUi.cancelInput(ctx, user, msgId);
-    case 'q': await answer(ctx); return review.showQueue(ctx, 0, nowSec);
-    case 'qs': await answer(ctx); return review.showQueue(ctx, id, nowSec);
+    case 'q': await answer(ctx); return review.showQueue(ctx, 0, nowSec, role);
+    case 'qs': await answer(ctx); return review.showQueue(ctx, id, nowSec, role);
     case 'ok':
-    case 'no': return review.decide(ctx, cq.from, id, op === 'ok', msgId, await adminStore.getSettings(), nowSec);
+    case 'no': return review.decide(ctx, cq.from, id, op === 'ok', msgId, await adminStore.getSettings(), nowSec, role);
     case 'nb': return review.askBan(ctx, id, msgId, 'nby', 'qk');
     case 'nby': return review.rejectAndBan(ctx, cq.from, id, msgId, nowSec);
-    case 'qk': return review.restoreQueueCard(ctx, id, msgId);
+    case 'qk': return review.restoreQueueCard(ctx, id, msgId, role);
     case 'r': await answer(ctx); return review.showReports(ctx, 0, nowSec);
     case 'rs': await answer(ctx); return review.showReports(ctx, id, nowSec);
     case 'rk': return review.resolve(ctx, cq.from, id, 'keep', msgId, nowSec);
@@ -199,8 +203,13 @@ async function onAdminButton(ctx, user, role, cq, [op, x, y], msgId, nowSec) {
     case 'uhy': return adminUi.hideAll(ctx, cq.from, id, op === 'uhy', msgId, nowSec);
     case 'bl': await answer(ctx); return adminUi.showBanned(ctx, id || 0, msgId);
     case 'ad': await answer(ctx); return adminUi.showAdmins(ctx, msgId);
-    case 'ada': await answer(ctx); return adminUi.askInput(ctx, user, adminUi.STATE_ADMIN, 'adm.admin_ask', nowSec);
+    case 'ada': await answer(ctx); return adminUi.askInput(ctx, user, adminUi.STATE_ADMIN, 'adm.admin_ask', nowSec, { role: 'admin' });
+    case 'adm': await answer(ctx); return adminUi.askInput(ctx, user, adminUi.STATE_ADMIN, 'adm.mod_ask', nowSec, { role: 'mod' });
+    case 'adt': return adminUi.switchRole(ctx, id, msgId);
     case 'adr': return adminUi.removeAdmin(ctx, id, msgId);
+    case 'ss': await answer(ctx); return showOverview(ctx, nowSec, msgId);
+    case 'sq':
+    case 'sm': await answer(ctx); return showQueries(ctx, op === 'sm', id === 30 ? 30 : 7, nowSec, msgId);
     case 'st':
       if (x) return adminUi.changeSetting(ctx, x, y, msgId);
       await answer(ctx);

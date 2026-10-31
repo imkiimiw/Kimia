@@ -64,23 +64,26 @@ export async function banUser(uid, by, nowSec) {
 
 /* ---------- approval queue ---------- */
 
-const queueKeyboard = (lang, id) => [
+/* Moderators (role 'mod') approve and reject; only the owner and admins can also ban. */
+const queueKeyboard = (lang, id, role) => [
   [{ text: t(lang, 'adm.approve'), callback_data: `a:ok:${id}` }, { text: t(lang, 'adm.reject'), callback_data: `a:no:${id}` }],
-  [{ text: t(lang, 'adm.reject_ban'), callback_data: `a:nb:${id}` }, { text: t(lang, 'adm.skip'), callback_data: `a:qs:${id}` }],
+  role === 'mod'
+    ? [{ text: t(lang, 'adm.skip'), callback_data: `a:qs:${id}` }]
+    : [{ text: t(lang, 'adm.reject_ban'), callback_data: `a:nb:${id}` }, { text: t(lang, 'adm.skip'), callback_data: `a:qs:${id}` }],
 ];
 
-export async function showQueue(ctx, afterId, nowSec) {
+export async function showQueue(ctx, afterId, nowSec, role = 'admin') {
   const m = await admin.nextPending(afterId);
   if (!m) {
     await send(ctx, 'adm.queue_empty', t(ctx.lang, afterId ? 'adm.queue_end' : 'adm.queue_empty'), [[{ text: t(ctx.lang, 'adm.back'), callback_data: 'a:p' }]]);
     return;
   }
   const text = t(ctx.lang, 'adm.queue_card', { id: String(m.id), kw: iso(m.keywords), who: who(ctx.lang, m), approved: m.approved_n || 0, ago: ago(ctx.lang, m.created_at, nowSec) });
-  await sendCard(ctx, 'adm.queue_card', m, text, queueKeyboard(ctx.lang, m.id));
+  await sendCard(ctx, 'adm.queue_card', m, text, queueKeyboard(ctx.lang, m.id, role));
 }
 
 /* a:ok / a:no */
-export async function decide(ctx, from, id, approve, cardId, settings, nowSec) {
+export async function decide(ctx, from, id, approve, cardId, settings, nowSec, role = 'admin') {
   const done = await admin.review(id, [PENDING], approve ? APPROVED : REJECTED, from.id, nowSec);
   if (!done) {
     await answer(ctx, t(ctx.lang, 'adm.done_already'), true);
@@ -97,7 +100,7 @@ export async function decide(ctx, from, id, approve, cardId, settings, nowSec) {
   } else {
     await tellUser(ctx, done.uploader_id, 'mod.rejected', { kw: iso(done.keywords) });
   }
-  await showQueue(ctx, id, nowSec);
+  await showQueue(ctx, id, nowSec, role);
 }
 
 /* a:nb (ask) / a:qk (back) on a queue card; a:rb / a:rq on a report card. */
@@ -109,8 +112,8 @@ export async function askBan(ctx, id, cardId, yesCode, backCode) {
   await answer(ctx);
 }
 
-export async function restoreQueueCard(ctx, id, cardId) {
-  await editKeyboard(ctx, 'adm.card', cardId, queueKeyboard(ctx.lang, id));
+export async function restoreQueueCard(ctx, id, cardId, role = 'admin') {
+  await editKeyboard(ctx, 'adm.card', cardId, queueKeyboard(ctx.lang, id, role));
   await answer(ctx);
 }
 
@@ -206,5 +209,5 @@ export async function fileReport(ctx, user, id, reason, msgId, settings, nowSec)
   if (settings.hide > 0 && count >= settings.hide) await admin.hideReported(id, nowSec);
   await answer(ctx, t(ctx.lang, 'report.done'), true);
   const open = await admin.countReported();
-  await notifyAdmins(ctx, 'reports', (lang) => [t(lang, 'notify.reports', { n: open }), [[{ text: t(lang, 'adm.reports_btn', { n: open }), callback_data: 'a:r' }]]], nowSec);
+  await notifyAdmins(ctx, 'reports', (lang) => [t(lang, 'notify.reports', { n: open }), [[{ text: t(lang, 'adm.reports_btn', { n: open }), callback_data: 'a:r' }]]], nowSec, false);
 }

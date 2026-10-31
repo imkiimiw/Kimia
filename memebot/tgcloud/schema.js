@@ -38,6 +38,9 @@ export const users = table('users', {
 }, (t) => ({
   byUname: index('idx_users_uname').on(t.uname),
   byBanned: index('idx_users_banned').on(t.id).where(sql`banned = 1`),
+  /* Phase 5: new and active users per period */
+  byCreated: index('idx_users_created').on(t.createdAt),
+  bySeen: index('idx_users_seen').on(t.seenAt),
 }));
 
 /* The memes. kind: photo | animation | video | sticker | voice.
@@ -114,11 +117,13 @@ export const reports = table('reports', {
   pair: uniqueIndex('uidx_reports_pair').on(t.memeId, t.reporterId),
 }));
 
-/* Phase 2: admins added by the owner (the owner is always an admin and isn't stored here). */
+/* Phase 2: staff added by the owner (the owner is always staff and isn't stored here).
+   role (Phase 5): admin = approval queue, reports, bans, stats | mod = approve / reject only. */
 export const admins = table('admins', {
   userId: integer('user_id').primaryKey(),
   addedBy: integer('added_by').notNull(),
   addedAt: integer('added_at').notNull(),
+  role: text('role').notNull().default('admin'),
 });
 
 /* Phase 2: forced-join channels. */
@@ -208,4 +213,32 @@ export const motd = table('motd', {
   chatId: integer('chat_id').notNull(),
   msgId: integer('msg_id').notNull(),
   postedAt: integer('posted_at').notNull(),
+});
+
+/* Phase 5: daily counters (name: upload | search | search_miss | send | like). */
+export const statDay = table('stat_day', {
+  day: integer('day').notNull(),
+  name: text('name').notNull(),
+  n: integer('n').notNull().default(0),
+}, (t) => ({
+  pair: uniqueIndex('uidx_stat_day').on(t.day, t.name),
+}));
+
+/* Phase 5: searches per day by normalised query (n = searches, miss = searches with no result). */
+export const searchQ = table('search_q', {
+  day: integer('day').notNull(),
+  q: text('q').notNull(),
+  n: integer('n').notNull().default(0),
+  miss: integer('miss').notNull().default(0),
+}, (t) => ({
+  pair: uniqueIndex('uidx_search_q').on(t.day, t.q),
+}));
+
+/* Phase 5: each user's latest query, not counted yet (inline queries arrive per keystroke: a
+   query is counted once the user moves on — lib/statsstore.js). */
+export const searchPending = table('search_pending', {
+  userId: integer('user_id').primaryKey(),
+  q: text('q').notNull(),
+  hits: integer('hits').notNull().default(0),
+  at: integer('at').notNull(),
 });

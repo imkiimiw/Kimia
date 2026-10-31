@@ -19,6 +19,7 @@ import { backupMeme } from './backup.js';
 import { botUsername, notifyAdmins } from './bot.js';
 import { t } from './i18n.js';
 import { existingKeyboard } from './collection.js';
+import { bumpDay } from './statsstore.js';
 import { cleanKeywords, firstWord, indexWords } from './normalize.js';
 import * as store from './store.js';
 import { answer, editKeyboard, send } from './tg.js';
@@ -158,6 +159,7 @@ export async function onKeywords(ctx, user, msg, role, settings, nowSec) {
     if (dup) await sayDuplicate(ctx, user, dup, p.msgId);
     return;
   }
+  await bumpDay('upload', nowSec);
   await backupMeme(ctx, { id, kind: p.kind, file_id: p.fileId, keywords, status, likes: 0 }, user.id, p.msgId, nowSec);
 
   const bot = await botUsername(ctx, nowSec);

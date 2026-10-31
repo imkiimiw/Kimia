@@ -110,3 +110,15 @@ export const MOTD_NO_REPEAT = 30;
 /* Per-day and per-week counters are kept this long, then pruned (when the meme of the day posts). */
 export const KEEP_DAYS = 14;
 export const KEEP_WEEKS = 12;
+
+/* Phase 5: staff roles below the owner. */
+export const ROLE_ADMIN = 'admin';
+export const ROLE_MOD = 'mod';
+
+/* Phase 5 stats. Inline queries arrive per keystroke, so a query is counted once the user moves
+   on: when they send a result, or when their next query is not a continuation of it (typing on,
+   or deleting back) within SEARCH_SETTLE seconds. */
+export const SEARCH_SETTLE = 30;
+export const STATS_TOP = 20;
+export const KEEP_SEARCH_DAYS = 60;
+export const KEEP_STAT_DAYS = 400;
