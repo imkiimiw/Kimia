@@ -15,7 +15,7 @@ export const QUERY_MAX_WORDS = 5;
 /* Inline mode. 50 is the Bot API maximum per answer. */
 export const INLINE_PAGE = 50;
 export const INLINE_MAX_OFFSET = 1000;
-export const INLINE_CACHE = 30;
+export const INLINE_CACHE = 10;
 export const INLINE_PERSONAL_CACHE = 5;
 export const RECENT_SHOW = 10;
 export const OWN_SHOW = 5;
@@ -45,8 +45,44 @@ export const TEHRAN_OFFSET = 12600;
 export const KINDS = ['photo', 'animation', 'video', 'sticker', 'voice'];
 export const KIND_ICON = { photo: '🖼', animation: '🎞', video: '🎬', sticker: '🌟', voice: '🎤' };
 
-/* Meme status. Phase 1 has no moderation, so every upload is approved at once. */
+/* Meme status: pending = only the uploader sees it; approved = public; hidden = taken down by
+   reports until an admin reviews it; rejected = refused (the file can't be uploaded again). */
+export const PENDING = 'pending';
 export const APPROVED = 'approved';
+export const HIDDEN = 'hidden';
+export const REJECTED = 'rejected';
 
-/* Deep-link parameter of the "upload a meme" buttons (inline mode and elsewhere). */
+/* Deep-link parameters (/start <param>) of the "upload a meme" and "join the channels" buttons. */
 export const START_UPLOAD = 'upload';
+export const START_JOIN = 'join';
+
+/* Phase 2 settings (changed in the admin panel, stored in kv): defaults and limits. */
+export const SETTINGS = {
+  moderation: { key: 'set:moderation', def: 1, min: 0, max: 1 },
+  trust: { key: 'set:trust', def: 5, min: 0, max: 100 },
+  hide: { key: 'set:hide', def: 3, min: 0, max: 50 },
+  join: { key: 'set:join', def: 1, min: 0, max: 1 },
+};
+
+/* Reports: reasons a user can pick, and how many reports one user may file per day. */
+export const REPORT_REASONS = ['nsfw', 'hate', 'spam', 'other'];
+export const REPORTS_PER_DAY = 10;
+
+/* Forced join: at most this many channels; a positive check is cached JOIN_CACHE seconds, a
+   negative one JOIN_NEG_CACHE seconds (inline queries arrive per keystroke). */
+export const MAX_CHANNELS = 5;
+export const JOIN_CACHE = 600;
+export const JOIN_NEG_CACHE = 15;
+
+/* Broadcast: messages per button press, and per other update while one is running. */
+export const BROADCAST_BATCH = 25;
+export const BROADCAST_SIDE = 5;
+
+/* Admins are told about waiting memes / new reports at most this often. */
+export const NOTIFY_EVERY = 1800;
+
+/* A banned user is told so at most this often (otherwise silence). */
+export const BAN_NOTICE_EVERY = 86400;
+
+/* Admin panel lists. */
+export const ADMIN_PAGE = 8;

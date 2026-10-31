@@ -2,13 +2,17 @@
  * Inline mode. Fires on every keystroke of "@bot …", so it does little: 1–4 small indexed queries and
  * one answerInlineQuery, never another Bot API call.
  *
- *  - "@bot words": public memes matching every word (lib/store.js search), by usage count.
- *    Same for everyone, so is_personal = false and a short server cache. next_offset = "<n>".
+ *  - "@bot words": memes matching every word (lib/store.js search), by usage count: public ones,
+ *    plus the user's own memes still waiting for approval. next_offset = "<n>".
  *  - "@bot" alone: the user's recently sent memes, then their own latest uploads, then the most
  *    popular ones (no duplicates), plus an "upload" button. Personal, so is_personal = true.
  *    next_offset = "e<n>" (position in the popular list).
  *  - Nothing found: the "upload" button (InlineQueryResultsButton, the modern switch_pm), which opens
  *    the private chat with /start upload.
+ *  - Banned users get no results. With forced join on, non-members get no results and a "join the
+ *    channels" button (/start join); membership is cached (lib/join.js), so this costs no Bot API
+ *    call on most keystrokes.
+ *  Results differ per user (own pending memes, join, ban), so every answer is is_personal.
  *
  * Result ids are "m<meme id>"; chosen_inline_result (BotFather /setinlinefeedback) turns them into
  * usage counts and the user's recent list.
@@ -16,7 +20,11 @@
 import {
   INLINE_CACHE, INLINE_MAX_OFFSET, INLINE_PAGE, INLINE_PERSONAL_CACHE, OWN_SHOW, RECENT_KEEP, RECENT_SHOW, START_UPLOAD, USE_COOLDOWN,
 } from './config.js';
+import { START_JOIN } from './config.js';
+import * as admin from './adminstore.js';
+import { roleOf } from './bot.js';
 import { langOf, t } from './i18n.js';
+import { checkJoin } from './join.js';
 import { queryWords } from './normalize.js';
 import * as store from './store.js';
 import { call, describeError } from './tg.js';
@@ -41,20 +49,16 @@ function parseOffset(s, prefix = '') {
   return m ? Number(m[1]) : 0;
 }
 
-async function lang(q) {
-  return langOf(await store.getUser(q.from.id), q.from);
-}
-
-async function searchPage(q, words) {
+async function searchPage(q, words, lang) {
   const off = parseOffset(q.offset);
   if (off > INLINE_MAX_OFFSET) return { results: [], next: '' };
-  const rows = await store.search(words, INLINE_PAGE + 1, off);
+  const rows = await store.search(words, INLINE_PAGE + 1, off, q.from.id);
   const out = { results: rows.slice(0, INLINE_PAGE), next: rows.length > INLINE_PAGE ? String(off + INLINE_PAGE) : '' };
-  if (!off && !rows.length) out.button = { text: t(await lang(q), 'inline.none'), start_parameter: START_UPLOAD };
+  if (!off && !rows.length) out.button = { text: t(lang, 'inline.none'), start_parameter: START_UPLOAD };
   return out;
 }
 
-async function homePage(q) {
+async function homePage(q, lang) {
   const uid = q.from.id;
   const idx = parseOffset(q.offset, 'e');
   if (idx > INLINE_MAX_OFFSET) return { results: [], next: '' };
@@ -71,18 +75,34 @@ async function homePage(q) {
   let i = 0;
   for (; i < pop.length && results.length < INLINE_PAGE; i += 1) if (!seen.has(pop[i].id)) results.push(pop[i]);
   const out = { results, next: i < pop.length && idx + i <= INLINE_MAX_OFFSET ? `e${idx + i}` : '' };
-  if (idx === 0) out.button = { text: t(await lang(q), results.length ? 'inline.upload' : 'inline.empty_db'), start_parameter: START_UPLOAD };
+  if (idx === 0) out.button = { text: t(lang, results.length ? 'inline.upload' : 'inline.empty_db'), start_parameter: START_UPLOAD };
   return out;
 }
 
-export async function onInlineQuery(ctx, q) {
+/* Banned or not a member of the forced-join channels: an empty page (with a join button).
+   Someone who never opened the bot has no cached check, so with forced join on they are sent to
+   the bot first (/start join checks them and adds them to the users). */
+async function gate(ctx, q, user, lang, nowSec) {
+  if (user && user.banned) return { results: [], next: '' };
+  const settings = await admin.getSettings();
+  if (!settings.joinActive) return null;
+  const locked = { results: [], next: '', button: { text: t(lang, 'join.inline'), start_parameter: START_JOIN } };
+  if (!user) return (await roleOf(q.from.id)) ? null : locked;
+  if (user.join_ok && user.join_ver === settings.joinVer && user.join_until > nowSec) return null;
+  const join = await checkJoin(ctx, user, settings, nowSec, { role: await roleOf(user.id), inline: true });
+  return join.ok ? null : locked;
+}
+
+export async function onInlineQuery(ctx, q, nowSec) {
   const words = queryWords(q.query);
-  const page = words.length ? await searchPage(q, words) : await homePage(q);
+  const user = await store.getUser(q.from.id);
+  const lang = langOf(user, q.from);
+  const page = (await gate(ctx, q, user, lang, nowSec)) || (words.length ? await searchPage(q, words, lang) : await homePage(q, lang));
   const params = {
     inline_query_id: q.id,
     results: page.results.map(toResult).filter(Boolean),
     cache_time: words.length ? INLINE_CACHE : INLINE_PERSONAL_CACHE,
-    is_personal: !words.length,
+    is_personal: true,
     next_offset: page.next,
   };
   if (page.button) params.button = page.button;

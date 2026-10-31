@@ -1,6 +1,8 @@
 // Runs the tgcloud CLI for the meme bot only:
 //   npm run tg -- <command> [args]   any CLI command (status, diff, push, migrate, run, webhook, …)
-//   npm run deploy                   gen-env → push → migrate --safe → webhook check
+//   npm run deploy                   gen-env → migrate --local --safe → push → migrate --safe → webhook check
+//     (the database gets new tables/columns BEFORE the new code goes live, so there is no moment
+//      where new code meets an old database; the old code ignores the additions)
 //
 // - The token comes from Meme_BOT_TGCLOUD_TOKEN (environment or memebot/.env) and is given to the
 //   CLI as TGCLOUD_TOKEN for the child process only. It is never printed or written to disk.
@@ -45,7 +47,7 @@ const genEnv = () => run([path.join(ROOT, 'scripts/gen-env.mjs')], false);
 const args = process.argv.slice(2);
 if (genEnv() !== 0) process.exit(1);
 if (args[0] === 'deploy') {
-  for (const step of [() => cli(['push', ...args.slice(1)]), () => cli(['migrate', '--safe']), () => cli(['webhook'])]) {
+  for (const step of [() => cli(['migrate', '--local', '--safe']), () => cli(['push', ...args.slice(1)]), () => cli(['migrate', '--safe']), () => cli(['webhook'])]) {
     const code = step();
     if (code !== 0) process.exit(code);
   }

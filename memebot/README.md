@@ -26,10 +26,21 @@ Platform limits, and what in the plan has to work differently: **[docs/PLATFORM.
 | Anti-spam | More than 20 messages a minute in the private chat → muted for 10 minutes (one warning). Keywords containing links, @usernames or e-mails are refused, since they would show up as titles in inline results. |
 | Owner /setup | Sets the command menu and bot descriptions in both languages, and checks that inline mode is on and that the bot can post in the backup channel. |
 
-Not in Phase 1 (on purpose): **moderation**. Every upload is public at once. Don't announce the
-bot publicly before Phase 2 (approval queue).
+## Phase 2 — moderation and admin panel
 
-All limits are in `tgcloud/lib/config.js`.
+| Feature | How |
+|---|---|
+| Approval | A new meme is **pending**: only its uploader finds it (in search and on their empty-query page) until an admin approves it. The uploader is told when it is approved or rejected. A rejected file can't be uploaded again. Admins' own uploads are public at once. |
+| Trust | After **N** admin-approved memes (default 5, changed in ⚙️ Settings; 0 = never), a user's uploads are public at once. They are told when they reach it. |
+| Admin panel | `/admin` (also in the owner's command menu after `/setup`): counts, then 📥 Approval queue · 🚩 Reports · 👤 Find user / ban · 🚫 Banned list. The owner also gets 📢 Forced join · 📣 Broadcast · ⚙️ Settings · 👮 Admins. |
+| Approval queue | One card per meme (the meme, its keywords, the uploader and how many of their memes were approved): ✅ Approve · ❌ Reject · 🚫 Reject + ban (asks for confirmation) · ⏭ Next. After an action, the buttons turn into a label ("✅ Approved — name") and the next card comes. If two admins press at the same time, only one action happens; the other admin sees "already handled". New waiting memes are announced to admins at most every 30 minutes. |
+| Reports | A user who sees a bad meme **sends or forwards it to the bot**. The bot recognises it and shows 🚩 Report, then a reason (🔞 inappropriate · 🤬 offensive · 📢 ad/spam · ❔ other). One report per user per meme, at most 10 a day. After **K** different reports (default 3; 0 = never) the meme is hidden until an admin reviews it. The 🚩 Reports card shows the count and reasons: ✅ Keep · 🗑 Remove (the uploader is told) · 🚫 Remove + ban. |
+| Bans | 👤 Find user: a numeric id or @username → the user's card (memes, approvals, trust) → 🚫 Ban / ✅ Unban, 🙈 Reject all their memes (asks for confirmation). Banning rejects their waiting memes. A banned user gets "you are banned" at most once a day, then silence; inline mode gives them nothing. The owner and admins can't be banned. |
+| Admins | The owner adds admins (id or @username of someone who wrote to the bot). Admins get the queue, reports and bans; settings, channels, broadcast and the admin list stay with the owner. Roles are read fresh on every press. |
+| Forced join | Optional. The owner adds up to 5 channels: @username, a t.me link, a `-100…` id, or a forwarded post. The bot must be an **admin** there; for private channels it creates an invite link. Non-members get a lock message with the channel buttons and "✅ I joined". In inline mode they get no results and a "join the channels" button (`/start join`). Membership is cached (10 min if they're a member, 15 s if not), so inline stays fast. If a channel can't be checked, it is skipped (so it can't lock everyone out) and the owner is alerted. Admins are exempt. |
+| Broadcast | 📣 → send any single message → "send to N users?" → ✅. It is copied to every user who wrote to the bot, except banned users and those who blocked it. There is no scheduler, so it goes out in batches: 25 per "▶️ Next batch", plus 5 with every other message the bot receives, until done (the owner is told). Nobody gets it twice. Telegram's rate limit (429) pauses it and it then continues. Users who blocked the bot are marked and skipped. Keep your message until it's done. |
+
+All limits are in `tgcloud/lib/config.js`; the Phase 2 switches and thresholds are in the panel.
 
 ## Setup
 
@@ -59,8 +70,11 @@ cp .env.example .env     # then fill it in (or set the same variables in the env
 ### 3. Deploy
 
 ```bash
-npm run deploy           # gen-env → push → migrate --safe (creates the 5 tables) → webhook check
+npm run deploy           # gen-env → migrate --local --safe → push → migrate --safe → webhook check
 ```
+
+The database is migrated **before** the new code goes live: the old code ignores new tables and
+columns, so a deploy never has new code running against an old database.
 
 Then, as the owner, send **/setup** to the bot. Its report should show ✅ for inline mode and the backup channel.
 
@@ -73,7 +87,7 @@ repository root would act on the to-do bot.
 **Locally (no token needed):**
 
 ```bash
-npm test     # static platform checks → unit tests (normalisation, locales) → 21 end-to-end scenarios
+npm test     # static platform checks → unit tests (normalisation, locales) → 31 end-to-end scenarios
 ```
 
 The end-to-end scenarios run the real handlers against a local stand-in for the SDK
@@ -103,20 +117,37 @@ trace still shows the results it built.
 8. `/my` → open a meme → 🗑 Delete → confirm → it disappears from the list and from search.
 9. Write keywords containing `@channel` or a link → refused.
 
+**Phase 2 checklist** (you are the owner):
+
+1. `/admin` → ⚙️ Settings: approval is **on**. Set "publish automatically after" as you like.
+2. From another account (or ask a friend): upload a meme. They get "waiting for approval", and you get "📥 1 meme waiting".
+   Search it from your account → not found. From theirs → found.
+3. `/admin` → 📥 Approval queue → ✅ Approve. They are told, and now everyone finds it. Upload another one and ❌ Reject it.
+4. From the other account, forward one of your public memes to the bot → 🚩 Report → pick a reason. You get "🚩 reported".
+   `/admin` → 🚩 Reports → ✅ Keep or 🗑 Remove.
+5. `/admin` → 👤 Find user → their @username → 🚫 Ban. They get "banned", and inline gives them nothing. Then ✅ Unban.
+6. 👮 Admins → ➕ → their @username: their `/admin` shows the queue, reports and bans only.
+7. 📢 Forced join → ➕ → `@yourchannel` (make the bot an admin there first). The other account gets the lock until it joins. Turn it off again if you like.
+8. 📣 Broadcast → send a test message → ✅ Send → watch the counters; press ▶️ until it says done.
+
 ## Layout
 
 ```
 memebot/
   tgcloud/                         deployed to Telegram Serverless
-    schema.js                      users, memes, meme_words (search index), recent_uses, kv
+    schema.js                      users, memes, meme_words (search index), recent_uses, kv,
+                                   reports, admins, channels, broadcasts
     handlers/                      message, callback_query, inline_query, chosen_inline_result → lib/router.js
     lib/
       router.js                    order of checks + table of every callback_data
-      upload.js  backup.js         upload flow, backup channel
-      inline.js                    inline search / home page / usage counts
+      upload.js  backup.js         upload flow (pending / public), backup channel
+      inline.js                    inline search / home page / usage counts (ban and join gates)
       mine.js                      "my memes" list, card, delete
       menu.js  owner.js            welcome, help, language picker, owner /setup
-      store.js                     every database query
+      admin.js                     admin panel: users, bans, admins, settings, channels
+      review.js                    approval queue, reports (admin and user side), banUser
+      join.js  broadcast.js        forced join (cached checks), resumable broadcast
+      store.js  adminstore.js      every database query (Phase 1 / Phase 2)
       normalize.js                 Persian normalisation and search words
       i18n.js  locales/            t(), digits, plurals; fa.js (default), en.js, index.js (add languages here)
       tg.js  bot.js  util.js  config.js

@@ -97,10 +97,15 @@ export function createMockTelegram({ botId = 7100000001, botUsername = 'meme_tes
     forwards: [], // { to, from_chat_id, message_id, new_id }
     sent: [], // media sends: { chat_id, method, file, caption, new_id }
     botTexts: new Map(), // language_code ('' default) -> { commands, description, short }
+    members: new Map(), // `${channelId}:${userId}` -> ChatMember fields ({ status, is_member })
+    noInviteRight: new Set(), // channel ids where the bot may not create invite links
+    copies: [], // copyMessage: { to, from_chat_id, message_id, new_id }
+    rateLimitAt: null, // copyMessage number (1-based, counted from when it was set) that gets one 429
+    rateLimitCount: 0,
   };
 
   const ok = (result) => ({ ok: true, result });
-  const err = (code, description) => ({ ok: false, error_code: code, description });
+  const err = (code, description, parameters) => ({ ok: false, error_code: code, description, ...(parameters ? { parameters } : {}) });
 
   function addChannel(id, { title = `Channel ${id}`, username = null, admin = true } = {}) {
     state.channels.set(Number(id), { id: Number(id), title, username, admin });
@@ -268,7 +273,27 @@ export function createMockTelegram({ botId = 7100000001, botUsername = 'meme_tes
       const ch = channelOf(p.chat_id);
       if (!ch) return err(400, 'Bad Request: chat not found');
       if (Number(p.user_id) === botId) return ok(ch.admin ? { status: 'administrator', can_post_messages: true, user: { id: botId } } : { status: 'left', user: { id: botId } });
-      return err(400, 'Bad Request: member not found');
+      if (!ch.admin) return err(400, 'Bad Request: member list is inaccessible');
+      const m = state.members.get(`${ch.id}:${Number(p.user_id)}`);
+      return m ? ok({ ...m, user: { id: Number(p.user_id) } }) : err(400, 'Bad Request: member not found');
+    },
+    createChatInviteLink: (p) => {
+      const ch = channelOf(p.chat_id);
+      if (!ch || !ch.admin || state.noInviteRight.has(ch.id)) return err(400, 'Bad Request: not enough rights to manage chat invite link');
+      return ok({ invite_link: `https://t.me/+inv${Math.abs(ch.id)}`, name: p.name, creator: { id: botId } });
+    },
+    copyMessage: (p) => {
+      const r = reachable(p.chat_id);
+      if (r) return r;
+      if (!state.userMessages.has(`${p.from_chat_id}:${p.message_id}`)) return err(400, 'Bad Request: message to copy not found');
+      state.rateLimitCount += 1;
+      if (state.rateLimitAt !== null && state.rateLimitCount === state.rateLimitAt) {
+        state.rateLimitAt = null;
+        return err(429, 'Too Many Requests: retry after 7', { retry_after: 7 });
+      }
+      const message_id = newMessage(p.chat_id, { media: 'copy', markup: 'null' });
+      state.copies.push({ to: Number(p.chat_id), from_chat_id: Number(p.from_chat_id), message_id: Number(p.message_id), new_id: message_id });
+      return ok({ message_id });
     },
     setMyCommands: (p) => {
       if (!Array.isArray(p.commands) || !p.commands.every((c) => /^[a-z0-9_]{1,32}$/.test(c.command) && c.description && c.description.length <= 256)) return err(400, 'Bad Request: BOT_COMMAND_INVALID');
@@ -286,8 +311,10 @@ export function createMockTelegram({ botId = 7100000001, botUsername = 'meme_tes
       return ok(true);
     },
   };
+  // Keyed like Telegram stores them: per scope (default = '') and language ('' = all languages).
   function text(p) {
-    const k = p.language_code || '';
+    const scope = p.scope && p.scope.type && p.scope.type !== 'default' ? `${p.scope.type}:${p.scope.chat_id || ''}/` : '';
+    const k = scope + (p.language_code || '');
     if (!state.botTexts.has(k)) state.botTexts.set(k, {});
     return state.botTexts.get(k);
   }
@@ -316,6 +343,15 @@ export function createMockTelegram({ botId = 7100000001, botUsername = 'meme_tes
     botId,
     botUsername,
     addChannel,
+    setMember(channelId, userId, status = 'member') {
+      if (status) state.members.set(`${channelId}:${userId}`, { status, ...(status === 'restricted' ? { is_member: true } : {}) });
+      else state.members.delete(`${channelId}:${userId}`);
+    },
+    /** A 429 on the n-th copyMessage from now. */
+    rateLimitCopyAt(n) {
+      state.rateLimitCount = 0;
+      state.rateLimitAt = n;
+    },
     /** Records a message a user sent, so the bot can forward it. */
     userSent(message) {
       state.userMessages.set(`${message.chat.id}:${message.message_id}`, message);

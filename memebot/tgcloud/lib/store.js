@@ -5,19 +5,24 @@
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
-import { APPROVED } from './config.js';
+import { APPROVED, PENDING } from './config.js';
 
 /* ---------- users ---------- */
+
+/* Lowercased username for lookups by @username (indexed; no SQL lower(), the platform whitelists functions). */
+const uname = (from) => (from.username ? String(from.username).toLowerCase() : null);
 
 /* Creates or refreshes the user and counts the message for anti-spam. Returns the row. */
 export async function touchUser(from, t, window) {
   const r = await db.run(sql`
-    INSERT INTO users (id, first_name, username, created_at, seen_at, spam_win, spam_n)
-    VALUES (${from.id}, ${from.first_name || null}, ${from.username || null}, ${t}, ${t}, ${t}, 1)
+    INSERT INTO users (id, first_name, username, uname, created_at, seen_at, spam_win, spam_n)
+    VALUES (${from.id}, ${from.first_name || null}, ${from.username || null}, ${uname(from)}, ${t}, ${t}, ${t}, 1)
     ON CONFLICT(id) DO UPDATE SET
       first_name = excluded.first_name,
       username = excluded.username,
+      uname = excluded.uname,
       seen_at = excluded.seen_at,
+      blocked = 0,
       spam_n = CASE WHEN users.spam_win > ${t - window} THEN users.spam_n + 1 ELSE 1 END,
       spam_win = CASE WHEN users.spam_win > ${t - window} THEN users.spam_win ELSE ${t} END
     RETURNING *`);
@@ -27,8 +32,8 @@ export async function touchUser(from, t, window) {
 /* Creates the user if needed without counting anything (button presses). Returns the row. */
 export async function ensureUser(from, t) {
   const r = await db.run(sql`
-    INSERT INTO users (id, first_name, username, created_at, seen_at)
-    VALUES (${from.id}, ${from.first_name || null}, ${from.username || null}, ${t}, ${t})
+    INSERT INTO users (id, first_name, username, uname, created_at, seen_at)
+    VALUES (${from.id}, ${from.first_name || null}, ${from.username || null}, ${uname(from)}, ${t}, ${t})
     ON CONFLICT(id) DO UPDATE SET seen_at = excluded.seen_at
     RETURNING *`);
   return r.rows[0];
@@ -76,17 +81,17 @@ export async function refundUpload(id, day) {
 
 /* ---------- memes ---------- */
 
-const MEME_COLS = sql`id, kind, file_id, keywords, uploader_id, uses, created_at`;
+const MEME_COLS = sql`id, kind, file_id, keywords, uploader_id, uses, created_at, status, reports`;
 
 export const memeByUniqueId = (uid) => db.get(sql`SELECT ${MEME_COLS} FROM memes WHERE file_unique_id = ${uid}`);
 
 export const memeById = (id) => db.get(sql`SELECT ${MEME_COLS} FROM memes WHERE id = ${id}`);
 
 /* Inserts a meme and its search words. Returns the new id, or null if the file is already there. */
-export async function insertMeme({ fileId, fileUniqueId, kind, keywords, uploaderId, words, t }) {
+export async function insertMeme({ fileId, fileUniqueId, kind, keywords, uploaderId, words, t, status = APPROVED }) {
   const r = await db.run(sql`
     INSERT INTO memes (file_id, file_unique_id, kind, keywords, uploader_id, status, uses, created_at, updated_at)
-    VALUES (${fileId}, ${fileUniqueId}, ${kind}, ${keywords}, ${uploaderId}, ${APPROVED}, 0, ${t}, ${t})
+    VALUES (${fileId}, ${fileUniqueId}, ${kind}, ${keywords}, ${uploaderId}, ${status}, 0, ${t}, ${t})
     ON CONFLICT(file_unique_id) DO NOTHING
     RETURNING id`);
   if (!r.rows.length) return null;
@@ -102,6 +107,7 @@ export async function deleteOwnMeme(id, uploaderId) {
   const r = await db.run(sql`DELETE FROM memes WHERE id = ${id} AND uploader_id = ${uploaderId}`);
   if (!r.rowsAffected) return false;
   await db.run(sql`DELETE FROM meme_words WHERE meme_id = ${id}`);
+  await db.run(sql`DELETE FROM reports WHERE meme_id = ${id}`);
   return true;
 }
 
@@ -123,10 +129,13 @@ export const pendingBackups = (before, limit) => db.all(sql`
 const INLINE_COLS = sql`id, kind, file_id, keywords`;
 const TOP = String.fromCodePoint(0x10ffff);
 
-/* Public memes matching every word: a one-letter word must equal a keyword word, a longer one is a
-   prefix of one (an index range scan on uidx_meme_words). Ranked by usage, newest first on ties. */
-export function search(words, limit, offset) {
-  let where = sql`status = ${APPROVED}`;
+/* What a user may see in inline mode: public memes, and their own memes still waiting for approval. */
+const visibleTo = (uid) => sql`(status = ${APPROVED} OR (status = ${PENDING} AND uploader_id = ${uid}))`;
+
+/* Memes matching every word: a one-letter word must equal a keyword word, a longer one is a prefix
+   of one (an index range scan on uidx_meme_words). Ranked by usage, newest first on ties. */
+export function search(words, limit, offset, uid) {
+  let where = visibleTo(uid);
   for (const w of words) {
     const match = Array.from(w).length === 1
       ? sql`word = ${w}`
@@ -143,12 +152,12 @@ export const popular = (limit, offset) => db.all(sql`
 export const recentUsed = (uid, limit) => db.all(sql`
   SELECT m.id AS id, m.kind AS kind, m.file_id AS file_id, m.keywords AS keywords
   FROM recent_uses r JOIN memes m ON m.id = r.meme_id
-  WHERE r.user_id = ${uid} AND m.status = ${APPROVED}
+  WHERE r.user_id = ${uid} AND (m.status = ${APPROVED} OR (m.status = ${PENDING} AND m.uploader_id = ${uid}))
   ORDER BY r.used_at DESC LIMIT ${limit}`);
 
-/* The user's own latest uploads. */
+/* The user's own latest uploads that they may send (public or waiting for approval). */
 export const ownLatest = (uid, limit) => db.all(sql`
-  SELECT ${INLINE_COLS} FROM memes WHERE uploader_id = ${uid} ORDER BY id DESC LIMIT ${limit}`);
+  SELECT ${INLINE_COLS} FROM memes WHERE uploader_id = ${uid} AND status IN (${APPROVED}, ${PENDING}) ORDER BY id DESC LIMIT ${limit}`);
 
 /* Records that a user sent a meme: refreshes their recent list (keeping the newest `keep`) and
    counts a use unless they sent the same meme within `cooldown` seconds. True if counted. */

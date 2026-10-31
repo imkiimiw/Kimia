@@ -6,7 +6,7 @@
  *
  * callback_data (≤ 64 bytes): my:<page> | mv:<id>:<page> | md / mn / mx:<id>:<page>:<listMsgId>
  */
-import { KIND_ICON, MY_PAGE } from './config.js';
+import { APPROVED, KIND_ICON, MY_PAGE, PENDING } from './config.js';
 import { ago, num, t } from './i18n.js';
 import { firstWord } from './normalize.js';
 import * as store from './store.js';
@@ -19,7 +19,8 @@ async function listView(ctx, userId, page) {
   const pages = Math.ceil(n / MY_PAGE);
   const p = Math.min(Math.max(0, page), pages - 1);
   const rows = await store.listOwn(userId, MY_PAGE, p * MY_PAGE);
-  const kb = rows.map((m) => [{ text: `${KIND_ICON[m.kind] || ''} ${cut(m.keywords, 30)} · ${num(ctx.lang, m.uses)}`, callback_data: `mv:${m.id}:${p}` }]);
+  const mark = { [PENDING]: '⏳ ', hidden: '🙈 ', rejected: '❌ ' };
+  const kb = rows.map((m) => [{ text: `${mark[m.status] || ''}${KIND_ICON[m.kind] || ''} ${cut(m.keywords, 30)} · ${num(ctx.lang, m.uses)}`, callback_data: `mv:${m.id}:${p}` }]);
   const nav = [];
   if (p > 0) nav.push({ text: t(ctx.lang, 'my.prev'), callback_data: `my:${p - 1}` });
   if (p < pages - 1) nav.push({ text: t(ctx.lang, 'my.next'), callback_data: `my:${p + 1}` });
@@ -36,7 +37,7 @@ export async function showList(ctx, userId, page, messageId = null) {
 
 const cardKeyboard = (ctx, m, page, listId) => [[
   { text: t(ctx.lang, 'my.delete_btn'), callback_data: `md:${m.id}:${page}:${listId}` },
-  { text: t(ctx.lang, 'upload.try_btn'), switch_inline_query_current_chat: firstWord(m.keywords) },
+  ...(m.status === APPROVED || m.status === PENDING ? [{ text: t(ctx.lang, 'upload.try_btn'), switch_inline_query_current_chat: firstWord(m.keywords) }] : []),
 ]];
 
 const confirmKeyboard = (ctx, m, page, listId) => [[
@@ -55,7 +56,7 @@ async function ownMeme(ctx, userId, id) {
 export async function showCard(ctx, userId, id, page, listId, nowSec) {
   const m = await ownMeme(ctx, userId, id);
   if (!m) return;
-  const caption = captionable(m.kind) ? t(ctx.lang, 'my.card', { kw: iso(m.keywords), n: m.uses, ago: ago(ctx.lang, m.created_at, nowSec) }) : null;
+  const caption = captionable(m.kind) ? t(ctx.lang, 'my.card', { kw: iso(m.keywords), n: m.uses, ago: ago(ctx.lang, m.created_at, nowSec), status: t(ctx.lang, `status.${m.status}`) }) : null;
   try {
     await sendMeme(ctx, 'my.card', ctx.chatId, m.kind, m.file_id, caption, cardKeyboard(ctx, m, page, listId));
   } catch (err) {

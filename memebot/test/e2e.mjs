@@ -21,6 +21,8 @@ const mock = createMockTelegram();
 mock.addChannel(BACKUP, { title: 'Meme backup' });
 process.env.TG_MOCK_URL = `http://127.0.0.1:${await mock.listen()}`;
 setupDatabase(schema); // what `npx tgcloud migrate` does on the platform
+// The Phase 1 scenarios run with moderation off (an owner setting); the Phase 2 ones turn it on.
+rawDatabase().prepare("INSERT INTO kv (key, value, n) VALUES ('set:moderation', '', 0)").run();
 ENV.ownerId = OWNER;
 ENV.backupChannelId = BACKUP;
 
@@ -81,6 +83,10 @@ const U = {
   newbie: person(810000006, 'Newbie'),
   nima: person(810000007, 'Nima'),
   owner: person(OWNER, 'Owner'),
+  mina: person(810000008, 'Mina'),
+  kian: person(810000009, 'Kian'),
+  lia: person(810000010, 'Lia', 'en'),
+  pari: person(810000011, 'Pari'),
 };
 
 /** A private message from u. `content` is text, or an object of message fields (media etc.). */
@@ -216,16 +222,16 @@ scenario('inline search finds it with every spelling (ZWNJ, Arabic letters, digi
     const { p, ids, queries } = await inline(U.sara, q);
     assert.deepEqual(ids, [`m${memeId('U1')}`], `query "${q}"`);
     assert.equal(p.results[0].type, 'photo');
-    assert.equal(p.is_personal, false);
+    assert.equal(p.is_personal, true, 'own pending memes, ban and forced join make results personal');
     assert.equal(p.cache_time, INLINE_CACHE);
     assert.equal(p.next_offset, '');
     assert.equal(p.button, undefined);
-    assert.ok(queries <= 1, `search used ${queries} queries`);
+    assert.ok(queries <= 3, `search used ${queries} queries (user, settings, search)`);
   }
   const none = await inline(U.sara, 'گربه سگ');
   assert.deepEqual(none.ids, []);
   assert.deepEqual(none.p.button, { text: '😕 پیدا نشد؛ تو آپلودش کن!', start_parameter: 'upload' });
-  assert.ok(none.queries <= 2);
+  assert.ok(none.queries <= 3);
   const en = await inline(U.ann, 'zzz');
   assert.match(en.p.button.text, /Not found/);
 });
@@ -372,7 +378,7 @@ scenario('empty inline query: recently sent, then own uploads, then popular — 
   assert.deepEqual(ids.slice(1, 1 + own.length), own, 'then own latest uploads');
   assert.equal(new Set(ids).size, ids.length, 'no duplicates');
   assert.ok(ids.includes(`m${gif}`));
-  assert.ok(queries <= 4, `home page used ${queries} queries`);
+  assert.ok(queries <= 5, `home page used ${queries} queries (user, settings, recent, own, popular)`);
   const stranger = await inline(U.nima, '');
   assert.equal(stranger.ids[0], `m${gif}`, 'nima sent the gif');
   assert.equal(new Set(stranger.ids).size, stranger.ids.length);
@@ -515,6 +521,7 @@ scenario('owner /setup: commands and descriptions in both languages, inline mode
   assert.deepEqual(fa.commands.map((c) => c.command), ['start', 'my', 'lang', 'help', 'cancel']);
   assert.equal(fa.commands[1].description, 'میم‌های من');
   assert.equal(en.commands[1].description, 'My memes');
+  assert.deepEqual(mock.state.botTexts.get(`chat:${OWNER}/`).commands.map((c) => c.command), ['start', 'my', 'lang', 'help', 'cancel', 'admin'], 'the owner\'s own menu has /admin');
   assert.ok(fa.description && en.short);
   const report = lastText(calls);
   assert.match(report, /حالت اینلاین روشنه/);
@@ -545,6 +552,352 @@ scenario('menu buttons and /lang, /help', async () => {
   assert.match(lastText((await say(U.ali, '/help')).calls), /in any chat, type/);
   await press(U.ali, 'lang:fa', 1);
   await press(U.ali, 'nonsense:1', 1);
+});
+
+// ---------- Phase 2: moderation, admin panel, reports, bans, forced join, broadcast ----------
+
+const kvN = (key) => (one('SELECT n FROM kv WHERE key = ?', key) || {}).n;
+const toUser = (calls, uid) => calls.filter((c) => c.method === 'sendMessage' && Number(c.params.chat_id) === uid);
+const allTo = (uid, re) => mock.state.calls.filter((c) => c.method === 'sendMessage' && Number(c.params.chat_id) === uid && re.test(c.params.text));
+const status = (id) => one('SELECT status FROM memes WHERE id = ?', id).status;
+
+async function panel(u) {
+  const { calls } = await say(u, '/admin');
+  const p = sends(calls)[0];
+  assert.match(p.params.text, /پنل مدیریت|Admin panel/);
+  return p;
+}
+
+scenario('phase 2 — settings: the owner turns moderation on and changes the thresholds from the panel', async () => {
+  const p = await panel(U.owner);
+  assert.deepEqual(buttons(p).map((b) => b.callback_data), ['a:q', 'a:r', 'a:u', 'a:bl:0', 'a:ch', 'a:bc', 'a:st', 'a:ad']);
+  const id = p.result.message_id;
+  const st = await press(U.owner, 'a:st', id);
+  assert.match(st.calls.find((c) => c.method === 'editMessageText').params.text, /میم‌های جدید: خاموش/);
+  await press(U.owner, 'a:st:moderation:t', id);
+  assert.equal(kvN('set:moderation'), 1);
+  for (let i = 0; i < 3; i += 1) await press(U.owner, 'a:st:trust:-', id);
+  assert.equal(kvN('set:trust'), 2);
+  await press(U.owner, 'a:st:hide:+', id);
+  await press(U.owner, 'a:st:hide:-', id);
+  assert.equal(kvN('set:hide'), 3);
+  const view = (await press(U.owner, 'a:st', id)).calls.find((c) => c.method === 'editMessageText');
+  assert.match(view.params.text, /انتشار خودکار بعد از: ۲ میم/);
+  assert.match((await press(U.owner, 'a:p', id)).calls.find((c) => c.method === 'editMessageText').params.text, /پنل مدیریت/);
+});
+
+scenario('phase 2 — a new meme waits for approval: only its uploader finds it; admins are told (at most every 30 min)', async () => {
+  advance(3600);
+  await media(U.mina, 'photo', 'M1');
+  const k = await say(U.mina, 'تایید نشده یک');
+  const m1 = memeId('M1');
+  assert.equal(status(m1), 'pending');
+  assert.match(toUser(k.calls, U.mina.id).pop().params.text, /منتظر تأیید ادمینه/);
+  const note = toUser(k.calls, OWNER)[0];
+  assert.match(note.params.text, /۱ میم منتظر تأییده/);
+  assert.deepEqual(buttons(note).map((b) => b.callback_data), ['a:q']);
+  assert.deepEqual((await inline(U.sara, 'تایید')).ids, []);
+  assert.deepEqual((await inline(U.mina, 'تایید')).ids, [`m${m1}`]);
+  assert.ok((await inline(U.mina, '')).ids.includes(`m${m1}`), 'on the uploader\'s home page too');
+  await media(U.mina, 'photo', 'M2');
+  const k2 = await say(U.mina, 'تایید نشده دو');
+  assert.deepEqual(toUser(k2.calls, OWNER), [], 'throttled');
+  assert.match(buttons(sends((await say(U.mina, '/my')).calls)[0])[0].text, /^⏳/);
+});
+
+scenario('phase 2 — approval queue: approve / reject, the uploader is told, the buttons become a label, the next card follows', async () => {
+  const m1 = memeId('M1');
+  const m2 = memeId('M2');
+  const q = await press(U.owner, 'a:q', 1);
+  const card = q.calls.find((c) => c.method === 'sendPhoto');
+  assert.match(card.params.caption, new RegExp(`#m${m1}`));
+  assert.match(card.params.caption, /Mina/);
+  assert.deepEqual(buttons(card).map((b) => b.callback_data), [`a:ok:${m1}`, `a:no:${m1}`, `a:nb:${m1}`, `a:qs:${m1}`]);
+  const ok = await press(U.owner, `a:ok:${m1}`, card.result.message_id);
+  assert.equal(status(m1), 'approved');
+  assert.equal(one('SELECT reviewed_by FROM memes WHERE id = ?', m1).reviewed_by, OWNER);
+  assert.match(toUser(ok.calls, U.mina.id)[0].params.text, /میمت تأیید شد/);
+  assert.match(buttons(ok.calls.find((c) => c.method === 'editMessageReplyMarkup'))[0].text, /تأیید شد — Owner/);
+  const card2 = ok.calls.find((c) => c.method === 'sendPhoto');
+  assert.match(card2.params.caption, new RegExp(`#m${m2}`));
+  const twice = await press(U.owner, `a:ok:${m1}`, card.result.message_id);
+  assert.deepEqual([twice.answer.text, twice.answer.show_alert], ['این مورد قبلاً بررسی شده.', true]);
+  const no = await press(U.owner, `a:no:${m2}`, card2.result.message_id);
+  assert.equal(status(m2), 'rejected');
+  assert.match(toUser(no.calls, U.mina.id)[0].params.text, /تأیید نشد/);
+  assert.match(lastText(no.calls), /به آخر صف رسیدی/);
+  assert.deepEqual((await inline(U.sara, 'تایید')).ids, [`m${m1}`]);
+  assert.match(lastText((await media(U.mina, 'photo', 'M2')).calls), /❌ رد شده/);
+  assert.match(lastText((await media(U.sara, 'photo', 'M2')).calls), /رد شده و دوباره قبول نمی/);
+  assert.match(lastText((await press(U.owner, 'a:q', 1)).calls), /صف تأیید خالیه/);
+});
+
+scenario('phase 2 — trust: after N approved memes (N = 2 here) uploads go public at once; admins never wait', async () => {
+  await upload(U.mina, 'sticker', 'M3', 'استیکر مینا');
+  const m3 = memeId('M3');
+  assert.equal(status(m3), 'pending');
+  const q = await press(U.owner, 'a:q', 1);
+  assert.ok(q.calls.some((c) => c.method === 'sendSticker' && !c.params.reply_markup), 'a sticker card: the sticker, then a text with the buttons');
+  const text = sends(q.calls).pop();
+  assert.match(text.params.text, new RegExp(`#m${m3}`));
+  const ok = await press(U.owner, `a:ok:${m3}`, text.result.message_id);
+  assert.match(toUser(ok.calls, U.mina.id)[0].params.text, /بدون نیاز به تأیید منتشر/);
+  assert.equal(one('SELECT approved_n FROM users WHERE id = ?', U.mina.id).approved_n, 2);
+  await media(U.mina, 'photo', 'M4');
+  const k = await say(U.mina, 'مینا آزاد');
+  assert.equal(status(memeId('M4')), 'approved');
+  assert.match(lastText(k.calls), /میم ذخیره شد!/);
+  await upload(U.owner, 'photo', 'O1', 'مالک');
+  assert.equal(status(memeId('O1')), 'approved');
+});
+
+scenario('phase 2 — ordinary users can\'t open the panel or press any of its buttons', async () => {
+  assert.doesNotMatch(lastText((await say(U.sara, '/admin')).calls), /پنل مدیریت/);
+  for (const data of ['a:p', 'a:q', `a:ok:${memeId('M1')}`, 'a:st:moderation:t', 'a:bc', `a:ub:${U.ali.id}`, 'a:x']) {
+    const r = await press(U.sara, data, 1);
+    assert.deepEqual([r.answer.text, r.answer.show_alert], ['⛔️ دسترسی نداری.', true], data);
+  }
+  assert.equal(kvN('set:moderation'), 1);
+  assert.equal(one('SELECT banned FROM users WHERE id = ?', U.ali.id).banned, 0);
+});
+
+scenario('phase 2 — admins: the owner adds one; they get the queue, reports and bans but not owner sections; removal revokes', async () => {
+  const p = await panel(U.owner);
+  await press(U.owner, 'a:ad', p.result.message_id);
+  await press(U.owner, 'a:ada', p.result.message_id);
+  assert.match(sends((await say(U.owner, '@NIMA_T')).calls)[0].params.text, /پیدا نشد/, 'nima never wrote to the bot');
+  await say(U.nima, '/start');
+  await press(U.owner, 'a:ada', p.result.message_id);
+  const add = await say(U.owner, '@NIMA_T');
+  assert.match(sends(add.calls)[0].params.text, /Nima.*ادمین شد/);
+  assert.ok(one('SELECT user_id FROM admins WHERE user_id = ?', U.nima.id));
+  const np = await panel(U.nima);
+  assert.deepEqual(buttons(np).map((b) => b.callback_data), ['a:q', 'a:r', 'a:u', 'a:bl:0']);
+  for (const data of ['a:st', 'a:bc', 'a:ch', 'a:ad', `a:adr:${U.nima.id}`]) assert.equal((await press(U.nima, data, np.result.message_id)).answer.text, '⛔️ دسترسی نداری.', data);
+  advance(1900);
+  await media(U.kian, 'photo', 'K1');
+  const k = await say(U.kian, 'کیان');
+  assert.equal(toUser(k.calls, OWNER).length + toUser(k.calls, U.nima.id).length, 2, 'both admins told');
+  const q = await press(U.nima, 'a:q', 1);
+  const card = q.calls.find((c) => c.method === 'sendPhoto');
+  await press(U.nima, `a:ok:${memeId('K1')}`, card.result.message_id);
+  assert.equal(one('SELECT reviewed_by FROM memes WHERE file_unique_id = ?', 'K1').reviewed_by, U.nima.id);
+  await press(U.owner, `a:adr:${U.nima.id}`, p.result.message_id);
+  assert.equal(one('SELECT user_id FROM admins WHERE user_id = ?', U.nima.id), undefined);
+  assert.doesNotMatch(lastText((await say(U.nima, '/admin')).calls), /پنل مدیریت/);
+});
+
+scenario('phase 2 — reports: send someone\'s public meme to the bot and pick a reason; 3 reports hide it; admins keep or remove', async () => {
+  const id = memeId('U1');
+  const r = await media(U.sara, 'photo', 'U1');
+  const msg = sends(r.calls)[0];
+  assert.deepEqual(buttons(msg).map((b) => b.callback_data), [`rp:${id}`]);
+  const pick = await press(U.sara, `rp:${id}`, msg.result.message_id);
+  assert.deepEqual(buttons(pick.calls.find((c) => c.method === 'editMessageReplyMarkup')).map((b) => b.callback_data), [`rp:${id}:nsfw`, `rp:${id}:hate`, `rp:${id}:spam`, `rp:${id}:other`, `rp:${id}:x`]);
+  await press(U.sara, `rp:${id}:x`, msg.result.message_id);
+  const done = await press(U.sara, `rp:${id}:nsfw`, msg.result.message_id);
+  assert.equal(done.answer.text, '✅ گزارشت ثبت شد. ممنون!');
+  assert.equal(one('SELECT reports FROM memes WHERE id = ?', id).reports, 1);
+  assert.match(toUser(done.calls, OWNER)[0].params.text, /گزارش‌شده منتظر بررسیه/);
+  assert.equal((await press(U.sara, `rp:${id}:spam`, msg.result.message_id)).answer.text, 'قبلاً این میم رو گزارش کردی.');
+  const own = await media(U.ali, 'photo', 'U1');
+  assert.deepEqual(buttons(sends(own.calls)[0]), [], 'no report button on your own meme');
+  assert.equal((await press(U.ali, `rp:${id}`, 1)).answer.text, 'میم خودت رو نمی‌تونی گزارش کنی.');
+  assert.equal((await press(U.ali, `rp:${id}:spam`, 1)).answer.text, 'این میم دیگه قابل گزارش نیست.');
+  await press(U.joe, `rp:${id}:hate`, 1);
+  assert.equal(status(id), 'approved');
+  await press(U.ann, `rp:${id}:spam`, 1);
+  assert.equal(status(id), 'hidden', 'hidden after 3 reports');
+  assert.deepEqual((await inline(U.nima, 'عصبانی')).ids, []);
+  assert.match(lastText((await media(U.reza, 'photo', 'U1')).calls), /پنهانه/);
+
+  const card = (await press(U.owner, 'a:r', 1)).calls.find((c) => c.method === 'sendPhoto');
+  assert.match(card.params.caption, /۳ گزارش/);
+  assert.match(card.params.caption, /نامناسب ۱/);
+  assert.deepEqual(buttons(card).map((b) => b.callback_data), [`a:rk:${id}`, `a:rd:${id}`, `a:rb:${id}`, `a:rs:${id}`]);
+  await press(U.owner, `a:rk:${id}`, card.result.message_id);
+  assert.equal(status(id), 'approved');
+  assert.equal(one('SELECT count(*) AS n FROM reports WHERE meme_id = ?', id).n, 0);
+  assert.deepEqual((await inline(U.nima, 'عصبانی')).ids, [`m${id}`]);
+
+  const video = memeId('U3');
+  await press(U.sara, `rp:${video}:spam`, 1);
+  const vcard = (await press(U.owner, 'a:r', 1)).calls.find((c) => c.method === 'sendVideo');
+  const rd = await press(U.owner, `a:rd:${video}`, vcard.result.message_id);
+  assert.equal(status(video), 'rejected');
+  assert.match(toUser(rd.calls, U.ali.id)[0].params.text, /به‌خاطر گزارش‌ها حذف شد/);
+  rawDatabase().prepare('UPDATE users SET rep_day = ?, rep_n = 10 WHERE id = ?').run(Math.floor((nowSec() + 12600) / 86400), U.ann.id);
+  assert.equal((await press(U.ann, `rp:${memeId('U4')}:spam`, 1)).answer.text, 'You reached today\'s report limit.');
+});
+
+scenario('phase 2 — bans: find by @username; banning rejects waiting memes; banned users get one notice a day and nothing inline; unban', async () => {
+  await upload(U.pari, 'photo', 'PA1', 'پری');
+  const pa = memeId('PA1');
+  const p = await panel(U.owner);
+  await press(U.owner, 'a:u', p.result.message_id);
+  const card = sends((await say(U.owner, '@Pari_T')).calls)[0];
+  assert.match(card.params.text, /<code>810000011<\/code>/);
+  assert.match(card.params.text, /منتظر تأیید ۱/);
+  const ban = await press(U.owner, `a:ub:${U.pari.id}`, card.result.message_id);
+  assert.equal(ban.answer.text, '🚫 مسدود شد. ۱ میم منتظرش رد شد.');
+  assert.equal(status(pa), 'rejected');
+  assert.match(lastText((await say(U.pari, '/start')).calls), /مسدود شده/);
+  assert.deepEqual((await say(U.pari, 'سلام')).calls, [], 'then silence');
+  const inl = await inline(U.pari, 'گربه');
+  assert.deepEqual([inl.ids, inl.p.button], [[], undefined]);
+  assert.equal((await press(U.pari, 'm:help', 1)).answer.text, '⛔️ دسترسی شما مسدود شده.');
+  advance(86401);
+  assert.match(lastText((await say(U.pari, 'سلام')).calls), /مسدود شده/, 'a notice again the next day');
+  const list = await press(U.owner, 'a:bl:0', p.result.message_id);
+  assert.deepEqual(buttons(list.calls.find((c) => c.method === 'editMessageText')).map((b) => b.callback_data), [`a:uc:${U.pari.id}`, 'a:p']);
+  await press(U.owner, `a:uu:${U.pari.id}`, p.result.message_id);
+  assert.match(lastText((await say(U.pari, '/start')).calls), /سلام Pari|زبان/);
+
+  assert.equal((await press(U.owner, `a:ub:${OWNER}`, 1)).answer.text, 'مالک و ادمین‌ها رو نمی‌شه مسدود کرد (اول از ادمینی حذفش کن).');
+  await press(U.owner, 'a:u', p.result.message_id);
+  assert.match(lastText((await say(U.owner, 'nobody_here')).calls), /پیدا نشد/);
+
+  const rezaPublic = one("SELECT count(*) AS n FROM memes WHERE uploader_id = ? AND status = 'approved'", U.reza.id).n;
+  const ask = await press(U.owner, `a:uh:${U.reza.id}`, p.result.message_id);
+  assert.deepEqual(buttons(ask.calls.find((c) => c.method === 'editMessageText')).map((b) => b.callback_data), [`a:uhy:${U.reza.id}`, `a:uc:${U.reza.id}`]);
+  const hid = await press(U.owner, `a:uhy:${U.reza.id}`, p.result.message_id);
+  assert.equal(hid.answer.text, `🙈 ${faDigits(rezaPublic)} میم رد شد.`);
+  assert.equal(one("SELECT count(*) AS n FROM memes WHERE uploader_id = ? AND status = 'approved'", U.reza.id).n, 0);
+
+  await upload(U.lia, 'photo', 'L1', 'spam spam');
+  const qc = (await press(U.owner, 'a:q', 1)).calls.find((c) => c.method === 'sendPhoto');
+  const l1 = memeId('L1');
+  const nb = await press(U.owner, `a:nb:${l1}`, qc.result.message_id);
+  assert.deepEqual(buttons(nb.calls.find((c) => c.method === 'editMessageReplyMarkup')).map((b) => b.callback_data), [`a:nby:${l1}`, `a:qk:${l1}`]);
+  await press(U.owner, `a:qk:${l1}`, qc.result.message_id);
+  assert.equal(status(l1), 'pending');
+  await press(U.owner, `a:nb:${l1}`, qc.result.message_id);
+  await press(U.owner, `a:nby:${l1}`, qc.result.message_id);
+  assert.deepEqual([status(l1), one('SELECT banned FROM users WHERE id = ?', U.lia.id).banned], ['rejected', 1]);
+});
+
+scenario('phase 2 — forced join: channels added by @username or a forwarded post; members pass, others get a lock (PM) or a join button (inline); cached; a broken channel is skipped', async () => {
+  const PUB = -1003000000001;
+  const PRIV = -1003000000002;
+  mock.addChannel(PUB, { title: 'Meme channel', username: 'memechan' });
+  mock.addChannel(PRIV, { title: 'Private memes' });
+  mock.addChannel(-1003000000003, { title: 'Not admin', username: 'notadminchan', admin: false });
+  const p = await panel(U.owner);
+  const pid = p.result.message_id;
+  assert.match((await press(U.owner, 'a:ch', pid)).calls.find((c) => c.method === 'editMessageText').params.text, /هیچ کانالی/);
+  await press(U.owner, 'a:cha', pid);
+  assert.match(lastText((await say(U.owner, 'https://t.me/memechan')).calls), /Meme channel/);
+  await press(U.owner, 'a:cha', pid);
+  const fwd = await say(U.owner, { text: 'a post', forward_origin: { type: 'channel', chat: { id: PRIV, type: 'channel', title: 'Private memes' }, message_id: 5, date: 0 } });
+  assert.ok(sends(fwd.calls).some((c) => /Private memes/.test(c.params.text)));
+  assert.deepEqual(sql('SELECT chat_id, link FROM channels ORDER BY added_at, chat_id').map((c) => c.link), ['https://t.me/memechan', 'https://t.me/+inv1003000000002']);
+  await press(U.owner, 'a:cha', pid);
+  assert.ok(sends((await say(U.owner, '@notadminchan')).calls).some((c) => /ادمین این کانال نیست/.test(c.params.text)));
+  await press(U.owner, 'a:cha', pid);
+  assert.ok(sends((await say(U.owner, 'not a channel!')).calls).some((c) => /کانال پیدا نشد/.test(c.params.text)));
+  assert.ok(kvN('join:ver') >= 2);
+
+  const lock = sends((await say(U.sara, 'سلام')).calls)[0];
+  assert.match(lock.params.text, /عضو این کانال/);
+  assert.deepEqual(buttons(lock).map((b) => b.url || b.callback_data), ['https://t.me/memechan', 'https://t.me/+inv1003000000002', 'j:chk']);
+  const in1 = await inline(U.sara, 'گربه');
+  assert.deepEqual([in1.ids, in1.p.button.start_parameter], [[], 'join']);
+  const before = mock.state.calls.length;
+  await inline(U.sara, 'گربه ع');
+  assert.equal(mock.state.calls.slice(before).filter((c) => c.method === 'getChatMember').length, 0, 'negative result cached');
+  const still = await press(U.sara, 'j:chk', lock.result.message_id);
+  assert.deepEqual([still.answer.text, still.answer.show_alert], ['❌ هنوز عضو همه‌ی کانال‌ها نیستی.', true]);
+  mock.setMember(PUB, U.sara.id);
+  mock.setMember(PRIV, U.sara.id, 'restricted');
+  const ok = await press(U.sara, 'j:chk', lock.result.message_id);
+  assert.match(ok.calls.find((c) => c.method === 'editMessageText').params.text, /حالا می‌تونی/);
+  const before2 = mock.state.calls.length;
+  assert.ok((await inline(U.sara, 'گربه')).ids.length > 0);
+  assert.equal(mock.state.calls.slice(before2).filter((c) => c.method === 'getChatMember').length, 0, 'positive result cached');
+  const stranger = await inline({ id: 899000001, is_bot: false, first_name: 'X', language_code: 'en' }, 'cat');
+  assert.equal(stranger.p.button.start_parameter, 'join', 'never opened the bot → join first');
+  assert.ok((await inline(U.owner, 'گربه')).ids.length > 0, 'admins are exempt');
+  mock.setMember(PUB, U.ann.id, 'left');
+  assert.match(lastText((await say(U.ann, 'hi')).calls), /join these channels/);
+  const cb = await press(U.ann, 'm:my', 1);
+  assert.deepEqual([cb.answer.text, cb.answer.show_alert], ['📢 Join the channels first.', true]);
+
+  mock.state.channels.get(PUB).admin = false;
+  advance(700);
+  const broken = await say(U.sara, 'سلام دوباره');
+  assert.match(lastText(broken.calls), /برای آپلود، میم رو بفرست/, 'the broken channel is skipped');
+  assert.equal(allTo(OWNER, /عضویت این کانال\u200Cها قابل بررسی نیست/).length, 1);
+  mock.state.channels.get(PUB).admin = true;
+
+  await press(U.owner, 'a:st:join:t', pid);
+  assert.match(lastText((await say(U.ann, 'hi')).calls), /To upload, send me a meme/, 'switched off');
+  await press(U.owner, 'a:st:join:t', pid);
+  await press(U.owner, `a:chr:${PRIV}`, pid);
+  await press(U.owner, `a:chr:${PUB}`, pid);
+  assert.equal(one('SELECT count(*) AS n FROM channels').n, 0);
+  assert.match(lastText((await say(U.ann, 'hi')).calls), /To upload, send me a meme/, 'no channels → no lock');
+});
+
+scenario('phase 2 — broadcast: draft, confirm, batches of 25, a 429 waits and resumes, blocked users marked, finished on the side of other updates, nobody twice', async () => {
+  const extra = Array.from({ length: 60 }, (_, i) => 830000001 + i);
+  for (const id of extra) {
+    rawDatabase().prepare('INSERT INTO users (id, first_name, created_at, seen_at) VALUES (?, ?, ?, ?)').run(id, 'U', nowSec(), nowSec());
+    mock.state.privateChats.add(id);
+  }
+  mock.state.blocked.add(extra[3]);
+  mock.state.blocked.add(extra[40]);
+  rawDatabase().prepare('UPDATE users SET banned = 1 WHERE id = ?').run(extra[10]);
+  const total = one('SELECT count(*) AS n FROM users WHERE banned = 0 AND blocked = 0').n;
+
+  const p = await panel(U.owner);
+  await press(U.owner, 'a:bc', p.result.message_id);
+  const draft = await say(U.owner, FILES.photo('BC1'));
+  assert.equal(one('SELECT id FROM memes WHERE file_unique_id = ?', 'BC1'), undefined, 'the broadcast message is not an upload');
+  const confirm = sends(draft.calls)[0];
+  assert.match(confirm.params.text, new RegExp(`برای ${faDigits(total)} کاربر`));
+  const bid = Number(buttons(confirm)[0].callback_data.split(':')[2]);
+  const copies = () => mock.state.copies.length;
+
+  const first = await press(U.owner, `a:bcy:${bid}`, confirm.result.message_id);
+  assert.equal(first.calls.filter((c) => c.method === 'copyMessage').length, 25);
+  assert.match(first.calls.find((c) => c.method === 'editMessageText').params.text, /در حال ارسال/);
+  mock.rateLimitCopyAt(10);
+  const limited = await press(U.owner, `a:bcx:${bid}`, confirm.result.message_id);
+  assert.equal(limited.calls.filter((c) => c.method === 'copyMessage' && c.ok).length, 9);
+  assert.match(limited.calls.find((c) => c.method === 'editMessageText').params.text, /محدودیت سرعت/);
+  const n1 = copies();
+  await press(U.owner, `a:bcx:${bid}`, confirm.result.message_id);
+  assert.equal(copies(), n1, 'waits for retry_after');
+  advance(8);
+  await press(U.owner, `a:bcx:${bid}`, confirm.result.message_id);
+  assert.ok(copies() > n1);
+  for (let i = 0; i < 40 && one('SELECT status FROM broadcasts WHERE id = ?', bid).status === 'running'; i += 1) await say(U.sara, `side ${i}`);
+  const b = one('SELECT * FROM broadcasts WHERE id = ?', bid);
+  assert.equal(b.status, 'done');
+  assert.equal(b.sent + b.failed, total);
+  const per = new Map();
+  for (const c of mock.state.copies.filter((x) => x.message_id === draft.message.message_id)) per.set(c.to, (per.get(c.to) || 0) + 1);
+  assert.ok([...per.values()].every((n) => n === 1), 'nobody twice');
+  assert.equal(per.has(extra[10]), false, 'banned users skipped');
+  assert.equal(per.size, b.sent);
+  assert.deepEqual([extra[3], extra[40]].map((id) => one('SELECT blocked FROM users WHERE id = ?', id).blocked), [1, 1]);
+  assert.equal(allTo(OWNER, /پیام همگانی #\d+ تموم شد/).length, 1);
+
+  await press(U.owner, 'a:bc', p.result.message_id);
+  const d2 = sends((await say(U.owner, 'second')).calls)[0];
+  const id2 = Number(buttons(d2)[0].callback_data.split(':')[2]);
+  await press(U.owner, 'a:bc', p.result.message_id);
+  const d3 = sends((await say(U.owner, 'third')).calls)[0];
+  const id3 = Number(buttons(d3)[0].callback_data.split(':')[2]);
+  await press(U.owner, `a:bcy:${id2}`, d2.result.message_id);
+  assert.equal((await press(U.owner, `a:bcy:${id3}`, d3.result.message_id)).answer.text, 'یه پیام همگانی دیگه در حال ارساله.');
+  await press(U.owner, `a:bcs:${id2}`, d2.result.message_id);
+  assert.equal(one('SELECT status FROM broadcasts WHERE id = ?', id2).status, 'cancelled');
+  await press(U.owner, `a:bcn:${id3}`, d3.result.message_id);
+  assert.equal(one('SELECT status FROM broadcasts WHERE id = ?', id3).status, 'cancelled');
+  await press(U.owner, 'a:bc', p.result.message_id);
+  assert.match(lastText((await say(U.owner, '/cancel')).calls), /لغو شد/);
+  assert.equal(one('SELECT state FROM users WHERE id = ?', OWNER).state, null);
 });
 
 // ---------- run ----------

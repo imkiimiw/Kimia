@@ -1,7 +1,7 @@
 /*
- * Owner tools. Phase 1: /setup — sets the command menu and the bot descriptions in every
- * language (the default language without language_code), and checks inline mode and the backup
- * channel. Inline mode (/setinline) and inline feedback (/setinlinefeedback) can only be turned on
+ * Owner tools. /setup — sets the command menu and the bot descriptions in every language (the
+ * default language without language_code), adds /admin to the owner's own menu, and checks inline
+ * mode and the backup channel. Inline mode (/setinline) and inline feedback (/setinlinefeedback) can only be turned on
  * in @BotFather; the report says so.
  */
 import { ENV } from './env.js';
@@ -27,6 +27,8 @@ export async function setup(ctx, nowSec) {
       await call(ctx, 'setMyDescription', { description: t(lang, 'bot.description'), ...scope }, 'setup.description');
       await call(ctx, 'setMyShortDescription', { short_description: t(lang, 'bot.short'), ...scope }, 'setup.short');
     }
+    const ownerCommands = [...COMMANDS, 'admin'].map((c) => ({ command: c, description: t(ctx.lang, `cmd.${c}`) }));
+    await call(ctx, 'setMyCommands', { commands: ownerCommands, scope: { type: 'chat', chat_id: ENV.ownerId } }, 'setup.owner_commands');
     lines.push(t(ctx.lang, 'owner.setup.commands', { n: LANGS.length }));
   } catch (err) {
     lines.push(t(ctx.lang, 'owner.setup.commands_fail', { err: esc(describeError(err)) }));

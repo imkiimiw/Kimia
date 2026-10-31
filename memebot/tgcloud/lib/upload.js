@@ -3,11 +3,18 @@
  * limit and asks for keywords (users.state = 'kw', the media's ids in state_data) → the user
  * writes keywords → the meme is saved, backed up to the channel, and the user gets a "try it"
  * button. One pending meme per user; a new one replaces it. Albums are refused.
+ *
+ * Moderation (Phase 2): a new meme is `pending` (only its uploader sees it) unless moderation is
+ * off, the uploader is an admin, or they are trusted (settings.trust admin-approved memes). Admins
+ * are told about waiting memes (throttled). Sending a meme that already exists answers with its
+ * state; for someone else's public meme it offers 🚩 Report (lib/review.js).
  */
-import { DAILY_UPLOADS, KW_MAX_CHARS, PENDING_TTL } from './config.js';
+import { APPROVED, DAILY_UPLOADS, HIDDEN, KW_MAX_CHARS, PENDING, PENDING_TTL, REJECTED } from './config.js';
+import * as admin from './adminstore.js';
 import { backupMeme } from './backup.js';
-import { botUsername } from './bot.js';
+import { botUsername, notifyAdmins } from './bot.js';
 import { t } from './i18n.js';
+import { reportButton } from './review.js';
 import { cleanKeywords, firstWord, indexWords } from './normalize.js';
 import * as store from './store.js';
 import { editKeyboard, send } from './tg.js';
@@ -42,15 +49,28 @@ function hasLink(msg) {
   return LINK_RE.test(msg.text || '') || (msg.entities || []).some((e) => LINK_ENTITIES.includes(e.type));
 }
 
-const dailyMax = (owner) => (owner ? 1e9 : DAILY_UPLOADS);
+const dailyMax = (role) => (role ? 1e9 : DAILY_UPLOADS);
 
+/* The meme already exists: say in what state; offer 🚩 Report for someone else's public meme. */
 async function sayDuplicate(ctx, user, dup, replyTo) {
-  const key = dup.uploader_id === user.id ? 'upload.dup_own' : 'upload.dup';
-  await send(ctx, 'upload.dup', t(ctx.lang, key, { kw: iso(dup.keywords) }), null, { replyTo });
+  if (dup.uploader_id === user.id) {
+    const text = t(ctx.lang, 'upload.dup_own', { kw: iso(dup.keywords), status: t(ctx.lang, `status.${dup.status}`) });
+    return send(ctx, 'upload.dup_own', text, null, { replyTo });
+  }
+  if (dup.status === APPROVED) return send(ctx, 'upload.dup', t(ctx.lang, 'upload.dup', { kw: iso(dup.keywords) }), reportButton(ctx.lang, dup.id), { replyTo });
+  const key = { [PENDING]: 'upload.dup_pending', [HIDDEN]: 'upload.dup_hidden', [REJECTED]: 'upload.dup_rejected' }[dup.status] || 'upload.dup_pending';
+  return send(ctx, key, t(ctx.lang, key), null, { replyTo });
+}
+
+/* Public at once, or waiting for an admin? */
+function initialStatus(user, role, settings) {
+  if (!settings.moderation || role) return APPROVED;
+  if (settings.trust > 0 && user.approved_n >= settings.trust) return APPROVED;
+  return PENDING;
 }
 
 /* A meme arrived. */
-export async function onMedia(ctx, user, msg, owner, nowSec) {
+export async function onMedia(ctx, user, msg, role, nowSec) {
   if (msg.media_group_id) {
     if (await store.claimAlbum(user.id, msg.media_group_id)) await send(ctx, 'upload.album', t(ctx.lang, 'upload.album'));
     return;
@@ -58,7 +78,7 @@ export async function onMedia(ctx, user, msg, owner, nowSec) {
   const media = mediaOf(msg);
   const dup = await store.memeByUniqueId(media.fileUniqueId);
   if (dup) return sayDuplicate(ctx, user, dup, msg.message_id);
-  if (user.up_day === tehranDay(nowSec) && user.up_count >= dailyMax(owner)) {
+  if (user.up_day === tehranDay(nowSec) && user.up_count >= dailyMax(role)) {
     await send(ctx, 'upload.limit', t(ctx.lang, 'upload.limit', { limit: DAILY_UPLOADS }));
     return;
   }
@@ -76,7 +96,7 @@ export async function onMedia(ctx, user, msg, owner, nowSec) {
 }
 
 /* Text while a meme waits for keywords. */
-export async function onKeywords(ctx, user, msg, owner, nowSec) {
+export async function onKeywords(ctx, user, msg, role, settings, nowSec) {
   const p = parseJson(user.state_data);
   if (!p || nowSec - user.state_at >= PENDING_TTL) {
     await store.clearState(user.id);
@@ -92,9 +112,10 @@ export async function onKeywords(ctx, user, msg, owner, nowSec) {
   await store.clearState(user.id);
   if (p.askId) await editKeyboard(ctx, 'upload.ask.done', p.askId, null);
   const day = tehranDay(nowSec);
-  const used = await store.consumeUpload(user.id, day, dailyMax(owner));
+  const used = await store.consumeUpload(user.id, day, dailyMax(role));
   if (used === null) return void (await send(ctx, 'upload.limit', t(ctx.lang, 'upload.limit', { limit: DAILY_UPLOADS })));
-  const id = await store.insertMeme({ fileId: p.fileId, fileUniqueId: p.fileUniqueId, kind: p.kind, keywords, uploaderId: user.id, words, t: nowSec });
+  const status = initialStatus(user, role, settings);
+  const id = await store.insertMeme({ fileId: p.fileId, fileUniqueId: p.fileUniqueId, kind: p.kind, keywords, uploaderId: user.id, words, t: nowSec, status });
   if (!id) {
     await store.refundUpload(user.id, day);
     const dup = await store.memeByUniqueId(p.fileUniqueId);
@@ -105,8 +126,13 @@ export async function onKeywords(ctx, user, msg, owner, nowSec) {
 
   const bot = await botUsername(ctx, nowSec);
   const q = firstWord(keywords);
-  const text = t(ctx.lang, 'upload.saved', { kw: iso(keywords), bot: esc(bot), q: esc(q), used, limit: owner ? '∞' : DAILY_UPLOADS });
-  await send(ctx, 'upload.saved', text, [[{ text: t(ctx.lang, 'upload.try_btn'), switch_inline_query_current_chat: q }]], { replyTo: p.msgId });
+  const key = status === PENDING ? 'upload.saved_pending' : 'upload.saved';
+  const text = t(ctx.lang, key, { kw: iso(keywords), bot: esc(bot), q: esc(q), used, limit: role ? '∞' : DAILY_UPLOADS });
+  await send(ctx, key, text, [[{ text: t(ctx.lang, 'upload.try_btn'), switch_inline_query_current_chat: q }]], { replyTo: p.msgId });
+  if (status === PENDING) {
+    const n = await admin.countStatus(PENDING);
+    await notifyAdmins(ctx, 'queue', (lang) => [t(lang, 'notify.queue', { n }), [[{ text: t(lang, 'adm.queue_btn', { n }), callback_data: 'a:q' }]]], nowSec);
+  }
 }
 
 /* /cancel or the cancel button (msgId = the media message the button belongs to, if any). */
