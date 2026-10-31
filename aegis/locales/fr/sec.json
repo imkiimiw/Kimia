@@ -190,5 +190,9 @@
   "night_ended": "☀️ Le verrou de nuit a été levé par {who}.",
   "night_restored": "☀️ Bonjour ! Le groupe est de nouveau ouvert.",
   "log_night_end": "☀️ Verrou de nuit terminé",
-  "state_night": "🌙 Verrou de nuit ACTIF — fin : {time}."
+  "state_night": "🌙 Verrou de nuit ACTIF — fin : {time}.",
+  "f_qr": "Liens dans les QR codes",
+  "f_pdf": "PDF risqués",
+  "sig_qr_link": "un lien caché dans un QR code",
+  "sig_pdf_active": "un PDF qui peut exécuter du code"
 }

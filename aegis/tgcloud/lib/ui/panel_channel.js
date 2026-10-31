@@ -44,8 +44,8 @@ const flag = settings.flag;
 const title = (g) => iso(g.chat.title || '', 48);
 const EXPIRES = [0, 3600, 86400, 7 * 86400];
 const LIMITS = [0, 1, 10, 100, 1000];
-const SECONDS = new Set(['ch_edit_grace', 'ch_post_ttl', 'pts_gap']);
-const PER_MIN = new Set(['ch_jr_flood', 'dm_flood']);
+const SECONDS = new Set(['ch_edit_grace', 'ch_post_ttl', 'pts_gap', 'fun_clean']);
+const PER_MIN = new Set(['ch_jr_flood', 'dm_flood', 'fun_rate']);
 
 /* ---------- shared by the channel screens ---------- */
 
@@ -53,7 +53,7 @@ export function show(lang, key, v) {
   if (settings.isFlag(key)) return t(lang, v === '1' ? 'common.on' : 'common.off');
   if (SECONDS.has(key)) return Number(v) ? dur(lang, Number(v)) : t(lang, 'common.off');
   if (PER_MIN.has(key)) return Number(v) ? t(lang, 'chp.v_per_min', { n: num(lang, Number(v)) }) : t(lang, 'common.off');
-  if (key === 'pts_msg') return num(lang, Number(v));
+  if (key === 'pts_msg' || key === 'media_daily') return num(lang, Number(v));
   return t(lang, `chp.v_${key}_${v}`);
 }
 

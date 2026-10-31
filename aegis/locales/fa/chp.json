@@ -179,5 +179,19 @@
   "k_qa_on": "پرسش از مدیران",
   "k_anon_on": "پرسش ناشناس",
   "k_appeals_on": "اعتراض",
-  "k_review_all": "بازبینی همهٔ تصمیم‌ها"
+  "k_review_all": "بازبینی همهٔ تصمیم‌ها",
+  "k_fun_on": "سرگرمی",
+  "k_fun_rate": "حداکثر",
+  "k_fun_clean": "حذف پاسخ‌های سرگرمی بعد از",
+  "k_fun_reward": "امتیاز برای برد",
+  "k_fun_free": "ادمین‌ها بدون سقف",
+  "k_bday_cal": "تقویم تولدها",
+  "k_media_on": "ابزارهای رسانه",
+  "k_media_who": "چه کسی",
+  "k_media_daily": "برای هر عضو در روز",
+  "v_bday_cal_auto": "بر اساس زبان چت",
+  "v_bday_cal_g": "میلادی",
+  "v_bday_cal_j": "شمسی",
+  "v_media_who_a": "همه",
+  "v_media_who_d": "ادمین‌ها"
 }

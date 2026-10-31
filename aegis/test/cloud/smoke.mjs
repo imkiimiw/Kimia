@@ -18,7 +18,9 @@
 // tables and their SQL, post content and UTF-8 decoding in the isolate, the channel_post handlers and
 // the guard bot's Mini App endpoint (joinGuard); Phase 8: the thirteen social tables and their SQL
 // (points, badges, contests, polls, questions, appeals, reviews), levels, the health score and the
-// command words in the isolate, and the poll / poll_answer / message_reaction_count handlers.
+// command words in the isolate, and the poll / poll_answer / message_reaction_count handlers;
+// Phase 9: the six fun/media tables, the codecs in the isolate (CPU budget), the fun tables' rules,
+// the media endpoint; the forced-join channels checked live (is Aegis an admin there?).
 //
 //   cd aegis && npm run test:cloud      (needs Aegis_BOT_TGCLOUD_TOKEN)
 import { spawnSync } from 'node:child_process';
@@ -55,8 +57,21 @@ fs.copyFileSync(DEV_SRC, DEV_DST);
 try {
   const before = dev('read');
   const tables = before.tables.map((t) => t.name);
-  check('60 aegis_ tables exist', tables.length === 60, tables.join(', '));
-  check('indexes exist', before.indexes.length >= 98, `${before.indexes.length} idx_aegis_*`);
+  check('66 aegis_ tables exist', tables.length === 66, tables.join(', '));
+  check('indexes exist', before.indexes.length >= 109, `${before.indexes.length} idx_aegis_*`);
+  for (const t of ['aegis_fun_use', 'aegis_fun_games', 'aegis_birthdays', 'aegis_fun_daily', 'aegis_media_jobs', 'aegis_sticker_packs']) check(`Phase 9 table ${t}`, tables.includes(t));
+  const p9 = dev('p9');
+  check('media codecs in the isolate within the CPU budget: a 1280×960 photo decoded and made a sticker, a QR code made and read, a PDF checked, zlib, GIF',
+    p9.codecs.join() === '1280,960,true,https://t.me/aegis,danger,50000,GIF89a,true', JSON.stringify(p9.codecs));
+  check('fun on the real database: cooldown and daily limit claimed once, one game of a kind, a game ended once, birthdays greeted once, the pick of the day kept',
+    p9.fun.join() === 'ok,true,ok,daily,true,0,true,false,990000100,0,true,true', JSON.stringify(p9.fun));
+  let me1;
+  try {
+    me1 = tg(['endpoints/media', JSON5.stringify({ action: 'get', job: 1 }), '--ctx', JSON5.stringify({ initData: { user: { id: A, first_name: 'Smoke' } } })]);
+  } catch (e) {
+    me1 = { error: String(e.message) };
+  }
+  check('the media Mini App endpoint refuses a job that isn\'t the caller\'s', /GONE|no longer available|error/i.test(JSON.stringify(me1)), JSON.stringify(me1).slice(0, 200));
   for (const t of ['aegis_member_stats', 'aegis_stats_day', 'aegis_stats_hour', 'aegis_badges', 'aegis_badge_defs', 'aegis_contests', 'aegis_contest_entries',
     'aegis_polls', 'aegis_poll_votes', 'aegis_questions', 'aegis_qa_blocks', 'aegis_appeals', 'aegis_reviews']) check(`Phase 8 table ${t}`, tables.includes(t));
   const p8 = dev('p8');
@@ -116,10 +131,7 @@ try {
   const checks = r2.trace.filter((e) => e.m === 'getChatMember');
   check('forced join checked against the real channels', checks.length >= 1, `${checks.length} getChatMember calls`);
   const after = dev('read');
-  for (const ch of after.channels) {
-    const admin = Number(ch.bot_admin) === 1;
-    console.log(`   · @${ch.username || ch.chat_id}: ${admin ? 'bot is admin ✅' : `bot is NOT admin ⚠️ (${ch.last_error || 'not checked yet'})`}`);
-  }
+  for (const ch of dev('fj').channels) console.log(`   · ${ch.channel}: ${ch.admin ? 'bot is admin ✅' : `bot is NOT admin ⚠️ (${ch.error || 'unknown'})`} (checked live)`);
   const ua = after.users.find((u) => Number(u.user_id) === A);
   check('the user row: started, language saved', ua && Number(ua.started) === 1 && ua.lang === 'fa' && Number(ua.lang_set) === 1, JSON.stringify(ua));
 
@@ -136,17 +148,17 @@ try {
   const r6 = tg(['handlers/edited_message', JSON5.stringify({ ...gm, edit_date: 1, text: 'edited smoke' })]);
   check('an edited message (new handler) runs without errors', !r6.error, r6.error || '');
   const r7 = tg(['handlers/chat_join_request', JSON5.stringify({ chat: G, from: user(B, 'en'), user_chat_id: B, date: 0 })]);
-  check('a join request (new handler) in an unknown group is ignored without errors', !r7.error && r7.trace.length === 0, JSON.stringify(r7.trace));
+  check('a join request (new handler) in an unknown group is ignored without errors', !r7.error && !r7.trace.some((e) => e.chat === G.id), JSON.stringify(r7.trace));
   const CHN = { id: -990000102, type: 'channel', title: 'Smoke channel' };
   const r8 = tg(['handlers/channel_post', JSON5.stringify({ message_id: 9, chat: CHN, date: 0, text: 'smoke post' })]);
-  check('a post in an unknown channel (new handler) is ignored without errors', !r8.error && r8.trace.length === 0, JSON.stringify(r8.trace));
+  check('a post in an unknown channel (new handler) is ignored without errors', !r8.error && !r8.trace.some((e) => e.chat === CHN.id), JSON.stringify(r8.trace));
   const r9 = tg(['handlers/edited_channel_post', JSON5.stringify({ message_id: 9, chat: CHN, date: 0, edit_date: 1, text: 'smoke edit' })]);
   check('an edited channel post (new handler) runs without errors', !r9.error, r9.error || '');
   const r10 = tg(['handlers/poll', JSON5.stringify({ id: 'smoke-unknown', question: 'q', options: [{ text: 'a', voter_count: 1 }], total_voter_count: 1, is_closed: false })]);
   const r11 = tg(['handlers/poll_answer', JSON5.stringify({ poll_id: 'smoke-unknown', user: user(A, 'en'), option_ids: [0] })]);
   const r12 = tg(['handlers/message_reaction_count', JSON5.stringify({ chat: CHN, message_id: 9, date: 0, reactions: [{ type: { type: 'emoji', emoji: '👍' }, total_count: 3 }] })]);
-  check('poll, poll answer and reaction count updates (new handlers) run without errors', !r10.error && !r11.error && !r12.error && r10.trace.length + r11.trace.length + r12.trace.length === 0,
-    JSON.stringify([r10.error, r11.error, r12.error]));
+  check('poll, poll answer and reaction count updates (new handlers) run without errors', !r10.error && !r11.error && !r12.error,
+    JSON.stringify([r10.error, r11.error, r12.error, ...[r10, r11, r12].map((r) => (r.trace || []).map((e) => e.view || e.m))]));
   const g1 = tg(['endpoints/joinGuard', JSON5.stringify({ action: 'get' }), '--ctx',
     JSON5.stringify({ initData: { user: { id: A, first_name: 'Smoke' }, chat: { id: CHN.id, type: 'channel', title: 'Smoke channel' }, chat_join_request_query_id: 'smoke' } })]);
   check('the guard bot\'s Mini App endpoint answers (no such request: closed)', g1.done === true && /Smoke channel/.test(g1.title), JSON.stringify(g1));

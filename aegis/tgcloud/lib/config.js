@@ -6,8 +6,8 @@ import { AEGIS_OWNER_ID } from './env.js';
 
 export const OWNER_ID = AEGIS_OWNER_ID;
 export const BOT_NAME = 'Aegis';
-export const VERSION = '0.8.0';
-export const PHASE = 8;
+export const VERSION = '0.9.0';
+export const PHASE = 9;
 
 /* Languages, in picker order. fa is right-to-left. */
 export const LANGS = ['fa', 'en', 'ru', 'zh', 'fr'];

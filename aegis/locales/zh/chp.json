@@ -179,5 +179,19 @@
   "k_qa_on": "向管理员提问",
   "k_anon_on": "匿名提问",
   "k_appeals_on": "申诉",
-  "k_review_all": "复核全部决定"
+  "k_review_all": "复核全部决定",
+  "k_fun_on": "娱乐",
+  "k_fun_rate": "最多",
+  "k_fun_clean": "娱乐回复删除于",
+  "k_fun_reward": "获胜积分",
+  "k_fun_free": "管理员不受限制",
+  "k_bday_cal": "生日历法",
+  "k_media_on": "媒体工具",
+  "k_media_who": "谁可用",
+  "k_media_daily": "每位成员每天",
+  "v_bday_cal_auto": "按聊天语言",
+  "v_bday_cal_g": "公历",
+  "v_bday_cal_j": "波斯历",
+  "v_media_who_a": "所有人",
+  "v_media_who_d": "管理员"
 }

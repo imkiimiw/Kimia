@@ -179,5 +179,19 @@
   "k_qa_on": "Questions to admins",
   "k_anon_on": "Anonymous questions",
   "k_appeals_on": "Appeals",
-  "k_review_all": "Review all decisions"
+  "k_review_all": "Review all decisions",
+  "k_fun_on": "Fun",
+  "k_fun_rate": "At most",
+  "k_fun_clean": "Delete fun replies after",
+  "k_fun_reward": "Points for wins",
+  "k_fun_free": "Admins skip the limits",
+  "k_bday_cal": "Birthday calendar",
+  "k_media_on": "Media tools",
+  "k_media_who": "Who",
+  "k_media_daily": "Per member per day",
+  "v_bday_cal_auto": "by the chat language",
+  "v_bday_cal_g": "Gregorian",
+  "v_bday_cal_j": "Persian (Jalali)",
+  "v_media_who_a": "everyone",
+  "v_media_who_d": "admins"
 }

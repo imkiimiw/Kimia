@@ -30,7 +30,7 @@ const title = (g) => iso(g.chat.title || '', 48);
 const onOff = (lang, on) => t(lang, on ? 'common.on' : 'common.off');
 const canRestrict = (g) => g.acc.level === L.creator || (!!g.acc.member && g.acc.member.can_restrict_members === true);
 const SECONDS = new Set(['d', 'dur', 'to', 'win', 't']);
-const BITS = new Set(['on', 'del', 'btn', 'xg', 'jr', 'inv', 'homo', 'dec', 'file', 'dupm']);
+const BITS = new Set(['on', 'del', 'btn', 'xg', 'jr', 'inv', 'homo', 'dec', 'file', 'dupm', 'qr', 'pdf']);
 
 /* A field's value as text. */
 function show(lang, code, field, v) {

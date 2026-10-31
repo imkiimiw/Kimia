@@ -24,6 +24,7 @@
  *   g:c:st… pt… ct… pl…  statistics, points and badges, contests, polls — ui/panel_social.js
  *   g:c:qa… ap…          questions, appeals and decisions — ui/panel_social.js (panelQa)
  *   g:c:an…              a channel's analytics and health score — ui/panel_social.js (panelAnalytics)
+ *   g:c:fn…  g:c:md…     🎮 fun features (ui/fun.js, panelFun) · 🖼 media tools (ui/media.js, panelMedia)
  *   g:c:L… g:c:P… g:c:W… g:c:B… g:c:U… g:c:O…   lists, punishments, warnings and steps,
  *                        anti-betrayal, Audit Mode, log channel — ui/panel_mod.js
  * Pending inputs (aegis_states): adm_pick { chat } — the member to appoint (shared user, forwarded
@@ -55,6 +56,8 @@ import * as mod from './panel_mod.js';
 import * as postPanel from './panel_posts.js';
 import * as secPanel from './panel_security.js';
 import * as socialPanel from './panel_social.js';
+import { panelFun } from './fun.js';
+import { panelMedia } from './media.js';
 import * as topicPanel from './panel_topics.js';
 
 const { L } = admins;
@@ -117,6 +120,7 @@ async function root(ctx, user, g, place, notice = '') {
     [btn(t(lang, 'chat.btn_stats'), `g:${c}:st`), btn(t(lang, 'chat.btn_points'), `g:${c}:pt`)],
     [btn(t(lang, 'chat.btn_contests'), `g:${c}:ct`), btn(t(lang, 'chat.btn_polls'), `g:${c}:pl`)],
     [btn(t(lang, 'chat.btn_questions'), `g:${c}:qa`), btn(t(lang, 'chat.btn_appeals'), `g:${c}:ap`)],
+    [btn(t(lang, 'chat.btn_fun'), `g:${c}:fn`), btn(t(lang, 'chat.btn_media'), `g:${c}:md`)],
     [btn(t(lang, 'chat.btn_logs'), `g:${c}:O`)],
     [btn(t(lang, 'chat.btn_perms'), `g:${c}:p`), btn(t(lang, 'chat.btn_admins'), `g:${c}:a`)],
     [btn(t(lang, 'chat.btn_access'), `g:${c}:l`), btn(t(lang, 'chat.btn_lang'), `g:${c}:g`)],
@@ -642,6 +646,8 @@ export async function callback(ctx, user, parts, place) {
     case 'pl': return (await socialPanel.callback(ctx, user, g, parts, place)) || root(ctx, user, g, place);
     case 'qa': case 'ap': return (await qaPanel.callback(ctx, user, g, parts, place)) || root(ctx, user, g, place);
     case 'an': return (await analyticsPanel.callback(ctx, user, g, parts, place)) || root(ctx, user, g, place);
+    case 'fn': return (await panelFun.callback(ctx, user, g, parts, place)) || root(ctx, user, g, place);
+    case 'md': return (await panelMedia.callback(ctx, user, g, parts, place)) || root(ctx, user, g, place);
     default: return root(ctx, user, g, place);
   }
 }

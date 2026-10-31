@@ -6,7 +6,7 @@
  * FAKE_CHAT (lists, admin actions, locks, lock hits, join times, security memory, message log,
  * schedules, member flags, reports, topics, anonymous commands, join requests, channel stats, invite
  * links, posts and their versions, the post queue, crises; member stats, badges, contests, polls,
- * questions, appeals and reviews). It never touches the
+ * questions, appeals and reviews; Phase 9: fun limits, games, birthdays, picks, media jobs). It never touches the
  * audit log (federations are not created here for that reason).
  */
 import { db } from 'sdk';
@@ -34,6 +34,12 @@ import * as crisis from '../lib/engines/crisis.js';
 import * as backup from '../lib/engines/backup.js';
 import { contentOf, withFooter } from '../lib/core/content.js';
 import { parseWhen } from '../lib/ui/panel_posts.js';
+import * as join from '../lib/engines/join.js';
+import * as fun from '../lib/engines/fun.js';
+import * as img from '../lib/core/image.js';
+import { checkPdf, deflate, inflate } from '../lib/core/files.js';
+import { stickerPng } from '../lib/ui/media.js';
+import { createCtx, me } from '../lib/core/tg.js';
 import { appeals, badges, contests, polls, questions, stats } from '../lib/engines/social.js';
 import { healthScore, isThanks, levelOf } from '../lib/core/levels.js';
 import { parseCommand as socialCommand, qa as qaUi } from '../lib/ui/social.js';
@@ -44,6 +50,66 @@ const FAKE_CHAT = -990000100;
 
 export default async function (input) {
   const action = input && input.action;
+  if (action === 'bench') {
+    /* How much CPU one call gets: typed-array work like image decoding, timed in steps. */
+    const out = [];
+    const t0 = Date.now();
+    for (const n of input.sizes || [1, 4, 16, 64]) {
+      const t = Date.now();
+      const a = new Uint8Array(n * 1000000);
+      let h = 0;
+      for (let r = 0; r < (input.rounds || 4); r += 1) for (let i = 0; i < a.length; i += 1) { a[i] = (a[i] * 31 + i + r) & 255; h = (h + a[i]) | 0; }
+      out.push({ mb: n, ms: Date.now() - t, h });
+      if (Date.now() - t0 > 20000) break;
+    }
+    return { out, total: Date.now() - t0 };
+  }
+  if (action === 'p9') {
+    /* Phase 9: the codecs in the isolate (a 1280×960 photo: decode, sticker, JPEG; QR made and read; a PDF;
+       zlib), and the fun tables: cooldown and daily limit claimed once, the chat's rate, one game of a kind,
+       a game ended once, birthdays greeted once, the pick of the day kept. */
+    const now = Math.floor(Date.now() / 1000);
+    const big = img.newImage(1280, 960);
+    for (let y = 0; y < 960; y += 1) for (let x = 0; x < 1280; x += 1) big.data.set([(x * 255) / 1280, (y * 255) / 960, ((x + y) * 255) / 2240, 255], (y * 1280 + x) * 4);
+    const jpeg = img.encodeJpeg(big, 85);
+    const back = img.decodeImage(jpeg);
+    const sticker = stickerPng(back);
+    const code = img.qr.encode('https://t.me/aegis', 'M');
+    const qrText = img.qr.decode(img.decodeImage(img.encodeJpeg(img.qr.render(code, 6, 4), 80)));
+    const pdf = checkPdf(bytesOf('%PDF-1.7\n1 0 obj\n<< /OpenAction << /S /JavaScript /JS (x) >> >>\nendobj\n'));
+    const z = inflate(deflate(new Uint8Array(50000).fill(7)));
+    const gif = img.encodeGif([{ img: img.fit(back, 200), delay: 50 }, { img: img.invert(img.fit(back, 200)), delay: 50 }]);
+    const c = { cd: 60, daily: 2 };
+    const u1 = await fun.claimUse(FAKE_CHAT, LO, 'dice', c, 1, { now });
+    const u2 = await fun.claimUse(FAKE_CHAT, LO, 'dice', c, 1, { now });
+    const u3 = await fun.claimUse(FAKE_CHAT, LO, 'dice', c, 1, { now: now + 61 });
+    const u4 = await fun.claimUse(FAKE_CHAT, LO, 'dice', c, 1, { now: now + 122 });
+    const g1 = await fun.startGame(FAKE_CHAT, 'math', { answer: '42', ttl: 60, now });
+    const g2 = await fun.startGame(FAKE_CHAT, 'math', { answer: '43', ttl: 60, now });
+    const e1 = await fun.endGame(g1, 'ended', LO);
+    const e2 = await fun.endGame(g1, 'ended', LO + 1);
+    await fun.setBirthday(FAKE_CHAT, LO, 'g', 3, 21);
+    const b1 = await fun.claimBirthdays(FAKE_CHAT, 'g', 3, 21, 2026);
+    const b2 = await fun.claimBirthdays(FAKE_CHAT, 'g', 3, 21, 2026);
+    const p1 = await fun.setDailyPick(FAKE_CHAT, 'couple', 1, [LO, LO + 1]);
+    const p2 = await fun.setDailyPick(FAKE_CHAT, 'couple', 1, [LO + 2, LO + 3]);
+    const jid = await fun.addJob(LO, 0, 'photo', 'smoke-file', { big: 'smoke-file' });
+    return {
+      codecs: [back.w, back.h, sticker ? sticker.length <= 512 * 1024 : false, qrText, pdf.verdict, z.length, String.fromCharCode(...gif.subarray(0, 6)), jpeg.length > 1000],
+      fun: [u1, typeof u2 === 'object', u3, u4, g1 > 0, g2, e1, e2, b1.join(), b2.length, JSON.stringify(p1) === JSON.stringify(p2), jid > 0],
+    };
+  }
+  if (action === 'fj') {
+    /* The forced-join channels checked live: is Aegis an admin there (refreshes the cached state the owner panel shows). */
+    const ctx = createCtx();
+    const bot = await me(ctx);
+    const out = [];
+    for (const ch of await join.list()) {
+      const r = await join.refreshChannel(ctx, ch, bot.id);
+      out.push({ channel: ch.username ? `@${ch.username}` : String(ch.chat_id), title: ch.title, admin: r.admin, error: r.error });
+    }
+    return { bot: bot.username, channels: out };
+  }
   if (action === 'read') {
     return {
       kv: await db.all(sql`SELECT key, value FROM aegis_kv WHERE key IN ('data_version', 'join_enabled', 'join_rev', 'cmd_rev', 'bot_id', 'bot_username', 'shutdown') LIMIT 20`),
@@ -244,6 +310,9 @@ export default async function (input) {
     };
   }
   if (action === 'cleanup') {
+    for (const t of ['aegis_fun_use', 'aegis_fun_games', 'aegis_birthdays', 'aegis_fun_daily']) await db.run(sql`DELETE FROM ${sql.raw(t)} WHERE chat_id = ${FAKE_CHAT}`);
+    await db.run(sql`DELETE FROM aegis_media_jobs WHERE user_id BETWEEN ${LO} AND ${HI}`);
+    await db.run(sql`DELETE FROM aegis_sticker_packs WHERE user_id BETWEEN ${LO} AND ${HI}`);
     for (const c of await db.all(sql`SELECT id FROM aegis_contests WHERE chat_id = ${FAKE_CHAT} LIMIT 50`)) await db.run(sql`DELETE FROM aegis_contest_entries WHERE contest_id = ${c.id}`);
     for (const p of await db.all(sql`SELECT id FROM aegis_polls WHERE chat_id = ${FAKE_CHAT} LIMIT 50`)) await db.run(sql`DELETE FROM aegis_poll_votes WHERE poll_id = ${p.id}`);
     for (const t of ['aegis_member_stats', 'aegis_stats_day', 'aegis_stats_hour', 'aegis_badges', 'aegis_badge_defs', 'aegis_contests', 'aegis_polls', 'aegis_questions',

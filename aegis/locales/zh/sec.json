@@ -190,5 +190,9 @@
   "night_ended": "☀️ {who} 结束了夜间锁定。",
   "night_restored": "☀️ 早上好！群组已重新开放。",
   "log_night_end": "☀️ 夜间锁定已结束",
-  "state_night": "🌙 夜间锁定已开启 — 结束：{time}。"
+  "state_night": "🌙 夜间锁定已开启 — 结束：{time}。",
+  "f_qr": "二维码中的链接",
+  "f_pdf": "危险 PDF",
+  "sig_qr_link": "藏在二维码里的链接",
+  "sig_pdf_active": "能运行代码的 PDF"
 }

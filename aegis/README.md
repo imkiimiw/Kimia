@@ -14,13 +14,55 @@ deployed **now**.
 | 6 | Advanced group settings (26 + extras: welcome/goodbye, forced join/add for members, scheduled cleanup, night lock, time zone, message length, member reports, event channel, linked-channel posts) and forum topics | ✅ deployed |
 | 7 | Channel panel: join requests and joins, members, invite links, impersonation and fakes, admin alerts, post protection (approval, versions, edit history), discussion group, direct messages, crisis/SOS, multi-channel dashboard, backups, extras | ✅ deployed |
 | 8 | Reports, stats & social: group statistics and CSV, points, levels and badges, contests, polls, questions to the admins, moderated anonymous Q&A, appeals, review of decisions; channel analytics and health score | ✅ deployed |
-| 9–10 | Fun & media, full Super Admin panel | not started |
+| 9 | Fun & media: 30 fun features with per-feature settings and anti-abuse limits; media tools (sticker↔photo, sticker packs, GIF maker, image tools, QR, OCR, PDF check); QR and PDF security checks | ✅ deployed |
+| 10 | Full Super Admin panel & release | not started |
 
 Design decisions taken without the master spec (it isn't in the repository yet) are listed in
 [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md).
 
 Features that can't be built for free on this platform, or only partly, are listed in
 [docs/NOT_BUILT.md](docs/NOT_BUILT.md).
+
+## What Phase 9 does
+
+**🎮 Fun** — 30 features, each with its own switch, who may use it (everyone or admins), a cooldown
+and a daily limit per member, and points for a win (with Phase 8's points). The chat also has a
+limit per minute for all fun commands (beyond it they're ignored), can delete fun replies after a
+while, and can exempt its admins from the limits. Commands are slash commands or words (Persian and
+the other languages) — words only as the whole message, or with valid arguments.
+- **🎲 Dice games** (Telegram's animated dice): /dice, /darts, /basket, /football, /bowling, /slot.
+- **🍀 Luck**: /coin, /rand (a range), /choose (options), /ball (a magic 8-ball), /fortune.
+- **💬 Social**: /love (a reply: a match percentage, the same all day), /rate, /truth, /dare,
+  /wyr (a «would you rather» poll), /hug /pat /highfive /wave /cheer, /couple (of the day).
+- **📅 Daily**: /motd (member of the day), /birthday and /birthdays (Gregorian, or the Persian
+  calendar for Persian groups; greeted on the first message of the day), /daily (a few points once
+  a day), /quote.
+- **🧩 Games**: /guess (1–100, higher or lower), /math, /scramble, /typing (a race; pasted text
+  carries invisible marks and doesn't count), /trivia (a Telegram quiz; the first right answer
+  wins), /click (tap the right emoji first; one wrong tap and you're out).
+- **⚔️ Duels**: /rps (against Aegis, or a challenge with hidden picks) and /ttt (tic-tac-toe).
+  Duels must be accepted; one game of each kind runs at a time; games end lazily when their time is up.
+Some features (dice, luck, quotes, truth or dare, rating and the solo games) also work in private.
+
+**🖼 Media tools** — everything is computed by Aegis itself (pure JavaScript codecs written for this
+project, no paid service): send a photo, sticker, video, GIF or PDF to Aegis in private and pick a
+tool, or reply to one in a group with /sticker, /tophoto, /gif, /qr, /readqr, /ocr, /pdf or /tools.
+- **Photo → sticker**: a 512 px PNG added to the member's own Aegis sticker pack (made on first
+  use, the 120 newest kept), then sent. **Sticker → photo** (static stickers) or as a file.
+- **Image tools**: gray, sepia, invert, blur, pixelate, circle (a PNG with transparency), rotate,
+  mirror, flip, square, half size, as a file.
+- **GIF maker**: up to 10 photos → an animated GIF (speed 0.5 / 1 / 2 s); a video → a GIF
+  (Telegram's kind: an MP4 shown as a GIF); a GIF → a video.
+- **QR codes**: /qr text makes one; /readqr reads one in a photo (here, or in the Mini App).
+- **Text in images (OCR)**: in the Mini App, with Tesseract.js running on the member's device
+  (free, open source; language data downloaded once), in fa / en / ru / zh / fr; the text can be
+  copied or sent to the chat.
+- **PDF check**: JavaScript, automatic actions, launching programs, embedded files, forms that send
+  data, links, encryption and disguised names — read from the raw file and its compressed streams.
+Groups: on by default, for everyone or admins only, with a daily limit per member.
+
+**🔰 Security** gets two more suspicious-content checks: a link hidden in a **QR code** in a photo
+(unless its domain is allowed) and a **PDF** that can run code. Both feed the risk score too.
 
 ## What Phase 8 does
 
@@ -411,13 +453,13 @@ npm run test:cloud            # smoke test on the real platform with fake users 
 
 ## Database and migrations
 
-60 tables, all prefixed `aegis_` (core: `users`, `chats`, `chat_admins`, `access`, `promotions`,
+66 tables, all prefixed `aegis_` (core: `users`, `chats`, `chat_admins`, `access`, `promotions`,
 `join_channels`, `kv`, `states`, `updates`, `audit`, `errors`, `broadcasts`; then each phase's own,
 e.g. Phase 6: `msg_log`, `schedules`, `reports`, `member_flags`, `topics`, `anon_cmds`; Phase 7:
 `join_requests`, `invite_links`, `channel_stats`, `posts`, `post_versions`, `post_queue`, `crises`,
 `backup_jobs`, `dm_chats`; Phase 8: `member_stats`, `stats_day`, `stats_hour`, `badges`, `badge_defs`,
-`contests`, `contest_entries`, `polls`, `poll_votes`, `questions`, `qa_blocks`, `appeals`, `reviews`) — see
-`tgcloud/schema.js`.
+`contests`, `contest_entries`, `polls`, `poll_votes`, `questions`, `qa_blocks`, `appeals`, `reviews`; Phase 9:
+`fun_use`, `fun_games`, `birthdays`, `fun_daily`, `media_jobs`, `sticker_packs`) — see `tgcloud/schema.js`.
 
 - **Schema** changes: edit `tgcloud/schema.js`, then `npm run deploy` (`tgcloud migrate --safe`
   adds tables/columns/indexes; drops only via `.deprecated()`; type changes are manual).
@@ -439,7 +481,11 @@ e.g. Phase 6: `msg_log`, `schedules`, `reports`, `member_flags`, `topics`, `anon
   compiles them into `tgcloud/lib/i18n/strings/*.js` (deployed code can't read files).
   `npm test` fails if any key is missing in any language, placeholders differ, HTML is invalid,
   or the code uses a key that doesn't exist.
-- **Module cap**: the platform refuses a deploy with too many modules (104 were refused, 88
+- **CPU budget**: about 3 s of CPU per update (measured: larger work is stopped with «CPU timer
+  exceeded»), and `Date.now()` doesn't move during one. Media work keeps to it: photos are used at
+  ≤ 1280 px (Telegram's sizes), GIFs at ≤ 360 px and 10 frames, PDFs up to 20 MB with a limit on
+  what is decompressed.
+- **Module cap**: the platform refuses a deploy with too many modules (104 were refused, 88 and 94
   deploy). Small modules are merged into sections of a related module — e.g. `engines/social.js`
   exports `stats`, `badges`, `contests`, `polls`, `questions`, `appeals`, each the object a module
   used to be — and `test/static.mjs` fails above 95.
@@ -457,6 +503,7 @@ aegis/
                               message_reaction_count  → lib/router.js
     endpoints/bcLive.js       owner-only: the live broadcast page's batches
     endpoints/joinGuard.js    the join-request captcha Mini App (Aegis as a chat's guard bot)
+    endpoints/media.js        the media Mini App: a member's own photo, and the text read sent back
     lib/
       router.js               order of checks, callback_data table
       jobs.js                 work on the side of updates (broadcast chunks, housekeeping, timed jobs,
@@ -466,11 +513,14 @@ aegis/
                               commands (menus, moderation command parsing), util (+ CSV, UTF-8), msgscan (what
                               a message contains), signals (security), clock (times of day, durations),
                               content (a post's content: read, publish, edit back; link buttons), levels
-                              (points, levels, automatic badges, thanks, a channel's health score)
+                              (points, levels, automatic badges, thanks, a channel's health score), files
+                              (zlib, base64, the PDF check), image (JPEG/PNG decoders, JPEG/PNG/GIF
+                              encoders, colors, image tools, QR codes)
       engines/                users, chats, join, broadcast, rights, admins, system, settings (+ warning steps),
                               lists, punish, betrayal (+ adminActions), logs, locks, members, guards, feds,
                               msglog, schedules, groupdata, events, channels, invites, posts, crisis, backup,
-                              social (stats, badges, contests, polls, questions, appeals)
+                              social (stats, badges, contests, polls, questions, appeals), fun (the 30
+                              features, limits, games, birthdays, media jobs, sticker packs)
       ui/                     start, owner, owner_bc, group (in-group messages), moderation (group commands,
                               undo buttons, bans/joins), enforce (locks at work), security (security at
                               work, captcha, lockdowns, federation bans), advanced (advanced settings at
@@ -479,10 +529,12 @@ aegis/
                               questions, anonymous Q&A, appeals, review), panel + panel_mod + panel_locks +
                               panel_security + panel_fed + panel_adv + panel_topics + panel_channel +
                               panel_posts + panel_social (statistics, points, contests, polls; panelQa;
-                              panelAnalytics) (a chat's panel), dashboard (channels dashboard), guard, system
+                              panelAnalytics) (a chat's panel), fun (fun at work + panelFun), media (media
+                              tools + panelMedia), dashboard (channels dashboard), guard, system
       i18n/                   t(), digits, RTL; strings/ is generated from ../../locales
   locales/<lang>/*.json       fa, en, ru, zh, fr
-  webapp/                     Mini App pages (plain HTML/JS): 📡 live broadcast, join-request captcha
+  webapp/                     Mini App pages (plain HTML/JS): 📡 live broadcast, join-request captcha, media
+                              (OCR with Tesseract.js and QR reading with jsQR, from the jsDelivr CDN)
   scripts/                    tg.mjs (CLI wrapper), build-locales.mjs, gen-env.mjs
   test/                       static.mjs, unit/, e2e.mjs (sdk emulation + strict mock Bot API), cloud/smoke.mjs
   docs/                       NOT_BUILT.md, ASSUMPTIONS.md, tgcloud-sdk.md (platform SDK reference)

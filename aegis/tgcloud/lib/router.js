@@ -51,6 +51,10 @@
  * (ui/social.js). Group messages that passed every check count for stats, points and contests;
  * /me /top /give /take (ui/social.js) and /ask /anon (qa in ui/social.js) come before the moderation commands.
  * Private: /appeal (or «اعتراض»), /start q_<chat> a_<chat> ap_<punishment> (qa in ui/social.js).
+ * Phase 9: fun commands and games (ui/fun.js) and media tools (ui/media.js) come after /ask /anon in
+ * groups (their answers after the stats); in private, after the other commands: a fun command, a media
+ * command, a private game's answer, a photo / sticker / video / GIF / PDF (its tools); /start md_<job>.
+ * callback_data fn:<game>:…  (games) · md:<job>:<op>  (media tools, the asker only) · nop (nothing).
  * my_chat_member: private → the user blocked / unblocked the bot; group/supergroup/channel → the
  * bot's membership and rights there (ui/group.js: registration, warnings).
  * chat_member: someone's admin status changed (cache, revocation, log, reminder); bans and unbans
@@ -92,6 +96,8 @@ import * as panelPosts from './ui/panel_posts.js';
 import { panelQa } from './ui/panel_social.js';
 import * as panelSocial from './ui/panel_social.js';
 import * as panelTopics from './ui/panel_topics.js';
+import * as fun from './ui/fun.js';
+import * as media from './ui/media.js';
 import { qa } from './ui/social.js';
 import * as social from './ui/social.js';
 import * as start from './ui/start.js';
@@ -100,7 +106,7 @@ import * as sys from './ui/system.js';
 const OWNER_HEADS = new Set(['op', 'os', 'oj', 'ob', 'bc', 'ox', 'sy']);
 const PANEL_HEADS = new Set(['cl', 'g']);
 const OWNER_INPUTS = new Set(['join_add', 'bc_content', 'bc_buttons']);
-const GROUP_HEADS = new Set(['pu', 'bt', 'cp', 'rk', 'ld', 'fj', 'rp', 'an', 'pq', 'ct', 'qa', 'apl', 'apc', 'rv']);
+const GROUP_HEADS = new Set(['pu', 'bt', 'cp', 'rk', 'ld', 'fj', 'rp', 'an', 'pq', 'ct', 'qa', 'apl', 'apc', 'rv', 'fn', 'md', 'nop']);
 const DASH_HEADS = new Set(['db', 'xp']);
 const PANELS = [panelMod, panelLocks, panelFed, panelAdv, panelTopics, panelChannel, panelPosts, dashboard, panelSocial, panelQa, qa];
 const isUserInput = (kind) => kind === 'adm_pick' || PANELS.some((p) => p.INPUTS.has(kind));
@@ -148,6 +154,8 @@ async function openPayload(ctx, user, from, payload, place = null) {
   if (q) return qa.startQuestion(ctx, user, toInt(q[2]), q[1] === 'a');
   const ap = /^ap_(\d{1,12})$/.exec(String(payload || ''));
   if (ap) return qa.startAppeal(ctx, user, toInt(ap[1]));
+  const md = /^md_(\d{1,12})$/.exec(String(payload || ''));
+  if (md) return media.openJob(ctx, user, toInt(md[1]));
   return start.welcome(ctx, user, from, place);
 }
 
@@ -250,6 +258,8 @@ async function handleMessage(ctx, message) {
   else if (isOwner && cmd === 'status') await sys.status(ctx, user.lang);
   else if (isOwner && cmd === 'shutdown') await sys.askShutdown(ctx, user.lang);
   else if (isOwner && cmd === 'activate') await sys.activate(ctx, user.lang);
+  else if ((await fun.command(ctx, message, user)) || (await media.command(ctx, message, user)) || (await fun.onPrivateText(ctx, user, message))
+    || (await media.privateMessage(ctx, user, message))) return;
   else await start.welcome(ctx, user, from);
 }
 
@@ -275,6 +285,7 @@ async function handleGroupMessage(ctx, message) {
     return;
   }
   if ((await advanced.command(ctx, message)) || (await social.command(ctx, message)) || (await qa.command(ctx, message))
+    || (await fun.command(ctx, message)) || (await media.command(ctx, message))
     || (await security.command(ctx, message)) || (await moderation.handle(ctx, message))) {
     await deleteCommand(ctx, known, message);
     return;
@@ -282,6 +293,7 @@ async function handleGroupMessage(ctx, message) {
   const row = await chats.get(chat.id);
   if (row) {
     await social.onMessage(ctx, row, message);
+    await fun.onMessage(ctx, row, message);
     await group.onActivity(ctx, row);
   }
 }
@@ -334,6 +346,7 @@ export function onPollAnswer(answer2, pctx) {
   return run('poll_answer', pctx, async (ctx) => {
     if (answer2 && answer2.user) ctx.userId = answer2.user.id;
     await social.onPollAnswer(ctx, answer2);
+    await fun.onPollAnswer(ctx, answer2);
   });
 }
 
@@ -397,6 +410,9 @@ async function handleCallback(ctx, cq) {
     if (advanced.HEADS.has(head0)) return advanced.callback(ctx, cq, parts, { roleOf: moderation.roleOf, security: security.command, moderation: moderation.handle });
     if (head0 === 'pq') return channel.queueCallback(ctx, cq, parts);
     if (head0 === 'ct') return social.callback(ctx, cq, parts);
+    if (head0 === 'fn') return fun.callback(ctx, cq, parts);
+    if (head0 === 'md') return media.callback(ctx, cq, parts);
+    if (head0 === 'nop') return answer(ctx);
     if (qa.HEADS.has(head0)) return qa.callback(ctx, cq, parts);
     return security.HEADS.has(head0) ? security.callback(ctx, cq, parts) : moderation.callback(ctx, cq, parts);
   }

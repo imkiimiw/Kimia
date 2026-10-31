@@ -15,6 +15,7 @@ import { WEIGHTS } from '../../tgcloud/lib/core/signals.js';
 import { CHOICES, DEFAULTS } from '../../tgcloud/lib/engines/settings.js';
 import { GROUPS as ADV_GROUPS } from '../../tgcloud/lib/ui/panel_adv.js';
 import { AUTO_CODES } from '../../tgcloud/lib/core/levels.js';
+import * as fun from '../../tgcloud/lib/engines/fun.js';
 import { contests as contestsEngine } from '../../tgcloud/lib/engines/social.js';
 const CONTEST_KINDS = contestsEngine.KINDS;
 const DG = ['as_channel', 'fake', 'imp', 'first', 'members'];
@@ -68,7 +69,7 @@ test('button labels and command descriptions fit Telegram limits', () => {
     for (const [key, s] of Object.entries(dicts[lang])) {
       if (/\.btn_|^common\.(back|cancel|no|yes_remove|refresh)$|^bc\.(aud|mode)_btn_/.test(key)) assert.ok(s.length <= 64, `${lang} ${key} is too long for a button`);
       if (key.startsWith('cmd.')) assert.ok(s.length >= 1 && s.length <= 256, `${lang} ${key}`);
-      if (/^(app|cmd|alias|modcmd|seccmd|advcmd|soccmd|qacmd|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
+      if (/^(app|cmd|alias|modcmd|seccmd|advcmd|soccmd|qacmd|funcmd|mediacmd|funlist|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
     }
   }
 });
@@ -209,6 +210,24 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'chp.k_': ['stats_on', 'pts_on', 'pts_msg', 'pts_gap', 'pts_thanks', 'pts_announce', 'qa_on', 'anon_on', 'appeals_on', 'review_all'],
   };
   for (const [prefix, names] of Object.entries(p8)) for (const x of names) used.add(`${prefix}${x}`);
+  /* Phase 9: the fun features and media tools build these keys from their tables. */
+  const DICE = fun.FEATURES.filter((f) => f.cat === 'dice').map((f) => f.code);
+  const p9 = {
+    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt'], 'fun.who_': ['a', 'd'],
+    'fun.act_': [...fun.ACTS, ...fun.ACTS.map((a) => `${a}_all`)], 'fun.bday_date_': ['g', 'j'], 'fun.bday_how_': ['g', 'j'],
+    'fun.month_g_': [...Array(12).keys()].map((i) => i + 1), 'fun.month_j_': [...Array(12).keys()].map((i) => i + 1),
+    'fun.': [...DICE.flatMap((d) => [`${d}_win`, `${d}_lose`]), 'math_win', 'scramble_win', 'typing_win', 'couple', 'couple_none', 'motd', 'motd_none', 'truth', 'dare'],
+    'funlist.': ['ball8', 'fortune', 'truth', 'dare', 'wyr', 'quote', 'scramble', 'typing', 'trivia'],
+    'funcmd.': [...fun.CODES.filter((c) => c !== 'act' && c !== 'bday'), ...fun.ACTS, 'birthday', 'birthdays', 'fun'],
+    'mediacmd.': ['sticker', 'tophoto', 'gif', 'qr', 'readqr', 'ocr', 'pdf', 'tools'],
+    'media.op_': ['g', 'sp', 'iv', 'bl', 'px', 'ci', 'r9', 'mi', 'fl', 'sq', 'hf', 'fi'], 'media.pdf_': ['clean', 'caution', 'danger'],
+    'media.pdf_r_': ['javascript', 'launch', 'embedded', 'richmedia', 'autoaction', 'form', 'remote', 'links', 'encrypted', 'obfuscated', 'unreadable'],
+    'media.pick_': ['photo', 'sticker', 'video', 'animation', 'pdf'], 'media.usage_': ['st', 'ph', 'gv', 'rq', 'oc', 'pd', 'tl'],
+    'media.app_': ['title', 'ocr', 'qr', 'lang', 'run', 'running', 'copy', 'copied', 'send', 'none', 'qr_none', 'note'],
+    'chp.k_': ['fun_on', 'fun_rate', 'fun_clean', 'fun_reward', 'fun_free', 'bday_cal', 'media_on', 'media_who', 'media_daily'],
+    'chp.v_bday_cal_': ['auto', 'g', 'j'], 'chp.v_media_who_': ['a', 'd'], 'sec.f_': ['qr', 'pdf'],
+  };
+  for (const [prefix, names] of Object.entries(p9)) for (const x of names) used.add(`${prefix}${x}`);
   for (const [prefix, names] of Object.entries(more)) for (const x of names) used.add(`${prefix}${x}`);
   for (const kind of ['emergency', 'readonly', 'raid']) for (const sfx of ['ended', 'restored']) used.add(`sec.${kind}_${sfx}`);
   for (const kind of ['emergency', 'readonly']) for (const sfx of ['started', 'title', 'intro', 'q', 'done', 'not_on', 'already']) used.add(`sec.${kind}_${sfx}`);

@@ -77,6 +77,9 @@ export const chats = table('aegis_chats', {
   jrHoldUntil: integer('jr_hold_until').notNull().default(0), /* a channel's join requests are left to the admins until then (a burst) */
   burstAt: integer('burst_at').notNull().default(0), /* the last «many joins at once» alert */
   lastPostAt: integer('last_post_at').notNull().default(0), /* a discussion group: when the channel's last post arrived */
+  funAt: integer('fun_at').notNull().default(0), /* Phase 9: the start of the current minute of fun commands */
+  funN: integer('fun_n').notNull().default(0), /* … and how many there were in it (the chat's rate limit) */
+  funDay: integer('fun_day').notNull().default(0), /* the local day birthdays were last greeted */
 }, (t) => ({
   activeType: index('idx_aegis_chats_active_type').on(t.active, t.type, t.chatId),
   countAt: index('idx_aegis_chats_count_at').on(t.active, t.countAt),
@@ -960,3 +963,85 @@ export const reviews = table('aegis_reviews', {
   byPunish: uniqueIndex('idx_aegis_reviews_punish').on(t.punishId),
   byChat: index('idx_aegis_reviews_chat').on(t.chatId, t.at),
 }));
+
+/* ---------- Phase 9: fun features and media tools ---------- */
+
+/* A member's use of a fun feature in a chat (chat 0 = private chats): the cooldown and the daily limit. */
+export const funUse = table('aegis_fun_use', {
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  feature: text('feature').notNull(),
+  day: integer('day').notNull().default(0),
+  n: integer('n').notNull().default(0),
+  lastAt: integer('last_at').notNull().default(0),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_fun_use_key').on(t.chatId, t.userId, t.feature),
+  byDay: index('idx_aegis_fun_use_day').on(t.day),
+}));
+
+/* A running game (guess, math, scramble, typing, trivia, click, rps, ttt): state and answer kept here. */
+export const funGames = table('aegis_fun_games', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  kind: text('kind').notNull(),
+  status: text('status').notNull().default('running'), /* running, ended, expired */
+  state: text('state'), /* JSON */
+  answer: text('answer'),
+  msgId: integer('msg_id').notNull().default(0),
+  byId: integer('by_id').notNull().default(0),
+  winner: integer('winner').notNull().default(0),
+  at: integer('at').notNull(),
+  endsAt: integer('ends_at').notNull(),
+}, (t) => ({
+  byChat: index('idx_aegis_fun_games_chat').on(t.chatId, t.status, t.kind),
+  due: index('idx_aegis_fun_games_due').on(t.endsAt).where(sql`status = 'running'`),
+  byAt: index('idx_aegis_fun_games_at').on(t.at),
+  byAnswer: index('idx_aegis_fun_games_answer').on(t.kind, t.answer), /* a trivia poll by its poll id */
+}));
+
+/* Members' birthdays in a chat, in the chat's calendar (g = Gregorian, j = Jalali). */
+export const birthdays = table('aegis_birthdays', {
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  cal: text('cal').notNull().default('g'),
+  month: integer('month').notNull(),
+  day: integer('day').notNull(),
+  greeted: integer('greeted').notNull().default(0), /* the year last greeted */
+  at: integer('at').notNull(),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_birthdays_key').on(t.chatId, t.userId),
+  byDate: index('idx_aegis_birthdays_date').on(t.chatId, t.cal, t.month, t.day),
+}));
+
+/* Picks that stay the same for a day: the couple and the member of the day. */
+export const funDaily = table('aegis_fun_daily', {
+  chatId: integer('chat_id').notNull(),
+  kind: text('kind').notNull(),
+  day: integer('day').notNull(),
+  data: text('data'),
+}, (t) => ({
+  key: uniqueIndex('idx_aegis_fun_daily_key').on(t.chatId, t.kind, t.day),
+}));
+
+/* A file a member asked a media tool about (its buttons point here); kept a day. */
+export const mediaJobs = table('aegis_media_jobs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  chatId: integer('chat_id').notNull().default(0),
+  kind: text('kind').notNull(), /* photo, sticker, video, animation, pdf, frames */
+  fileId: text('file_id'),
+  data: text('data'), /* JSON */
+  at: integer('at').notNull(),
+}, (t) => ({
+  byUser: index('idx_aegis_media_jobs_user').on(t.userId, t.at),
+  byAt: index('idx_aegis_media_jobs_at').on(t.at),
+}));
+
+/* A member's own sticker pack, made by Aegis (name ends in _by_<bot>). */
+export const stickerPacks = table('aegis_sticker_packs', {
+  userId: integer('user_id').primaryKey(),
+  name: text('name').notNull(),
+  n: integer('n').notNull().default(0),
+  at: integer('at').notNull(),
+});
+

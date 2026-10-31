@@ -1,7 +1,7 @@
 # Decisions taken without the master spec
 
 `docs/SPEC.md` (the Persian master spec, "the source of truth") was not in the repository when
-Phases 1–8 were built (for Phases 3–8 the owner said to build them without the spec). Where the build instructions did not settle a detail, the choice below
+Phases 1–9 were built (for Phases 3–9 the owner said to build them without the spec). Where the build instructions did not settle a detail, the choice below
 was made. Each is easy to change once the spec says otherwise — nothing here drops, merges or
 renames a feature from the instructions.
 
@@ -132,4 +132,24 @@ renames a feature from the instructions.
 | Health score | Growth 25 (net subscribers in 7 days: +2 % or more → 25, none → 15, −2 % or worse → 0), engagement 30 (reactions + comments per post per 1,000 subscribers in 14 days: 20 or more → 30), posting 20 (days with a post in the last 14: 10 or more → 20), safety 25 (Aegis has its rights 10, no admins appointed outside Aegis 5, no crisis 5, a protection on 5). Grades A ≥ 85, B ≥ 70, C ≥ 55, D ≥ 40, E. |
 | Command words | Words work only as the whole message (so ordinary chat is never taken for a command): «امتیاز من» / "my points", «برترین‌ها» / "leaderboard", «امتیاز بده ۱۰» / "give points 10", «پرسش از مدیران» / "ask the admins", «سوال ناشناس» / "anonymous question", «اعتراض» / "appeal" (private), and the same in Russian, Chinese and French. |
 | Module cap | The platform refused a deploy of 104 modules. Small modules were merged (no behaviour change): duration → clock, csv → util, health → levels, modparse → commands, steps → settings, buttons → content, bot → tg, admin_actions → a section of betrayal, the six Phase 8 data modules → sections of engines/social.js, ui/qa → a section of ui/social.js, panel_qa and panel_analytics → sections of panel_social.js. 88 modules now; the static test fails above 95. |
+
+## Phase 9
+
+| Topic | Decision |
+|---|---|
+| The 30 fun features | Without the spec's list, Aegis's own 30 in six groups. **Dice** (Telegram's animated dice): dice, darts, basketball, football, bowling, slot machine. **Luck**: coin flip, random number, choose for me, magic 8-ball, fortune cookie. **Social**: love meter, rate anything, truth, dare, would-you-rather poll, actions (hug, pat, high-five, wave, cheer), couple of the day. **Daily**: member of the day, birthdays, daily bonus, quote. **Games**: guess the number, quick math, word scramble, typing race, trivia quiz, quick click. **Duels**: rock-paper-scissors, tic-tac-toe. |
+| Per-feature settings | One setting each: on/off, who (everyone or admins), cooldown 0 / 10 / 30 / 60 / 120 / 300 s, daily limit per member 0 (none) / 3 / 5 / 10 / 20 / 30 / 50, points for a win 0 / 1 / 2 / 5 / 10 (games and dice; needs Phase 8 points on). All on by default with modest limits (e.g. dice 30 s and 20 a day; guess 5 points). |
+| Chat-wide limits | Fun on by default; at most 10 fun commands a minute in a chat (choices 5 / 10 / 20 / 30 / off), silently ignored beyond; fun replies can delete themselves after 1 min / 5 min / 1 h; admins skip the per-member limits (switchable). A refused command answers once with the wait or «enough for today» (also within the chat limit). |
+| Words as commands | Only as the whole message, or followed by valid arguments (e.g. «انتخاب کن چای، قهوه»); otherwise the message is ordinary chat. Everyday words were avoided (e.g. Russian «хочу правду» rather than «правда»). |
+| Fairness and stability | Love meter, ratings, the couple and the member of the day come from a hash of the people/text and the local day, so they don't change when asked again the same day. The couple/member of the day are picked among members who wrote in the last 7 days (Phase 8 counts). |
+| Games | One game of each kind per chat at a time. Guess: 10 min, one guess per member every 3 s, «higher/lower» replies. Math, scramble, typing: 3 min. Trivia: Telegram's quiz, open 60 s; the first right answer (from the poll answers) wins. Quick click: 2 min, a wrong tap puts the member out. Duels: must be accepted; 10 min; picks in rock-paper-scissors are hidden until both chose. Content (questions, words, sentences, dares…) per language in `locales/<lang>/funlist.json`. |
+| Typing race anti-cheat | The sentence shown carries invisible word joiners (U+2060); a pasted copy contains them and is ignored. |
+| Birthdays | Month-day in the chat's calendar: Persian (Jalali) for Persian chats, Gregorian otherwise (switchable). Greeted once a year on the first message of the local day; `/birthday off` removes it. |
+| Daily bonus | 1–10 points once per local day; needs points on. |
+| Media tools | On in groups by default, for everyone, 10 uses per member per day (3 / 5 / 10 / 20 / 50), 5 s between uses; private chats: 50 a day, 2 s apart. Only the member who asked can press a tool's buttons. Jobs (the file a tool works on) are kept a day. |
+| Sticker packs | One pack per member, named `a<id>_by_<bot>`, title «My Aegis stickers»; stickers 512 px PNG, ≤ 256 colors (dithered) to stay under 512 KB; the 120 newest kept (the oldest is removed when full). |
+| Image sizes | Tools use Telegram's photo size closest to 800 px (≤ 1280 px), output JPEG quality 88; circles as PNG files; GIF frames ≤ 360 px, up to 10, 0.5 / 1 / 2 s each, one shared palette with ordered dithering. |
+| OCR and QR in the Mini App | Tesseract.js 5.1.1 and jsQR 1.4.0 from jsDelivr (Apache-2.0), run on the member's device; languages by the member's language (+ English). The endpoint gives a photo only to the member whose job it is. |
+| Security checks | Two more checks in «suspicious content», on by default whenever the module is on: QR codes in photos whose link is not on the allowed-links list, and PDFs with JavaScript, launch actions, embedded files or rich media. Signals for the risk score: «qr_link» 40, «pdf_active» 50. |
+| Module cap | 94 modules after Phase 9 (6 new: core/files, core/image, engines/fun, ui/fun, ui/media, endpoints/media). |
 

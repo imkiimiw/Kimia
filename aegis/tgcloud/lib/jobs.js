@@ -24,6 +24,7 @@ import { adminActions } from './engines/betrayal.js';
 import * as bc from './engines/broadcast.js';
 import * as channels from './engines/channels.js';
 import * as chats from './engines/chats.js';
+import * as funData from './engines/fun.js';
 import * as groupdata from './engines/groupdata.js';
 import * as guards from './engines/guards.js';
 import * as locks from './engines/locks.js';
@@ -33,6 +34,7 @@ import { stats } from './engines/social.js';
 import { afterBatch, refreshPanel } from './ui/owner_bc.js';
 import * as advanced from './ui/advanced.js';
 import * as channel from './ui/channel.js';
+import * as fun from './ui/fun.js';
 import * as security from './ui/security.js';
 import * as social from './ui/social.js';
 
@@ -67,6 +69,7 @@ async function housekeeping(ctx) {
     joinRequests: await channels.sweep(now),
     posts: await posts.sweep(now),
     statsDays: await stats.sweep(now),
+    fun: await funData.sweep(now),
   };
 }
 
@@ -78,6 +81,7 @@ async function securitySweep(ctx) {
   await advanced.sweep(ctx);
   await channel.sweep(ctx);
   await social.sweep(ctx);
+  await fun.sweep(ctx);
 }
 
 export async function afterUpdate(ctx) {

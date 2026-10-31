@@ -10,7 +10,7 @@
  *   raid        n joins in t seconds → act (captcha | quarantine | lock | alert) for dur seconds
  *   captcha     mode (button | math), to (seconds to answer), fail (kick | ban | mute), jr (join requests)
  *   quarantine  dur (seconds after joining), lvl (text = text only | mute = nothing)
- *   suspicious  inv homo dec file dupm (which checks), a d del
+ *   suspicious  inv homo dec file dupm qr pdf (which checks; qr: links in QR codes of photos, pdf: active PDFs), a d del
  *   risk        lv (low | medium | high thresholds), a d del, w (the weights learned from feedback)
  */
 import { db } from 'sdk';
@@ -27,7 +27,7 @@ export const MODULES = {
   raid: { on: 0, n: 10, t: 60, act: 'captcha', dur: 1800 },
   captcha: { on: 0, mode: 'button', to: 180, fail: 'kick', jr: 1 },
   quarantine: { on: 0, dur: 3600, lvl: 'text' },
-  suspicious: { on: 0, inv: 1, homo: 1, dec: 1, file: 1, dupm: 1, a: 'none', d: 0, del: 1 },
+  suspicious: { on: 0, inv: 1, homo: 1, dec: 1, file: 1, dupm: 1, qr: 1, pdf: 1, a: 'none', d: 0, del: 1 },
   risk: { on: 0, lv: 'medium', a: 'mute', d: 86400, del: 1, w: {} },
 };
 export const CODES = Object.keys(MODULES);
@@ -35,7 +35,7 @@ const BIT = [0, 1];
 const CHOICES = {
   on: BIT, a: ACTIONS, d: LOCK_DURATIONS, del: BIT, sc: ['all', 'new'], btn: BIT, win: [300, 600, 3600, 86400], xg: BIT,
   dup: [0, 2, 3, 5], act: ['captcha', 'quarantine', 'lock', 'alert'], mode: ['button', 'math'], to: [60, 180, 600], fail: ['kick', 'ban', 'mute'],
-  jr: BIT, lvl: ['text', 'mute'], inv: BIT, homo: BIT, dec: BIT, file: BIT, dupm: BIT, lv: ['low', 'medium', 'high'],
+  jr: BIT, lvl: ['text', 'mute'], inv: BIT, homo: BIT, dec: BIT, file: BIT, dupm: BIT, qr: BIT, pdf: BIT, lv: ['low', 'medium', 'high'],
 };
 const PER_MODULE = {
   flood: { n: [3, 5, 8, 12], t: [3, 5, 10, 30] },

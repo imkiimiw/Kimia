@@ -11,6 +11,30 @@ const BY_LANG = { fa: 210, ru: 180, zh: 480, fr: 60, en: 0 };
 export const defaultTz = (lang) => BY_LANG[lang] ?? 0;
 export const tzOf = (setting, lang) => (setting === 'auto' || setting === undefined ? defaultTz(lang) : Number(setting));
 
+/* The calendar date at `now` in time zone `tz` (minutes): { y, m, d } (Date's UTC getters need no Intl). */
+export function dateOf(now, tz) {
+  const t = new Date((Number(now) + Number(tz) * 60) * 1000);
+  return { y: t.getUTCFullYear(), m: t.getUTCMonth() + 1, d: t.getUTCDate() };
+}
+
+/* Gregorian → Jalali (the Persian calendar), the usual arithmetic method. Gives [year, month, day]. */
+export function toJalali(gy, gm, gd) {
+  const div = (a, b) => Math.floor(a / b);
+  const before = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+  const gy2 = gm > 2 ? gy + 1 : gy;
+  let days = 355666 + 365 * gy + div(gy2 + 3, 4) - div(gy2 + 99, 100) + div(gy2 + 399, 400) + gd + before[gm - 1];
+  let jy = -1595 + 33 * div(days, 12053);
+  days %= 12053;
+  jy += 4 * div(days, 1461);
+  days %= 1461;
+  if (days > 365) {
+    jy += div(days - 1, 365);
+    days = (days - 1) % 365;
+  }
+  if (days < 186) return [jy, 1 + div(days, 31), 1 + (days % 31)];
+  return [jy, 7 + div(days - 186, 30), 1 + ((days - 186) % 30)];
+}
+
 export function tzLabel(min) {
   const m = Math.abs(Number(min));
   return `UTC${Number(min) < 0 ? '−' : '+'}${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;

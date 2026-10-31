@@ -58,8 +58,28 @@ function multipart(params) {
   return { body: Buffer.concat(parts), type: `multipart/form-data; boundary=${boundary}` };
 }
 
-async function call(method, params = {}) {
+/* Like the platform: an InputFile at any depth is uploaded (nested ones as attach://<name> parts). */
+function lift(params) {
+  const files = [];
+  const walk = (v, top) => {
+    if (v instanceof InputFile) {
+      if (top) return v;
+      const name = `file${files.length}`;
+      files.push([name, v]);
+      return `attach://${name}`;
+    }
+    if (Array.isArray(v)) return v.map((x) => walk(x, false));
+    if (v && typeof v === 'object' && !(v instanceof Uint8Array)) return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, false)]));
+    return v;
+  };
+  const out = Object.fromEntries(Object.entries(params).map(([k, v]) => [k, walk(v, true)]));
+  for (const [name, f] of files) out[name] = f;
+  return out;
+}
+
+async function call(method, params0 = {}) {
   const path = `/botSERVERLESS/${method}`;
+  const params = lift(params0);
   const hasFile = Object.values(params).some((v) => v instanceof InputFile);
   const data = hasFile
     ? await post(path, ...Object.values(multipart(params)))

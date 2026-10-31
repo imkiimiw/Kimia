@@ -47,6 +47,7 @@ import * as punish from '../engines/punish.js';
 import * as settings from '../engines/settings.js';
 import * as users from '../engines/users.js';
 import { dur, pickLang, t, wordCommand } from '../i18n/index.js';
+import { pdfReport, qrText } from './media.js';
 import { deleteMessage, isAdmin, postNotice } from './enforce.js';
 import { welcome } from './welcome.js';
 
@@ -463,6 +464,18 @@ export async function onMessage(ctx, chat, message, { edited = false } = {}) {
   if (g.suspicious.dupm && media && media.file_unique_id && !edited && (g.suspicious.on || g.risk.on)) {
     const seen = await guards.seenMedia(media.file_unique_id, c, user.id);
     if (seen.here >= 2 || seen.elsewhere >= 1) sus.push('dup_media');
+  }
+  /* Phase 9: a link in a QR code of a photo, a PDF that can run code — both need a download, so only when the module is on */
+  if (g.suspicious.on && g.suspicious.qr && message.photo && !edited) {
+    const code = await qrText(ctx, message);
+    const hosts = code ? hostsOf(linksOf(scan({ text: code }), 'high').filter((u) => !ownLink(u))) : [];
+    let foreign = 0;
+    for (const h of hosts) if (!(await anyAllowed(c, h))) foreign += 1;
+    if (foreign) sus.push('qr_link');
+  }
+  if (g.suspicious.on && g.suspicious.pdf && message.document && !edited) {
+    const r = await pdfReport(ctx, message.document);
+    if (r && r.verdict === 'danger') sus.push('pdf_active');
   }
   signals.push(...sus);
   if (g.suspicious.on && sus.length) hits.push({ m: 'suspicious', cfg: g.suspicious, sus });

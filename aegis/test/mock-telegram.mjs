@@ -140,6 +140,9 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     sendsToOthers: 0,
     commands: [],
     failNext: new Map(), // method -> { code, description } for the next call
+    uploads: new Map(), // file id -> an uploaded file (photos, stickers, animations… sent by the bot)
+    stickerSets: new Map(), // name -> { name, title, owner, stickers: [{ file_id, bytes }] }
+    nextDice: [], // values the next sendDice calls give (else 3)
   };
   const k = (chat, id) => `${Number(chat)}:${Number(id)}`;
   const ok = (result) => ({ ok: true, result });
@@ -236,11 +239,17 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     return (p) => {
       const bad = reachable(p.chat_id);
       if (bad) return bad;
-      if (!p[kind] || typeof p[kind] !== 'string') return err(400, `Bad Request: there is no ${kind} in the request`);
+      const up = p[kind] && typeof p[kind] === 'object' && p[kind].bytes ? p[kind] : null;
+      if (!p[kind] || (typeof p[kind] !== 'string' && !up)) return err(400, `Bad Request: there is no ${kind} in the request`);
+      if (up && kind === 'sticker' && !/\.(webp|tgs|webm)$/i.test(up.filename)) return err(400, 'Bad Request: wrong file type of the sticker');
+      if (up && kind === 'photo' && up.bytes.length > 10 * 1024 * 1024) return err(400, 'Bad Request: PHOTO_INVALID_DIMENSIONS');
       if (p.caption && p.caption.length > 1024) return err(400, 'Bad Request: message caption is too long');
       const m = checkMarkup(p.reply_markup, { privateChat: Number(p.chat_id) > 0 });
       if (m) return err(400, `Bad Request: ${m}`);
-      const id = store(p.chat_id, { kind, caption: p.caption || '', plain: p.caption || '', file: p[kind], markup: markupOf(p) });
+      const file = up ? `up${state.nextMessageId}` : p[kind];
+      if (up) state.uploads.set(file, { kind, filename: up.filename, type: up.type, bytes: up.bytes });
+      const id = store(p.chat_id, { kind, caption: p.caption || '', plain: p.caption || '', file, upload: up ? { filename: up.filename, type: up.type, bytes: up.bytes } : null,
+        markup: markupOf(p) });
       return ok({ message_id: id, chat: { id: Number(p.chat_id) }, date: 0, ...(p.caption ? { caption: p.caption } : {}) });
     };
   }
@@ -250,6 +259,21 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
     if (msg.from && msg.from.id !== botId) return err(400, "Bad Request: message can't be edited");
     if (!msg.from && c && c.type === 'channel' && !(c.botAdmin && (c.botRights || {}).can_edit_messages)) return err(400, 'Bad Request: not enough rights to edit the message');
     return null;
+  }
+  /* An InputSticker: a static PNG/WEBP upload (attach://name → a part of the request) or a file_id. */
+  function stickerInput(p, st) {
+    if (!st || st.format !== 'static' || !Array.isArray(st.emoji_list) || !st.emoji_list.length) return { error: err(400, 'Bad Request: invalid sticker') };
+    let bytes = null;
+    if (typeof st.sticker === 'string' && st.sticker.startsWith('attach://')) {
+      const part = p[st.sticker.slice(9)];
+      if (!part || !part.bytes) return { error: err(400, 'Bad Request: file not found in the request') };
+      if (!/\.(png|webp)$/i.test(part.filename)) return { error: err(400, 'Bad Request: wrong file type') };
+      if (part.bytes.length > 512 * 1024) return { error: err(400, 'Bad Request: STICKER_FILE_TOO_BIG') };
+      bytes = part.bytes;
+    }
+    const fileId = `stk${state.nextMessageId++}`;
+    if (bytes) state.uploads.set(fileId, { kind: 'sticker', filename: 'sticker.png', bytes });
+    return { sticker: { file_id: fileId, bytes } };
   }
   function linkCall(p, fn) {
     const c = chat(p.chat_id);
@@ -361,6 +385,7 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       if (p.type === 'quiz' && (!Array.isArray(p.correct_option_ids) || !p.correct_option_ids.length || p.correct_option_ids.some((i) => i < 0 || i >= p.options.length))) {
         return err(400, 'Bad Request: wrong correct option ids specified');
       }
+      if (p.open_period !== undefined && (p.open_period < 5 || p.open_period > 600)) return err(400, 'Bad Request: open_period must be 5-600');
       if (p.close_date !== undefined && (p.close_date < Math.floor(Date.now() / 1000) + 5 || p.close_date > Math.floor(Date.now() / 1000) + 2628000)) return err(400, 'Bad Request: close_date must be 5-2628000 seconds in the future');
       const pollId = `poll${state.nextMessageId}`;
       const poll = { id: pollId, question: p.question, options: p.options.map((o) => ({ text: o.text, voter_count: 0 })), total_voter_count: 0, is_closed: false,
@@ -375,9 +400,60 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       msg.poll.is_closed = true;
       return ok(msg.poll);
     },
+    sendDice: (p) => {
+      const bad = reachable(p.chat_id);
+      if (bad) return bad;
+      const emoji = p.emoji || '🎲';
+      const max = { '🎲': 6, '🎯': 6, '🎳': 6, '🏀': 5, '⚽': 5, '🎰': 64 }[emoji];
+      if (!max) return err(400, 'Bad Request: invalid dice emoji');
+      const value = state.nextDice.length ? state.nextDice.shift() : 3;
+      const id = store(p.chat_id, { kind: 'dice', text: '', plain: emoji, markup: markupOf(p) });
+      return ok({ message_id: id, chat: { id: Number(p.chat_id) }, date: 0, dice: { emoji, value } });
+    },
+    createNewStickerSet: (p) => {
+      if (!state.started.has(Number(p.user_id))) return err(400, 'Bad Request: PEER_ID_INVALID');
+      if (!new RegExp(`^[A-Za-z][A-Za-z0-9_]*_by_${botUsername}$`, 'i').test(p.name || '') || /__/.test(p.name) || p.name.length > 64) return err(400, 'Bad Request: invalid sticker set name is specified');
+      if (state.stickerSets.has(p.name)) return err(400, 'Bad Request: sticker set name is already occupied');
+      if (!p.title || p.title.length > 64) return err(400, 'Bad Request: invalid title');
+      const list = typeof p.stickers === 'string' ? JSON.parse(p.stickers) : p.stickers;
+      if (!Array.isArray(list) || !list.length || list.length > 50) return err(400, 'Bad Request: stickers must be 1-50');
+      const set = { name: p.name, title: p.title, owner: Number(p.user_id), stickers: [] };
+      for (const st of list) {
+        const r = stickerInput(p, st);
+        if (r.error) return r.error;
+        set.stickers.push(r.sticker);
+      }
+      state.stickerSets.set(p.name, set);
+      return ok(true);
+    },
+    addStickerToSet: (p) => {
+      const set = state.stickerSets.get(p.name);
+      if (!set || set.owner !== Number(p.user_id)) return err(400, 'Bad Request: STICKERSET_INVALID');
+      if (set.stickers.length >= 120) return err(400, 'Bad Request: STICKERS_TOO_MUCH');
+      const r = stickerInput(p, typeof p.sticker === 'string' ? JSON.parse(p.sticker) : p.sticker);
+      if (r.error) return r.error;
+      set.stickers.push(r.sticker);
+      return ok(true);
+    },
+    getStickerSet: (p) => {
+      const set = state.stickerSets.get(p.name);
+      if (!set) return err(400, 'Bad Request: STICKERSET_INVALID');
+      return ok({ name: set.name, title: set.title, sticker_type: 'regular',
+        stickers: set.stickers.map((x) => ({ file_id: x.file_id, file_unique_id: `u${x.file_id}`, type: 'regular', width: 512, height: 512, is_animated: false, is_video: false })) });
+    },
+    deleteStickerFromSet: (p) => {
+      for (const set of state.stickerSets.values()) {
+        const i = set.stickers.findIndex((x) => x.file_id === p.sticker);
+        if (i >= 0) {
+          set.stickers.splice(i, 1);
+          return ok(true);
+        }
+      }
+      return err(400, 'Bad Request: STICKER_INVALID');
+    },
     getFileContent: (p) => {
       const id = typeof p === 'string' ? p : p.file_id;
-      const bytes = state.files && state.files.get(id);
+      const bytes = (state.files && state.files.get(id)) || (state.uploads.get(id) || {}).bytes;
       if (!bytes) return err(400, 'Bad Request: invalid file_id');
       return ok(Array.from(bytes));
     },

@@ -72,6 +72,10 @@ async function checkOne(ctx, ch, userId) {
   }
 }
 
+async function markAdmin(ch) {
+  await db.run(sql`UPDATE aegis_join_channels SET bot_admin = 1, last_error = NULL, checked_at = ${nowSec()} WHERE id = ${ch.id}`);
+}
+
 async function warnOwner(ctx, ch) {
   const now = nowSec();
   await db.run(sql`UPDATE aegis_join_channels SET bot_admin = 0, last_error = ${ch.error || null}, checked_at = ${now} WHERE id = ${ch.id}`);
@@ -102,7 +106,10 @@ export async function status(ctx, userId, { force = false } = {}) {
   const missing = [];
   for (let i = 0; i < chans.length; i += 1) {
     if (results[i] === 'skipped') await warnOwner(ctx, chans[i]);
-    else if (results[i] === 'missing') missing.push({ title: channelTitle(chans[i]), url: channelUrl(chans[i]) });
+    else {
+      if (results[i] === 'missing') missing.push({ title: channelTitle(chans[i]), url: channelUrl(chans[i]) });
+      if (!Number(chans[i].bot_admin)) await markAdmin(chans[i]); /* the check worked: Aegis is an admin there now */
+    }
   }
   if (!missing.length) {
     await users.setJoinOk(userId, now, rev);

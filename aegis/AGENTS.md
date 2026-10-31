@@ -3,7 +3,7 @@
 Orientation for AI coding assistants (and humans) working on **Aegis**, a public Telegram group &
 channel management/security bot on **Telegram Serverless**. Keep it short and true. Platform SDK
 reference: [docs/tgcloud-sdk.md](docs/tgcloud-sdk.md). Product spec: `docs/SPEC.md` (Persian, the
-source of truth — it must be added to the repo; it was not present when Phases 1–8 were built, and
+source of truth — it must be added to the repo; it was not present when Phases 1–9 were built, and
 the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
 
 ## Ground rules
@@ -25,7 +25,9 @@ the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
   or from the owner's open Mini App page. Never design a feature that needs the bot to wake up alone.
 - Every DB call is `await`ed; no foreign keys; drops only via `.deprecated()`.
 - Only **block comments** in `tgcloud/`; no literal invisible characters in source (write `\u200F`).
-- **Module cap**: the platform refuses a deploy with too many modules (104 refused, 88 deploy;
+- **CPU budget ≈ 3 s per update** (measured; then «CPU timer exceeded») and `Date.now()` is frozen
+  during an update. Heavy work (images, PDFs) must stay small: ≤ 1280 px photos, capped decompression.
+- **Module cap**: the platform refuses a deploy with too many modules (104 refused, 88 and 94 deploy;
   `test/static.mjs` fails above 95). Prefer adding to an existing module; to merge, make the old
   module a section — `export const name = (() => { …; return { … }; })();` — so callers keep
   `name.fn()` (see `engines/social.js`, `ui/social.js` → `qa`, `ui/panel_social.js`).
@@ -75,6 +77,11 @@ the choices made without it are in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
   `ui/panel_social.js` (sections `panelQa`, `panelAnalytics`); pure rules in `core/levels.js`
   (levels, badges, thanks, health score). Counting runs only for messages that passed locks and
   security; command words match only the whole message. Contests and polls end lazily (`sweep`).
+- Fun & media (Phase 9): the 30 features, their settings (`fx_<code>` = "on,who,cooldown,daily,reward"),
+  limits, games, birthdays and media jobs in `engines/fun.js`; the work in `ui/fun.js` (section
+  `panelFun`) and `ui/media.js` (section `panelMedia`); codecs are pure and unit-tested in
+  `core/files.js` (zlib, base64, PDF check) and `core/image.js` (JPEG/PNG/GIF, QR). No npm at
+  runtime: the browser-side Mini App (`webapp/media.*`) may load free libraries from a CDN.
 - Multi-step inputs → `lib/core/state.js`; new callback_data codes → document them in the module
   header and in `lib/router.js`; keep callback_data ≤ 64 bytes.
 

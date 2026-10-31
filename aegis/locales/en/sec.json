@@ -190,5 +190,9 @@
   "night_ended": "☀️ The night lock was ended by {who}.",
   "night_restored": "☀️ Good morning! The group is open again.",
   "log_night_end": "☀️ Night lock ended",
-  "state_night": "🌙 Night lock is ON — ends {time}."
+  "state_night": "🌙 Night lock is ON — ends {time}.",
+  "f_qr": "Links in QR codes",
+  "f_pdf": "Risky PDFs",
+  "sig_qr_link": "a link hidden in a QR code",
+  "sig_pdf_active": "a PDF that can run code"
 }

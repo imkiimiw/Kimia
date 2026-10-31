@@ -32,6 +32,7 @@ import * as audit from '../core/audit.js';
 import { nowSec, parseJson } from '../core/util.js';
 import { CLEAN_MAX_TIMES, FAKES_MAX, FJ_MAX_CHANNELS, FOOTER_MAX, MAX_STEPS, NEW_WINDOWS } from '../config.js';
 import { asciiDigits, parseDuration, TZ_OFFSETS } from '../core/clock.js';
+import { DEFAULTS as FX_DEFAULTS, validConf } from './fun.js';
 
 /* ========== warning steps (was engines/steps.js) ========== */
 /*
@@ -131,6 +132,10 @@ export const DEFAULTS = {
   ch_footer: '', ch_buttons: '', ch_post_ttl: '0', ch_protect: '0', ch_silent: '0', ch_mirror: '0',
   /* Phase 8 */
   stats_on: '1', pts_on: '0', pts_msg: '1', pts_gap: '60', pts_thanks: '1', pts_announce: '1', qa_on: '1', anon_on: '0', appeals_on: '1', review_all: '0',
+  /* Phase 9: fun (the 30 features: fx_<code>, see engines/fun.js) and media tools */
+  fun_on: '1', fun_rate: '10', fun_clean: '0', fun_reward: '1', fun_free: '1', bday_cal: 'auto',
+  media_on: '1', media_who: 'a', media_daily: '10',
+  ...FX_DEFAULTS,
 };
 
 /* Allowed values of the Phase 6 settings (flags are '0'/'1'). */
@@ -141,6 +146,7 @@ export const CHOICES = {
   ch_jr_mode: ['manual', 'approve', 'decline'], ch_jr_flood: [0, 10, 30, 100], ch_imp_action: ['alert', 'remove'], ch_edit_grace: [0, 300, 900, 3600],
   dm_flood: [0, 5, 10, 20], ch_post_ttl: [0, 3600, 21600, 43200, 86400],
   pts_msg: [1, 2, 5], pts_gap: [0, 30, 60, 300],
+  fun_rate: [0, 5, 10, 20, 30], fun_clean: [0, 60, 300, 3600], bday_cal: ['auto', 'g', 'j'], media_who: ['a', 'd'], media_daily: [3, 5, 10, 20, 50],
 };
 const TEXTS = { rules: 3000, welcome_text: 1000, welcome_btns: 1000, goodbye_text: 500, title_locked: 128, ch_title_locked: 128, ch_footer: FOOTER_MAX,
   ch_buttons: 1000 };
@@ -154,12 +160,14 @@ const FLAGS = new Set(['audit', 'notify', 'warn_reset', 'betray_on', 'log_on', '
   'ev_join', 'ev_leave', 'ev_admin', 'ev_names',
   'ch_jr_captcha', 'ch_jr_names', 'ch_imp', 'ch_al_admins', 'ch_al_info', 'ch_al_edits', 'ch_al_bot', 'ch_title_lock', 'ch_archive',
   'ch_approval', 'ch_edit_lock', 'dg_members', 'dg_as_channel', 'dg_imp', 'dg_first', 'dm_on', 'dm_links', 'dm_scam', 'dm_fakes', 'dm_suggest',
-  'ch_protect', 'ch_silent', 'stats_on', 'pts_on', 'pts_thanks', 'pts_announce', 'qa_on', 'anon_on', 'appeals_on', 'review_all']);
+  'ch_protect', 'ch_silent', 'stats_on', 'pts_on', 'pts_thanks', 'pts_announce', 'qa_on', 'anon_on', 'appeals_on', 'review_all',
+  'fun_on', 'fun_reward', 'fun_free', 'media_on']);
 export const isFlag = (key) => FLAGS.has(key);
 
 function valid(key, value) {
   const v = String(value);
   if (FLAGS.has(key)) return v === '0' || v === '1';
+  if (key.startsWith('fx_')) return validConf(v);
   if (key === 'warn_ttl') return WARN_TTLS.includes(Number(v));
   if (key === 'betray_n') return BETRAY_NS.includes(Number(v));
   if (key === 'betray_sec') return BETRAY_SECS.includes(Number(v));
@@ -191,7 +199,7 @@ function valid(key, value) {
 export async function all(ctx, chatId) {
   ctx.chatSettings = ctx.chatSettings || {};
   if (ctx.chatSettings[chatId]) return ctx.chatSettings[chatId];
-  const rows = await db.all(sql`SELECT key, value FROM aegis_chat_settings WHERE chat_id = ${chatId} LIMIT 100`);
+  const rows = await db.all(sql`SELECT key, value FROM aegis_chat_settings WHERE chat_id = ${chatId} LIMIT 400`);
   const out = { ...DEFAULTS };
   for (const r of rows) if (r.key in DEFAULTS) out[r.key] = r.value;
   ctx.chatSettings[chatId] = out;

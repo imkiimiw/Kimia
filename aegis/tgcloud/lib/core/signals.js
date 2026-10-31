@@ -146,7 +146,7 @@ export function fingerprint(text) {
 export const WEIGHTS = {
   no_username: 10, name_link: 30, name_pattern: 30, name_invisible: 25, name_homoglyph: 20, impersonation: 40, raid: 20,
   new_link: 30, first_link: 20, ad_words: 15, xgroup: 45, fwd_channel_new: 20, invisible: 20, homoglyph: 25, deceptive: 30, danger_file: 50,
-  dup_media: 20, flood: 25,
+  dup_media: 20, flood: 25, qr_link: 40, pdf_active: 50,
 };
 export const RISK_LEVELS = { low: [50, 90], medium: [40, 70], high: [30, 50] }; /* [alert at, act at] */
 

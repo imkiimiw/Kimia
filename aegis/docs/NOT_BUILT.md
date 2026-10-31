@@ -5,10 +5,10 @@ Updated at the end of each phase. Constraint for all entries: **free only** — 
 or tier; only what Telegram Serverless and the Bot API allow.
 
 > **Note on the spec.** `aegis/docs/SPEC.md` (the Persian master spec) was not in the repository
-> when Phases 1–8 were built (searched the working tree, all branches on GitHub, and the
-> container). They were built from their descriptions in the build instructions (Phases 3–8 by the
+> when Phases 1–9 were built (searched the working tree, all branches on GitHub, and the
+> container). They were built from their descriptions in the build instructions (Phases 3–9 by the
 > owner's decision to go ahead without it — the 42 locks, the security modules, the 26 advanced
-> settings, the channel panel and the social features are Aegis's own design, see ASSUMPTIONS); details the spec would normally settle are listed in
+> settings, the channel panel, the social features and the 30 fun features are Aegis's own design, see ASSUMPTIONS); details the spec would normally settle are listed in
 > [ASSUMPTIONS.md](ASSUMPTIONS.md). They will be re-checked against the spec once it is added.
 
 ## Phase 1 — Core
@@ -142,5 +142,21 @@ or tier; only what Telegram Serverless and the Bot API allow.
 | Voters of **anonymous** polls | **Not possible** | Telegram doesn't tell bots who voted in an anonymous poll — only the counts. Non-anonymous polls in groups are tracked (and exported). | — (Bot API). |
 | Anonymous questions that are anonymous **even to the bot** | **Partial** | Admins never see the sender. Aegis keeps the sender's id with the question so it can tell them the outcome and so «Block sender» works; it is not shown anywhere (not in the change log either). | — (needed for answers and blocking). |
 | Review of decisions made **outside Aegis** | **Partial** | «Review all» covers punishments given with Aegis's commands. Bans and restrictions made in Telegram's own interface are recorded (Phase 3) and appear in the decisions list, but are not sent for review; undoing them works where Aegis can. | — |
-| **Charts** (images) in statistics | **Not built** | Statistics are text with bars and CSV files; the isolate has no free image library at runtime. | Phase 9 (media) if a free way exists. |
+| **Charts** (images) in statistics | **Not built** | Statistics are text with bars and CSV files. Phase 9 wrote image encoders (PNG/JPEG) that could draw charts, but text needs a font renderer (Persian shaping included), which isn't there. | A text renderer with fonts for all five languages. |
+
+## Phase 9 — Fun features and media tools
+
+| Feature | State | Why | What it would need |
+|---|---|---|---|
+| **OCR checks** in security (text inside images: ads, links, scams) | **Not built** | No free OCR runs inside the platform's isolate (no WebAssembly libraries can be installed there, and the CPU budget is about 3 s per update). OCR is built as a tool members start themselves, in the Mini App on their own device (Tesseract.js). | A free OCR service or an OCR engine small enough for the isolate. |
+| OCR **inside the bot** (without the Mini App) | **Partial** | The text is read on the member's device in the Mini App, which works only in private chats; in groups /ocr gives a button to open it in private. The first use downloads the language data (a few MB) from jsDelivr. | — |
+| QR codes **at any angle or in poor photos** | **Partial** | The decoder (written for this project) handles screenshots, rotation, perspective, blur and JPEG; strongly rotated dense codes (e.g. 45°) and very small modules can fail. The Mini App tries again with jsQR on the device. | — |
+| **Animated (.tgs) and video (.webm) stickers → photo or GIF** | **Partial** | Rendering Lottie animations or decoding VP9 video isn't possible in the isolate; they are sent back as files. Static stickers become photos. | A renderer/decoder (not free to run here). |
+| Sticker → photo **conversion** | **Partial** | The sticker's WEBP file is sent as a photo (Telegram converts it); a WEBP decoder isn't written, so where Telegram refuses, it's sent as a file. | A WEBP decoder. |
+| **Video → GIF** conversion | **Partial** | A bot can't re-encode video here. The video (up to 20 MB, the Bot API download limit) is sent back as an animation, which Telegram shows as a GIF (Telegram's GIFs are MP4 files). Photos → GIF is real GIF encoding. | — |
+| Stickers sent **directly** from a photo | **Partial** | sendSticker accepts uploads only as WEBP; Aegis has a PNG encoder, so a sticker is added to the member's own Aegis pack (PNG is allowed there) and that sticker is sent. The member must have started Aegis in private. | A WEBP encoder. |
+| **Text on images** (memes, captions drawn on photos) | **Not built** | Drawing text needs fonts and, for Persian, letter shaping — not available in the isolate. | A font renderer with shaping. |
+| Games and timed endings **exactly on time** | **Partial** | No scheduler: a game whose time is up ends (and the answer is shown) on the first update after, checked at most once a minute. | A platform scheduler. |
+| A **verifiable** random choice (dice, raffles, picks) | **Not possible for the bot** | Telegram's own dice are random on Telegram's side; Aegis's coin, picks and games use the isolate's random numbers. | — |
+| PDF check of **every** PDF technique | **Partial** | Known risky features are found in the raw file and in Flate-compressed streams; other compression methods (LZW, ASCII85…), encrypted PDFs and broken files can hide content — the report says when parts couldn't be read. | More decoders (free to add later). |
 

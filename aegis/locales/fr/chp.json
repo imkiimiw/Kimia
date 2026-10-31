@@ -179,5 +179,19 @@
   "k_qa_on": "Questions aux admins",
   "k_anon_on": "Questions anonymes",
   "k_appeals_on": "Appels",
-  "k_review_all": "Réviser toutes les décisions"
+  "k_review_all": "Réviser toutes les décisions",
+  "k_fun_on": "Divertissement",
+  "k_fun_rate": "Au plus",
+  "k_fun_clean": "Supprimer les réponses après",
+  "k_fun_reward": "Points pour les victoires",
+  "k_fun_free": "Admins sans limites",
+  "k_bday_cal": "Calendrier des anniversaires",
+  "k_media_on": "Outils médias",
+  "k_media_who": "Qui",
+  "k_media_daily": "Par membre et par jour",
+  "v_bday_cal_auto": "selon la langue de la discussion",
+  "v_bday_cal_g": "grégorien",
+  "v_bday_cal_j": "persan (jalali)",
+  "v_media_who_a": "tout le monde",
+  "v_media_who_d": "admins"
 }

@@ -1,0 +1,13 @@
+%PDF-1.7
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Annots [<< /Subtype /Link /A << /S /URI /URI (https://evil.example/login) >> >>] >>
+endobj
+trailer
+<< /Root 1 0 R >>
+%%EOF
