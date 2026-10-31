@@ -1,0 +1,5 @@
+{
+  // Meme bot: no Mini App yet (Phase 1). To host one later, add
+  // "static": { "source": "<build folder>" }.
+  "$schema": "./node_modules/@tgcloud/cli/schema/tgcloud.json"
+}
