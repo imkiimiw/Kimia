@@ -1341,7 +1341,8 @@ await scenario('phase 3 — the panel: 18 lists; add, search, details, note, edi
   assert.ok(labelsOf(Q.olga, olgaPanel).includes('⭐ VIP · 1'));
   await olga(B('L:bwd'));
   assert.match(olgaScreen().plain, /The list is empty/);
-  assert.match(olgaScreen().plain, /takes effect with the locks and filters of a later phase/);
+  assert.match(olgaScreen().plain, /Words the «Banned words» lock deletes\./);
+  assert.doesNotMatch(olgaScreen().plain, /no lock or check acts on this list/, 'this list acts');
   const ask = await olga(B('L:bwd:a'));
   assert.match(sent(ask.calls)[0].params.text, /Send the words for «Banned words»/);
   const added = await olgaSays('spam\nscam\nكلمه\nکلمه\n');

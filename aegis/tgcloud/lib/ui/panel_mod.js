@@ -134,7 +134,7 @@ async function listPage(ctx, user, g, def, p, place, notice = '') {
   const lines = [];
   if (notice) lines.push(notice, '');
   lines.push(t(lang, 'lists.title', { icon: def.icon, name: t(lang, `lists.n_${code}`), title: title(g) }), t(lang, `lists.d_${code}`));
-  if (def.effect === 'none') lines.push(t(lang, def.kind === 'user' ? 'lists.later_user' : 'lists.later'));
+  if (def.code === 'sus' || def.code === 'stk') lines.push(t(lang, 'lists.note_only')); /* the two lists nothing acts on */
   let rows;
   let total;
   if (code === 'wrn') ({ rows, total } = await punish.warned(ctx, c, LIST_PAGE, p * LIST_PAGE));
