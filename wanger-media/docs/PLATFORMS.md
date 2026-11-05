@@ -20,7 +20,7 @@ sources or not testable yet. Measurements can change without notice: platforms c
 | Bot API sizes | Upload 50 MB (photo 10 MB); `getFile` 20 MB. By URL Telegram fetches ≤ 20 MB (photo ≤ 5 MB) itself — Bot API docs. | Official |
 | Scheduler / cron / timers | **None.** Not in the docs or CLI; `setTimeout`, `setInterval`, `queueMicrotask` are absent. Code runs only during an update, an endpoint call or `tgcloud run`. | Official + Measured |
 | DB reads | **`Sqlite query rows_read limit exceeded`** once a query reads ≈ 50 000 rows (a recursive count of 24 000 rows ≈ 48 000 reads passed; 25 500 failed). Very large queries fail with a generic `Sqlite error`. | Measured |
-| DB statement size | A statement with **4 000 bound parameters worked, 4 096 failed** (`Run error`). The ~10k-row insert cap in the brief is really this: rows × columns ≤ ~4 000. | Measured |
+| DB statement size | A statement with **4 000 bound parameters worked, 4 096 failed** (`Run error`). The ~10k-row insert cap in the brief is probably this limit: rows × columns ≤ ~4 000 (inferred; no table written). | Measured |
 | DB writes | Speed of separate writes not measured (no tables exist; Phase 1 measures on its own tables). No transactions (an earlier bot: `BEGIN` → not authorized); one statement = one atomic step. | Other bot |
 | Globals | Present: `TextEncoder`, `TextDecoder`, `Intl`, `crypto`, `WebAssembly`. **Absent:** `URL`, `URLSearchParams`, `atob`, `btoa`, `AbortController`, `structuredClone`, `Blob`, `Response`, `Headers`, `ReadableStream`, `DecompressionStream`, `performance`, `Buffer`, `process`. → URLs are parsed by our own strict parser; a `fetch` can't be cancelled by us. | Measured |
 | Network egress | Facebook answered in Dutch and Meta's CDN host was `scontent-ams2` → Telegram's servers appear to be in the **Netherlands**. Geo-limited content follows NL availability (we never work around it). | Measured (inferred) |
@@ -69,7 +69,7 @@ sources or not testable yet. Measurements can change without notice: platforms c
   `mediaDetails`: photos on `pbs.twimg.com`, videos/GIFs as `video_info.variants` — **complete MP4
   files with audio** at several bitrates on `video.twimg.com`; `possibly_sensitive` flag. HEAD gives
   `Content-Length`; `Range: bytes=0-0` → 206. Samples: 77 s video → variants of 143 MB, 41 MB and
-  smaller; 25 s video → 19 MB / 5.5 MB. Latency 0.26–4.4 s; 2 of 6 calls failed at ≈ 5 s. A missing
+  smaller; 25 s video → 19 MB / 5.5 MB. Latency 0.26–4.4 s; 2 of 8 calls failed at ≈ 5 s (`fetch: request failed`). A missing
   post → 404 HTML. `publish.x.com/oembed` → html + author (metadata fallback).
 - **Limits:** protected / deleted posts aren't served; `possibly_sensitive` posts are refused (could
   be age-gated). If X starts rejecting the endpoint → TEMPORARILY_DISABLED, no workaround.
