@@ -1,0 +1,5 @@
+.tgcloud/
+node_modules/
+*.log
+# output of test/cloud/run-tests.mjs (raw `tgcloud run` logs and the summary)
+test/cloud/output/
