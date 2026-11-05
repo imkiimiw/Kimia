@@ -458,7 +458,8 @@ async function main() {
     });
 
     await scenario('C2 cooldown: a request within 5 s of the previous one → "wait"', () => {
-      devtools({ op: 'set_user', user: TU1, set: { last_req: nowSec(), busy_until: 0 } });
+      // 30 s ahead, so a CLI rate-limit wait before the next run can't let the 5 s cooldown expire.
+      devtools({ op: 'set_user', user: TU1, set: { last_req: nowSec() + 30, busy_until: 0 } });
       const r = screenOk(sendText(TU1, link(P.gif)), 'cooldown');
       expect(r.text.includes('ثانیه'), r.text);
       return `"${r.text}"`;
