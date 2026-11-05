@@ -55,7 +55,7 @@
 
 1. توکن CLI را بگیرید: BotFather ← ربات ← Serverless ← CLI Access ← Access token (شکلش `app<id>:<secret>` است،
    نه توکن خود ربات).
-2. آن را در متغیر **`XDownloader_BOT_TGCLOUD_TOKEN`** بگذارید: در تنظیمات محیط (Environment variables)، یا در
+2. آن را در متغیر **`X_BOT_TGCLOUD_TOKEN`** بگذارید: در تنظیمات محیط (Environment variables)، یا در
    فایل `x_downloader_bot/.env` (از روی `.env.example`؛ این فایل در git نمی‌رود). اسم جدا برای هر ربات باعث
    می‌شود هیچ‌وقت کد این ربات روی ربات دیگری در همین مخزن push نشود.
 3. دستورها (همه از طریق `scripts/tg.mjs`، که توکن را فقط به همان پردازش CLI می‌دهد):

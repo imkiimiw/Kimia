@@ -3,7 +3,7 @@
 // the local handlers against the bot's real database, the real Bot API and the real FxTwitter /
 // vxTwitter / twimg, without deploying.
 //
-//   npm run test:cloud        (needs XDownloader_BOT_TGCLOUD_TOKEN, see .env.example, and a migrated DB)
+//   npm run test:cloud        (needs X_BOT_TGCLOUD_TOKEN, see .env.example, and a migrated DB)
 //
 // - Downloads are sent to the OWNER's chat (5557901897), so the owner really receives the videos,
 //   albums and GIFs in Telegram. The owner's settings are restored at the end.
@@ -55,7 +55,7 @@ const log = (s) => fs.appendFileSync(LOG, `${s}\n`);
 // TGCLOUD_CLI_ARGS (JSON array of node arguments) replaces the real CLI; only
 // test/cloud/local-harness.mjs sets it, to check this script against the local emulation.
 const CLI_ARGS = process.env.TGCLOUD_CLI_ARGS ? JSON.parse(process.env.TGCLOUD_CLI_ARGS) : [CLI];
-// The real CLI gets this bot's token (XDownloader_BOT_TGCLOUD_TOKEN) as TGCLOUD_TOKEN, see scripts/env.mjs.
+// The real CLI gets this bot's token (X_BOT_TGCLOUD_TOKEN) as TGCLOUD_TOKEN, see scripts/env.mjs.
 const CHILD = process.env.TGCLOUD_CLI_ARGS ? { env: process.env } : cliEnv();
 if (CHILD.error) {
   console.error(CHILD.error);

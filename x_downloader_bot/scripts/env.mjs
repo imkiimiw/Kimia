@@ -1,4 +1,4 @@
-// The CLI token for THIS bot only. It comes from XDownloader_BOT_TGCLOUD_TOKEN (environment, or
+// The CLI token for THIS bot only. It comes from X_BOT_TGCLOUD_TOKEN (environment, or
 // x_downloader_bot/.env, which is git-ignored) and is handed to the tgcloud CLI as TGCLOUD_TOKEN for
 // child processes only — never printed, never written to disk. A generic TGCLOUD_TOKEN is ignored on
 // purpose: this repository holds several bots, and that one could belong to any of them.
@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const TOKEN_VAR = 'XDownloader_BOT_TGCLOUD_TOKEN';
+export const TOKEN_VAR = 'X_BOT_TGCLOUD_TOKEN';
 
 function readDotEnv() {
   const out = {};

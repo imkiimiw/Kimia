@@ -159,6 +159,9 @@ A Persian X/Twitter media downloader with mandatory channel membership and an ow
 `handlers/message.js` and `handlers/callback_query.js` exist; both delegate to `lib/router.js`, which
 documents the order of checks and the table of `callback_data` codes. Rules this code follows:
 
+- **CLI token: `X_BOT_TGCLOUD_TOKEN`** (environment or `x_downloader_bot/.env`), never committed. Run the
+  CLI through `npm run tg -- <command>` (`scripts/tg.mjs`), which hands it to the CLI as `TGCLOUD_TOKEN`
+  for that process only; a generic `TGCLOUD_TOKEN` is ignored (other bots live in this repository).
 - **All X API logic is in `lib/x_api.js`** (FxTwitter first, vxTwitter fallback, one retry each on a
   temporary failure). Its header documents the response formats as verified with real requests.
 - **Media only from `video.twimg.com` / `pbs.twimg.com`** (`isAllowedMediaUrl`), also after redirects.
