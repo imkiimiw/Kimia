@@ -4,6 +4,7 @@
 // (below it a track still goes to the channel, but only through approval).
 import { GENRES, CONFIDENCE_ORDER } from '../config/static.js';
 import { toAsciiDigits } from '../music/normalize.js';
+import { tzOffsetSeconds } from '../core/util.js';
 
 export const RULE_LANGUAGES = Object.freeze(['fa', 'en', 'other']);
 export const DEFAULT_RULES = Object.freeze({ languages: [], genres: [], exclude_genres: [], min_language_confidence: 'medium' });
@@ -88,4 +89,27 @@ export function hoursOf(stored) {
   } catch {
     return null;
   }
+}
+
+/** Unix time of local midnight (in `tz`) of the day containing `now`. */
+export function dayStart(now, tz) {
+  const off = tzOffsetSeconds(tz, now);
+  return Math.floor((now + off) / 86400) * 86400 - off;
+}
+
+/** Local hour (0–23) of `now` in `tz`. */
+export const localHour = (now, tz) => Math.floor((((now + tzOffsetSeconds(tz, now)) % 86400) + 86400) % 86400 / 3600);
+
+/**
+ * May the worker post to this channel now? (spec 10.6: enabled + auto-publish, minimum interval,
+ * active hours in the channel's time zone, daily limit)
+ * @returns {{ready: boolean, reason: string|null, nextAt: number|null}}
+ */
+export function channelReady(channel, now, publishedToday) {
+  const no = (reason, nextAt = null) => ({ ready: false, reason, nextAt });
+  if (!channel.enabled || !channel.auto_publish || !channel.bot_rights_ok || channel.removed_at) return no('off');
+  if (channel.last_published_at && now - channel.last_published_at < channel.min_interval_seconds) return no('interval', channel.last_published_at + channel.min_interval_seconds);
+  if (!withinHours(hoursOf(channel.active_hours), localHour(now, channel.time_zone))) return no('hours');
+  if (channel.daily_limit && publishedToday >= channel.daily_limit) return no('daily_limit', dayStart(now, channel.time_zone) + 86400);
+  return { ready: true, reason: null, nextAt: null };
 }

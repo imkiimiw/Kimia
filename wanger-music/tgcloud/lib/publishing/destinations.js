@@ -37,9 +37,9 @@ export function storedRights(d) {
 }
 
 /**
- * @param {{repo: any, tg: any, settings: any, alerts: any, audit: any, clock: any, log: any}} deps
+ * @param {{repo: any, tg: any, settings: any, alerts: any, audit: any, clock: any, log: any, onRemoved?: (id: number) => Promise<any>}} deps
  */
-export function createDestinationsService({ repo, tg, settings, alerts, audit, clock, log }) {
+export function createDestinationsService({ repo, tg, settings, alerts, audit, clock, log, onRemoved = async () => {} }) {
   async function mustGet(id) {
     const d = await repo.get(id);
     if (!d) throw new UserError('dst.err.gone');
@@ -49,7 +49,9 @@ export function createDestinationsService({ repo, tg, settings, alerts, audit, c
   async function change(actor, id, patch, action, details = patch) {
     assertCan(actor, PERM);
     const d = await mustGet(id);
-    const row = await repo.update(id, patch, clock.now());
+    const now = clock.now();
+    await repo.update(id, patch, now);
+    const row = await repo.syncPublishingSince(id, now); // set when enabled + auto-publish turn on
     await audit.record(actor, action, 'destination', d.chat_id, details);
     return row;
   }
@@ -141,7 +143,8 @@ export function createDestinationsService({ repo, tg, settings, alerts, audit, c
       const rights = info.ok ? info.rights : rightsOf(null, null, now, info.error);
       const ok = !!(info.ok && rights.admin && rights.post);
       const patch = { bot_rights_ok: ok ? 1 : 0, bot_rights: rights, ...(info.ok ? { title: String(info.chat.title || d.title || '').slice(0, 128), username: info.chat.username || null } : {}), ...(ok ? {} : { enabled: 0 }) };
-      return repo.update(id, patch, now);
+      await repo.update(id, patch, now);
+      return repo.syncPublishingSince(id, now);
     },
 
     /** Soft removal: hidden, disabled; its row (and later its publication history) is kept. */
@@ -149,6 +152,8 @@ export function createDestinationsService({ repo, tg, settings, alerts, audit, c
       assertCan(actor, PERM);
       const d = await mustGet(id);
       await repo.softRemove(id, clock.now());
+      await repo.syncPublishingSince(id, clock.now());
+      await onRemoved(id); // waiting publications are cancelled
       await audit.record(actor, 'destination.remove', 'destination', d.chat_id, { title: d.title });
       return d;
     },
@@ -161,6 +166,7 @@ export function createDestinationsService({ repo, tg, settings, alerts, audit, c
       const rights = rightsOf(member, chat, now);
       const ok = rights.admin && rights.post;
       await repo.update(d.id, { bot_rights_ok: ok ? 1 : 0, bot_rights: rights, ...(ok ? {} : { enabled: 0 }), ...(chat.title ? { title: String(chat.title).slice(0, 128) } : {}) }, now);
+      await repo.syncPublishingSince(d.id, now);
       if (!ok) {
         log.warn('destination_unhealthy', { channel_id: chat.id, status: member && member.status });
         await alerts.owner(`dst:${d.id}`, (lang) => t(lang, 'alert.dst_unhealthy', { title: d.title || String(d.chat_id) }), LIMITS.alertDestinationEverySeconds);

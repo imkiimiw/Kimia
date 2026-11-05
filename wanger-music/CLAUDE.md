@@ -5,8 +5,8 @@
 **Read `docs/SPEC.md` and `docs/PLATFORM_NOTES.md` before each phase.** One phase at a time; at the
 end: all tests green, docs updated, the report (SPEC §15), then STOP and wait for the owner.
 
-- **Current phase: 5 done. Next: Phase 6 — automatic publishing.** Nothing deployed yet (the owner must OK a
-  deploy explicitly; see docs/ROADMAP.md). Until Phase 6 nothing may be posted to any channel.
+- **Current phase: 6 done. Next: Phase 7 — analytics.** Nothing deployed yet (the owner must OK a deploy
+  explicitly; see docs/ROADMAP.md).
 - Stack: Telegram Serverless (tgcloud CLI 0.2.0), plain JS ES modules in `tgcloud/`, SQLite via
   `sdk/db` (raw SQL with the `sql` tag), Node 22 for local tests. No runtime dependencies.
 - This folder is its own tgcloud project (bot `@Wange_Musicbot`, app9280424458). The repo root and
@@ -37,6 +37,9 @@ end: all tests green, docs updated, the report (SPEC §15), then STOP and wait f
 - Source imports run as `SYSTEM_ACTOR` (policy.js; audit actor 0) and never publish.
 - Destinations: rules/hours in `publishing/rules.js` (pure: matches(), withinHours()); captions in
   `publishing/captions.js`; previews go to the owner only; removal is soft (removed_at).
+- Publishing: routing only on activation (publishing_since → no backfill), one row per (track, channel),
+  the worker claims with a lease; error actions come from `telegram/errors.js#publishAction`; an expired
+  lease is `uncertain` and is NEVER re-sent automatically.
 - Keep ≤ 85 modules (the platform refused a 104-module deploy). Add handlers only in their phase.
 - Ask the owner before: new dependencies, deploys, migrate warnings, anything that posts to a real
   channel or messages real users. Destination channels (@WangerBeat, @WangerFlow) are Phase 5.

@@ -1,0 +1,208 @@
+// 🗳 Approvals and publication management (spec 10.4, 10.6):
+// - review queue (approvals.review: owner + admins): the audio by file_id with the channel's
+//   rendered caption, the target channel and ✅ Approve · ❌ Reject · ⏭ Next; one reviewer wins;
+// - owner: uncertain / failed lists with «ثبت به\u200cعنوان منتشرشده» / «ارسال دوباره» / cancel,
+//   history per channel, backfill with a preview and a count, deleting a track's channel posts;
+// - publications of a track (catalog.manage, read-only).
+import { t, tp, raw, dateTime } from '../i18n/index.js';
+import { esc, displayName } from '../telegram/html.js';
+import { btn, markup } from '../bot/keyboards.js';
+import { screen, homeButton } from './panel.js';
+import { can } from '../permissions/policy.js';
+import { truncate } from '../core/util.js';
+import { captionFor } from '../publishing/worker.js';
+import { matches } from '../publishing/rules.js';
+import { classify } from '../telegram/errors.js';
+
+const REVIEW = 'approvals.review';
+const OWNER = 'destinations.manage';
+const ICON = { pending_approval: '🗳', queued: '⏳', sending: '📤', published: '✅', failed: '❌', rejected: '🚫', uncertain: '⚠️', cancelled: '✖️' };
+
+const trackLabel = (lang, p) => truncate(`${p.track_title || tp(lang, 'trk.untitled')} — ${p.track_artist || '?'}`, 50);
+const channelLabel = (p) => p.channel_title || (p.channel_username ? '@' + p.channel_username : String(p.channel_id));
+
+async function homeView(app, user) {
+  const lang = app.lang;
+  const c = await app.publisher.counts();
+  const rows = [[btn(tp(lang, 'apr.btn_review_n', { n: c.pending }), 'apr', 'next', 0)]];
+  if (can(user, OWNER)) rows.push([btn(tp(lang, 'apr.btn_uncertain', { n: c.uncertain }), 'pub', 'ls', 'uncertain'), btn(tp(lang, 'apr.btn_failed', { n: c.failed }), 'pub', 'ls', 'failed')], [btn(tp(lang, 'apr.btn_queued', { n: c.queued }), 'pub', 'ls', 'queued')]);
+  rows.push([homeButton(lang)]);
+  const paused = await app.settings.get('publishing.paused');
+  return { text: t(lang, 'apr.title', c) + (paused ? '\n\n' + t(lang, 'apr.paused') : ''), keyboard: markup(rows) };
+}
+
+/** Sends the next pending item after `afterId`: the audio with its channel caption, then the decision card. */
+async function showNext(app, user, afterId) {
+  const lang = app.lang;
+  const p = await app.publisher.nextPending(afterId);
+  if (!p) {
+    await app.tg.send(user.telegram_id, { text: t(lang, 'apr.empty'), keyboard: markup([[btn(tp(lang, 'common.back'), 'apr', 'home')]]) }, 'review_empty');
+    return;
+  }
+  const [track, ch] = await Promise.all([app.catalog.get(p.track_id), app.destinations.get(p.channel_id)]);
+  if (!track || !ch) {
+    await showNext(app, user, p.id);
+    return;
+  }
+  const caption = await captionFor(track, ch, { get: (id) => app.sources.get(id) });
+  try {
+    await app.tg.call('sendAudio', { chat_id: user.telegram_id, audio: track.audio_file_id, caption, parse_mode: 'HTML' }, 'review_audio');
+  } catch (e) {
+    if (classify(e).kind !== 'bad_caption') throw e;
+    await app.tg.call('sendAudio', { chat_id: user.telegram_id, audio: track.audio_file_id }, 'review_audio');
+  }
+  const m = matches(track, ch);
+  const left = await app.publisher.countPending();
+  await app.tg.send(user.telegram_id, {
+    text: t(lang, 'apr.card', {
+      channel: channelLabel(p), track: trackLabel(lang, p), left,
+      reason: tp(lang, m.reason === 'low_confidence' ? 'apr.reason.low_confidence' : 'apr.reason.required'),
+      language: tp(lang, `tlang.${track.language}`), confidence: tp(lang, `conf.${track.language_confidence}`),
+    }),
+    keyboard: markup([[btn(tp(lang, 'apr.btn_ok'), 'apr', 'ok', p.id), btn(tp(lang, 'apr.btn_no'), 'apr', 'no', p.id), btn(tp(lang, 'apr.btn_skip'), 'apr', 'next', p.id)]]),
+  }, 'review_card');
+}
+
+async function decide(app, user, id, approve, cq) {
+  const lang = app.lang;
+  const r = await app.publisher.decide(user, id, approve);
+  if (!r.ok) {
+    const row = r.row;
+    const who = row && row.decided_by ? displayName((await app.users.get(row.decided_by)) || { telegram_id: row.decided_by }) : '—';
+    const text = row ? t(lang, 'apr.already', { status: tp(lang, `pub.status.${row.status}`), who }) : t(lang, 'pub.err.state');
+    await screen(app, user, cq, { text }, 'review_done');
+    return { toast: tp(lang, 'apr.already_toast'), alert: true };
+  }
+  await screen(app, user, cq, { text: t(lang, approve ? 'apr.approved' : 'apr.rejected', { channel: channelLabel(await app.publisher.get(id)) }) }, 'review_done');
+  await showNext(app, user, id);
+  return { toast: tp(lang, approve ? 'apr.approved_toast' : 'apr.rejected_toast') };
+}
+
+async function pubCard(app, user, p) {
+  const lang = app.lang;
+  const tz = await app.settings.get('time_zone');
+  const rows = [];
+  if (can(user, OWNER)) {
+    if (p.status === 'uncertain') rows.push([btn(tp(lang, 'pub.btn_mark'), 'pub', 'mark', p.id), btn(tp(lang, 'pub.btn_resend'), 'pub', 'resend', p.id)]);
+    if (p.status === 'failed') rows.push([btn(tp(lang, 'pub.btn_retry'), 'pub', 'resend', p.id)]);
+    if (['uncertain', 'failed', 'queued', 'pending_approval'].includes(p.status)) rows.push([btn(tp(lang, 'pub.btn_cancel'), 'pub', 'cancel', p.id)]);
+  }
+  rows.push([btn(tp(lang, 'common.back'), 'apr', 'home')]);
+  return {
+    text: t(lang, 'pub.card', {
+      icon: ICON[p.status] || '•', status: tp(lang, `pub.status.${p.status}`), channel: channelLabel(p), track: trackLabel(lang, p),
+      attempts: p.attempt_count, error: p.last_error || '—', created: dateTime(p.created_at, tz, lang), published: dateTime(p.published_at || 0, tz, lang),
+    }) + (p.status === 'uncertain' ? '\n\n' + t(lang, 'pub.uncertain_help') : ''),
+    keyboard: markup(rows),
+  };
+}
+
+const listLine = (lang, p, tz, withChannel = true) => `${ICON[p.status] || '•'} ${esc(trackLabel(lang, p))}${withChannel ? ` → ${esc(channelLabel(p))}` : ''} · ${esc(dateTime(p.published_at || p.updated_at || p.created_at, tz, lang))}${p.deleted_at ? ' 🧹' : ''}`;
+
+/** Lines for the track card (music_ui). */
+export async function trackPublicationLines(app, track) {
+  const lang = app.lang;
+  const list = await app.publisher.forTrack(track.id);
+  if (!list.length) return [t(lang, 'pub.track_none')];
+  return [t(lang, 'pub.track_head'), ...list.map((p) => `${ICON[p.status] || '•'} ${esc(channelLabel(p))}: ${esc(tp(lang, `pub.status.${p.status}`))}${p.deleted_at ? ' 🧹' : ''}`)];
+}
+
+export const routes = [
+  { ns: 'apr', action: 'home', args: [], perm: REVIEW, run: async (app, user, _a, cq) => { await screen(app, user, cq, await homeView(app, user), 'approvals'); return {}; } },
+  { ns: 'apr', action: 'next', args: ['uint'], perm: REVIEW, run: async (app, user, [after]) => { await showNext(app, user, Number(after)); return {}; } },
+  { ns: 'apr', action: 'ok', args: ['uint'], perm: REVIEW, run: (app, user, [id], cq) => decide(app, user, id, true, cq) },
+  { ns: 'apr', action: 'no', args: ['uint'], perm: REVIEW, run: (app, user, [id], cq) => decide(app, user, id, false, cq) },
+
+  {
+    ns: 'pub', action: 'ls', args: ['word'], perm: OWNER,
+    async run(app, user, [status], cq) {
+      if (!['uncertain', 'failed', 'queued'].includes(String(status))) return { toast: tp(app.lang, 'common.expired'), alert: true };
+      const lang = app.lang;
+      const list = await app.publisher.byStatus(String(status));
+      const rows = list.slice(0, 10).map((p) => [btn(`${ICON[p.status]} ${trackLabel(lang, p)} → ${channelLabel(p)}`.slice(0, 60), 'pub', 'v', p.id)]);
+      rows.push([btn(tp(lang, 'common.back'), 'apr', 'home')]);
+      await screen(app, user, cq, { text: t(lang, 'pub.list', { status: tp(lang, `pub.status.${status}`), n: list.length }) + (list.length ? '' : '\n' + t(lang, 'mus.list_empty')), keyboard: markup(rows) }, 'publications');
+      return {};
+    },
+  },
+  {
+    ns: 'pub', action: 'v', args: ['uint'], perm: OWNER,
+    async run(app, user, [id], cq) {
+      const p = await app.publisher.get(id);
+      if (!p) return { toast: tp(app.lang, 'pub.err.state'), alert: true };
+      await screen(app, user, cq, await pubCard(app, user, p), 'publication_card');
+      return {};
+    },
+  },
+  ...[['mark', 'markPublished', 'pub.marked'], ['resend', 'resend', 'pub.requeued'], ['cancel', 'cancel', 'pub.cancelled']].map(([action, fn, toast]) => ({
+    ns: 'pub', action, args: ['uint'], perm: OWNER,
+    async run(app, user, [id], cq) {
+      await app.publisher[fn](user, id);
+      await screen(app, user, cq, await pubCard(app, user, await app.publisher.get(id)), 'publication_card');
+      return { toast: tp(app.lang, toast) };
+    },
+  })),
+  {
+    ns: 'pub', action: 'trk', args: ['uint'], perm: 'catalog.manage',
+    async run(app, user, [trackId], cq) {
+      const lang = app.lang;
+      const tz = await app.settings.get('time_zone');
+      const list = await app.publisher.forTrack(trackId);
+      const rows = can(user, OWNER) ? list.map((p) => [btn(`${ICON[p.status]} ${channelLabel(p)}`.slice(0, 60), 'pub', 'v', p.id)]) : [];
+      rows.push([btn(tp(lang, 'common.back'), 'trk', 'v', trackId)]);
+      await screen(app, user, cq, { text: t(lang, 'pub.track_title', { n: list.length }) + '\n\n' + (list.length ? list.map((p) => listLine(lang, p, tz)).join('\n') : t(lang, 'pub.track_none')), keyboard: markup(rows) }, 'track_publications');
+      return {};
+    },
+  },
+  {
+    ns: 'pub', action: 'ch', args: ['uint', 'uint'], perm: OWNER,
+    async run(app, user, [channelId, page], cq) {
+      const lang = app.lang;
+      const tz = await app.settings.get('time_zone');
+      const size = 10;
+      const list = await app.publisher.forChannel(channelId, Number(page), size + 1);
+      const rows = list.slice(0, size).map((p) => [btn(`${ICON[p.status]} ${trackLabel(lang, p)}`.slice(0, 60), 'pub', 'v', p.id)]);
+      rows.push([Number(page) > 0 ? btn(tp(lang, 'common.prev'), 'pub', 'ch', channelId, Number(page) - 1) : null, list.length > size ? btn(tp(lang, 'common.next'), 'pub', 'ch', channelId, Number(page) + 1) : null]);
+      rows.push([btn(tp(lang, 'common.back'), 'dst', 'v', channelId)]);
+      await screen(app, user, cq, { text: t(lang, 'pub.channel_title', { page: Number(page) + 1 }) + '\n\n' + (list.length ? list.slice(0, size).map((p) => listLine(lang, p, tz, false)).join('\n') : t(lang, 'mus.list_empty')), keyboard: markup(rows) }, 'channel_history');
+      return {};
+    },
+  },
+  {
+    ns: 'pub', action: 'bf', args: ['uint'], perm: OWNER,
+    async run(app, user, [channelId], cq) {
+      const lang = app.lang;
+      const { channel, rows, sample } = await app.publisher.backfillPreview(user, channelId);
+      const lines = sample.map((tr) => `• ${esc(truncate(`${tr.title} — ${tr.artist}`, 60))}`).join('\n');
+      await screen(app, user, cq, {
+        text: t(lang, 'pub.bf_preview', { channel: channel.title || String(channel.chat_id), n: rows.length, sample: raw(lines || '—'), approval: tp(lang, channel.approval_required ? 'pub.bf_approval_on' : 'pub.bf_approval_off') }),
+        keyboard: markup([rows.length ? [btn(tp(lang, 'pub.btn_bf_ok', { n: rows.length }), 'pub', 'bfok', channelId)] : [], [btn(tp(lang, 'common.back'), 'dst', 'v', channelId)]]),
+      }, 'backfill_preview');
+      return {};
+    },
+  },
+  {
+    ns: 'pub', action: 'bfok', args: ['uint'], perm: OWNER,
+    async run(app, user, [channelId], cq) {
+      const n = await app.publisher.backfill(user, channelId);
+      await screen(app, user, cq, { text: t(app.lang, 'pub.bf_done', { n }), keyboard: markup([[btn(tp(app.lang, 'common.back'), 'dst', 'v', channelId)]]) }, 'backfill_done');
+      return {};
+    },
+  },
+  {
+    ns: 'pub', action: 'del', args: ['uint'], perm: OWNER,
+    async run(app, user, [trackId], cq) {
+      await screen(app, user, cq, { text: t(app.lang, 'pub.del_confirm'), keyboard: markup([[btn(tp(app.lang, 'common.yes_delete'), 'pub', 'delok', trackId), btn(tp(app.lang, 'common.no'), 'trk', 'v', trackId)]]) }, 'delete_posts_confirm');
+      return {};
+    },
+  },
+  {
+    ns: 'pub', action: 'delok', args: ['uint'], perm: OWNER,
+    async run(app, user, [trackId], cq) {
+      const r = await app.publisher.deletePosts(user, trackId);
+      await screen(app, user, cq, { text: t(app.lang, 'pub.del_done', { ok: r.ok, failed: r.failed }), keyboard: markup([[btn(tp(app.lang, 'common.back'), 'trk', 'v', trackId)]]) }, 'delete_posts_done');
+      return {};
+    },
+  },
+];
+

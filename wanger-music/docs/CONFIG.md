@@ -58,7 +58,9 @@ token. If a later provider needs an API key, it goes in the git-ignored
 | `tick.budget_ms` | `8000` | 1000–20000 | Manual / scheduled tick and «▶️ ادامه» (wall limit ≈ 30 s) |
 | `tick.piggyback_budget_ms` | `2000` | 500–5000 | Tick run after a normal update |
 | `broadcast.batch_size` | `25` | 1–100 | Recipients per batch |
-| `digest.interval_seconds` | `3600` | 300–86400 | Phase 6 approval digests |
+| `digest.interval_seconds` | `3600` | 300–86400 | One approval digest per reviewer at most this often while items wait |
+| `publishing.per_tick` | `3` | 1–10 | Posts per tick (one per channel) |
+| `publishing.paused` | `false` | on/off | Emergency stop: the worker sends nothing (routing and approvals continue) |
 | `time_zone` | `Asia/Tehran` | Asia/Tehran, UTC, Europe/Istanbul, Asia/Dubai, Europe/Berlin, Europe/London, America/New_York | Dates in the panel; schedules later |
 | `archive.chat_id` | empty | a channel where the bot can post | Every activated track is copied there (`#t<id>` caption) |
 | `import.bulk_summary` | `true` | on/off | A run of forwarded audios gets one summary message instead of a card each |

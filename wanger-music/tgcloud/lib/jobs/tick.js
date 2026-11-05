@@ -3,10 +3,12 @@
 // and endpoints/opsTick (GitHub Actions schedule). Timing depends on traffic and the schedule.
 import { runMaintenance } from './maintenance.js';
 
-/** Processors in order; Phase 6 adds publications and approval digests here. */
+/** Processors in order (spec 10.7): maintenance → broadcast → publications → digests → archive → search index. */
 const PROCESSORS = [
   { name: 'maintenance', run: (app) => runMaintenance(app) },
   { name: 'broadcast', run: (app, deadlineMs) => app.broadcasts.runBatch({ deadlineMs }) },
+  { name: 'publications', run: (app, deadlineMs) => app.worker.run({ deadlineMs }) },
+  { name: 'digests', run: (app) => app.publisher.runDigest() },
   { name: 'archive', run: (app, deadlineMs) => app.catalog.runArchiveBacklog({ deadlineMs }) },
   { name: 'search_index', run: (app, deadlineMs) => app.search.runReindex({ deadlineMs }) },
 ];

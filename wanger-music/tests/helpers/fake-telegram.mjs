@@ -98,7 +98,11 @@ export function createFakeTelegram() {
       return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, audio: { file_id: p.audio }, caption: p.caption || null });
     },
     sendPhoto(p, m) {
-      if (p.chat_id > 0 && blocked.has(p.chat_id)) fail(403, 'Forbidden: bot was blocked by the user', m);
+      if (p.chat_id < 0) {
+        const c = channels.get(p.chat_id);
+        if (!c) fail(400, 'Bad Request: chat not found', m);
+        if (c.bot.status !== 'administrator' || !c.bot.can_post_messages) fail(403, 'Forbidden: bot is not a member of the channel chat', m);
+      } else if (p.chat_id > 0 && blocked.has(p.chat_id)) fail(403, 'Forbidden: bot was blocked by the user', m);
       return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, photo: [{ file_id: p.photo }], caption: p.caption || null });
     },
     setMyCommands: () => true,

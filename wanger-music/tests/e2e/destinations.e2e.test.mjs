@@ -66,7 +66,6 @@ test('the owner adds @WangerBeat (English) and @WangerFlow (Persian), configures
   assert.deepEqual(JSON.parse(d.rules), { languages: ['fa', 'other'], genres: ['pop', 'traditional'], exclude_genres: ['rap'], min_language_confidence: 'high' });
   assert.deepEqual([d.post_format, d.time_zone, d.min_interval_seconds, JSON.parse(d.active_hours), d.daily_limit, d.approval_required, d.enabled, d.auto_publish],
     ['cover_then_audio', 'UTC', 900, { from: 9, to: 23 }, 30, 0, 1, 1]);
-  assert.match(h.lastText(OWNER), /تا فاز ۶ هیچ پستی در کانال‌ها ارسال نمی‌شه/);
   assert.deepEqual(channelPosts(h), [], 'nothing was posted to any channel');
   assert.ok(h.q("SELECT action FROM audit_log WHERE action LIKE 'destination.%'").length >= 10);
 });

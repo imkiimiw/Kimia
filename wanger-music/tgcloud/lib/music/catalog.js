@@ -18,10 +18,11 @@ const PERM = 'catalog.manage';
 export const archiveCaption = (tr) => `#t${tr.public_id}\n🎵 ${esc(tr.title || '')}\n👤 ${esc(tr.artist || '')}${tr.album ? `\n💿 ${esc(tr.album)}` : ''}`;
 
 /**
- * @param {{repo: any, tg: any, settings: any, audit: any, alerts: any, clock: any, log: any, index?: {add: (t: any) => Promise<any>, remove: (id: number) => Promise<any>}}} deps
+ * @param {{repo: any, tg: any, settings: any, audit: any, alerts: any, clock: any, log: any, index?: {add: (t: any) => Promise<any>, remove: (id: number) => Promise<any>}, publishing?: {routeTrack: (t: any) => Promise<any>, cancelForTrack: (id: number) => Promise<any>, deleteForTrack: (id: number) => Promise<any>}}} deps
  *   index: the search index (Phase 3) — a track is indexed while it is active
+ *   publishing: routing on activation, cancellation on hide/remove, cleanup on purge (Phase 6)
  */
-export function createCatalogService({ repo, tg, settings, audit, alerts, clock, log, index = { add: async () => {}, remove: async () => {} } }) {
+export function createCatalogService({ repo, tg, settings, audit, alerts, clock, log, index = { add: async () => {}, remove: async () => {} }, publishing = { routeTrack: async () => 0, cancelForTrack: async () => 0, deleteForTrack: async () => 0 } }) {
   async function mustGet(id) {
     const tr = await repo.get(id);
     if (!tr) throw new UserError('trk.err.gone');
@@ -111,10 +112,10 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
       if (!row) throw new UserError('trk.err.state');
       await bumpVersion();
       await index.add(row);
+      await publishing.routeTrack(row);
       await audit.record(actor, 'catalog.activate', 'track', row.public_id);
       const archive = await settings.get('archive.chat_id');
       if (archive && !row.archive_message_id && (await archiveSlot())) await archiveOne(row, archive);
-      // Phase 6: routing to destination channels starts here.
       return (await repo.get(id)) || row;
     },
 
@@ -125,6 +126,7 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
       if (!row) throw new UserError('trk.err.state');
       await bumpVersion();
       await index.remove(row.id);
+      await publishing.cancelForTrack(row.id);
       await audit.record(actor, 'catalog.hide', 'track', row.public_id);
       return row;
     },
@@ -137,8 +139,8 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
       if (!row) throw new UserError('trk.err.state');
       if (before.status === 'active') await bumpVersion();
       await index.remove(row.id);
+      await publishing.cancelForTrack(row.id);
       await audit.record(actor, 'catalog.remove', 'track', row.public_id, { from: before.status });
-      // Phase 6: cancel pending/queued publications of this track here.
       return row;
     },
 
@@ -157,6 +159,7 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
       const tr = await mustGet(id);
       if (tr.status !== 'removed') throw new UserError('trk.err.state');
       await index.remove(id); // children first (no foreign keys)
+      await publishing.deleteForTrack(id);
       if (!(await repo.purge(id))) throw new UserError('trk.err.state');
       await audit.record(actor, 'catalog.purge', 'track', tr.public_id, { title: tr.title, artist: tr.artist });
       return tr;

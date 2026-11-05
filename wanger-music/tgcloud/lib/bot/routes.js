@@ -13,6 +13,7 @@ import * as searchUi from './search_ui.js';
 import * as artistsUi from '../admin/artists_ui.js';
 import * as sourcesUi from '../admin/sources_ui.js';
 import * as destinationsUi from '../admin/destinations_ui.js';
+import * as approvalsUi from '../admin/approvals_ui.js';
 
 /**
  * @typedef {{ns: string, action: string, args: string[], perm: string|null, gate?: boolean,
@@ -35,6 +36,7 @@ export const CALLBACK_ROUTES = [
   ...artistsUi.routes,
   ...sourcesUi.routes,
   ...destinationsUi.routes,
+  ...approvalsUi.routes,
 ];
 
 /** @type {Map<string, CallbackRoute>} */

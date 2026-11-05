@@ -17,7 +17,7 @@ test('only the owner sees and uses /admin; a normal user gets the unknown-comman
   assert.match(h.lastText(U), /این دستور رو نمی‌شناسم/);
   await h.send(OWNER, '/admin');
   assert.match(h.lastText(OWNER), /پنل مدیریت Wanger Music/);
-  assert.deepEqual(h.lastButtons(OWNER).map((b) => b.text), ['🎵 موزیک', '📡 منابع', '📢 کانال‌های مقصد', '🔐 عضویت اجباری', '👥 کاربران', '📣 پیام همگانی', '📊 آمار', '⚙️ تنظیمات', '🧪 وضعیت سیستم']);
+  assert.deepEqual(h.lastButtons(OWNER).map((b) => b.text), ['🎵 موزیک', '📡 منابع', '📢 کانال‌های مقصد', '🔐 عضویت اجباری', '👥 کاربران', '📣 پیام همگانی', '🗳 تأییدها و انتشار', '📊 آمار', '⚙️ تنظیمات', '🧪 وضعیت سیستم']);
   await h.tap(OWNER, 'adm:sec:stats');
   assert.match(h.lastText(OWNER), /در فاز ۷ اضافه می‌شود/);
 });
@@ -55,7 +55,7 @@ test('an admin without a permission is denied; with it, allowed; admin features 
   assert.ok(scoped[0].params.commands.some((c) => c.command === 'admin'));
 
   await h.send(ADMIN, '/admin');
-  assert.deepEqual(h.lastButtons(ADMIN).map((b) => b.callback_data), ['mus:home', 'adm:sec:stats'], 'only permitted sections');
+  assert.deepEqual(h.lastButtons(ADMIN).map((b) => b.callback_data), ['mus:home', 'apr:home', 'adm:sec:stats'], 'only permitted sections');
   const user = { telegram_id: ADMIN, role: 'admin' };
   for (const r of CALLBACK_ROUTES.filter((x) => x.perm && !can(user, x.perm))) {
     const mark = h.mark();

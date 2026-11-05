@@ -72,7 +72,9 @@ export const SETTINGS = Object.freeze({
   'tick.budget_ms': { type: 'int', min: 1000, max: 20000, default: 8000 },
   'tick.piggyback_budget_ms': { type: 'int', min: 500, max: 5000, default: 2000 },
   'broadcast.batch_size': { type: 'int', min: 1, max: 100, default: 25 },
-  'digest.interval_seconds': { type: 'int', min: 300, max: 86400, default: 3600, phase: 6 },
+  'digest.interval_seconds': { type: 'int', min: 300, max: 86400, default: 3600 },
+  'publishing.per_tick': { type: 'int', min: 1, max: 10, default: 3 },
+  'publishing.paused': { type: 'bool', default: false },
   time_zone: { type: 'tz', default: 'Asia/Tehran' },
   'archive.chat_id': { type: 'chat', default: null },
   'import.bulk_summary': { type: 'bool', default: true },
@@ -108,12 +110,13 @@ export const ADMIN_SECTIONS = Object.freeze([
   { id: 'fj', perm: 'forcejoin.manage', phase: 1 },
   { id: 'users', perm: 'users.view', phase: 1 },
   { id: 'bc', perm: 'broadcast.send', phase: 1 },
+  { id: 'review', perm: 'approvals.review', phase: 6 },
   { id: 'stats', perm: 'stats.view', phase: 7 },
   { id: 'settings', perm: 'settings.manage', phase: 1 },
   { id: 'system', perm: 'system.view', phase: 1 },
 ]);
 
-export const CURRENT_PHASE = 5;
+export const CURRENT_PHASE = 6;
 
 /**
  * Destination channels the owner named on 2026-11-05 (shown as one-tap "add" buttons; each tap

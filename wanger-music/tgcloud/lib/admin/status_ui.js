@@ -24,7 +24,7 @@ export function statusView(lang, h) {
   lines.push(t(lang, 'sys.db', { ms: h.dbMs }));
   lines.push(t(lang, 'sys.counts', {
     users: h.stats.total, blocked: h.stats.blocked,
-    tracks: `${digits(h.tracks.total, lang)} (✅ ${digits(h.tracks.active, lang)})`, pending: tp(lang, 'sys.later', { phase: 6 }), failed: tp(lang, 'sys.later', { phase: 6 }),
+    tracks: `${digits(h.tracks.total, lang)} (✅ ${digits(h.tracks.active, lang)})`, pending: digits(h.publications.queued + h.publications.pending, lang), failed: digits(h.publications.failed + h.publications.uncertain, lang),
   }));
   lines.push(t(lang, 'sys.search', { terms: h.search.terms, state: tp(lang, h.search.cursor >= 0 ? 'sys.search_rebuilding' : 'sys.search_ready') }));
   const tick = h.tickLast;

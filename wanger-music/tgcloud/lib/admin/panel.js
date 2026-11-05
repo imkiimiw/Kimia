@@ -5,7 +5,7 @@ import { t, tp } from '../i18n/index.js';
 import { btn, markup, grid } from '../bot/keyboards.js';
 
 /** Where a built section's button goes. */
-const TARGETS = { music: ['mus', 'home'], sources: ['src', 'home'], dest: ['dst', 'home'], fj: ['fjm', 'home'], users: ['usr', 'home'], bc: ['bc', 'home'], settings: ['set', 'home'], system: ['sys', 'home'] };
+const TARGETS = { music: ['mus', 'home'], sources: ['src', 'home'], dest: ['dst', 'home'], review: ['apr', 'home'], fj: ['fjm', 'home'], users: ['usr', 'home'], bc: ['bc', 'home'], settings: ['set', 'home'], system: ['sys', 'home'] };
 
 /** Shows a view in the pressed message (or as a new message). */
 export const screen = (app, user, cq, view, name) => app.tg.show(user.telegram_id, cq && cq.message ? cq.message.message_id : null, view, name);

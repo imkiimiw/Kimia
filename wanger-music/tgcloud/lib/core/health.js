@@ -7,7 +7,7 @@ export async function healthReport(app) {
   const t0 = app.clock.ms();
   await app.settings.ping();
   const dbMs = app.clock.ms() - t0;
-  const [stats, channels, errors, tickLast, cooldownUntil, tracks, search, destinations] = await Promise.all([
+  const [stats, channels, errors, tickLast, cooldownUntil, tracks, search, destinations, publications] = await Promise.all([
     app.users.stats(),
     app.forcejoin.list(),
     app.alerts.recentErrors(),
@@ -16,6 +16,7 @@ export async function healthReport(app) {
     app.catalog.counts(),
     app.search.stats(),
     app.destinations.list(),
+    app.publisher.counts(),
   ]);
   let me = null;
   try {
@@ -30,5 +31,5 @@ export async function healthReport(app) {
   } catch (e) {
     webhook = { restricted: e && e.code === 403, error: String((e && e.description) || e).slice(0, 120) };
   }
-  return { version: VERSION, me, webhook, dbMs, stats, tracks, search, destinations, channels, errors, tickLast, cooldownUntil: Number(cooldownUntil) || 0, now: app.clock.now() };
+  return { version: VERSION, me, webhook, dbMs, stats, tracks, search, destinations, publications, channels, errors, tickLast, cooldownUntil: Number(cooldownUntil) || 0, now: app.clock.now() };
 }

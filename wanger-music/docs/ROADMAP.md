@@ -12,8 +12,8 @@ and a stop until the owner says "implement Phase N".
 | 3 | Search + inline: `track_terms` (+ `artists`, `artist_aliases`), private search, `inline_query` + `chosen_inline_result` handlers, pagination, inline force-join gate, deep links, inline caption template | **Built and tested locally** |
 | 4 | Sources: `channel_post` handler, `sources` table, 📡 Sources (add / enable / mode off·draft·active / default language / remove), import pipeline as the system actor, "bot added to a channel" prompt (Source · Destination · Force-join · Ignore) | **Built and tested locally** |
 | 5 | Destination channels: `destination_channels`; add (one-tap for @WangerBeat = English, @WangerFlow = Persian, or forward / @username / id) with the bot's rights checked; rules (languages, genres, excluded genres, min confidence); caption template with a preview to the owner; post format; schedule (interval, hours, daily limit, time zone); approval; enable / auto-publish; rights check; soft removal; health from my_chat_member. **Posts nothing.** | **Built and tested locally** |
-| 6 (next) | Automatic publishing: routing, queue, worker on the tick, approvals, retries, cooldown, windows, history, uncertain handling | — |
-| 7 | Analytics: `stats_daily`, 📊 dashboard | — |
+| 6 | Automatic publishing: `publications`; routing on activation (idempotent, no backfill; explicit owner backfill with preview), approval queue + digest + review screen, worker on the tick (lease, interval / hours / daily limit, 429 cooldown, backoff, permanent errors), uncertain handling, history per track/channel, cancel on removal, delete channel posts, pause switch | **Built and tested locally** |
+| 7 (next) | Analytics: `stats_daily`, 📊 dashboard | — |
 | 8 | Hardening: reviews, load test on staging, backup export/restore, monitoring, recovery docs | — |
 
 ## Interfaces already in place for later phases
@@ -44,5 +44,5 @@ and a stop until the owner says "implement Phase N".
 
 ## Module budget
 
-74 of ≤ 85 modules used after Phase 5 (+4). The platform refused a 104-module deploy for another bot.
-Rough plan: Phase 6 ≈ +4 (captions and rules exist already), Phase 7 ≈ +3, Phase 8 ≈ +2 → ≈ 83.
+78 of ≤ 85 modules used after Phase 6 (+4). The platform refused a 104-module deploy for another bot.
+Rough plan: Phase 7 ≈ +3, Phase 8 ≈ +2 → ≈ 83.

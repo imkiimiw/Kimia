@@ -8,6 +8,7 @@ import { btn, markup, grid } from '../bot/keyboards.js';
 import { screen, homeButton, promptView } from './panel.js';
 import { can } from '../permissions/policy.js';
 import { UserError, truncate } from '../core/util.js';
+import { trackPublicationLines } from './approvals_ui.js';
 
 const PERM = 'catalog.manage';
 const FILTERS = ['review', 'draft', 'active', 'hidden', 'removed', 'fa', 'en', 'other', 'unknown'];
@@ -40,7 +41,7 @@ export async function trackView(app, viewer, tr, { header = '' } = {}) {
     if (other) lines.push(t(lang, 'trk.line.dup', { title: label(lang, other), id: `t_${other.public_id}` }));
   }
   for (const r of await app.catalog.relatedVersions(tr)) lines.push(t(lang, 'trk.line.related', { title: label(lang, r), version: r.version || '—', id: `t_${r.public_id}` }));
-  lines.push(t(lang, 'trk.line.publications'));
+  lines.push(...(await trackPublicationLines(app, tr)));
   lines.push('', t(lang, 'trk.tags_note'));
   return { text: lines.join('\n'), keyboard: cardKeyboard(lang, viewer, tr) };
 }
@@ -52,10 +53,11 @@ function cardKeyboard(lang, viewer, tr) {
     [btn(tp(lang, 'trk.btn.language'), 'trk', 'lang', id), btn(tp(lang, 'trk.btn.genre'), 'trk', 'genre', id), btn(tp(lang, 'trk.btn.cover'), 'trk', 'cover', id)],
     tr.artist ? [btn(tp(lang, 'trk.btn.artist_card'), 'art', 'byt', id)] : [],
   ];
-  const back = [btn(tp(lang, 'mus.back'), 'mus', 'home')];
+  const back = [btn(tp(lang, 'pub.btn_track'), 'pub', 'trk', tr.id), btn(tp(lang, 'mus.back'), 'mus', 'home')];
+  const cleanup = (tr.status === 'removed' || tr.status === 'hidden') && can(viewer, 'destinations.manage') ? [btn(tp(lang, 'pub.btn_delete_posts'), 'pub', 'del', tr.id)] : [];
   const play = btn(tp(lang, 'trk.btn.play'), 'trk', 'play', id);
   if (tr.status === 'removed') {
-    return markup([[btn(tp(lang, 'trk.btn.restore'), 'trk', 'rest', id), can(viewer, 'catalog.purge') ? btn(tp(lang, 'trk.btn.purge'), 'trk', 'purge', id) : null], [play], back]);
+    return markup([[btn(tp(lang, 'trk.btn.restore'), 'trk', 'rest', id), can(viewer, 'catalog.purge') ? btn(tp(lang, 'trk.btn.purge'), 'trk', 'purge', id) : null], [play], cleanup, back]);
   }
   const rows = [];
   if (tr.status === 'draft') rows.push([btn(tp(lang, 'trk.btn.activate'), 'trk', 'act', id)]);
@@ -64,6 +66,7 @@ function cardKeyboard(lang, viewer, tr) {
   rows.push(...edits);
   if (tr.duplicate_of) rows.push([btn(tp(lang, 'trk.btn.keep'), 'trk', 'keep', id), btn(tp(lang, 'trk.btn.replace'), 'trk', 'repl', id)]);
   rows.push(tr.status === 'draft' ? [play, btn(tp(lang, 'trk.btn.discard'), 'trk', 'rm', id)] : [play]);
+  rows.push(cleanup);
   rows.push(back);
   return markup(rows);
 }

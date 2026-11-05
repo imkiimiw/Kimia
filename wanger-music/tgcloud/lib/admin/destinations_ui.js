@@ -48,7 +48,6 @@ async function cardView(app, d) {
   if (!d.bot_rights_ok) lines.push(t(lang, 'dst.warn_rights'));
   else if (!rights.edit || !rights.delete) lines.push(t(lang, 'dst.warn_edit_delete'));
   if (!normalizeRules(d.rules).languages.length) lines.push(t(lang, 'dst.warn_languages'));
-  lines.push('', t(lang, 'dst.phase_note'));
   const id = d.id;
   return {
     text: lines.join('\n'),
@@ -59,6 +58,7 @@ async function cardView(app, d) {
       [btn(tp(lang, 'dst.btn_caption'), 'dst', 'cap', id), btn(tp(lang, 'dst.btn_preview'), 'dst', 'prev', id), btn(tp(lang, 'dst.btn_format'), 'dst', 'fmt', id)],
       [btn(tp(lang, 'dst.btn_interval'), 'dst', 'int', id), btn(tp(lang, 'dst.btn_hours'), 'dst', 'hours', id), btn(tp(lang, 'dst.btn_daily'), 'dst', 'daily', id)],
       [btn(tp(lang, 'dst.btn_tz', { tz: d.time_zone }), 'dst', 'tz', id), btn(tp(lang, 'dst.btn_check'), 'dst', 'check', id)],
+      [btn(tp(lang, 'dst.btn_history'), 'pub', 'ch', id, 0), btn(tp(lang, 'dst.btn_backfill'), 'pub', 'bf', id)],
       [btn(tp(lang, 'fjm.btn_delete'), 'dst', 'del', id), btn(tp(lang, 'common.back'), 'dst', 'home')],
     ]),
   };
@@ -78,7 +78,7 @@ async function listView(app) {
   }
   if (rows.length < LIMITS.destinationsMax) buttons.push([btn(tp(lang, 'dst.btn_add'), 'dst', 'add')]);
   buttons.push([homeButton(lang)]);
-  return { text: t(lang, 'dst.title', { count: rows.length, list: raw(lines.length ? lines.join('\n') : t(lang, 'dst.empty')) }) + '\n\n' + t(lang, 'dst.phase_note'), keyboard: markup(buttons) };
+  return { text: t(lang, 'dst.title', { count: rows.length, list: raw(lines.length ? lines.join('\n') : t(lang, 'dst.empty')) }), keyboard: markup(buttons) };
 }
 
 async function showCard(app, user, cq, id, toast = null) {

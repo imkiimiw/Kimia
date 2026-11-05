@@ -38,3 +38,19 @@ export function classify(err) {
 
 /** @param {any} err */
 export const isTransient = (err) => classify(err).kind === 'transient';
+
+/**
+ * What the publishing worker does with a failed send (spec 10.6), decided here so every error
+ * path is in one place. @param {any} err @param {number} attempt attempts so far (incl. this one)
+ * @returns {{action: 'retry_after'|'backoff'|'fail'|'fail_channel'|'fail_file'|'fail_caption', retryAfter: number, kind: string, description: string}}
+ */
+export function publishAction(err, attempt, maxAttempts = 6) {
+  const c = classify(err);
+  const out = (action) => ({ action, retryAfter: c.retryAfter, kind: c.kind, description: c.description });
+  if (c.kind === 'rate_limit') return out('retry_after');
+  if (c.kind === 'transient') return out(attempt >= maxAttempts ? 'fail' : 'backoff');
+  if (c.kind === 'chat_gone' || c.kind === 'no_rights' || c.kind === 'blocked') return out('fail_channel');
+  if (c.kind === 'bad_file') return out('fail_file');
+  if (c.kind === 'bad_caption') return out('fail_caption');
+  return out('fail');
+}

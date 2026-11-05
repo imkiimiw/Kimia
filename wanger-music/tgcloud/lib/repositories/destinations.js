@@ -5,7 +5,7 @@ import { sql } from 'sdk/db';
 const first = (r) => r.rows[0] || null;
 /** Columns an update may touch (identifiers only from this list); objects are stored as JSON. */
 const EDITABLE = ['username', 'title', 'enabled', 'auto_publish', 'approval_required', 'rules', 'caption_template', 'post_format',
-  'min_interval_seconds', 'active_hours', 'daily_limit', 'time_zone', 'bot_rights_ok', 'bot_rights'];
+  'min_interval_seconds', 'active_hours', 'daily_limit', 'time_zone', 'bot_rights_ok', 'bot_rights', 'publishing_since'];
 const JSON_COLS = ['rules', 'active_hours', 'bot_rights'];
 /** @param {any[]} parts */
 const commaJoin = (parts) => parts.reduce((acc, p, i) => (i ? sql`${acc}, ${p}` : p), sql``);
@@ -15,6 +15,7 @@ export function createDestinationsRepo() {
   return {
     list: () => db.all(sql`SELECT * FROM destination_channels WHERE removed_at IS NULL ORDER BY id LIMIT 50`),
     get: (id) => db.get(sql`SELECT * FROM destination_channels WHERE id = ${id} AND removed_at IS NULL`),
+    getAny: (id) => db.get(sql`SELECT * FROM destination_channels WHERE id = ${id}`),
     getByChatId: (chatId) => db.get(sql`SELECT * FROM destination_channels WHERE chat_id = ${chatId}`),
     count: () => db.get(sql`SELECT count(*) AS n FROM destination_channels WHERE removed_at IS NULL`).then((r) => (r ? r.n : 0)),
 
@@ -38,6 +39,14 @@ export function createDestinationsRepo() {
       return db.run(sql`UPDATE destination_channels SET ${commaJoin(sets)}, updated_at = ${now} WHERE id = ${id} AND removed_at IS NULL RETURNING *`).then(first);
     },
 
+    /** Keeps publishing_since in step with (enabled AND auto_publish): set when it turns on, cleared when off. */
+    syncPublishingSince: (id, now) => db.run(sql`
+      UPDATE destination_channels SET publishing_since = CASE
+          WHEN enabled = 1 AND auto_publish = 1 THEN coalesce(publishing_since, ${now}) ELSE NULL END
+      WHERE id = ${id} RETURNING *`).then(first),
+    /** Channels routing may target now (the newest track activation must be after publishing_since). */
+    routable: () => db.all(sql`SELECT * FROM destination_channels WHERE enabled = 1 AND auto_publish = 1 AND removed_at IS NULL LIMIT 50`),
+    setLastPublished: (id, now) => db.run(sql`UPDATE destination_channels SET last_published_at = ${now} WHERE id = ${id}`),
     softRemove: (id, now) => db.run(sql`
       UPDATE destination_channels SET removed_at = ${now}, enabled = 0, auto_publish = 0, updated_at = ${now}
       WHERE id = ${id} AND removed_at IS NULL`).then((r) => r.rowsAffected),

@@ -4,7 +4,7 @@ A Telegram music bot that runs entirely on **Telegram Serverless**: instant sear
 Telegram-hosted music (inline and in private chat), plus automatic publishing of new tracks to the
 owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 
-**Status: Phases 1–5 (core, music catalog, search + inline, source channels, destination channels) are built and tested; nothing is deployed yet.** Deploy state: see [docs/ROADMAP.md](docs/ROADMAP.md).
+**Status: Phases 1–6 (core, catalog, search + inline, sources, destinations, automatic publishing) are built and tested; nothing is deployed yet.** Deploy state: see [docs/ROADMAP.md](docs/ROADMAP.md).
 
 | Phase 1 feature | Where |
 |---|---|
@@ -50,7 +50,14 @@ owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 | Rules: languages, genres, excluded genres, minimum language confidence · post format (audio, or cover then audio) · schedule: interval, hours, daily limit, time zone · approval · enable / auto-publish | channel card |
 | Caption template with variables, checked by a preview sent only to the owner (real matching track, or a sample) | channel card |
 | Health: losing post rights disables the channel and alerts the owner; «🔄 Check rights»; soft removal keeps history | — |
-| **Nothing is posted to any channel until Phase 6.** | — |
+
+| Phase 6 feature | Where |
+|---|---|
+| A newly activated track goes to every enabled + auto-publish channel whose rules match — once per channel; earlier tracks only by the owner's «⏪ Earlier tracks» (preview + count) | automatic |
+| Approval: digest to the owner and admins; review = the audio with the channel's caption + ✅ / ❌ / ⏭; the first reviewer wins | 🗳 Approvals |
+| Worker on the tick: minimum interval, active hours, daily limit, 429 cooldown, backoff (1, 2, 4… min, 6 attempts), channel/file/caption errors handled and alerted | automatic |
+| At most once: an interrupted send becomes ⚠️ uncertain; the owner marks it published or sends it again | 🗳 Approvals |
+| History per track and per channel; removing a track cancels waiting posts; «🧹 Delete channel posts»; pause switch | track / channel cards, ⚙️ Settings |
 
 ## Run it
 
@@ -59,7 +66,7 @@ Everything runs from this folder. The repository root and its other folders are 
 ```bash
 cd wanger-music
 npm ci
-npm test                         # 134 tests: unit + end-to-end (local SDK emulation, fake Telegram)
+npm test                         # 152 tests: unit + end-to-end (local SDK emulation, fake Telegram)
 export Music_BOT_TGCLOUD_TOKEN=app9280424458:…   # CLI access token (BotFather → bot → Serverless → CLI Access)
 npm run tg -- status             # the CLI, for this bot only
 npm run deploy                   # tests → stamp version → migrate --local --safe → push → migrate --safe → webhook
@@ -86,7 +93,8 @@ Docs: [ARCHITECTURE](docs/ARCHITECTURE.md) · [CONFIG](docs/CONFIG.md) ·
 - Editing a title/artist changes the bot's catalog; Telegram keeps showing the file's own embedded tags and thumbnail (re-uploading with new tags is optional in the spec and deferred).
 - Inline usage counts need BotFather `/setinlinefeedback` (set it to 100%).
 - Source channels: only posts made after the bot became an admin arrive (bots can't read history).
-- Automatic publishing is Phase 6 (until then nothing is posted to any channel).
+- Publishing runs on the tick: posts go out when updates arrive, the owner taps «▶️ Run tick», or the
+  GitHub Actions schedule runs (every 30 min) — timing depends on those.
 
 ---
 

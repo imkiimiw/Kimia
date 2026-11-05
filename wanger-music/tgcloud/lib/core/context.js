@@ -14,6 +14,9 @@ import { createSourcesRepo } from '../repositories/sources.js';
 import { createSourcesService } from '../publishing/sources.js';
 import { createDestinationsRepo } from '../repositories/destinations.js';
 import { createDestinationsService } from '../publishing/destinations.js';
+import { createPublicationsRepo } from '../repositories/publications.js';
+import { createPublisher } from '../publishing/publisher.js';
+import { createWorker } from '../publishing/worker.js';
 import { createSearchService } from '../search/service.js';
 import { createTelegramClient } from '../telegram/client.js';
 import { createSettingsService } from '../settings/service.js';
@@ -51,6 +54,7 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
     search: createSearchRepo(),
     sources: createSourcesRepo(),
     destinations: createDestinationsRepo(),
+    publications: createPublicationsRepo(),
   };
   /** @type {any} */
   const app = { kind, updateId, clock, log, repos, lang: 'fa', user: null };
@@ -72,10 +76,13 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
   app.catalog = createCatalogService({
     repo: repos.tracks, tg: app.tg, settings: app.settings, audit: app.audit, alerts: app.alerts, clock, log,
     index: { add: (t) => app.search.indexTrack(t), remove: (id) => app.search.unindex(id) },
+    publishing: { routeTrack: (t) => app.publisher.routeTrack(t), cancelForTrack: (id) => app.publisher.cancelForTrack(id), deleteForTrack: (id) => app.publisher.deleteForTrack(id) },
   });
   app.ingest = createIngestService({ repo: repos.tracks, catalog: app.catalog, audit: app.audit, clock, log });
   app.provider = createCatalogProvider({ repo: repos.tracks, key });
-  app.destinations = createDestinationsService({ repo: repos.destinations, tg: app.tg, settings: app.settings, alerts: app.alerts, audit: app.audit, clock, log });
+  app.destinations = createDestinationsService({ repo: repos.destinations, tg: app.tg, settings: app.settings, alerts: app.alerts, audit: app.audit, clock, log, onRemoved: (id) => app.publisher.cancelForChannel(id) });
+  app.publisher = createPublisher({ repo: repos.publications, channels: repos.destinations, tg: app.tg, users: app.users, settings: app.settings, alerts: app.alerts, audit: app.audit, clock, log });
+  app.worker = createWorker({ pubs: repos.publications, channels: repos.destinations, catalog: app.catalog, sources: { get: (id) => repos.sources.get(id) }, settings: app.settings, tg: app.tg, alerts: app.alerts, clock, log });
   app.sources = createSourcesService({ repo: repos.sources, tg: app.tg, ingest: app.ingest, catalog: app.catalog, alerts: app.alerts, audit: app.audit, clock, log });
   await app.settings.load();
   await bootstrap(app);

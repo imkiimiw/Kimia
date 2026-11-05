@@ -147,6 +147,32 @@ track, or a sample). Health: `my_chat_member` and «🔄 Check rights» update `
 post rights disables the channel and alerts the owner. Removal is soft (`removed_at`); adding again
 restores the row (disabled) with its settings. **Nothing is posted to any channel in Phase 5.**
 
+## Automatic publishing (Phase 6)
+
+- **Routing** (`publishing/publisher.routeTrack`, called by `catalog.activate`): for every channel
+  that is enabled with auto-publish on and whose `publishing_since` ≤ the track's `activated_at`,
+  `rules.matches` decides; one row per (track, channel) via `INSERT … ON CONFLICT DO NOTHING`
+  (`pending_approval` when the channel requires approval or the confidence is below its minimum,
+  else `queued`). Tracks activated earlier are never queued automatically: the owner's
+  «⏪ Earlier tracks» shows a count and a sample first (≤ 200 per run).
+- **Approval**: a digest per reviewer (owner + admins) at most every `digest.interval_seconds`
+  while items wait; the review screen sends the audio with the channel's rendered caption and a
+  card ✅ Approve · ❌ Reject · ⏭ Next; decisions are `UPDATE … WHERE status = 'pending_approval'`,
+  so a second reviewer sees who already decided.
+- **Worker** (`publishing/worker.js`, tick processor `publications`): skipped while paused or in the
+  global 429 cooldown; first expired leases → `uncertain` (owner alerted); then per channel that is
+  ready (`rules.channelReady`: interval, active hours in the channel's zone, daily limit) it claims
+  one due row (`UPDATE … WHERE id IN (SELECT … LIMIT 1) AND status = 'queued' RETURNING *`, lease
+  60 s), sends (cover first for cover_then_audio), and records the outcome. Failures go through
+  `telegram/errors.js#publishAction`: 429 → requeue at retry_after + global cooldown (attempt not
+  counted); 5xx / network → backoff 1, 2, 4… min (jitter, cap 60) and failed after 6 attempts;
+  channel errors → failed + channel disabled + alert; file errors → failed + track hidden + alert;
+  caption errors → failed + alert. ≤ `publishing.per_tick` posts per tick, one per channel.
+- **At most once**: an expired lease is `uncertain` and is never re-sent automatically; the owner
+  chooses «ثبت به‌عنوان منتشرشده» or «ارسال دوباره».
+- **Removal**: hide / remove cancels the track's waiting rows; «🧹 Delete channel posts» deletes its
+  published posts (failures reported); purge deletes the rows first (children first).
+
 ## Background work: the tick (no cron on this platform)
 
 `jobs/tick.js#runTick(trigger, budget)` runs processors in order — maintenance (prune
@@ -155,7 +181,8 @@ restores the row (disabled) with its settings. **Nothing is posted to any channe
 
 1. **piggyback** after message / callback_query / my_chat_member updates, at most once per
    `tick.interval_seconds`, elected by one conditional `UPDATE` (2 s budget);
-   processors in order: maintenance → broadcast batch → archive backlog → search index rebuild;
+   processors in order: maintenance → broadcast batch → publications → approval digests →
+   archive backlog → search index rebuild;
 2. **manual**: 🧪 System Status «▶️ اجرای تیک» and the broadcast's «▶️ ادامه» (8 s budget);
 3. **scheduled**: `endpoints/opsTick.js` (owner id only) run every 30 min by
    `.github/workflows/wanger-music-tick.yml`, which pulls the **deployed** modules first.
@@ -182,6 +209,9 @@ Phase 3: `track_terms` (PK term + track_id, WITHOUT ROWID), `artists`, `artist_a
 index `(status, play_count, activated_at)` for the empty inline query.
 Phase 4: `sources`.
 Phase 5: `destination_channels` (spec columns + `bot_rights` JSON and `removed_at`).
+Phase 6: `publications` (spec columns + `cover_message_id`, `deleted_at`; UNIQUE track+channel;
+indexes status+next_attempt, channel+status, channel+published_at) and
+`destination_channels.publishing_since`.
 No foreign keys (the platform forbids them); enums and booleans are CHECK-constrained; 8 indexes
 back every lookup (`users.last_seen_at`, `lower(username)`, admins partial index, …).
 

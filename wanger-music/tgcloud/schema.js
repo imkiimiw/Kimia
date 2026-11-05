@@ -266,6 +266,8 @@ export const destinationChannels = table('destination_channels', {
   // additions to the spec: the bot's rights in detail ({post, edit, delete, checked_at, error}) and soft removal
   botRights: text('bot_rights'),
   removedAt: integer('removed_at'),
+  // Phase 6 addition: when the channel last became enabled + auto-publish (no backfill before it)
+  publishingSince: integer('publishing_since'),
   lastPublishedAt: integer('last_published_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
@@ -273,4 +275,37 @@ export const destinationChannels = table('destination_channels', {
   formatChk: check('dest_post_format_chk', sql`${t.postFormat} IN ('audio', 'cover_then_audio')`),
   flagsChk: check('dest_flags_chk', sql`${t.enabled} IN (0, 1) AND ${t.autoPublish} IN (0, 1) AND ${t.approvalRequired} IN (0, 1) AND ${t.botRightsOk} IN (0, 1)`),
   routingIdx: index('idx_dest_routing').on(t.enabled, t.autoPublish),
+}));
+
+// ---------------------------------------------------------------- Phase 6: publishing
+
+/**
+ * One track → one destination channel. UNIQUE (track_id, channel_id) makes routing idempotent;
+ * every status change is a conditional UPDATE; a send holds a lease (locked_until), and an expired
+ * lease becomes "uncertain" (never re-sent automatically: at most once).
+ */
+export const publications = table('publications', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  trackId: integer('track_id').notNull(),
+  channelId: integer('channel_id').notNull(),
+  status: text('status').notNull(),
+  attemptCount: integer('attempt_count').notNull().default(0),
+  lastError: text('last_error'),
+  nextAttemptAt: integer('next_attempt_at').notNull().default(0),
+  lockedUntil: integer('locked_until'),
+  telegramMessageId: integer('telegram_message_id'),
+  // additions to the spec: the cover photo's message (cover_then_audio) and when the posts were deleted
+  coverMessageId: integer('cover_message_id'),
+  deletedAt: integer('deleted_at'),
+  decidedBy: integer('decided_by'),
+  decidedAt: integer('decided_at'),
+  publishedAt: integer('published_at'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, (t) => ({
+  statusChk: check('pub_status_chk', sql`${t.status} IN ('pending_approval', 'queued', 'sending', 'published', 'failed', 'rejected', 'uncertain', 'cancelled')`),
+  pair: uniqueIndex('uidx_pub_track_channel').on(t.trackId, t.channelId),
+  dueIdx: index('idx_pub_status_next').on(t.status, t.nextAttemptAt),
+  channelIdx: index('idx_pub_channel_status').on(t.channelId, t.status, t.id),
+  dailyIdx: index('idx_pub_channel_published').on(t.channelId, t.publishedAt).where(sql`${t.status} = 'published'`),
 }));
