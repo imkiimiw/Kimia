@@ -1,0 +1,4 @@
+{
+  // No Mini App front-end (yet). To host one, set "static": { "source": "dist" }.
+  "$schema": "./node_modules/@tgcloud/cli/schema/tgcloud.json"
+}

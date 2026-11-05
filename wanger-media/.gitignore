@@ -1,0 +1,7 @@
+# tgcloud CLI state, including any saved access token: never commit
+.tgcloud/
+node_modules/
+.env
+*.log
+# temporary probe / smoke modules (never deployed, deleted after use)
+tgcloud/endpoints/zz_*.js
