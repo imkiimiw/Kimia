@@ -31,3 +31,14 @@ export function backoffSeconds(attempt, rand = Math.random) {
   const jitter = 0.8 + rand() * 0.4;
   return Math.round(Math.min(3600, minutes * 60 * jitter));
 }
+
+/**
+ * Fixed-window counter for per-channel limits (Telegram: ~20 posts a minute per channel).
+ * Pure: returns whether one more event fits and the state to store.
+ * @param {{start: number, count: number}|null} state @param {number} now @param {number} max @param {number} windowSec
+ */
+export function windowAllows(state, now, max, windowSec) {
+  const s = state && typeof state === 'object' && now - state.start < windowSec ? state : { start: now, count: 0 };
+  if (s.count >= max) return { allowed: false, state: s };
+  return { allowed: true, state: { start: s.start, count: s.count + 1 } };
+}

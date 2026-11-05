@@ -17,6 +17,7 @@ lib/bot/router.js  ── routes.js      order of checks; one registry of callba
 lib/bot/user.js, lib/admin/*_ui.js   screens (views + routes + flows); no SQL, no sdk
         │
 services: users/ forcejoin/ broadcast/ settings/ audit/ alerts/ bot/flows.js jobs/ core/health.js
+          music/catalog.js music/ingest.js music/providers/catalog.js
         │
 lib/repositories/*.js                ALL SQL (raw sql`…`, one statement per state change)
 lib/telegram/client.js               ALL outbound Bot API calls (+ trace, blocked hook)
@@ -26,7 +27,8 @@ sdk  (db, api)
 
 Pure modules (no `sdk`, unit-tested directly): `config/static.js`, `core/util.js`,
 `core/logger.js`, `core/version.js`, `telegram/{html,errors,limiter,chatref}.js`,
-`bot/{codec,keyboards}.js`, `i18n/*`, `permissions/policy.js`, `forcejoin/gate.js`.
+`bot/{codec,keyboards}.js`, `i18n/*`, `permissions/policy.js`, `forcejoin/gate.js`,
+`music/{normalize,classify,duplicates}.js`.
 `tests/unit/guard.test.mjs` fails if one of them reaches `sdk`, if anything but `core/context.js`
 imports a repository, if SQL appears outside `repositories/`, or if a handler grows logic.
 
@@ -72,6 +74,31 @@ channel alerts the owner at most once an hour. Any list change bumps `forcejoin.
 all passes in one statement, so it applies at once. The inline gate (Phase 3) is ready:
 `gate.js#inlineGateAnswer` (no results, `is_personal`, `cache_time: 0`, button → `/start join`).
 
+## Music catalog (Phase 2)
+
+```
+admin sends/forwards an audio (private chat, no command, outside flows)
+ └ bot/router → admin/import_ui.handleMedia (catalog.manage)
+    ├ document / voice / other → "send it as music"
+    └ music/ingest.importAudio
+       ├ hard duplicate? same file_unique_id, or same origin chat + message → refused (removed tracks still block)
+       ├ metadata: audio title/performer, else "Artist - Title" from the file name
+       ├ music/normalize: display text, keys, version markers, featured artists → dup_key = artist|title|version
+       ├ soft duplicate? same dup_key, duration ±3 s → duplicate_of (flagged, never deleted)
+       ├ language: manual > source default > artist hint (artist's other tracks) > script heuristic
+       └ INSERT … ON CONFLICT DO NOTHING (public_id random, 9 chars) → draft
+    → first audio of a run: import card; the rest of a run (≤ 60 s apart): one summary message
+```
+
+Lifecycle (`music/catalog.js`, all conditional UPDATEs, all audited): draft → active (needs title +
+artist and no undecided duplicate; first activation sets `activated_at`, copies to the archive
+channel if set) ⇄ hidden → removed (stays in the table, so its file stays blocked) → restore → draft;
+the owner can purge a removed track. Activate/hide/remove bump `catalog.version`. The 🔗 line on a
+card links other versions of the same song (e.g. a remix); ⚠️ marks a soft duplicate.
+`music/providers/catalog.js` is the MVP `MusicProvider` (only active tracks; audio = Telegram file).
+The archive backlog (active tracks without a copy) is worked by the tick, ≤ 3 per tick and
+≤ 18 per minute (`telegram/limiter.js#windowAllows`).
+
 ## Background work: the tick (no cron on this platform)
 
 `jobs/tick.js#runTick(trigger, budget)` runs processors in order — maintenance (prune
@@ -80,6 +107,7 @@ all passes in one statement, so it applies at once. The inline gate (Phase 3) is
 
 1. **piggyback** after message / callback_query / my_chat_member updates, at most once per
    `tick.interval_seconds`, elected by one conditional `UPDATE` (2 s budget);
+   processors in order: maintenance → broadcast batch → archive backlog;
 2. **manual**: 🧪 System Status «▶️ اجرای تیک» and the broadcast's «▶️ ادامه» (8 s budget);
 3. **scheduled**: `endpoints/opsTick.js` (owner id only) run every 30 min by
    `.github/workflows/wanger-music-tick.yml`, which pulls the **deployed** modules first.
@@ -96,10 +124,12 @@ most one message). 403 → user marked blocked; 429 → stop, global `telegram.c
 one retry, then failed; pace ≤ 25 msg/s. The progress message is edited after every batch; the
 final report is sent when done.
 
-## Data (Phase 1)
+## Data
 
-`users`, `force_join_channels`, `settings`, `audit_log`, `user_flows`, `processed_updates`,
+Phase 1: `users`, `force_join_channels`, `settings`, `audit_log`, `user_flows`, `processed_updates`,
 `error_log`, `alerts`, `broadcasts` (+ `progress_chat_id`, `progress_message_id`, `lock_until`).
+Phase 2: `tracks` (spec columns + `duplicate_of`, `archive_chat_id`; 8 indexes incl. the partial
+unique origin index) and `import_sessions` (bulk-summary counters).
 No foreign keys (the platform forbids them); enums and booleans are CHECK-constrained; 8 indexes
 back every lookup (`users.last_seen_at`, `lower(username)`, admins partial index, …).
 

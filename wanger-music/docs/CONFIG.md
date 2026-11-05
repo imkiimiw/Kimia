@@ -28,6 +28,13 @@ token. If a later provider needs an API key, it goes in the git-ignored
 | `LIMITS.errorLogKeep` | 2000 | Newest error rows kept |
 | `LIMITS.alertErrorEverySeconds` | 1800 | One owner alert per error kind per 30 min |
 | `LIMITS.alertForceJoinEverySeconds` | 3600 | One alert per broken force-join channel per hour |
+| `LIMITS.importBulkWindowSeconds` | 60 | Forwards closer than this form one run (one summary message) |
+| `LIMITS.trackTextMax` | 200 | Title / artist / album length |
+| `LIMITS.softDuplicateSeconds` | 3 | Duration tolerance for soft duplicates |
+| `LIMITS.archivePerTick` / `archivePerMinute` | 3 / 18 | Archive channel pacing (Telegram allows ~20 posts a minute per channel) |
+| `GENRES` | pop, rock, rap, electronic, rnb, jazz, classical, traditional, folk, instrumental, soundtrack, other | Genre keys (Phase 5 rules use the same keys) |
+| `MUSIC_NOISE` | bracketed tags (Official Audio/Video, Lyrics, HQ…), «دانلود آهنگ», «با کیفیت…», «کانال…» | Stripped from titles and file names |
+| `VERSION_MARKERS` | remix, live, acoustic, unplugged, instrumental, cover, slowed, reverb, sped up, remaster(ed), radio edit, … ریمیکس، لایو، بی‌کلام، کاور | Kept as `tracks.version` (they change identity) |
 | `COMMANDS_VERSION` | 1 | Bump when command menus change; the owner's next update re-syncs them |
 | `CURRENT_PHASE` | 1 | Sections of later phases show an honest placeholder |
 
@@ -47,10 +54,12 @@ token. If a later provider needs an API key, it goes in the git-ignored
 | `broadcast.batch_size` | `25` | 1–100 | Recipients per batch |
 | `digest.interval_seconds` | `3600` | 300–86400 | Phase 6 approval digests |
 | `time_zone` | `Asia/Tehran` | Asia/Tehran, UTC, Europe/Istanbul, Asia/Dubai, Europe/Berlin, Europe/London, America/New_York | Dates in the panel; schedules later |
-| `archive.chat_id` | empty | a channel where the bot can post | Phase 2 archive |
+| `archive.chat_id` | empty | a channel where the bot can post | Every activated track is copied there (`#t<id>` caption) |
+| `import.bulk_summary` | `true` | on/off | A run of forwarded audios gets one summary message instead of a card each |
 
 Internal state keys (not editable): `system.bootstrapped`, `forcejoin.seeded`, `forcejoin.version`,
-`tick.last_at`, `tick.last`, `telegram.cooldown_until`, `commands.version`.
+`tick.last_at`, `tick.last`, `telegram.cooldown_until`, `commands.version`, `catalog.version`,
+`archive.rate`.
 
 ## Outside the bot
 

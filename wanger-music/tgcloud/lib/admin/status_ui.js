@@ -1,5 +1,5 @@
 // 🧪 System Status (owner only): live data from core/health.js and «▶️ اجرای تیک».
-import { t, tp, raw, ago } from '../i18n/index.js';
+import { t, tp, raw, ago, digits } from '../i18n/index.js';
 import { esc } from '../telegram/html.js';
 import { btn, markup } from '../bot/keyboards.js';
 import { screen, homeButton } from './panel.js';
@@ -24,7 +24,7 @@ export function statusView(lang, h) {
   lines.push(t(lang, 'sys.db', { ms: h.dbMs }));
   lines.push(t(lang, 'sys.counts', {
     users: h.stats.total, blocked: h.stats.blocked,
-    tracks: tp(lang, 'sys.later', { phase: 2 }), pending: tp(lang, 'sys.later', { phase: 6 }), failed: tp(lang, 'sys.later', { phase: 6 }),
+    tracks: `${digits(h.tracks.total, lang)} (✅ ${digits(h.tracks.active, lang)})`, pending: tp(lang, 'sys.later', { phase: 6 }), failed: tp(lang, 'sys.later', { phase: 6 }),
   }));
   const tick = h.tickLast;
   lines.push(tick && tick.at ? t(lang, 'sys.tick', { ago: ago(h.now - tick.at, lang), trigger: tp(lang, `sys.trigger.${tick.trigger}`), ms: tick.ms }) : t(lang, 'sys.tick_never'));

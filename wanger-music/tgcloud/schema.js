@@ -1,7 +1,7 @@
 // Database schema — Phase 1 tables only (docs/SPEC.md §6). Later phases add their own tables.
 // No foreign keys (the platform forbids them): services create parents first, delete children first.
 // Enums are TEXT with CHECK; booleans are INTEGER 0/1 with CHECK; timestamps are unix seconds.
-import { table, integer, text, index, check, sql } from 'sdk/db';
+import { table, integer, text, index, uniqueIndex, check, sql } from 'sdk/db';
 
 export const users = table('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -119,3 +119,70 @@ export const broadcasts = table('broadcasts', {
   statusChk: check('broadcasts_status_chk', sql`${t.status} IN ('draft', 'running', 'paused', 'done', 'cancelled')`),
   statusIdx: index('idx_broadcasts_status').on(t.status),
 }));
+
+// ---------------------------------------------------------------- Phase 2: the music catalog
+
+export const tracks = table('tracks', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  publicId: text('public_id').notNull().unique(),
+  title: text('title'),
+  artist: text('artist'),
+  featuredArtists: text('featured_artists'),
+  album: text('album'),
+  version: text('version'),
+  duration: integer('duration').notNull().default(0),
+  genre: text('genre'),
+  language: text('language').notNull().default('unknown'),
+  languageConfidence: text('language_confidence').notNull().default('low'),
+  languageSource: text('language_source').notNull().default('heuristic'),
+  audioFileId: text('audio_file_id').notNull(),
+  audioFileUniqueId: text('audio_file_unique_id').notNull().unique(),
+  mimeType: text('mime_type'),
+  fileSize: integer('file_size'),
+  fileName: text('file_name'),
+  coverFileId: text('cover_file_id'),
+  normalizedTitle: text('normalized_title').notNull().default(''),
+  normalizedArtist: text('normalized_artist').notNull().default(''),
+  dupKey: text('dup_key').notNull(),
+  // addition to the spec: the earlier track this one may duplicate (soft duplicate, flagged)
+  duplicateOf: integer('duplicate_of'),
+  sourceType: text('source_type').notNull().default('manual'),
+  sourceId: integer('source_id'),
+  originChatId: integer('origin_chat_id'),
+  originMessageId: integer('origin_message_id'),
+  status: text('status').notNull().default('draft'),
+  addedBy: integer('added_by').notNull(),
+  playCount: integer('play_count').notNull().default(0),
+  // addition to the spec: which channel archive_message_id belongs to
+  archiveChatId: integer('archive_chat_id'),
+  archiveMessageId: integer('archive_message_id'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  activatedAt: integer('activated_at'),
+}, (t) => ({
+  statusChk: check('tracks_status_chk', sql`${t.status} IN ('draft', 'active', 'hidden', 'removed')`),
+  languageChk: check('tracks_language_chk', sql`${t.language} IN ('fa', 'en', 'other', 'unknown')`),
+  confidenceChk: check('tracks_confidence_chk', sql`${t.languageConfidence} IN ('high', 'medium', 'low')`),
+  langSourceChk: check('tracks_language_source_chk', sql`${t.languageSource} IN ('manual', 'source', 'artist', 'heuristic')`),
+  sourceTypeChk: check('tracks_source_type_chk', sql`${t.sourceType} IN ('manual', 'telegram_channel', 'provider')`),
+  dupKeyIdx: index('idx_tracks_dup_key').on(t.dupKey),
+  statusActivatedIdx: index('idx_tracks_status_activated').on(t.status, t.activatedAt),
+  originIdx: uniqueIndex('uidx_tracks_origin').on(t.originChatId, t.originMessageId).where(sql`${t.originChatId} IS NOT NULL AND ${t.originMessageId} IS NOT NULL`),
+  statusIdIdx: index('idx_tracks_status_id').on(t.status, t.id),
+  languageIdx: index('idx_tracks_language_id').on(t.language, t.id),
+  titleKeyIdx: index('idx_tracks_norm_title').on(t.normalizedTitle),
+  artistKeyIdx: index('idx_tracks_norm_artist').on(t.normalizedArtist),
+  archiveIdx: index('idx_tracks_archive_backlog').on(t.id).where(sql`${t.status} = 'active' AND ${t.archiveMessageId} IS NULL`),
+}));
+
+/** Addition to the spec: counts one admin's run of forwarded audios for the bulk summary (atomic upserts). */
+export const importSessions = table('import_sessions', {
+  adminId: integer('admin_id').primaryKey(),
+  startedAt: integer('started_at').notNull(),
+  lastAt: integer('last_at').notNull(),
+  total: integer('total').notNull().default(0),
+  created: integer('created').notNull().default(0),
+  duplicates: integer('duplicates').notNull().default(0),
+  review: integer('review').notNull().default(0),
+  messageId: integer('message_id'),
+});

@@ -52,6 +52,21 @@ deployed yet) · **Unknown** = neither documented nor measurable without deployi
 | §2 "Assume `tgcloud run` uses the bot's real database" | Confirmed (no tables visible = the real, still-empty database). | Smoke tests run only on a staging bot, or read-only on production. |
 | §5 layout (many small modules) | The platform appears to cap the number of modules (~100). | Small related modules are merged (e.g. `core/util.js` holds ids + time). |
 
+## Phase 2 additions (2026-11-05)
+
+| Check | Result |
+|---|---|
+| `migrate --local --dry-run` with the Phase 2 schema | 11 new tables, all "safe"; the server's diff includes all 8 `tracks` indexes (the CLI prints only the CREATE TABLE text) — nothing applied |
+| `tgcloud run handlers/message` with an audio payload | all 58 modules load on the platform; the boundary returns `{ ok: false }` because no table exists yet |
+| `String#normalize`, regex `\p{…}` | used by `lib/music/normalize.js` (measured available); explicit fallbacks keep Persian/Arabic folding working without them |
+
+| Spec item | Decision |
+|---|---|
+| §6 `tracks` | Two extra columns: `duplicate_of` (the soft-duplicate flag) and `archive_chat_id` (which channel `archive_message_id` belongs to). One extra table, `import_sessions`, counts a run of forwards atomically for the bulk summary (updates may arrive in parallel). |
+| §13 "a remix of an existing song is flagged, not blocked" vs §8.3 "“Song (Remix)” is not “Song”" | A remix has its own dup_key, so it is neither blocked nor a soft duplicate; its card shows a 🔗 line linking the other version(s). True soft duplicates (same version, ±3 s) get ⚠️ and can't be activated until the admin picks keep both / replace / discard. |
+| §8.1 optional re-upload with a new cover/tags | Deferred (optional). Edits change the bot's catalog; Telegram keeps showing the file's own embedded title/performer/thumbnail (a Bot API rule), and the card says so. The 🖼 cover is stored for Phase 6 posts. |
+| §8.4 "mixed → unknown" | A text counts as one script when ≥ 90 % of its letters are in it; below that it is mixed → unknown (needs review). |
+
 ## Design consequences
 
 - **State**: everything important is in the database; no module-level caches are relied on.

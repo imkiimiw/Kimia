@@ -7,6 +7,7 @@ import { runMaintenance } from './maintenance.js';
 const PROCESSORS = [
   { name: 'maintenance', run: (app) => runMaintenance(app) },
   { name: 'broadcast', run: (app, deadlineMs) => app.broadcasts.runBatch({ deadlineMs }) },
+  { name: 'archive', run: (app, deadlineMs) => app.catalog.runArchiveBacklog({ deadlineMs }) },
 ];
 
 /**

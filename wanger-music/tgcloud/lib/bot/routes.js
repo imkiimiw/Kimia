@@ -7,6 +7,8 @@ import * as usersUi from '../admin/users_ui.js';
 import * as settingsUi from '../admin/settings_ui.js';
 import * as statusUi from '../admin/status_ui.js';
 import * as broadcastUi from '../admin/broadcast_ui.js';
+import * as musicUi from '../admin/music_ui.js';
+import * as importUi from '../admin/import_ui.js';
 
 /**
  * @typedef {{ns: string, action: string, args: string[], perm: string|null, gate?: boolean,
@@ -23,6 +25,8 @@ export const CALLBACK_ROUTES = [
   ...settingsUi.routes,
   ...statusUi.routes,
   ...broadcastUi.routes,
+  ...musicUi.routes,
+  ...importUi.routes,
 ];
 
 /** @type {Map<string, CallbackRoute>} */
@@ -46,4 +50,5 @@ export const FLOWS = {
   ...usersUi.flows,
   ...settingsUi.flows,
   ...broadcastUi.flows,
+  ...musicUi.flows,
 };

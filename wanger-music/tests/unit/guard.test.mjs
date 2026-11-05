@@ -22,6 +22,9 @@ const files = [];
 })(ROOT);
 const src = Object.fromEntries(files.map((f) => [f, fs.readFileSync(path.join(ROOT, f), 'utf8')]));
 const importsOf = (f) => [...src[f].matchAll(/^\s*(?:import|export)\s[^'"]*?from\s+['"]([^'"]+)['"]/gm)].map((m) => m[1]);
+/** Invisible / special characters that must appear only as \\u escapes in deployed code. */
+const range = (a, b) => `${String.fromCharCode(a)}-${String.fromCharCode(b)}`;
+const INVISIBLE = new RegExp(`[${range(0x200b, 0x200f)}${range(0x202a, 0x202e)}${range(0x2066, 0x2069)}${String.fromCharCode(0xfeff, 0xad)}${range(0xfff0, 0xffff)}]`);
 const resolveRel = (from, spec) => path.normalize(path.join(path.dirname(from), spec));
 
 const PURE = [
@@ -29,6 +32,7 @@ const PURE = [
   'lib/telegram/html.js', 'lib/telegram/errors.js', 'lib/telegram/limiter.js', 'lib/telegram/chatref.js',
   'lib/bot/codec.js', 'lib/bot/keyboards.js', 'lib/i18n/index.js', 'lib/i18n/fa.js', 'lib/i18n/en.js',
   'lib/permissions/policy.js', 'lib/forcejoin/gate.js',
+  'lib/music/normalize.js', 'lib/music/classify.js', 'lib/music/duplicates.js',
 ];
 const SDK_ALLOWED = (f) => f === 'schema.js' || f.startsWith('lib/repositories/') || f === 'lib/telegram/client.js' || f.startsWith('endpoints/');
 
@@ -79,7 +83,7 @@ test('layout: flat handlers named after update types; valid endpoint names', () 
     assert.equal(f.split('/').length, 2, `${f} is one level deep`);
     assert.ok(types.has(path.basename(f, '.js')), `${f} is an update type`);
   }
-  assert.deepEqual(files.filter((x) => x.startsWith('handlers/')).sort(), ['handlers/callback_query.js', 'handlers/message.js', 'handlers/my_chat_member.js'], 'Phase 1 handlers only');
+  assert.deepEqual(files.filter((x) => x.startsWith('handlers/')).sort(), ['handlers/callback_query.js', 'handlers/message.js', 'handlers/my_chat_member.js'], 'Phase 1–2 handlers only (inline arrives in Phase 3)');
   for (const f of files.filter((x) => x.startsWith('endpoints/'))) assert.match(path.basename(f, '.js'), /^[A-Za-z_][A-Za-z0-9_]*$/);
 });
 
@@ -97,7 +101,7 @@ test('platform rules: imports, globals, invisible characters', () => {
     }
     const code = src[f].replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
     for (const re of FORBIDDEN) assert.equal(re.test(code), false, `${f} uses ${re}`);
-    assert.equal(/[​-‏⁦-⁩﻿]/.test(src[f]), false, `${f} has a literal invisible character (write it as an escape)`);
+    assert.equal(INVISIBLE.test(src[f]), false, `${f} has a literal invisible character (write it as an escape)`);
   }
 });
 

@@ -8,6 +8,7 @@ import { createSettingsRepo } from '../repositories/settings.js';
 import { createFlowsRepo } from '../repositories/flows.js';
 import { createBroadcastsRepo } from '../repositories/broadcasts.js';
 import { createSystemRepo } from '../repositories/system.js';
+import { createTracksRepo } from '../repositories/tracks.js';
 import { createTelegramClient } from '../telegram/client.js';
 import { createSettingsService } from '../settings/service.js';
 import { createAuditService } from '../audit/service.js';
@@ -17,6 +18,10 @@ import { createFlowsService } from '../bot/flows.js';
 import { createForceJoinService } from '../forcejoin/service.js';
 import { createBroadcastService } from '../broadcast/service.js';
 import { notifyProgress } from '../admin/broadcast_ui.js';
+import { createCatalogService } from '../music/catalog.js';
+import { createIngestService } from '../music/ingest.js';
+import { createCatalogProvider } from '../music/providers/catalog.js';
+import { key } from '../music/normalize.js';
 
 /** Bumped when bootstrap() learns something new to set up. */
 const BOOTSTRAP_VERSION = 1;
@@ -36,6 +41,7 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
     flows: createFlowsRepo(),
     broadcasts: createBroadcastsRepo(),
     system: createSystemRepo(),
+    tracks: createTracksRepo(),
   };
   /** @type {any} */
   const app = { kind, updateId, clock, log, repos, lang: 'fa', user: null };
@@ -53,6 +59,9 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
     repo: repos.broadcasts, users: app.users, tg: app.tg, settings: app.settings, audit: app.audit, clock, log,
     notify: (b, info) => notifyProgress(app, b, info),
   });
+  app.catalog = createCatalogService({ repo: repos.tracks, tg: app.tg, settings: app.settings, audit: app.audit, alerts: app.alerts, clock, log });
+  app.ingest = createIngestService({ repo: repos.tracks, catalog: app.catalog, audit: app.audit, clock, log });
+  app.provider = createCatalogProvider({ repo: repos.tracks, key });
   await app.settings.load();
   await bootstrap(app);
   return app;

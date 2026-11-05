@@ -4,7 +4,7 @@ import { OWNER_ID } from '../config/static.js';
 export const PERMISSIONS = Object.freeze([
   'panel.open', 'catalog.manage', 'approvals.review', 'stats.view',
   'admins.manage', 'forcejoin.manage', 'destinations.manage', 'sources.manage',
-  'broadcast.send', 'settings.manage', 'users.ban', 'users.view', 'system.view',
+  'broadcast.send', 'settings.manage', 'users.ban', 'users.view', 'system.view', 'catalog.purge',
 ]);
 
 /** Database roles → permissions. Everything else is owner-only. */

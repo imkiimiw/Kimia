@@ -62,6 +62,20 @@ export function createFakeTelegram() {
       if (c.bot.status !== 'administrator') fail(400, 'Bad Request: member list is inaccessible', m);
       return c.members.get(p.user_id) || { status: 'left', user: { id: p.user_id } };
     },
+    sendAudio(p, m) {
+      if (p.chat_id < 0) {
+        const c = channels.get(p.chat_id);
+        if (!c) fail(400, 'Bad Request: chat not found', m);
+        if (c.bot.status !== 'administrator' || !c.bot.can_post_messages) fail(403, 'Forbidden: bot is not a member of the channel chat', m);
+      } else if (blocked.has(p.chat_id)) fail(403, 'Forbidden: bot was blocked by the user', m);
+      if (typeof p.audio !== 'string' || !p.audio) fail(400, 'Bad Request: wrong file identifier/HTTP URL specified', m);
+      if (p.caption && p.caption.length > 1024) fail(400, 'Bad Request: message caption is too long', m);
+      return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, audio: { file_id: p.audio }, caption: p.caption || null });
+    },
+    sendPhoto(p, m) {
+      if (p.chat_id > 0 && blocked.has(p.chat_id)) fail(403, 'Forbidden: bot was blocked by the user', m);
+      return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, photo: [{ file_id: p.photo }], caption: p.caption || null });
+    },
     setMyCommands: () => true,
     deleteMyCommands: () => true,
     deleteMessage: () => true,

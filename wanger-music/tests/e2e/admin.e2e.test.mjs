@@ -8,7 +8,7 @@ import { can } from '../../tgcloud/lib/permissions/policy.js';
 const U = 111;
 const ADMIN = 222;
 const join = (h, id) => { for (const c of SEED) h.tg.setMember(c, id, 'member'); };
-const sampleArgs = (spec) => spec.map((t) => ({ uint: '1', int: '-1', lang: 'en', key: 'time_zone', word: 'music' })[t]);
+const sampleArgs = (spec) => spec.map((t) => ({ uint: '1', int: '-1', lang: 'en', key: 'time_zone', word: 'music', tlang: 'en', field: 'title' })[t]);
 
 test('only the owner sees and uses /admin; a normal user gets the unknown-command reply', async () => {
   const h = setup();
@@ -18,8 +18,8 @@ test('only the owner sees and uses /admin; a normal user gets the unknown-comman
   await h.send(OWNER, '/admin');
   assert.match(h.lastText(OWNER), /پنل مدیریت Wanger Music/);
   assert.deepEqual(h.lastButtons(OWNER).map((b) => b.text), ['🎵 موزیک', '📡 منابع', '📢 کانال‌های مقصد', '🔐 عضویت اجباری', '👥 کاربران', '📣 پیام همگانی', '📊 آمار', '⚙️ تنظیمات', '🧪 وضعیت سیستم']);
-  await h.tap(OWNER, 'adm:sec:music');
-  assert.match(h.lastText(OWNER), /در فاز ۲ اضافه می‌شود/);
+  await h.tap(OWNER, 'adm:sec:sources');
+  assert.match(h.lastText(OWNER), /در فاز ۴ اضافه می‌شود/);
 });
 
 test('every registered admin route rejects a normal user (table-driven over the registry)', async () => {
@@ -30,6 +30,7 @@ test('every registered admin route rejects a normal user (table-driven over the 
   assert.ok(adminRoutes.length >= 35, `${adminRoutes.length} admin routes`);
   for (const r of adminRoutes) {
     const data = [r.ns, r.action, ...sampleArgs(r.args)].join(':');
+    assert.ok(!data.includes('undefined'), `sample args for ${r.ns}:${r.action}`);
     const mark = h.mark();
     const res = await h.press(U, data, 1);
     assert.equal(res.ok, true, data);
@@ -54,7 +55,7 @@ test('an admin without a permission is denied; with it, allowed; admin features 
   assert.ok(scoped[0].params.commands.some((c) => c.command === 'admin'));
 
   await h.send(ADMIN, '/admin');
-  assert.deepEqual(h.lastButtons(ADMIN).map((b) => b.callback_data), ['adm:sec:music', 'adm:sec:stats'], 'only permitted sections');
+  assert.deepEqual(h.lastButtons(ADMIN).map((b) => b.callback_data), ['mus:home', 'adm:sec:stats'], 'only permitted sections');
   const user = { telegram_id: ADMIN, role: 'admin' };
   for (const r of CALLBACK_ROUTES.filter((x) => x.perm && !can(user, x.perm))) {
     const mark = h.mark();

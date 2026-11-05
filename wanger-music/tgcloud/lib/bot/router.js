@@ -9,6 +9,7 @@ import { UserError } from '../core/util.js';
 import { LIMITS } from '../config/static.js';
 import { continueStart, sendJoinPrompt, helpView, langView } from './user.js';
 import { openPanel } from '../admin/panel.js';
+import { handleMedia } from '../admin/import_ui.js';
 
 /** Plain text of an i18n message for a toast (no HTML tags). */
 const toastText = (lang, key, vars) => tp(lang, key, vars).replace(/<[^>]+>/g, '');
@@ -90,10 +91,7 @@ export async function onMessage(app, message) {
     return 'unknown_command';
   }
 
-  if (message.audio && isStaff(user)) {
-    await app.tg.send(chat, { text: t(app.lang, 'music.soon') }, 'music_soon');
-    return 'audio';
-  }
+  if ((message.audio || message.voice || message.document) && (await handleMedia(app, user, message))) return 'import';
   if (text) {
     await app.tg.send(chat, { text: t(app.lang, 'search.soon') }, 'search_soon');
     return 'text';
