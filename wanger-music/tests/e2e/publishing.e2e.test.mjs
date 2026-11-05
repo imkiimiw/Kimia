@@ -3,7 +3,7 @@
 // track never reaches that channel; a simulated 429 or permanent error behaves as in spec 10.6.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, advance, OWNER } from '../helpers/harness.mjs';
+import { setup, advance, setClock, OWNER } from '../helpers/harness.mjs';
 import { buttons } from '../helpers/fake-telegram.mjs';
 
 const FLOW = -1004391543350; // Persian
@@ -236,6 +236,7 @@ test('at most once: an expired sending lease becomes uncertain; the owner marks 
 
 test('schedule: minimum interval, active hours, daily limit', async () => {
   const h = setup();
+  setClock('2026-11-05T06:00:00Z'); // 09:30 in Tehran: the whole test stays inside one local day
   const id = await channel(h, FLOW);
   await h.pressLast(OWNER, `dst:daily:${id}`);
   await h.send(OWNER, '2');

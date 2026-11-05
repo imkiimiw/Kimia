@@ -20,6 +20,8 @@ let offsetMs = 0;
 
 /** Moves the clock forward. */
 export const advance = (seconds) => { offsetMs += seconds * 1000; };
+/** Sets the clock to an absolute time (tests that depend on the time of day). */
+export const setClock = (iso) => { offsetMs = Date.parse(iso) - realNow(); };
 
 /** Log lines written by the bot during a test (console is captured, not printed). */
 export const logs = [];
