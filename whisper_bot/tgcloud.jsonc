@@ -1,0 +1,8 @@
+{
+  // The image-card Mini App (webapp/): plain HTML/JS, no build step. Served at
+  // https://app<bot id>.tgcloud.ai/ and opened from the bot's web_app buttons.
+  "static": {
+    "source": "webapp"
+  },
+  "$schema": "./node_modules/@tgcloud/cli/schema/tgcloud.json"
+}

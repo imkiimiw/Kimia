@@ -1,0 +1,6 @@
+{
+  "lockdown": "lockdown",
+  "readonly": "readonly",
+  "fban": "fban",
+  "unfban": "unfban"
+}

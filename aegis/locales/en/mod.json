@@ -1,0 +1,23 @@
+{
+  "usage": "Usage: reply to the member's message with /{cmd} [duration] [reason], or /{cmd} @username [duration] [reason]. Durations: 30m, 2h, 1d, 1w.",
+  "need_restrict": "You need Telegram's «Ban users» right for this.",
+  "mod_cant": "Moderators (the «mod» list) can warn, unwarn and mute. Ask an admin for the rest.",
+  "basic_group": "This works only in supergroups: Telegram can't restrict members of a basic group.",
+  "bot_cant": "Aegis doesn't have the «Ban users» right here. Give it in the group's admin settings.",
+  "t_channel": "Aegis can punish members only, not a channel or the group itself.",
+  "t_unknown": "I don't know {name}. Reply to one of their messages, or use their numeric id.",
+  "t_bot_self": "I won't punish myself. 🙂",
+  "t_self": "You can't use this on yourself.",
+  "t_admin": "{target} is an admin. Telegram doesn't let a bot punish admins — demote them first.",
+  "t_vip": "⭐ {target} is on the VIP list. Remove them from it first (panel → Lists).",
+  "t_mod": "🛡 {target} is a moderator too. Only admins can punish moderators.",
+  "bad_duration": "That duration isn't valid: from 1 min to 366 days, e.g. 30m, 2h, 1d, 1w.",
+  "tg_error": "❌ Telegram refused: <code>{error}</code>",
+  "no_warns": "{target} has no warnings.",
+  "unwarned": "➖ One warning of {target} removed. Warnings now: {n}.",
+  "warns": "⚠️ {target}: {n} of {max} warnings.",
+  "warns_item": "• {reason}",
+  "done_unmute": "🔊 {target} can talk again (by {actor}).",
+  "done_unrestrict": "✅ {target}'s restrictions were lifted (by {actor}).",
+  "done_unban": "✅ {target} was unbanned and can join again (by {actor})."
+}

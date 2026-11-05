@@ -1,0 +1,17 @@
+{
+  "title": "📈 <b>Analytics — {title}</b>",
+  "health": "💚 <b>Health: {score}/100 ({grade})</b>",
+  "part": "• {name}: {got}/{max}",
+  "p_growth": "Growth (7 days)",
+  "p_engagement": "Engagement (14 days)",
+  "p_activity": "Posting (14 days)",
+  "p_safety": "Safety",
+  "members": "👥 Subscribers: {n}",
+  "flow": "🚪 7 days: +{j7} −{l7} · 30 days: +{j30} −{l30}",
+  "posts": "📝 14 days: {n} posts on {days} days · ❤️ {reactions} reactions · 💬 {comments} comments · {per} per post per 1,000 subscribers",
+  "best_hour": "🕐 Posts do best at {hour} ({tz})",
+  "top": "Best posts (30 days):",
+  "top_line": "• {link} — ❤️ {reactions} · 💬 {comments}",
+  "note": "Views aren't available to bots; reactions come from Telegram's counts and comments from the discussion group, since Aegis was added.",
+  "btn_csv": "📄 Days (CSV)"
+}

@@ -1,0 +1,9 @@
+{
+  "title": "🕵️ <b>Audit Mode — {title}</b>",
+  "body": "In Audit Mode Aegis records and reports the punishments it would decide on its own — warning steps, the blacklist when someone joins, anti-betrayal — but doesn't carry them out. Commands and panel actions by admins still work. Use it to try settings safely.",
+  "state_on": "State: ON — automatic punishments are only reported.",
+  "state_off": "State: OFF — automatic punishments are carried out.",
+  "btn_on": "🕵️ Turn Audit Mode on",
+  "btn_off": "✅ Turn Audit Mode off",
+  "creator_on": "⚠️ {name} turned Audit Mode ON in {title}: automatic punishments are now only reported."
+}

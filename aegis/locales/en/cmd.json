@@ -1,0 +1,13 @@
+{
+  "start": "Main menu",
+  "language": "Change language",
+  "help": "Help",
+  "panel": "Owner panel",
+  "cancel": "Cancel the current step",
+  "config": "My chats and settings",
+  "status": "Status (owner)",
+  "shutdown": "Shut down (owner)",
+  "activate": "Activate (owner)",
+  "appeal": "Appeal a punishment",
+  "staff": "Team panel (bot team)"
+}

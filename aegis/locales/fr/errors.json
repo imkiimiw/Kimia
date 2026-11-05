@@ -1,0 +1,3 @@
+{
+  "owner_notice": "🧯 <b>Erreur Aegis</b> dans <code>{source}</code> :\n<code>{message}</code>\n\n<i>Enregistrée dans le journal des erreurs. Vous recevez au plus une telle note toutes les 30 minutes.</i>"
+}

@@ -1,0 +1,19 @@
+{
+  "name": "memebot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Persian/English meme bot: users upload memes (file_id only), anyone searches them in inline mode. Telegram Serverless (tgcloud).",
+  "scripts": {
+    "build": "node scripts/gen-env.mjs",
+    "test": "node scripts/gen-env.mjs && node --no-warnings test/static.mjs && node --no-warnings --import ./test/sdk/register.mjs --test test/unit.test.mjs && node --no-warnings --import ./test/sdk/register.mjs test/e2e.mjs",
+    "test:unit": "node --no-warnings --import ./test/sdk/register.mjs --test test/unit.test.mjs",
+    "test:e2e": "node --no-warnings --import ./test/sdk/register.mjs test/e2e.mjs",
+    "tg": "node scripts/tg.mjs",
+    "status": "node scripts/tg.mjs status",
+    "deploy": "node scripts/tg.mjs deploy"
+  },
+  "devDependencies": {
+    "@tgcloud/cli": "^0.2.0"
+  }
+}

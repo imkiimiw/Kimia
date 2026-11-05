@@ -1,0 +1,3 @@
+{
+  "owner_notice": "🧯 <b>Aegis 错误</b>，位置 <code>{source}</code>：\n<code>{message}</code>\n\n<i>已记录到错误日志。此类通知最多每 30 分钟一次。</i>"
+}

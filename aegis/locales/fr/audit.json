@@ -1,0 +1,9 @@
+{
+  "title": "🕵️ <b>Mode audit — {title}</b>",
+  "body": "En mode audit, Aegis enregistre et signale les sanctions qu'il décide lui-même — paliers d'avertissements, liste noire à l'arrivée, anti-trahison — sans les appliquer. Les commandes et actions du panneau des admins fonctionnent toujours. Idéal pour tester des réglages sans risque.",
+  "state_on": "État : ACTIVÉ — les sanctions automatiques sont seulement signalées.",
+  "state_off": "État : DÉSACTIVÉ — les sanctions automatiques sont appliquées.",
+  "btn_on": "🕵️ Activer le mode audit",
+  "btn_off": "✅ Désactiver le mode audit",
+  "creator_on": "⚠️ {name} a activé le mode audit dans {title} : les sanctions automatiques sont désormais seulement signalées."
+}

@@ -1,0 +1,13 @@
+{
+  "start": "开始|菜单",
+  "help": "帮助",
+  "language": "语言",
+  "panel": "面板|管理",
+  "cancel": "取消",
+  "config": "设置|配置",
+  "status": "状态",
+  "shutdown": "关闭",
+  "activate": "启用",
+  "appeal": "申诉",
+  "staff": "团队"
+}

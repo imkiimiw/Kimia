@@ -1,0 +1,12 @@
+{
+  "warn": "警告",
+  "unwarn": "取消警告",
+  "warns": "警告记录",
+  "mute": "禁言",
+  "unmute": "解除禁言",
+  "restrict": "限制",
+  "unrestrict": "解除限制",
+  "kick": "踢出",
+  "ban": "封禁",
+  "unban": "解封"
+}

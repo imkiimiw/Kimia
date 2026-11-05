@@ -1,0 +1,10 @@
+{
+  "sticker": "make sticker|to sticker",
+  "tophoto": "to photo|sticker to photo",
+  "gif": "make gif|to gif",
+  "qr": "qr code|make qr",
+  "readqr": "read qr",
+  "ocr": "read text",
+  "pdf": "check pdf",
+  "tools": "media tools"
+}

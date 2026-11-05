@@ -1,0 +1,135 @@
+/* Vazirmatn (SIL OFL 1.1, fonts/OFL.txt): Persian and Latin; Cyrillic falls back to the system font. */
+@font-face {
+  font-family: 'Vazirmatn';
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/vazirmatn-arabic-400-normal.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-08FF, U+200C-200E, U+FB50-FDFF, U+FE70-FEFC;
+}
+@font-face {
+  font-family: 'Vazirmatn';
+  font-weight: 700;
+  font-display: swap;
+  src: url('fonts/vazirmatn-arabic-700-normal.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-08FF, U+200C-200E, U+FB50-FDFF, U+FE70-FEFC;
+}
+@font-face {
+  font-family: 'Vazirmatn';
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/vazirmatn-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122;
+}
+@font-face {
+  font-family: 'Vazirmatn';
+  font-weight: 700;
+  font-display: swap;
+  src: url('fonts/vazirmatn-latin-700-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122;
+}
+
+:root {
+  --bg: var(--tg-theme-bg-color, #ffffff);
+  --text: var(--tg-theme-text-color, #111111);
+  --hint: var(--tg-theme-hint-color, #8a8a8a);
+  --button: var(--tg-theme-button-color, #2481cc);
+  --button-text: var(--tg-theme-button-text-color, #ffffff);
+  --field: var(--tg-theme-secondary-bg-color, #f2f2f5);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Vazirmatn', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+main {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 12px 16px 24px;
+}
+
+h1 {
+  font-size: 18px;
+  margin: 4px 0 12px;
+  text-align: center;
+}
+
+#preview {
+  display: flex;
+  justify-content: center;
+}
+
+#card {
+  width: auto;
+  max-width: 100%;
+  max-height: 56vh;
+  border-radius: 14px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 12px 0 0;
+}
+
+.row button {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.row button[aria-pressed="true"] { border-color: var(--button); }
+
+.swatch {
+  width: 36px;
+  height: 36px;
+  padding: 0 !important;
+}
+
+textarea {
+  width: 100%;
+  margin-top: 12px;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+#send {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  border: none;
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--button);
+  color: var(--button-text);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#send:disabled { opacity: 0.6; cursor: default; }
+
+#status {
+  min-height: 1.5em;
+  text-align: center;
+  color: var(--hint);
+  font-size: 14px;
+}

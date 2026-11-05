@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="fa">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Card</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="app">
+    <h1 id="title">…</h1>
+    <div id="preview"><canvas id="card" width="1080" height="1920" aria-label="card preview"></canvas></div>
+    <div class="row" id="sizes"></div>
+    <div class="row" id="themes"></div>
+    <textarea id="answer" rows="2" maxlength="300" hidden></textarea>
+    <button id="send" type="button" disabled>…</button>
+    <p id="status" role="status"></p>
+  </main>
+  <script src="vendor/qrcode.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

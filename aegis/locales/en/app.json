@@ -1,0 +1,20 @@
+{
+  "title": "Broadcast",
+  "idle": "No broadcast is running.",
+  "sent": "Sent",
+  "failed": "Failed",
+  "blocked": "Blocked",
+  "left": "Left",
+  "audience": "Audience",
+  "mode": "Mode",
+  "status": "Status",
+  "wait": "Telegram asked to wait:",
+  "hint": "Keep this page open: it sends about 25 messages a second.",
+  "pause": "⏸ Pause",
+  "resume": "▶️ Resume",
+  "cancel": "⛔️ Cancel",
+  "cancel_q": "Cancel this broadcast? Messages already sent stay.",
+  "close": "Close",
+  "paused_source_gone": "Paused: the original message was deleted.",
+  "error": "Error"
+}

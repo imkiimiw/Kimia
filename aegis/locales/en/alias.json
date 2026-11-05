@@ -1,0 +1,13 @@
+{
+  "start": "start|menu",
+  "help": "help",
+  "language": "language|lang",
+  "panel": "panel|admin|owner",
+  "cancel": "cancel",
+  "config": "config|settings",
+  "status": "status",
+  "shutdown": "shutdown",
+  "activate": "activate",
+  "appeal": "appeal|appeals",
+  "staff": "staff|team"
+}

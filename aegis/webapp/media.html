@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Aegis</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <!-- Free, open-source libraries (Apache-2.0), run on this device: OCR (Tesseract.js) and QR reading (jsQR). -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+</head>
+<body>
+  <!-- Reading text and QR codes in a photo sent to Aegis. Every text comes from the media endpoint. -->
+  <main id="app" hidden>
+    <h1 id="title"></h1>
+    <img id="photo" class="photo" alt="">
+    <div class="actions">
+      <button id="b-ocr" type="button"></button>
+      <button id="b-qr" type="button"></button>
+    </div>
+    <label class="muted" id="l-lang"></label>
+    <select id="lang" class="select">
+      <option value="fas+eng">فارسی + English</option>
+      <option value="eng">English</option>
+      <option value="rus+eng">Русский + English</option>
+      <option value="chi_sim+eng">中文 + English</option>
+      <option value="fra+eng">Français + English</option>
+    </select>
+    <p id="status" class="muted"></p>
+    <textarea id="out" class="out" rows="8" hidden></textarea>
+    <div class="actions">
+      <button id="b-copy" type="button" hidden></button>
+      <button id="b-send" type="button" hidden></button>
+    </div>
+    <p id="note" class="muted small"></p>
+  </main>
+  <p id="loading" class="center">⏳</p>
+  <canvas id="canvas" hidden></canvas>
+  <script src="media.js"></script>
+</body>
+</html>

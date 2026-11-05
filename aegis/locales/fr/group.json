@@ -1,0 +1,23 @@
+{
+  "added_title": "🛡 <b>Aegis a été ajouté à {title}</b>",
+  "rule": "⚠️ <b>Important :</b> Telegram ne permet à un bot de modifier ou de révoquer que les administrateurs qu’il a nommés lui-même. Nommez donc les administrateurs <b>via le panneau d’Aegis</b> — sinon la protection anti-trahison et les restrictions d’administrateurs ne peuvent pas s’appliquer à eux.",
+  "perms_title": "<b>Droits nécessaires à Aegis :</b>",
+  "perms_missing": "❗️ Il en manque {n} — accordez-les dans les réglages des administrateurs (ou avec le bouton ci-dessous).",
+  "perms_ok": "✅ Tous les droits nécessaires sont accordés.",
+  "basic_group": "ℹ️ C’est un groupe simple : Telegram ne permet aux bots de nommer des administrateurs et de restreindre des membres que dans les supergroupes. Telegram le transforme en supergroupe si, par exemple, vous le rendez public ou affichez l’historique aux nouveaux membres — Aegis suit automatiquement.",
+  "non_aegis_title": "⚠️ <b>Administrateurs non nommés via Aegis ({n}) :</b>",
+  "non_aegis_item": "• {name}",
+  "non_aegis_bot": "• 🤖 {name}",
+  "more": "…et {n} de plus",
+  "non_aegis_hint": "Aegis ne peut ni les modifier ni les révoquer. Le propriétaire peut leur retirer le statut d’administrateur dans Telegram puis les renommer via le panneau d’Aegis.",
+  "reminder_body": "Telegram ne permet pas à Aegis de modifier ou de révoquer ces administrateurs : la protection anti-trahison et les restrictions d’administrateurs ne s’appliquent donc pas à eux. Le propriétaire peut leur retirer le statut d’administrateur puis les renommer via le panneau d’Aegis. (Les administrateurs peuvent désactiver ce rappel dans le panneau.)",
+  "btn_panel": "⚙️ Ouvrir le panneau privé",
+  "btn_grant": "🛡 Accorder les droits manquants",
+  "rights_changed_missing": "⚠️ <b>Les droits d’Aegis ont changé.</b> Il en manque maintenant : {n}",
+  "rights_changed_ok": "✅ <b>Les droits d’Aegis ont changé :</b> tout le nécessaire est accordé.",
+  "config_reply": "⚙️ {name}, les réglages d’Aegis pour cette discussion s’ouvrent en privé avec le bot :",
+  "config_no_access": "🔒 {name}, votre accès à Aegis ici est réglé sur « Aucun accès ». Demandez au propriétaire.",
+  "anon_admin": "🕶 Vous écrivez anonymement : Aegis ne peut pas savoir qui vous êtes. Désactivez un instant « Rester anonyme », ou envoyez « پیکربندی » / config en privé à Aegis pour voir toutes vos discussions.",
+  "right_line": "{mark} {name}",
+  "right_item": "• {name}"
+}

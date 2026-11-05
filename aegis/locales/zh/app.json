@@ -1,0 +1,20 @@
+{
+  "title": "群发",
+  "idle": "当前没有正在进行的群发。",
+  "sent": "已发送",
+  "failed": "失败",
+  "blocked": "已屏蔽",
+  "left": "剩余",
+  "audience": "对象",
+  "mode": "方式",
+  "status": "状态",
+  "wait": "Telegram 要求等待：",
+  "hint": "请保持此页面打开：每秒约发送 25 条消息。",
+  "pause": "⏸ 暂停",
+  "resume": "▶️ 继续",
+  "cancel": "⛔️ 取消",
+  "cancel_q": "取消这次群发？已发送的消息会保留。",
+  "close": "关闭",
+  "paused_source_gone": "已暂停：原始消息已被删除。",
+  "error": "错误"
+}

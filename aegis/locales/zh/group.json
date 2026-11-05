@@ -1,0 +1,23 @@
+{
+  "added_title": "🛡 <b>Aegis 已加入 {title}</b>",
+  "rule": "⚠️ <b>重要：</b>Telegram 只允许机器人修改或撤销由它自己任命的管理员。因此请<b>通过 Aegis 面板</b>任命管理员 —— 否则防背叛保护和管理员限制对他们无效。",
+  "perms_title": "<b>Aegis 需要的权限：</b>",
+  "perms_missing": "❗️ 缺少 {n} 项 —— 请在聊天的管理员设置中授予（或使用下方按钮）。",
+  "perms_ok": "✅ 所需权限已全部授予。",
+  "basic_group": "ℹ️ 这是一个普通群组：Telegram 只允许机器人在超级群组中任命管理员和限制成员。当你例如将群组设为公开，或向新成员显示聊天记录时，Telegram 会将其升级为超级群组 —— Aegis 会自动跟随。",
+  "non_aegis_title": "⚠️ <b>未通过 Aegis 任命的管理员（{n}）：</b>",
+  "non_aegis_item": "• {name}",
+  "non_aegis_bot": "• 🤖 {name}",
+  "more": "……还有 {n} 位",
+  "non_aegis_hint": "Aegis 无法修改或撤销他们。聊天所有者可以在 Telegram 中撤销其管理员身份，再通过 Aegis 面板重新任命。",
+  "reminder_body": "Telegram 不允许 Aegis 修改或撤销这些管理员，因此防背叛保护和管理员限制对他们无效。聊天所有者可以撤销其管理员身份，再通过 Aegis 面板重新任命。（管理员可以在面板中关闭此提醒。）",
+  "btn_panel": "⚙️ 打开私人面板",
+  "btn_grant": "🛡 授予缺少的权限",
+  "rights_changed_missing": "⚠️ <b>Aegis 的权限已变更。</b>目前缺少 {n} 项：",
+  "rights_changed_ok": "✅ <b>Aegis 的权限已变更：</b>所需权限已全部授予。",
+  "config_reply": "⚙️ {name}，此聊天的 Aegis 设置在与机器人的私聊中打开：",
+  "config_no_access": "🔒 {name}，你在此聊天中对 Aegis 的权限被设为「无权限」。请联系聊天所有者。",
+  "anon_admin": "🕶 你正在匿名发言，Aegis 无法识别你的身份。请暂时关闭「保持匿名」，或在 Aegis 私聊中发送「پیکربندی」/ config 查看你的所有聊天。",
+  "right_line": "{mark} {name}",
+  "right_item": "• {name}"
+}

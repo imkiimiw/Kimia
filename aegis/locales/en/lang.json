@@ -1,0 +1,7 @@
+{
+  "name": "English",
+  "flag": "🇬🇧",
+  "pick": "🌐 Choose your language:",
+  "current": "Current: <b>{name}</b>",
+  "saved": "✅ Language: English"
+}

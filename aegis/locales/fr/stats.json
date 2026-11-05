@@ -1,0 +1,13 @@
+{
+  "title": "📊 <b>Statistiques</b>",
+  "started": "👤 Ont démarré le bot : <b>{n}</b>",
+  "reachable": "🟢 Actifs (peuvent recevoir des messages) : <b>{n}</b>",
+  "blocked": "⛔️ Ont bloqué le bot : <b>{n}</b>",
+  "new": "🆕 Nouveaux : aujourd’hui <b>{today}</b> · 7 derniers jours <b>{week}</b>",
+  "active": "⚡️ Ont utilisé le bot : 24 dernières heures <b>{d1}</b> · 7 derniers jours <b>{d7}</b>",
+  "chats": "👥 Groupes : <b>{groups}</b> · 📢 Canaux : <b>{channels}</b>",
+  "members": "👨‍👩‍👧 Membres dans ces discussions : <b>{n}</b>",
+  "members_stale": "⏳ {n} discussion(s) ont encore un nombre de membres de plus d’1 h — appuyez sur Actualiser.",
+  "errors": "🧯 Erreurs sur 24 h : <b>{n}</b>",
+  "note": "<i>« Aujourd’hui » commence à 00:00, heure de Téhéran. Le nombre de membres vient de Telegram (getChatMemberCount) et est actualisé toutes les heures.</i>"
+}

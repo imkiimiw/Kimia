@@ -1,0 +1,23 @@
+{
+  "usage": "Utilisation : répondez au message du membre avec /{cmd} [durée] [raison], ou /{cmd} @username [durée] [raison]. Durées : 30m, 2h, 1d, 1w.",
+  "need_restrict": "Il faut le droit Telegram « Bannir des utilisateurs ».",
+  "mod_cant": "Les modérateurs (liste « mod ») peuvent avertir, retirer un avertissement et rendre muet. Demandez le reste à un admin.",
+  "basic_group": "Uniquement dans les supergroupes : Telegram ne permet pas de restreindre les membres d'un groupe simple.",
+  "bot_cant": "Aegis n'a pas le droit « Bannir des utilisateurs » ici. Donnez-le dans les réglages des admins du groupe.",
+  "t_channel": "Aegis ne sanctionne que des membres, pas une chaîne ni le groupe lui-même.",
+  "t_unknown": "Je ne connais pas {name}. Répondez à l'un de ses messages ou utilisez son identifiant numérique.",
+  "t_bot_self": "Je ne vais pas me sanctionner moi-même. 🙂",
+  "t_self": "Impossible sur vous-même.",
+  "t_admin": "{target} est admin. Telegram ne permet pas à un bot de sanctionner des admins — rétrogradez-le d'abord.",
+  "t_vip": "⭐ {target} est sur la liste VIP. Retirez-le d'abord de cette liste (panneau → Listes).",
+  "t_mod": "🛡 {target} est aussi modérateur. Seuls les admins peuvent sanctionner des modérateurs.",
+  "bad_duration": "Durée non valide : de 1 min à 366 jours, p. ex. 30m, 2h, 1d, 1w.",
+  "tg_error": "❌ Telegram a refusé : <code>{error}</code>",
+  "no_warns": "{target} n'a aucun avertissement.",
+  "unwarned": "➖ Un avertissement de {target} retiré. Avertissements : {n}.",
+  "warns": "⚠️ {target} : {n} avertissements sur {max}.",
+  "warns_item": "• {reason}",
+  "done_unmute": "🔊 {target} peut de nouveau parler (par {actor}).",
+  "done_unrestrict": "✅ Les restrictions de {target} sont levées (par {actor}).",
+  "done_unban": "✅ {target} est débanni et peut revenir (par {actor})."
+}
