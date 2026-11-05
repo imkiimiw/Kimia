@@ -64,7 +64,21 @@ if (CHILD.error) {
 fs.mkdirSync(path.join(ROOT, '.tgcloud'), { recursive: true });
 let runs = 0;
 
+// The CLI API rate-limits `run` ("Too many requests: retry after N"): the module never ran, so wait
+// and send it again.
+const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
 function tgcloudRun(module, args, ctx) {
+  for (let attempt = 1; ; attempt += 1) {
+    const r = tgcloudRunOnce(module, args, ctx);
+    const m = !r.exitOk && /Too many requests: retry after (\d+)/i.exec(r.out);
+    if (!m || attempt >= 6) return r;
+    log(`(rate limited by the CLI API: waiting ${m[1]} s, attempt ${attempt + 1})`);
+    sleepSync((Number(m[1]) + 1) * 1000);
+  }
+}
+
+function tgcloudRunOnce(module, args, ctx) {
   const argv = [...CLI_ARGS, 'run', module, JSON.stringify(args)];
   if (ctx) argv.push('--ctx', JSON.stringify(ctx));
   runs += 1;
@@ -204,7 +218,7 @@ async function main() {
   console.log(`platform: ${JSON.stringify(probe)}\n`);
   const tables = devtools({ op: 'tables' }).filter((t) => t.type === 'table').map((t) => t.name);
   const start = devtools({ op: 'snapshot' });
-  const originalChannels = start.channels;
+  const originalChannels = start.channels.filter((c) => !c.uname.startsWith('zz_fake_'));
   const originalJoin = (start.settings.find((s) => s.key === 'join') || {}).value ?? '1';
   const ownerSettings = start.owner;
   devtools({ op: 'cleanup', users: TEST_USERS });
@@ -572,18 +586,24 @@ async function main() {
     });
   } finally {
     // ---------- restore ----------
-    try {
-      devtools({ op: 'drop_fake_channels' });
+    // Each step on its own: one failure must not leave the rest (e.g. forced join) unrestored.
+    const step = (name, fn) => {
+      try {
+        fn();
+      } catch (err) {
+        console.log(`restore step "${name}" failed: ${err.message}`);
+      }
+    };
+    step('fake channels', () => devtools({ op: 'drop_fake_channels' }));
+    step('channels', () => {
       const now = devtools({ op: 'snapshot' });
       for (const ch of originalChannels) {
         if (!now.channels.some((c) => c.uname === ch.uname)) devtools({ op: 'restore_channel', channel: ch });
       }
-      devtools({ op: 'set_setting', key: 'join', value: originalJoin });
-      if (ownerSettings) devtools({ op: 'set_user', user: OWNER, set: { ...ownerSettings, last_req: 0, busy_until: 0 } });
-      devtools({ op: 'cleanup', users: TEST_USERS });
-    } catch (err) {
-      console.log(`restore failed: ${err.message}`);
-    }
+    });
+    step('join', () => devtools({ op: 'set_setting', key: 'join', value: originalJoin }));
+    if (ownerSettings) step('owner', () => devtools({ op: 'set_user', user: OWNER, set: { ...ownerSettings, last_req: 0, busy_until: 0 } }));
+    step('test users', () => devtools({ op: 'cleanup', users: TEST_USERS }));
   }
 
   const counts = results.reduce((m, r) => ({ ...m, [r.status]: (m[r.status] || 0) + 1 }), {});
