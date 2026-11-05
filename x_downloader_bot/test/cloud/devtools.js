@@ -124,6 +124,9 @@ export default async function (input) {
     case 'post_forget':
       // Only the post row: cached file_ids stay valid (they are Telegram's, keyed by post/item/quality).
       return (await db.run(sql`DELETE FROM posts WHERE id = ${String(input.id)}`)).rowsAffected;
+    case 'cache_forget':
+      // The test posts' cached file_ids, so a re-run downloads and uploads again (B1, B3, B4, B11).
+      return (await db.run(sql`DELETE FROM file_cache WHERE post_id = ${String(input.id)}`)).rowsAffected;
     case 'cache':
       return db.all(sql`SELECT item, q, kind, size FROM file_cache WHERE post_id = ${String(input.id)} ORDER BY item, q LIMIT 50`);
     case 'fill_channels': {

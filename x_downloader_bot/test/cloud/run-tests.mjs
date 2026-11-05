@@ -157,6 +157,7 @@ function analyse(r) {
   return { ...r, trace, api, screens, last, view: last ? last.view : null, text: last ? last.text || '' : '', data, urls, answers, media, results: v.results, handlerError };
 }
 
+const USER_NOT_IN_CHANNEL = /member not found|user not found|participant_id_invalid|user_id_invalid|user_not_participant/i;
 const memberChecks = (res) => res.trace.filter((t) => t.m === 'getChatMember');
 const mediaLine = (res) => res.media.map((m) => `${m.m}[${m.src || (m.media || []).join('+')}${m.q ? ` ${m.q}` : ''}${m.bytes ? ` ${(m.bytes / 1048576).toFixed(1)}MB` : ''}${m.ms != null ? ` ${m.ms}ms` : ''}]${m.ok ? '✓' : `✗ ${m.err}`}`).join(', ');
 const apiLine = (res) => res.api.map((a) => `${a.api}#${a.attempt}=${a.http ? `${a.http} ` : ''}${a.result}${a.ms != null ? ` ${a.ms}ms` : ''}`).join(', ');
@@ -227,6 +228,9 @@ async function main() {
       return JSON.stringify(probe);
     });
 
+    // A re-run starts from an empty cache for the test posts, so downloads are really exercised.
+    for (const p of [P.video, P.photos, P.gif, P.twovid]) devtools({ op: 'cache_forget', id: p.id });
+
     // ===== A. Forced join =====
     await scenario('A1 /start from a non-member → join screen with a link button per channel + ✅ عضو شدم', () => {
       const r = screenOk(sendText(TU3, '/start'));
@@ -242,7 +246,8 @@ async function main() {
         throw new Fail(`expected the join screen, got ${r.view}`);
       }
       expect(r.data.includes('j'), 'no ✅ عضو شدم button');
-      const failed = checks.filter((c) => !c.ok);
+      // "member not found" etc. is Telegram's answer for a user who is not in the channel: a real check.
+      const failed = checks.filter((c) => !c.ok && !USER_NOT_IN_CHANNEL.test(c.err || ''));
       if (failed.length) {
         throw new Warn(`join screen shown for ${r.urls.join(', ')}, but these checks failed and are skipped (bot not admin?):\n${failed.map((c) => `${c.chat}: ${c.err}`).join('\n')}`);
       }
