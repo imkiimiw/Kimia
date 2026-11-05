@@ -95,7 +95,10 @@ export function createMockTelegram({ botId }) {
       if (!state.chats.has(k)) return err(400, 'Bad Request: chat not found');
       if (Number(p.user_id) === botId) return ok({ status: state.botAdmin.has(k) ? 'administrator' : 'left', user: { id: botId } });
       if (!state.botAdmin.has(k)) return err(400, 'Bad Request: member list is inaccessible');
-      const m = state.members.get(`${k}:${p.user_id}`) || { status: 'left' };
+      const m = state.members.get(`${k}:${p.user_id}`);
+      // Like the real Bot API (seen in the cloud tests): an id Telegram doesn't know in that chat.
+      if (!m && !state.users.has(Number(p.user_id))) return err(400, 'Bad Request: member not found');
+      if (!m) return ok({ status: 'left', user: { id: Number(p.user_id) } });
       return ok({ ...m, user: { id: Number(p.user_id) } });
     },
     sendMessage: (p) => chatCheck(p.chat_id) || ok(message(p.chat_id, { text: p.text })),

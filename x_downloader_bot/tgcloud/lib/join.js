@@ -23,7 +23,9 @@ export function isMember(m) {
 }
 
 // Errors about the *user* (unknown or invalid id) mean "not a member", not a broken channel.
-const USER_ERROR = /user not found|participant_id_invalid|user_id_invalid|user_not_participant/i;
+// "member not found" is what Telegram answers (verified on the platform, cloud test A1) when the bot
+// IS an admin there and the user is not in the channel.
+const USER_ERROR = /member not found|user not found|participant_id_invalid|user_id_invalid|user_not_participant/i;
 
 export function channelRef(ch) {
   return ch.chatId || `@${ch.username}`;
