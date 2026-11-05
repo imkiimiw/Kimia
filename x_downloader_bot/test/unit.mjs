@@ -10,6 +10,8 @@ import { isAllowedMediaUrl, originalPhotoUrl, parseFx, parseVx } from '../tgclou
 import { chooseVariant, qualityLabel } from '../tgcloud/lib/media.js';
 import { buildCaption } from '../tgcloud/lib/deliver.js';
 import { parseChannelInput } from '../tgcloud/lib/admin.js';
+import { guardUploadText } from '../tgcloud/lib/tg.js';
+import { InputFile } from 'sdk';
 import { clip, fa, size } from '../tgcloud/lib/text.js';
 import { parseCommand } from '../tgcloud/lib/router.js';
 
@@ -165,4 +167,15 @@ test('channel input and commands', () => {
   assert.equal(parseCommand('hello'), null);
   assert.equal(fa(30), '۳۰');
   assert.equal(size(4977071), '۴٫۷ مگابایت');
+});
+
+test('upload text starting with "@" gets an invisible word joiner (platform crash otherwise)', () => {
+  const file = new InputFile(new Uint8Array([1, 2, 3]), 'a.mp4');
+  const out = guardUploadText({ chat_id: 1, animation: file, caption: '@GIPHY hi', parse_mode: 'HTML' });
+  assert.equal(out.caption, '\u2060@GIPHY hi');
+  assert.equal(out.animation, file);
+  assert.equal(guardUploadText({ chat_id: 1, text: '@x' }).text, '@x', 'JSON requests are untouched');
+  assert.equal(guardUploadText({ chat_id: 1, video: 'file_id', caption: '@x' }).caption, '@x', 'file_id sends are untouched');
+  const album = guardUploadText({ chat_id: 1, media: [{ type: 'photo', media: file, caption: '@a' }] });
+  assert.equal(album.media[0].caption, '\u2060@a');
 });

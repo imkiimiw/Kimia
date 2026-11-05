@@ -50,6 +50,14 @@ function post(path, body) {
 }
 
 async function call(method, params = {}) {
+  // Like the real platform: a multipart upload (an InputFile parameter) with a top-level text field
+  // that starts with "@" fails hard (an HTTP 500 that no try/catch sees there; a crash here).
+  const upload = Object.values(params).some((v) => v instanceof InputFile);
+  const bad = upload && Object.entries(params).find(([, v]) => typeof v === 'string' && v.startsWith('@'));
+  if (bad) {
+    console.error(`sdk emulation: multipart upload with "${bad[0]}" starting with "@" crashes the platform`);
+    process.exit(70);
+  }
   const data = await post(`/botSERVERLESS/${method}`, encode(params));
   if (!data.ok) throw new BotApiError(data.error_code, data.description, method, data.parameters);
   return data.result;

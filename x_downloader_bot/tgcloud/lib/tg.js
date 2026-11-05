@@ -37,8 +37,27 @@ export function describeError(err) {
   return String((err && err.message) || err);
 }
 
+/**
+ * Verified on the platform (cloud test B4): a multipart upload (any InputFile parameter) whose text
+ * field starts with "@" — e.g. a caption that begins with a mention, "@user …" — makes the sdk fail
+ * with an uncatchable HTTP 500 (it is read like a curl "@file" reference). An invisible WORD JOINER
+ * (U+2060) in front keeps the text and its entities as they look, and the upload works.
+ */
+export function guardUploadText(params) {
+  const hasFile = Object.values(params).some((v) => v instanceof InputFile)
+    || (Array.isArray(params.media) && params.media.some((m) => m && m.media instanceof InputFile));
+  if (!hasFile) return params;
+  const out = { ...params };
+  for (const [k, v] of Object.entries(out)) if (typeof v === 'string' && v.startsWith('@')) out[k] = `\u2060${v}`;
+  if (Array.isArray(out.media)) {
+    out.media = out.media.map((m) => (m && typeof m.caption === 'string' && m.caption.startsWith('@') ? { ...m, caption: `\u2060${m.caption}` } : m));
+  }
+  return out;
+}
+
 /** Calls a Bot API method; records it in the trace; rethrows failures. `extra` adds fields to the trace entry. */
 export async function call(ctx, method, params, view, extra) {
+  params = guardUploadText(params);
   const entry = { m: method };
   if (view) entry.view = view;
   if (params.chat_id !== undefined) entry.chat = params.chat_id;
