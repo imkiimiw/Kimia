@@ -11,7 +11,12 @@ export const PERMISSIONS = Object.freeze([
 export const ROLE_PERMISSIONS = Object.freeze({
   admin: Object.freeze(['panel.open', 'catalog.manage', 'approvals.review', 'stats.view']),
   user: Object.freeze([]),
+  // not a database role (users.role is CHECK-constrained to user/admin): the source-channel pipeline
+  system: Object.freeze(['catalog.manage']),
 });
+
+/** Actor for internal pipelines (Phase 4 source imports). telegram_id 0 = "system" in the audit log. */
+export const SYSTEM_ACTOR = Object.freeze({ telegram_id: 0, role: 'system' });
 
 export class PermissionError extends Error {
   /** @param {string} perm */

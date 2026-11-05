@@ -84,7 +84,7 @@ test('layout: flat handlers named after update types; valid endpoint names', () 
     assert.equal(f.split('/').length, 2, `${f} is one level deep`);
     assert.ok(types.has(path.basename(f, '.js')), `${f} is an update type`);
   }
-  assert.deepEqual(files.filter((x) => x.startsWith('handlers/')).sort(), ['handlers/callback_query.js', 'handlers/chosen_inline_result.js', 'handlers/inline_query.js', 'handlers/message.js', 'handlers/my_chat_member.js'], 'Phase 1–3 handlers only (channel_post arrives in Phase 4)');
+  assert.deepEqual(files.filter((x) => x.startsWith('handlers/')).sort(), ['handlers/callback_query.js', 'handlers/channel_post.js', 'handlers/chosen_inline_result.js', 'handlers/inline_query.js', 'handlers/message.js', 'handlers/my_chat_member.js'], 'Phase 1–4 handlers only');
   for (const f of files.filter((x) => x.startsWith('endpoints/'))) assert.match(path.basename(f, '.js'), /^[A-Za-z_][A-Za-z0-9_]*$/);
 });
 

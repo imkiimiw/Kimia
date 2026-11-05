@@ -34,13 +34,14 @@ export function createIngestService({ repo, catalog, audit, clock, log }) {
     /**
      * @param {any} actor users row
      * @param {any} message a Message with `audio`
-     * @param {{sourceType?: string, sourceId?: number|null, sourceDefaultLanguage?: string|null}} [opts]
+     * @param {{sourceType?: string, sourceId?: number|null, sourceDefaultLanguage?: string|null, origin?: {chatId: number|null, messageId: number|null}}} [opts]
+     *   origin: where the audio was first posted (a source channel's own post); default: the forward origin
      * @returns {Promise<{kind: 'created', track: any, review: boolean} | {kind: 'duplicate', existing: any}>}
      */
     async importAudio(actor, message, opts = {}) {
       assertCan(actor, 'catalog.manage');
       const a = message.audio;
-      const origin = originOf(message);
+      const origin = opts.origin || originOf(message);
       const existing = await repo.findHard({ file_unique_id: a.file_unique_id, origin_chat_id: origin.chatId, origin_message_id: origin.messageId });
       if (existing) return { kind: 'duplicate', existing };
 
@@ -68,7 +69,7 @@ export function createIngestService({ repo, catalog, audit, clock, log }) {
         origin_chat_id: origin.chatId,
         origin_message_id: origin.messageId,
         status: 'draft',
-        added_by: actor.telegram_id,
+        added_by: actor.telegram_id, // 0 for source imports (system)
       };
       const lang = opts.sourceDefaultLanguage
         ? { language: opts.sourceDefaultLanguage, language_confidence: 'high', language_source: 'source' }

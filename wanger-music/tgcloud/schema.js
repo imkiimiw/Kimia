@@ -217,3 +217,26 @@ export const artistAliases = table('artist_aliases', {
 }, (t) => ({
   byArtist: index('idx_artist_aliases_artist').on(t.artistId),
 }));
+
+// ---------------------------------------------------------------- Phase 4: source channels
+
+/** Telegram channels (bot is admin) whose new audio posts are imported. Imports never publish. */
+export const sources = table('sources', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  sourceType: text('source_type').notNull().default('telegram_channel'),
+  chatId: integer('chat_id').notNull().unique(),
+  username: text('username'),
+  title: text('title'),
+  defaultLanguage: text('default_language'),
+  enabled: integer('enabled').notNull().default(1),
+  autoImport: text('auto_import').notNull().default('draft'),
+  lastPostAt: integer('last_post_at'),
+  importedCount: integer('imported_count').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, (t) => ({
+  typeChk: check('sources_type_chk', sql`${t.sourceType} IN ('telegram_channel')`),
+  importChk: check('sources_auto_import_chk', sql`${t.autoImport} IN ('off', 'draft', 'active')`),
+  languageChk: check('sources_language_chk', sql`${t.defaultLanguage} IS NULL OR ${t.defaultLanguage} IN ('fa', 'en', 'other')`),
+  enabledChk: check('sources_enabled_chk', sql`${t.enabled} IN (0, 1)`),
+}));

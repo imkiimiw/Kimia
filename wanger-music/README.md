@@ -4,7 +4,7 @@ A Telegram music bot that runs entirely on **Telegram Serverless**: instant sear
 Telegram-hosted music (inline and in private chat), plus automatic publishing of new tracks to the
 owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 
-**Status: Phases 1 (core), 2 (music catalog) and 3 (search + inline) are built and tested.** Deploy state: see [docs/ROADMAP.md](docs/ROADMAP.md).
+**Status: Phases 1–4 (core, music catalog, search + inline, source channels) are built and tested; nothing is deployed yet.** Deploy state: see [docs/ROADMAP.md](docs/ROADMAP.md).
 
 | Phase 1 feature | Where |
 |---|---|
@@ -38,6 +38,12 @@ owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 | Persian-aware matching: ي/ی, ك/ک, «می‌خوام» = «میخوام» = «می خوام», ۲ = 2, prefixes (“week” → The Weeknd), artist aliases (“shadmehr”) | search |
 | 🎤 Artists: other names for search; plays counted from inline choices and private sends; optional inline caption template | admin panel |
 
+| Phase 4 feature | Where |
+|---|---|
+| 📡 Sources: channels (bot = admin) whose new audio posts are imported — mode off / draft / active, default language, enable, remove; never publishes | admin panel |
+| Duplicates skipped (same post, same file); unregistered channels ignored; the owner is told about new drafts (≤ 1/h) and when the bot loses admin in a source | — |
+| When the bot is made admin of a new channel, the owner chooses: Source · Destination (Phase 5) · Force-join · Ignore | owner's chat |
+
 ## Run it
 
 Everything runs from this folder. The repository root and its other folders are other bots.
@@ -45,7 +51,7 @@ Everything runs from this folder. The repository root and its other folders are 
 ```bash
 cd wanger-music
 npm ci
-npm test                         # 113 tests: unit + end-to-end (local SDK emulation, fake Telegram)
+npm test                         # 122 tests: unit + end-to-end (local SDK emulation, fake Telegram)
 export Music_BOT_TGCLOUD_TOKEN=app9280424458:…   # CLI access token (BotFather → bot → Serverless → CLI Access)
 npm run tg -- status             # the CLI, for this bot only
 npm run deploy                   # tests → stamp version → migrate --local --safe → push → migrate --safe → webhook
@@ -71,7 +77,8 @@ Docs: [ARCHITECTURE](docs/ARCHITECTURE.md) · [CONFIG](docs/CONFIG.md) ·
 - The membership check needs the bot to be an **admin** in every force-join channel (Telegram rule).
 - Editing a title/artist changes the bot's catalog; Telegram keeps showing the file's own embedded tags and thumbnail (re-uploading with new tags is optional in the spec and deferred).
 - Inline usage counts need BotFather `/setinlinefeedback` (set it to 100%).
-- Source channels and channel publishing are Phases 4–6.
+- Source channels: only posts made after the bot became an admin arrive (bots can't read history).
+- Destination channels and publishing are Phases 5–6.
 
 ---
 

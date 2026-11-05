@@ -47,6 +47,9 @@ export const LIMITS = Object.freeze({
   archivePerTick: 3,
   archivePerMinute: 18,
   alertArchiveEverySeconds: 60 * 60,
+  sourcesMax: 50,
+  alertSourceEverySeconds: 60 * 60,
+  alertBotAddedEverySeconds: 60 * 60,
 });
 
 /**
@@ -107,7 +110,7 @@ export const ADMIN_SECTIONS = Object.freeze([
   { id: 'system', perm: 'system.view', phase: 1 },
 ]);
 
-export const CURRENT_PHASE = 3;
+export const CURRENT_PHASE = 4;
 
 /** Genre keys (shown through i18n `genre.<key>`); channel rules in Phase 5 use the same keys. */
 export const GENRES = Object.freeze(['pop', 'rock', 'rap', 'electronic', 'rnb', 'jazz', 'classical', 'traditional', 'folk', 'instrumental', 'soundtrack', 'other']);

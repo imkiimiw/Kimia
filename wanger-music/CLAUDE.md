@@ -5,7 +5,8 @@
 **Read `docs/SPEC.md` and `docs/PLATFORM_NOTES.md` before each phase.** One phase at a time; at the
 end: all tests green, docs updated, the report (SPEC §15), then STOP and wait for the owner.
 
-- **Current phase: 3 done. Next: Phase 4 — sources (channel_post).** See docs/ROADMAP.md for the deploy state.
+- **Current phase: 4 done. Next: Phase 5 — destination channels (@WangerBeat, @WangerFlow).** Nothing deployed yet
+  (the owner must OK a deploy explicitly; see docs/ROADMAP.md).
 - Stack: Telegram Serverless (tgcloud CLI 0.2.0), plain JS ES modules in `tgcloud/`, SQLite via
   `sdk/db` (raw SQL with the `sql` tag), Node 22 for local tests. No runtime dependencies.
 - This folder is its own tgcloud project (bot `@Wange_Musicbot`, app9280424458). The repo root and
@@ -32,6 +33,7 @@ end: all tests green, docs updated, the report (SPEC §15), then STOP and wait f
 - Music text goes through `lib/music/normalize.js` only (display / key / compact); dup_key = artist|title|version keys.
 - Search: `track_terms` holds terms of ACTIVE tracks only (catalog calls index.add/remove); the inline path
   never writes except a first-time user row / force-join pass, and never runs a tick.
+- Source imports run as `SYSTEM_ACTOR` (policy.js; audit actor 0) and never publish.
 - Keep ≤ 85 modules (the platform refused a 104-module deploy). Add handlers only in their phase.
 - Ask the owner before: new dependencies, deploys, migrate warnings, anything that posts to a real
   channel or messages real users. Destination channels (@WangerBeat, @WangerFlow) are Phase 5.

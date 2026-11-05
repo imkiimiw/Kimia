@@ -11,6 +11,8 @@ import { continueStart, sendJoinPrompt, helpView, langView } from './user.js';
 import { openPanel } from '../admin/panel.js';
 import { handleMedia } from '../admin/import_ui.js';
 import { searchFromText } from './search_ui.js';
+import { promptBotAdded } from '../admin/sources_ui.js';
+import { botBecameAdmin } from '../publishing/sources.js';
 export { onInlineQuery, onChosenInlineResult } from './search_ui.js';
 
 /** Plain text of an i18n message for a toast (no HTML tags). */
@@ -157,7 +159,13 @@ export async function onMyChatMember(app, upd) {
     if (upd.from && !upd.from.is_bot) await app.users.markBlocked(upd.from.id, status === 'kicked');
     return status === 'kicked' ? 'blocked' : 'unblocked';
   }
-  const ours = await app.forcejoin.onBotStatusChange(upd.chat, upd.new_chat_member);
+  const forceJoin = await app.forcejoin.onBotStatusChange(upd.chat, upd.new_chat_member);
+  const source = await app.sources.onBotStatusChange(upd.chat, upd.new_chat_member);
   app.log.info('bot_chat_status', { chat_id: upd.chat.id, status });
-  return ours ? 'forcejoin_channel' : 'other_chat';
+  if (forceJoin || source) return forceJoin ? 'forcejoin_channel' : 'source_channel';
+  if (botBecameAdmin(upd) && (await promptBotAdded(app, upd.chat, upd.from))) return 'owner_asked';
+  return 'other_chat';
 }
+
+/** channel_post: only registered, enabled sources import; everything else is ignored. */
+export const onChannelPost = (app, post) => app.sources.handlePost(post);

@@ -10,6 +10,7 @@ import myChatMemberHandler from '../../tgcloud/handlers/my_chat_member.js';
 import opsTick from '../../tgcloud/endpoints/opsTick.js';
 import inlineHandler from '../../tgcloud/handlers/inline_query.js';
 import chosenHandler from '../../tgcloud/handlers/chosen_inline_result.js';
+import channelPostHandler from '../../tgcloud/handlers/channel_post.js';
 
 export const OWNER = 5557901897;
 export const SEED = [-1002407928564, -1001816009903, -1001910797391];
@@ -84,6 +85,11 @@ export function setup({ seedChannels = true, botAdminIn = SEED } = {}) {
       const result = await inlineHandler(q, { update: { update_id: updateId++, inline_query: q } });
       const call = tg.calls.slice(mark).find((c) => c.method === 'answerInlineQuery');
       return { result, answer: call ? call.params : null, calls: tg.calls.slice(mark) };
+    },
+    /** A new post in a channel (as Telegram delivers it to a bot that is admin there). */
+    channelPost(chat, extra = {}, { messageId, updateId: uid } = {}) {
+      const post = { message_id: messageId ?? msgId++, date: Math.floor(Date.now() / 1000), chat: { type: 'channel', ...chat }, ...extra };
+      return channelPostHandler(post, { update: { update_id: uid ?? updateId++, channel_post: post } });
     },
     chosen: (fromId, resultId, updateIdOverride) => {
       const r = { result_id: resultId, from: person(fromId), query: 'x' };

@@ -23,6 +23,15 @@ export function createAlertsService({ repo, tg, clock, log, ownerLang }) {
       }
     },
 
+    /** The throttle alone (for owner messages that need a keyboard). Never throws. */
+    async claim(key, everySeconds) {
+      try {
+        return await repo.claimAlert(key, clock.now(), everySeconds);
+      } catch {
+        return false;
+      }
+    },
+
     /** Stores an error row (truncated, no raw update or message text). Never throws. */
     async recordError({ handler, updateId = null, userId = null, err, context = {} }) {
       try {

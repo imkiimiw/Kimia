@@ -1,0 +1,5 @@
+{
+  "about": "An audio post in a channel that is not a registered source: expect 'unregistered' and no track.",
+  "module": "handlers/channel_post",
+  "payload": { "message_id": 5, "date": 0, "chat": { "id": -1009999999999, "type": "channel", "title": "Not a source" }, "audio": { "file_id": "smoke-file", "file_unique_id": "smoke-unique", "duration": 1, "title": "Smoke", "performer": "Test" } }
+}

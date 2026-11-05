@@ -18,8 +18,8 @@ test('only the owner sees and uses /admin; a normal user gets the unknown-comman
   await h.send(OWNER, '/admin');
   assert.match(h.lastText(OWNER), /پنل مدیریت Wanger Music/);
   assert.deepEqual(h.lastButtons(OWNER).map((b) => b.text), ['🎵 موزیک', '📡 منابع', '📢 کانال‌های مقصد', '🔐 عضویت اجباری', '👥 کاربران', '📣 پیام همگانی', '📊 آمار', '⚙️ تنظیمات', '🧪 وضعیت سیستم']);
-  await h.tap(OWNER, 'adm:sec:sources');
-  assert.match(h.lastText(OWNER), /در فاز ۴ اضافه می‌شود/);
+  await h.tap(OWNER, 'adm:sec:dest');
+  assert.match(h.lastText(OWNER), /در فاز ۵ اضافه می‌شود/);
 });
 
 test('every registered admin route rejects a normal user (table-driven over the registry)', async () => {

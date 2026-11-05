@@ -3,13 +3,15 @@
 One phase at a time (docs/SPEC.md §13). Each ends with all tests green, the docs updated, a report,
 and a stop until the owner says "implement Phase N".
 
+**Deploy state (2026-11-05): nothing is deployed.** A production deploy was refused by the session's permission check; it needs the owner's explicit OK (or the owner runs `npm run deploy`).
+
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | Core: config, i18n, router + callback codec, error boundary, logging, update dedupe, users, permissions + admins, force-join (+ management), /start /help /lang /cancel /admin, admin menu, ⚙️ Settings, 🧪 System Status, tick (piggyback / manual / opsTick + GitHub Actions), 📣 Broadcast, audit log | **Built and tested locally — not deployed yet (waiting for the owner's OK)** |
-| 2 | Music core: `tracks`, ingestion by send/forward, import card + bulk summary, normalization, duplicates, language classification, provider interface, 🎵 Music, removal, optional archive | **Built and tested locally — not deployed yet.** Deferred (optional in the spec): re-uploading a file with a new cover/tags |
-| 3 | Search + inline: `track_terms` (+ `artists`, `artist_aliases`), private search, `inline_query` + `chosen_inline_result` handlers, pagination, inline force-join gate, deep links, inline caption template | **Built and tested locally** (see the deploy note below) |
-| 4 (next) | Sources: `channel_post` handler, source management, import pipeline, "bot added to a channel" prompt | — |
-| 5 | Destination channels: add/edit/enable/remove with rights checks, rules, captions with preview, approval, schedule fields, health. **Channels named by the owner: @WangerBeat (English), @WangerFlow (Persian)** | — |
+| 1 | Core: config, i18n, router + callback codec, error boundary, logging, update dedupe, users, permissions + admins, force-join (+ management), /start /help /lang /cancel /admin, admin menu, ⚙️ Settings, 🧪 System Status, tick (piggyback / manual / opsTick + GitHub Actions), 📣 Broadcast, audit log | **Built and tested locally** |
+| 2 | Music core: `tracks`, ingestion by send/forward, import card + bulk summary, normalization, duplicates, language classification, provider interface, 🎵 Music, removal, optional archive | **Built and tested locally.** Deferred (optional in the spec): re-uploading a file with a new cover/tags |
+| 3 | Search + inline: `track_terms` (+ `artists`, `artist_aliases`), private search, `inline_query` + `chosen_inline_result` handlers, pagination, inline force-join gate, deep links, inline caption template | **Built and tested locally** |
+| 4 | Sources: `channel_post` handler, `sources` table, 📡 Sources (add / enable / mode off·draft·active / default language / remove), import pipeline as the system actor, "bot added to a channel" prompt (Source · Destination · Force-join · Ignore) | **Built and tested locally** |
+| 5 (next) | Destination channels: add/edit/enable/remove with rights checks, rules, captions with preview, approval, schedule fields, health. **Channels named by the owner: @WangerBeat (English), @WangerFlow (Persian)** | — |
 | 6 | Automatic publishing: routing, queue, worker on the tick, approvals, retries, cooldown, windows, history, uncertain handling | — |
 | 7 | Analytics: `stats_daily`, 📊 dashboard | — |
 | 8 | Hardening: reviews, load test on staging, backup export/restore, monitoring, recovery docs | — |
@@ -32,7 +34,10 @@ and a stop until the owner says "implement Phase N".
 - Phase 3 → later: `publishing/captions.js` (template renderer: escaping, empty lines dropped, 1024 limit)
   is ready for Phase 5 channel templates.
 
+- Phase 4 → later: the "bot added" prompt's 📢 Destination button is wired to `destinations.manage`
+  and answers "Phase 5" until destinations exist.
+
 ## Module budget
 
-66 of ≤ 85 modules used after Phase 3 (+8). The platform refused a 104-module deploy for another bot.
-Rough plan: Phase 4 ≈ +4, Phase 5 ≈ +4, Phase 6 ≈ +4 (captions exist already), Phase 7 ≈ +3, Phase 8 ≈ +2 → ≈ 83.
+70 of ≤ 85 modules used after Phase 4 (+4). The platform refused a 104-module deploy for another bot.
+Rough plan: Phase 5 ≈ +3, Phase 6 ≈ +4 (captions exist already), Phase 7 ≈ +3, Phase 8 ≈ +2 → ≈ 82.

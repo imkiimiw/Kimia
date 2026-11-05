@@ -35,6 +35,8 @@ token. If a later provider needs an API key, it goes in the git-ignored
 | `GENRES` | pop, rock, rap, electronic, rnb, jazz, classical, traditional, folk, instrumental, soundtrack, other | Genre keys (Phase 5 rules use the same keys) |
 | `MUSIC_NOISE` | bracketed tags (Official Audio/Video, Lyrics, HQ…), «دانلود آهنگ», «با کیفیت…», «کانال…» | Stripped from titles and file names |
 | `VERSION_MARKERS` | remix, live, acoustic, unplugged, instrumental, cover, slowed, reverb, sped up, remaster(ed), radio edit, … ریمیکس، لایو، بی‌کلام، کاور | Kept as `tracks.version` (they change identity) |
+| `LIMITS.sourcesMax` | 50 | Source channels |
+| `LIMITS.alertSourceEverySeconds` / `alertBotAddedEverySeconds` | 3600 / 3600 | "New drafts from a source" note; "bot added to a channel" prompt |
 | `COMMANDS_VERSION` | 2 | Bump when command menus change; the owner's next update re-syncs them |
 | `CURRENT_PHASE` | 1 | Sections of later phases show an honest placeholder |
 
@@ -71,6 +73,10 @@ Internal state keys (not editable): `system.bootstrapped`, `forcejoin.seeded`, `
 | `WANGER_STAGING_TGCLOUD_TOKEN` | Environment (optional) | A staging bot's CLI token, for `npm run smoke -- --staging` |
 
 ## Planned (not configured yet)
+
+Source channels (Phase 4) live in the `sources` table, added in 📡 Sources or from the "bot added
+to a channel" prompt; each has enabled, import mode (off / draft / active, default draft) and a
+default language.
 
 Destination channels arrive in **Phase 5** and are stored in the database, never in code. The owner
 named them on 2026-11-05: **@WangerBeat** (`-1004370326177`) for English music and **@WangerFlow**

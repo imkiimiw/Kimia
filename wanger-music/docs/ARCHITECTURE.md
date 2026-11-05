@@ -120,6 +120,19 @@ The archive backlog (active tracks without a copy) is worked by the tick, ≤ 3 
 - **Artists** (`admin/artists_ui.js`): aliases such as "shadmehr" → «شادمهر عقیلی»; adding/removing
   one re-indexes that artist's active tracks.
 
+## Source channels (Phase 4)
+
+`handlers/channel_post` → `publishing/sources.handlePost`: a post counts only if its channel is a
+registered, enabled source with import mode draft or active, and it carries an `audio`. Then the
+Phase 2 pipeline runs as `SYSTEM_ACTOR` (audit actor 0, `added_by` 0, `source_type
+telegram_channel`, `source_id`, origin = the post itself or its forward origin), with the source's
+default language (high confidence) when set. Mode active activates a complete, non-duplicate track
+at once (and so indexes it); otherwise it stays a draft and the owner is told (≤ 1/h per source).
+Nothing is ever published. Unregistered channels, other posts and duplicates are skipped. When
+the bot becomes admin of an unknown channel (`my_chat_member`), the owner gets Source · Destination
+(Phase 5) · Force-join · Ignore; nothing is registered until they choose. Bots can't read channel
+history, so only posts made after the bot became admin arrive.
+
 ## Background work: the tick (no cron on this platform)
 
 `jobs/tick.js#runTick(trigger, budget)` runs processors in order — maintenance (prune
@@ -153,6 +166,7 @@ Phase 2: `tracks` (spec columns + `duplicate_of`, `archive_chat_id`; 8 indexes i
 unique origin index) and `import_sessions` (bulk-summary counters).
 Phase 3: `track_terms` (PK term + track_id, WITHOUT ROWID), `artists`, `artist_aliases`; tracks
 index `(status, play_count, activated_at)` for the empty inline query.
+Phase 4: `sources`.
 No foreign keys (the platform forbids them); enums and booleans are CHECK-constrained; 8 indexes
 back every lookup (`users.last_seen_at`, `lower(username)`, admins partial index, …).
 
