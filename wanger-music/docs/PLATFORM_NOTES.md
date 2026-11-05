@@ -1,0 +1,64 @@
+# Platform notes — Telegram Serverless (verified)
+
+Checked on **2026-11-05** for bot **app9280424458** (`@Wange_Musicbot`, CLI 0.2.0) against
+[core.telegram.org/bots/serverless](https://core.telegram.org/bots/serverless) ("Recent changes:
+October 6, 2026"), the scaffold's `AGENTS.md` and `docs/tgcloud-sdk.md`, and a **temporary probe
+module run with `npx tgcloud run`** (never deployed, deleted afterwards; it used no persistent
+tables and only read-only Bot API calls).
+
+Legend: **Official** = stated in the official docs · **Measured** = observed with `tgcloud run` today
+(may change without notice; production webhook invocations were not measured because nothing is
+deployed yet) · **Unknown** = neither documented nor measurable without deploying.
+
+## Answers to the Section 2 questions
+
+| # | Question | Answer | Source |
+|---|---|---|---|
+| 1a | CPU time per invocation | **≈ 3 s.** A loop of 3·10⁹ iterations died with `CPU timer exceeded` after 3.3 s; 3·10⁸ (≈ 1 s) was fine. | Measured |
+| 1b | Wall-clock time | **≈ 30 s** under `tgcloud run`: three chained 9-second HTTP waits (28 s) succeeded, five (≈ 45 s) failed at 31 s with `HTTP 500` from the server. The webhook path's limit is unknown. | Measured |
+| 1c | Memory | ≥ 512 MB could be allocated (32 × 16 MB typed arrays); the real cap is unknown. | Measured |
+| 1d | Concurrency | **Unknown.** Assume updates can run in parallel (Telegram may deliver several at once): every state change is a single atomic statement. | Unknown |
+| 1e | Clock | `Date.now()` does **not** advance during synchronous CPU work (0 ms across a 1 s loop) but does advance across `await`s (I/O). Time budgets are therefore checked between awaited calls and backed by item caps. | Measured |
+| 2 | Module-level variables between invocations | **Not kept between `tgcloud run` calls** (each run had a new random boot id and a counter of 1). Production is unknown → treated as *not surviving*; in-memory caches are per-invocation only. | Measured |
+| 3 | Transactions / atomic batches | **None.** `db` has no `transaction`/`batch`; raw `BEGIN`, `ROLLBACK`, `SAVEPOINT` → `not authorized`; a two-statement string → `Tail of the query is ignored`. Atomicity = **one statement**: conditional `UPDATE … WHERE`, `INSERT … ON CONFLICT`, `UPDATE … WHERE id IN (SELECT … LIMIT n) RETURNING`, multi-row `INSERT`. `WITH` (CTE) queries work. | Measured |
+| 4 | FTS5 full-text tables | **Not available.** `CREATE VIRTUAL TABLE … USING fts5` and `fts4` → `not authorized` (tested in the TEMP schema; `CREATE TEMP TABLE` is refused too). The schema DSL has no virtual-table builder, so migrations can't create one either. Search (Phase 3) uses the `track_terms` table with index range/GLOB queries, as the spec planned. | Measured |
+| 5 | Native scheduler / cron / delayed execution | **None.** No cron in the docs or the CLI; no `setTimeout`/`setInterval`/`queueMicrotask` in the isolate. Code runs only while an update, an endpoint call or `tgcloud run` is being handled. → the tick mechanism (spec 10.7) with the GitHub Actions fallback. | Official (none described) + Measured |
+| 6 | Config / secrets / environment variables | **None for deployed code.** `TGCLOUD_TOKEN` is read only by the CLI. Bot API calls are pre-authenticated, so the MVP needs no secret. Static values live in `tgcloud/lib/config/static.js`, runtime values in the `settings` table. | Official |
+| 7a | A handler throws | The docs only say an endpoint's exception becomes a generic 500 with the message in "your logs", and `tgcloud run` exits non-zero. Whether Telegram/the platform **re-delivers** a webhook update after a handler throws is **unknown**. → every handler and endpoint runs inside an error boundary that never rethrows; side-effect updates are de-duplicated by `update_id` in case of redelivery. | Official + Unknown |
+| 7b | Production logs | **No log viewer for webhook invocations**: the CLI has no `logs` command; `console.*` output is shown by `tgcloud run` and by BotFather when a handler is run from there. → errors go to the `error_log` table, severe ones are alerted to the owner (throttled), and 🧪 System Status shows the last ones. | Official + Measured |
+| 8a | Web Crypto | **Available**: `crypto.getRandomValues`, `crypto.randomUUID`, `crypto.subtle`. Public ids use `getRandomValues` (with a fallback). | Measured |
+| 8b | `Intl` time zones | **Available**: `new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Tehran' })` works. (An older bot in this repo found no `Intl` on 2026-10-31, so the code keeps a fixed-offset fallback: Tehran = UTC+03:30, no DST since 2022.) | Measured |
+
+## Other measured facts
+
+| Area | Finding |
+|---|---|
+| Globals | Present: `crypto`, `Intl`, `TextEncoder`, `String#normalize`, regex `\p{…}`. **Missing:** `setTimeout`, `setInterval`, `queueMicrotask`, `URL`, `structuredClone`, `performance`, `Buffer`, `process`. Dynamic `import()` → `Not supported`. |
+| SQL functions | Work: `unixepoch()`, `strftime`, `datetime`, `json_extract`, `json_set`, `json_each`, `json()`, `lower`, `GLOB`, `LIKE`, `instr`, `substr`, `replace`, `printf`, `coalesce`, `iif`, `max/min` (scalar), `abs`, `hex`, `random()`, `unicode`, `char`, `trim`, `group_concat`, `total`, `changes()`, `last_insert_rowid()`. Refused: `sqlite_version()`, `PRAGMA …`. |
+| Bot API | `getMe` → id **9280424458**, username **`Wange_Musicbot`** (the spec's "WangerMusicBot" is not the real username), name "Wanger Music", `supports_inline_queries: true` (inline mode is already on). |
+| `getWebhookInfo` | **Refused**: `403 Method getWebhookInfo is restricted`. The platform manages the webhook; its state is visible only through `npx tgcloud webhook`. |
+| Channels | The bot is **administrator with post/edit/delete rights** in all three force-join channels — @HIDE_i_SEEK (`-1002407928564`), @Nepenthw_ir (`-1001816009903`), @wangerBots (`-1001910797391`) — and in the two planned destination channels @WangerBeat (`-1004370326177`) and @WangerFlow (`-1004391543350`). |
+| Cloud project | Revision 0, no modules, no tables, webhook "in sync" (nothing deployed yet). |
+| Module count | Not documented. An earlier bot in this repo measured: a deploy of **104 modules was refused**, 88 and 94 deployed. This project keeps a budget of **≤ 85 modules** for all eight phases (a test enforces it). |
+
+## Conflicts between the spec and the platform (official/measured wins)
+
+| Spec item | Conflict | What is built instead |
+|---|---|---|
+| §0/§4 bot username `@WangerMusicBot` | The real username is `@Wange_Musicbot`. | `BOT_USERNAME = 'Wange_Musicbot'` in `lib/config/static.js`; deep links and help texts use it. |
+| §7.5 System Status "getWebhookInfo (pending updates, last error)" | `getWebhookInfo` is restricted for bots on this platform (403). | System Status says the webhook is managed by the platform and shows `npm run tg -- webhook` as the way to check it. If the method ever starts working, the same screen shows its data. |
+| §6 `broadcasts` table | The tick has to edit the progress message and must not run the same batch twice in parallel. | Three extra columns: `progress_chat_id`, `progress_message_id`, `lock_until` (a lease). |
+| §7.3 "bump a forcejoin_version … invalidates all passes" | A pass is a timestamp per user; with no transactions, comparing versions would need an extra column. | On any list change the service bumps `forcejoin.version` **and** clears all active passes in one statement (`UPDATE users SET force_join_ok_until = 0 WHERE force_join_ok_until > now`). |
+| §2 "Assume `tgcloud run` uses the bot's real database" | Confirmed (no tables visible = the real, still-empty database). | Smoke tests run only on a staging bot, or read-only on production. |
+| §5 layout (many small modules) | The platform appears to cap the number of modules (~100). | Small related modules are merged (e.g. `core/util.js` holds ids + time). |
+
+## Design consequences
+
+- **State**: everything important is in the database; no module-level caches are relied on.
+- **Atomicity**: one statement per state change; claims are `UPDATE … WHERE <expected state> RETURNING`.
+- **Background work**: `runTick` (maintenance → broadcast batch → later publications/digests), run
+  piggyback after updates (never inline), by the owner's buttons, and by `endpoints/opsTick.js`
+  from a GitHub Actions schedule (fallback for the missing scheduler).
+- **Budgets**: piggyback tick 2 s, manual/scheduled tick 8 s (both settings; wall limit ≈ 30 s,
+  CPU ≈ 3 s), plus item caps (25 broadcast messages per batch by default).
+- **Errors**: error boundary → `error_log` → throttled owner alert → normal return.

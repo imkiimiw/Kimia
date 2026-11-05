@@ -1,0 +1,5 @@
+{
+  "about": "A user who joined no channel sends /start with a track payload: expect the join message (3 buttons + «✅ عضو شدم»).",
+  "module": "handlers/message",
+  "payload": { "message_id": 1, "date": 0, "chat": { "id": 1000001, "type": "private" }, "from": { "id": 1000001, "is_bot": false, "first_name": "Smoke", "language_code": "fa" }, "text": "/start t_AbCdEfGh1" }
+}

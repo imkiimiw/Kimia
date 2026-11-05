@@ -1,0 +1,117 @@
+// A strict in-memory Bot API for tests: channels with members and the bot's status, users who
+// blocked the bot, scripted failures, and a log of every call.
+import { BotApiError } from '../sdk/api.mjs';
+
+export const BOT_ID = 9280424458;
+
+export function createFakeTelegram() {
+  let nextMessageId = 1000;
+  const calls = [];
+  /** chatId → { id, type, title, username, invite_link, bot: status object, members: Map } */
+  const channels = new Map();
+  const blocked = new Set();
+  /** messages[chatId][messageId] = { text, reply_markup } */
+  const messages = new Map();
+  /** scripted failures: { method, match?(params), code, description, parameters, times } */
+  const failures = [];
+
+  const fail = (code, description, method, parameters) => { throw new BotApiError(code, description, method, parameters); };
+  const findChannel = (ref) => {
+    if (typeof ref === 'string' && ref.startsWith('@')) {
+      for (const c of channels.values()) if (c.username && c.username.toLowerCase() === ref.slice(1).toLowerCase()) return c;
+      return null;
+    }
+    return channels.get(Number(ref)) || null;
+  };
+  const store = (chatId, msg) => {
+    if (!messages.has(chatId)) messages.set(chatId, new Map());
+    messages.get(chatId).set(msg.message_id, msg);
+    return msg;
+  };
+
+  const methods = {
+    getMe: () => ({ id: BOT_ID, is_bot: true, first_name: 'Wanger Music', username: 'Wange_Musicbot', supports_inline_queries: true }),
+    getWebhookInfo: (p, m) => fail(403, 'Method getWebhookInfo is restricted', m),
+    sendMessage(p, m) {
+      if (p.chat_id > 0 && blocked.has(p.chat_id)) fail(403, 'Forbidden: bot was blocked by the user', m);
+      if (!p.text || p.text.length > 4096) fail(400, 'Bad Request: message is too long', m);
+      return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, text: p.text, reply_markup: p.reply_markup || null, parse_mode: p.parse_mode });
+    },
+    editMessageText(p, m) {
+      const msg = messages.get(p.chat_id) && messages.get(p.chat_id).get(p.message_id);
+      if (!msg) fail(400, 'Bad Request: message to edit not found', m);
+      if (msg.text === p.text && JSON.stringify(msg.reply_markup) === JSON.stringify(p.reply_markup || null)) fail(400, 'Bad Request: message is not modified: specified new message content and reply markup are exactly the same', m);
+      msg.text = p.text;
+      msg.reply_markup = p.reply_markup || null;
+      return msg;
+    },
+    answerCallbackQuery: () => true,
+    copyMessage(p, m) {
+      if (p.chat_id > 0 && blocked.has(p.chat_id)) fail(403, 'Forbidden: bot was blocked by the user', m);
+      return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, copied_from: [p.from_chat_id, p.message_id] });
+    },
+    getChat(p, m) {
+      const c = findChannel(p.chat_id);
+      if (!c) fail(400, 'Bad Request: chat not found', m);
+      return { id: c.id, type: c.type, title: c.title, username: c.username || undefined, invite_link: c.bot.status === 'administrator' ? c.invite_link : undefined };
+    },
+    getChatMember(p, m) {
+      const c = findChannel(p.chat_id);
+      if (!c || c.gone) fail(400, 'Bad Request: chat not found', m);
+      if (p.user_id === BOT_ID) return { ...c.bot, user: { id: BOT_ID, is_bot: true } };
+      if (c.bot.status !== 'administrator') fail(400, 'Bad Request: member list is inaccessible', m);
+      return c.members.get(p.user_id) || { status: 'left', user: { id: p.user_id } };
+    },
+    setMyCommands: () => true,
+    deleteMyCommands: () => true,
+    deleteMessage: () => true,
+  };
+
+  function handler(method, params) {
+    const call = { method, params, result: null };
+    calls.push(call);
+    const i = failures.findIndex((f) => f.method === method && (!f.match || f.match(params)));
+    if (i >= 0) {
+      const f = failures[i];
+      if (--f.times <= 0) failures.splice(i, 1);
+      fail(f.code, f.description, method, f.parameters);
+    }
+    if (!methods[method]) throw new Error(`fake telegram: unknown method ${method}`);
+    call.result = methods[method](params, method);
+    return call.result;
+  }
+
+  return {
+    handler,
+    calls,
+    channels,
+    blocked,
+    messages,
+    addChannel({ id, username = null, title = 'Channel', botAdmin = true, invite_link = null, type = 'channel' }) {
+      channels.set(id, { id, type, title, username, invite_link, bot: botAdmin ? { status: 'administrator', can_post_messages: true } : { status: 'left' }, members: new Map() });
+      return channels.get(id);
+    },
+    setMember(channelId, userId, status = 'member', extra = {}) {
+      channels.get(channelId).members.set(userId, { status, user: { id: userId }, ...extra });
+    },
+    setBotStatus(channelId, status) {
+      channels.get(channelId).bot = { status, can_post_messages: status === 'administrator' };
+    },
+    failNext(method, code, description, { times = 1, match = null, parameters } = {}) {
+      failures.push({ method, code, description, times, match, parameters });
+    },
+    message: (chatId, messageId) => messages.get(chatId) && messages.get(chatId).get(messageId),
+    /** Calls to `method` (optionally to one chat) since `from`. */
+    callsOf(method, chatId, from = 0) {
+      return calls.slice(from).filter((c) => c.method === method && (chatId === undefined || c.params.chat_id === chatId));
+    },
+    lastTo(chatId) {
+      const list = calls.filter((c) => (c.method === 'sendMessage' || c.method === 'editMessageText') && c.params.chat_id === chatId);
+      return list.length ? list[list.length - 1].params : null;
+    },
+    answers: (from = 0) => calls.slice(from).filter((c) => c.method === 'answerCallbackQuery').map((c) => c.params),
+  };
+}
+
+/** Flattens an inline keyboard. */
+export const buttons = (params) => ((params && params.reply_markup && params.reply_markup.inline_keyboard) || []).flat();

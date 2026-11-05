@@ -1,0 +1,61 @@
+name: Wanger Music tick
+
+# Fallback scheduler for Wanger Music (wanger-music/). Telegram Serverless has no cron, so this
+# runs the DEPLOYED code's endpoints/opsTick every 30 minutes: it pulls the modules that are live in
+# the cloud (not the checkout) and executes the tick with `tgcloud run`. Broadcast batches (and,
+# from Phase 6, scheduled posts and retries) also run on normal traffic and on the owner's buttons;
+# this only guarantees progress when the bot is quiet. Public repository → Actions minutes are free.
+# Does nothing until the repository secret WANGER_MUSIC_TGCLOUD_TOKEN (the CLI access token) exists.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: wanger-music-tick
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TGCLOUD_TOKEN: ${{ secrets.WANGER_MUSIC_TGCLOUD_TOKEN }}
+    steps:
+      - name: Skip until the secret exists
+        id: gate
+        run: |
+          if [ -z "$TGCLOUD_TOKEN" ]; then
+            echo "WANGER_MUSIC_TGCLOUD_TOKEN is not set: skipping."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@v4
+      - if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: wanger-music/package-lock.json
+      - if: steps.gate.outputs.run == 'true'
+        name: Install the tgcloud CLI
+        working-directory: wanger-music
+        run: npm ci
+      - if: steps.gate.outputs.run == 'true'
+        name: Use the deployed modules, not the checkout
+        working-directory: wanger-music
+        run: |
+          rm -rf tgcloud .tgcloud
+          mkdir .tgcloud
+          npx tgcloud pull --force
+      - if: steps.gate.outputs.run == 'true'
+        name: Run the tick
+        working-directory: wanger-music
+        run: |
+          npx tgcloud run endpoints/opsTick '{}' --ctx '{ initData: { user: { id: 5557901897 } } }'

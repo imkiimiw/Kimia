@@ -1,0 +1,5 @@
+{
+  "about": "The owner sends /admin: expect the admin menu with 9 sections.",
+  "module": "handlers/message",
+  "payload": { "message_id": 2, "date": 0, "chat": { "id": 5557901897, "type": "private" }, "from": { "id": 5557901897, "is_bot": false, "first_name": "Owner" }, "text": "/admin" }
+}
