@@ -133,6 +133,20 @@ the bot becomes admin of an unknown channel (`my_chat_member`), the owner gets S
 (Phase 5) · Force-join · Ignore; nothing is registered until they choose. Bots can't read channel
 history, so only posts made after the bot became admin arrive.
 
+## Destination channels (Phase 5)
+
+`publishing/destinations.js` + `admin/destinations_ui.js`. Adding (one-tap buttons for the
+channels the owner named, the "bot added" prompt, or forward / @username / id) checks with
+`getChat` + `getChatMember` that it is a channel and the bot may post (edit/delete recommended).
+New channels: disabled, auto-publish off, approval on, rules language preset. Rules
+(`publishing/rules.js`, pure): listed languages; optional genre list; excluded genres; a minimum
+language confidence (below it → approval in Phase 6). Schedule: minimum interval, active hours in
+the channel's time zone, daily limit. Caption template (`publishing/captions.js`): validated by a
+preview the owner receives (cover + audio with the caption, using the newest matching active
+track, or a sample). Health: `my_chat_member` and «🔄 Check rights» update `bot_rights`; losing
+post rights disables the channel and alerts the owner. Removal is soft (`removed_at`); adding again
+restores the row (disabled) with its settings. **Nothing is posted to any channel in Phase 5.**
+
 ## Background work: the tick (no cron on this platform)
 
 `jobs/tick.js#runTick(trigger, budget)` runs processors in order — maintenance (prune
@@ -167,6 +181,7 @@ unique origin index) and `import_sessions` (bulk-summary counters).
 Phase 3: `track_terms` (PK term + track_id, WITHOUT ROWID), `artists`, `artist_aliases`; tracks
 index `(status, play_count, activated_at)` for the empty inline query.
 Phase 4: `sources`.
+Phase 5: `destination_channels` (spec columns + `bot_rights` JSON and `removed_at`).
 No foreign keys (the platform forbids them); enums and booleans are CHECK-constrained; 8 indexes
 back every lookup (`users.last_seen_at`, `lower(username)`, admins partial index, …).
 

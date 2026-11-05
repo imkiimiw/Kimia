@@ -17,6 +17,7 @@ export const ARG_TYPES = Object.freeze({
   tlang: /^(fa|en|other)$/,
   field: /^(title|artist|album)$/,
   pid: /^[A-Za-z0-9]{8,10}$/,
+  mode: /^(inc|exc)$/,
 });
 
 /** @param {string} ns @param {string} action @param {...(string|number)} args @returns {string} */

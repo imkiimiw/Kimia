@@ -81,6 +81,7 @@ export function createTracksRepo() {
       WHERE id = ${id} AND status IN (${inList(from)}) RETURNING *`).then(first),
 
     setArchive: (id, chatId, messageId) => db.run(sql`UPDATE tracks SET archive_chat_id = ${chatId}, archive_message_id = ${messageId} WHERE id = ${id} AND archive_message_id IS NULL`).then((r) => r.rowsAffected),
+    latestActive: (limit) => db.all(sql`SELECT * FROM tracks WHERE status = 'active' ORDER BY activated_at DESC, id DESC LIMIT ${limit}`),
     archiveBacklog: (limit) => db.all(sql`SELECT * FROM tracks WHERE status = 'active' AND archive_message_id IS NULL ORDER BY id LIMIT ${limit}`),
 
     /** Deletes a removed track for good (owner's purge). */

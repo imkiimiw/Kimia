@@ -33,7 +33,7 @@ const PURE = [
   'lib/bot/codec.js', 'lib/bot/keyboards.js', 'lib/i18n/index.js', 'lib/i18n/fa.js', 'lib/i18n/en.js',
   'lib/permissions/policy.js', 'lib/forcejoin/gate.js',
   'lib/music/normalize.js', 'lib/music/classify.js', 'lib/music/duplicates.js',
-  'lib/search/terms.js', 'lib/publishing/captions.js',
+  'lib/search/terms.js', 'lib/publishing/captions.js', 'lib/publishing/rules.js',
 ];
 const SDK_ALLOWED = (f) => f === 'schema.js' || f.startsWith('lib/repositories/') || f === 'lib/telegram/client.js' || f.startsWith('endpoints/');
 

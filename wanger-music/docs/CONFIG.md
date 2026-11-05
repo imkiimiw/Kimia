@@ -37,6 +37,9 @@ token. If a later provider needs an API key, it goes in the git-ignored
 | `VERSION_MARKERS` | remix, live, acoustic, unplugged, instrumental, cover, slowed, reverb, sped up, remaster(ed), radio edit, … ریمیکس، لایو، بی‌کلام، کاور | Kept as `tracks.version` (they change identity) |
 | `LIMITS.sourcesMax` | 50 | Source channels |
 | `LIMITS.alertSourceEverySeconds` / `alertBotAddedEverySeconds` | 3600 / 3600 | "New drafts from a source" note; "bot added to a channel" prompt |
+| `LIMITS.destinationsMax` | 20 | Destination channels |
+| `LIMITS.captionTemplateMax` | 1000 | Caption template length (the rendered caption is cut to 1024) |
+| `SUGGESTED_DESTINATIONS` | @WangerBeat → en, @WangerFlow → fa | One-tap "add" buttons in 📢 Destination Channels |
 | `COMMANDS_VERSION` | 2 | Bump when command menus change; the owner's next update re-syncs them |
 | `CURRENT_PHASE` | 1 | Sections of later phases show an honest placeholder |
 
@@ -78,7 +81,10 @@ Source channels (Phase 4) live in the `sources` table, added in 📡 Sources or 
 to a channel" prompt; each has enabled, import mode (off / draft / active, default draft) and a
 default language.
 
-Destination channels arrive in **Phase 5** and are stored in the database, never in code. The owner
-named them on 2026-11-05: **@WangerBeat** (`-1004370326177`) for English music and **@WangerFlow**
-(`-1004391543350`) for Persian music. The bot is already an admin with post/edit/delete rights in
-both. Nothing is posted anywhere until the owner adds and explicitly enables a channel.
+Destination channels (Phase 5) live in the `destination_channels` table, never in code; per channel:
+enabled (default off), auto-publish (default off), approval (default on), rules, caption template
+(default `🎵 {title} / 👤 {artist} / 💿 {album} / ⏱ {duration}`), post format, minimum interval
+(default 10 min), active hours (default all day), daily limit (default 50), time zone (default the
+`time_zone` setting). The owner named **@WangerBeat** (`-1004370326177`) for English music and
+**@WangerFlow** (`-1004391543350`) for Persian music (one-tap add buttons). Publishing starts only in
+Phase 6, and only for channels the owner enables with auto-publish on.

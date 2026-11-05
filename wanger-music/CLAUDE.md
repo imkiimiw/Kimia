@@ -5,8 +5,8 @@
 **Read `docs/SPEC.md` and `docs/PLATFORM_NOTES.md` before each phase.** One phase at a time; at the
 end: all tests green, docs updated, the report (SPEC §15), then STOP and wait for the owner.
 
-- **Current phase: 4 done. Next: Phase 5 — destination channels (@WangerBeat, @WangerFlow).** Nothing deployed yet
-  (the owner must OK a deploy explicitly; see docs/ROADMAP.md).
+- **Current phase: 5 done. Next: Phase 6 — automatic publishing.** Nothing deployed yet (the owner must OK a
+  deploy explicitly; see docs/ROADMAP.md). Until Phase 6 nothing may be posted to any channel.
 - Stack: Telegram Serverless (tgcloud CLI 0.2.0), plain JS ES modules in `tgcloud/`, SQLite via
   `sdk/db` (raw SQL with the `sql` tag), Node 22 for local tests. No runtime dependencies.
 - This folder is its own tgcloud project (bot `@Wange_Musicbot`, app9280424458). The repo root and
@@ -23,7 +23,8 @@ end: all tests green, docs updated, the report (SPEC §15), then STOP and wait f
 - handlers → services → repositories → sdk. Handlers are thin (`core/boundary` + `bot/router`).
 - SQL only in `lib/repositories/`; only `core/context.js` builds them (DI). Services get deps as args.
 - Pure modules (config, util, logger, html, errors, limiter, chatref, codec, keyboards, i18n,
-  policy, gate, music/normalize, music/classify, music/duplicates, search/terms, publishing/captions)
+  policy, gate, music/normalize, music/classify, music/duplicates, search/terms, publishing/captions,
+  publishing/rules)
   never import `sdk` — `tests/unit/guard.test.mjs` enforces this and the layering.
 - One place each: permissions `permissions/policy.js`, config `config/static.js`, Telegram error
   classification `telegram/errors.js`, rate limits `telegram/limiter.js`, outbound calls `telegram/client.js`.
@@ -34,6 +35,8 @@ end: all tests green, docs updated, the report (SPEC §15), then STOP and wait f
 - Search: `track_terms` holds terms of ACTIVE tracks only (catalog calls index.add/remove); the inline path
   never writes except a first-time user row / force-join pass, and never runs a tick.
 - Source imports run as `SYSTEM_ACTOR` (policy.js; audit actor 0) and never publish.
+- Destinations: rules/hours in `publishing/rules.js` (pure: matches(), withinHours()); captions in
+  `publishing/captions.js`; previews go to the owner only; removal is soft (removed_at).
 - Keep ≤ 85 modules (the platform refused a 104-module deploy). Add handlers only in their phase.
 - Ask the owner before: new dependencies, deploys, migrate warnings, anything that posts to a real
   channel or messages real users. Destination channels (@WangerBeat, @WangerFlow) are Phase 5.

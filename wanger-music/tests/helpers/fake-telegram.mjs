@@ -126,8 +126,8 @@ export function createFakeTelegram() {
     channels,
     blocked,
     messages,
-    addChannel({ id, username = null, title = 'Channel', botAdmin = true, invite_link = null, type = 'channel' }) {
-      channels.set(id, { id, type, title, username, invite_link, bot: botAdmin ? { status: 'administrator', can_post_messages: true } : { status: 'left' }, members: new Map() });
+    addChannel({ id, username = null, title = 'Channel', botAdmin = true, invite_link = null, type = 'channel', rights = {} }) {
+      channels.set(id, { id, type, title, username, invite_link, bot: botAdmin ? { status: 'administrator', can_post_messages: true, can_edit_messages: true, can_delete_messages: true, ...rights } : { status: 'left' }, members: new Map() });
       return channels.get(id);
     },
     setMember(channelId, userId, status = 'member', extra = {}) {

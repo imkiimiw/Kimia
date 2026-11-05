@@ -12,6 +12,8 @@ import { createTracksRepo } from '../repositories/tracks.js';
 import { createSearchRepo } from '../repositories/search.js';
 import { createSourcesRepo } from '../repositories/sources.js';
 import { createSourcesService } from '../publishing/sources.js';
+import { createDestinationsRepo } from '../repositories/destinations.js';
+import { createDestinationsService } from '../publishing/destinations.js';
 import { createSearchService } from '../search/service.js';
 import { createTelegramClient } from '../telegram/client.js';
 import { createSettingsService } from '../settings/service.js';
@@ -48,6 +50,7 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
     tracks: createTracksRepo(),
     search: createSearchRepo(),
     sources: createSourcesRepo(),
+    destinations: createDestinationsRepo(),
   };
   /** @type {any} */
   const app = { kind, updateId, clock, log, repos, lang: 'fa', user: null };
@@ -72,6 +75,7 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
   });
   app.ingest = createIngestService({ repo: repos.tracks, catalog: app.catalog, audit: app.audit, clock, log });
   app.provider = createCatalogProvider({ repo: repos.tracks, key });
+  app.destinations = createDestinationsService({ repo: repos.destinations, tg: app.tg, settings: app.settings, alerts: app.alerts, audit: app.audit, clock, log });
   app.sources = createSourcesService({ repo: repos.sources, tg: app.tg, ingest: app.ingest, catalog: app.catalog, alerts: app.alerts, audit: app.audit, clock, log });
   await app.settings.load();
   await bootstrap(app);

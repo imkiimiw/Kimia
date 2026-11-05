@@ -33,7 +33,9 @@ export function statusView(lang, h) {
   lines.push(h.channels.length
     ? t(lang, 'sys.fj', { list: raw(h.channels.map((c) => `${c.enabled ? ICON[c.last_check_status] || '🟠' : '⏸'} ${esc(c.title || c.username || c.chat_id)}`).join(' · ')) })
     : t(lang, 'sys.fj_none'));
-  lines.push(t(lang, 'sys.dest'));
+  lines.push(h.destinations.length
+    ? t(lang, 'sys.dest_list', { list: raw(h.destinations.map((d) => `${d.enabled ? '✅' : '⏸'}${d.bot_rights_ok ? '🟢' : '🔴'} ${esc(d.title || d.username || d.chat_id)}`).join(' · ')) })
+    : t(lang, 'sys.dest_none'));
   lines.push('');
   if (h.errors.length) {
     lines.push(t(lang, 'sys.errors'));

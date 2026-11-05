@@ -161,8 +161,9 @@ export async function onMyChatMember(app, upd) {
   }
   const forceJoin = await app.forcejoin.onBotStatusChange(upd.chat, upd.new_chat_member);
   const source = await app.sources.onBotStatusChange(upd.chat, upd.new_chat_member);
+  const destination = await app.destinations.onBotStatusChange(upd.chat, upd.new_chat_member);
   app.log.info('bot_chat_status', { chat_id: upd.chat.id, status });
-  if (forceJoin || source) return forceJoin ? 'forcejoin_channel' : 'source_channel';
+  if (forceJoin || source || destination) return destination ? 'destination_channel' : forceJoin ? 'forcejoin_channel' : 'source_channel';
   if (botBecameAdmin(upd) && (await promptBotAdded(app, upd.chat, upd.from))) return 'owner_asked';
   return 'other_chat';
 }

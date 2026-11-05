@@ -135,12 +135,10 @@ test('the bot made admin of a new channel: the owner is asked Source · Destinat
   const prompt = h.tg.lastTo(OWNER);
   assert.match(prompt.text, /ربات ادمین کانال «Fresh» @FreshChan شد/);
   assert.deepEqual(buttons(prompt).map((b) => b.callback_data), [`bnew:src:${NEW}`, `bnew:dst:${NEW}`, `bnew:fj:${NEW}`, `bnew:no:${NEW}`]);
-  let mark = h.mark();
-  await h.tap(OWNER, `bnew:dst:${NEW}`);
-  assert.match(h.tg.answers(mark).at(-1).text, /فاز ۵/);
   await h.tap(OWNER, `bnew:src:${NEW}`);
   assert.equal(h.one('SELECT auto_import FROM sources WHERE chat_id = ?', NEW).auto_import, 'draft');
   assert.match(h.lastText(OWNER), /منبع شد/);
+  let mark;
 
   // a registered channel is not prompted again; another one can become force-join
   await h.myChatMember({ id: NEW, type: 'channel', title: 'Fresh' }, 999, 'administrator', 'left');

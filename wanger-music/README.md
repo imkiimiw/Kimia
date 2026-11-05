@@ -4,7 +4,7 @@ A Telegram music bot that runs entirely on **Telegram Serverless**: instant sear
 Telegram-hosted music (inline and in private chat), plus automatic publishing of new tracks to the
 owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 
-**Status: Phases 1–4 (core, music catalog, search + inline, source channels) are built and tested; nothing is deployed yet.** Deploy state: see [docs/ROADMAP.md](docs/ROADMAP.md).
+**Status: Phases 1–5 (core, music catalog, search + inline, source channels, destination channels) are built and tested; nothing is deployed yet.** Deploy state: see [docs/ROADMAP.md](docs/ROADMAP.md).
 
 | Phase 1 feature | Where |
 |---|---|
@@ -42,7 +42,15 @@ owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 |---|---|
 | 📡 Sources: channels (bot = admin) whose new audio posts are imported — mode off / draft / active, default language, enable, remove; never publishes | admin panel |
 | Duplicates skipped (same post, same file); unregistered channels ignored; the owner is told about new drafts (≤ 1/h) and when the bot loses admin in a source | — |
-| When the bot is made admin of a new channel, the owner chooses: Source · Destination (Phase 5) · Force-join · Ignore | owner's chat |
+| When the bot is made admin of a new channel, the owner chooses: Source · Destination · Force-join · Ignore | owner's chat |
+
+| Phase 5 feature | Where |
+|---|---|
+| 📢 Destination channels: one-tap add for @WangerBeat (English) and @WangerFlow (Persian), or forward / @username / id; the bot's post (and edit/delete) rights are checked; new channels start disabled, auto-publish off, approval on | admin panel |
+| Rules: languages, genres, excluded genres, minimum language confidence · post format (audio, or cover then audio) · schedule: interval, hours, daily limit, time zone · approval · enable / auto-publish | channel card |
+| Caption template with variables, checked by a preview sent only to the owner (real matching track, or a sample) | channel card |
+| Health: losing post rights disables the channel and alerts the owner; «🔄 Check rights»; soft removal keeps history | — |
+| **Nothing is posted to any channel until Phase 6.** | — |
 
 ## Run it
 
@@ -51,7 +59,7 @@ Everything runs from this folder. The repository root and its other folders are 
 ```bash
 cd wanger-music
 npm ci
-npm test                         # 122 tests: unit + end-to-end (local SDK emulation, fake Telegram)
+npm test                         # 134 tests: unit + end-to-end (local SDK emulation, fake Telegram)
 export Music_BOT_TGCLOUD_TOKEN=app9280424458:…   # CLI access token (BotFather → bot → Serverless → CLI Access)
 npm run tg -- status             # the CLI, for this bot only
 npm run deploy                   # tests → stamp version → migrate --local --safe → push → migrate --safe → webhook
@@ -78,7 +86,7 @@ Docs: [ARCHITECTURE](docs/ARCHITECTURE.md) · [CONFIG](docs/CONFIG.md) ·
 - Editing a title/artist changes the bot's catalog; Telegram keeps showing the file's own embedded tags and thumbnail (re-uploading with new tags is optional in the spec and deferred).
 - Inline usage counts need BotFather `/setinlinefeedback` (set it to 100%).
 - Source channels: only posts made after the bot became an admin arrive (bots can't read history).
-- Destination channels and publishing are Phases 5–6.
+- Automatic publishing is Phase 6 (until then nothing is posted to any channel).
 
 ---
 

@@ -130,7 +130,14 @@ export const routes = [
       return {};
     },
   },
-  { ns: 'bnew', action: 'dst', args: ['int'], perm: 'destinations.manage', run: async (app) => ({ toast: tp(app.lang, 'bnew.dst_later'), alert: true }) },
+  {
+    ns: 'bnew', action: 'dst', args: ['int'], perm: 'destinations.manage',
+    async run(app, user, [chatId], cq) {
+      const d = await app.destinations.add(user, String(chatId));
+      await resolvePrompt(app, user, cq, t(app.lang, 'bnew.done_dst', { title: title(d) }));
+      return {};
+    },
+  },
   { ns: 'bnew', action: 'no', args: ['int'], perm: PERM, run: async (app, user, _a, cq) => { await resolvePrompt(app, user, cq, t(app.lang, 'bnew.ignored')); return {}; } },
 ];
 

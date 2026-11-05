@@ -73,6 +73,12 @@ export function setup({ seedChannels = true, botAdminIn = SEED } = {}) {
       }
       throw new Error(`no button ${data} for ${fromId}`);
     },
+    /** Presses `data` on the last message the bot sent or edited for the user (like tapping a menu item there). */
+    pressLast(fromId, data) {
+      const msgs = tg.calls.filter((c) => c.result && (c.method === 'sendMessage' || c.method === 'editMessageText') && c.params.chat_id === fromId);
+      const last = msgs.at(-1);
+      return h.press(fromId, data, last ? (last.method === 'editMessageText' ? last.params.message_id : last.result.message_id) : 1);
+    },
     async myChatMember(chat, from, newStatus, oldStatus = 'member') {
       const upd = { chat, from: person(from), date: 0, old_chat_member: { status: oldStatus, user: { id: 9280424458 } }, new_chat_member: { status: newStatus, user: { id: 9280424458 } } };
       return myChatMemberHandler(upd, { update: { update_id: updateId++, my_chat_member: upd } });

@@ -8,7 +8,7 @@ import { can } from '../../tgcloud/lib/permissions/policy.js';
 const U = 111;
 const ADMIN = 222;
 const join = (h, id) => { for (const c of SEED) h.tg.setMember(c, id, 'member'); };
-const sampleArgs = (spec) => spec.map((t) => ({ uint: '1', int: '-1', lang: 'en', key: 'time_zone', word: 'music', tlang: 'en', field: 'title' })[t]);
+const sampleArgs = (spec) => spec.map((t) => ({ uint: '1', int: '-1', lang: 'en', key: 'time_zone', word: 'music', tlang: 'en', field: 'title', pid: 'AbCdEfGh1', mode: 'inc' })[t]);
 
 test('only the owner sees and uses /admin; a normal user gets the unknown-command reply', async () => {
   const h = setup();
@@ -18,8 +18,8 @@ test('only the owner sees and uses /admin; a normal user gets the unknown-comman
   await h.send(OWNER, '/admin');
   assert.match(h.lastText(OWNER), /پنل مدیریت Wanger Music/);
   assert.deepEqual(h.lastButtons(OWNER).map((b) => b.text), ['🎵 موزیک', '📡 منابع', '📢 کانال‌های مقصد', '🔐 عضویت اجباری', '👥 کاربران', '📣 پیام همگانی', '📊 آمار', '⚙️ تنظیمات', '🧪 وضعیت سیستم']);
-  await h.tap(OWNER, 'adm:sec:dest');
-  assert.match(h.lastText(OWNER), /در فاز ۵ اضافه می‌شود/);
+  await h.tap(OWNER, 'adm:sec:stats');
+  assert.match(h.lastText(OWNER), /در فاز ۷ اضافه می‌شود/);
 });
 
 test('every registered admin route rejects a normal user (table-driven over the registry)', async () => {

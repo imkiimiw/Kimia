@@ -240,3 +240,37 @@ export const sources = table('sources', {
   languageChk: check('sources_language_chk', sql`${t.defaultLanguage} IS NULL OR ${t.defaultLanguage} IN ('fa', 'en', 'other')`),
   enabledChk: check('sources_enabled_chk', sql`${t.enabled} IN (0, 1)`),
 }));
+
+// ---------------------------------------------------------------- Phase 5: destination channels
+
+/**
+ * Channels tracks are published to (Phase 6). New ones start disabled, auto-publish off, approval
+ * on. Removal is soft (removed_at), so publication history keeps its channel.
+ */
+export const destinationChannels = table('destination_channels', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull().unique(),
+  username: text('username'),
+  title: text('title'),
+  enabled: integer('enabled').notNull().default(0),
+  autoPublish: integer('auto_publish').notNull().default(0),
+  approvalRequired: integer('approval_required').notNull().default(1),
+  rules: text('rules').notNull().default('{"languages":[],"genres":[],"exclude_genres":[],"min_language_confidence":"medium"}'),
+  captionTemplate: text('caption_template'),
+  postFormat: text('post_format').notNull().default('audio'),
+  minIntervalSeconds: integer('min_interval_seconds').notNull().default(600),
+  activeHours: text('active_hours'),
+  dailyLimit: integer('daily_limit').notNull().default(50),
+  timeZone: text('time_zone').notNull().default('Asia/Tehran'),
+  botRightsOk: integer('bot_rights_ok').notNull().default(0),
+  // additions to the spec: the bot's rights in detail ({post, edit, delete, checked_at, error}) and soft removal
+  botRights: text('bot_rights'),
+  removedAt: integer('removed_at'),
+  lastPublishedAt: integer('last_published_at'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, (t) => ({
+  formatChk: check('dest_post_format_chk', sql`${t.postFormat} IN ('audio', 'cover_then_audio')`),
+  flagsChk: check('dest_flags_chk', sql`${t.enabled} IN (0, 1) AND ${t.autoPublish} IN (0, 1) AND ${t.approvalRequired} IN (0, 1) AND ${t.botRightsOk} IN (0, 1)`),
+  routingIdx: index('idx_dest_routing').on(t.enabled, t.autoPublish),
+}));

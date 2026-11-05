@@ -83,6 +83,14 @@ deployed yet) · **Unknown** = neither documented nor measurable without deployi
 | §9 one-letter queries | A one-letter last token matches exactly (not as a prefix), so it can't scan the whole index. |
 | §7.4 private search pagination | Stateless: the query is read back from the first line of the results message. |
 
+## Phase 5 additions
+
+| Spec item | Decision |
+|---|---|
+| §6 `destination_channels` | Two extra columns: `bot_rights` (JSON: post / edit / delete, checked_at) and `removed_at` (soft removal, so publication history keeps its channel; re-adding restores the row, disabled). |
+| §13 "I provide the real channels in this phase" | @WangerBeat (`-1004370326177`, English) and @WangerFlow (`-1004391543350`, Persian) appear as one-tap "add" buttons (`SUGGESTED_DESTINATIONS`); each tap checks the bot's rights with Telegram and adds the channel disabled. Nothing is registered until the owner taps. |
+| §10.2 rules, empty language list | No language selected = no track matches (shown as a warning), never "all languages". |
+
 ## Design consequences
 
 - **State**: everything important is in the database; no module-level caches are relied on.

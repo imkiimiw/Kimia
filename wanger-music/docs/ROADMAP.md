@@ -11,8 +11,8 @@ and a stop until the owner says "implement Phase N".
 | 2 | Music core: `tracks`, ingestion by send/forward, import card + bulk summary, normalization, duplicates, language classification, provider interface, 🎵 Music, removal, optional archive | **Built and tested locally.** Deferred (optional in the spec): re-uploading a file with a new cover/tags |
 | 3 | Search + inline: `track_terms` (+ `artists`, `artist_aliases`), private search, `inline_query` + `chosen_inline_result` handlers, pagination, inline force-join gate, deep links, inline caption template | **Built and tested locally** |
 | 4 | Sources: `channel_post` handler, `sources` table, 📡 Sources (add / enable / mode off·draft·active / default language / remove), import pipeline as the system actor, "bot added to a channel" prompt (Source · Destination · Force-join · Ignore) | **Built and tested locally** |
-| 5 (next) | Destination channels: add/edit/enable/remove with rights checks, rules, captions with preview, approval, schedule fields, health. **Channels named by the owner: @WangerBeat (English), @WangerFlow (Persian)** | — |
-| 6 | Automatic publishing: routing, queue, worker on the tick, approvals, retries, cooldown, windows, history, uncertain handling | — |
+| 5 | Destination channels: `destination_channels`; add (one-tap for @WangerBeat = English, @WangerFlow = Persian, or forward / @username / id) with the bot's rights checked; rules (languages, genres, excluded genres, min confidence); caption template with a preview to the owner; post format; schedule (interval, hours, daily limit, time zone); approval; enable / auto-publish; rights check; soft removal; health from my_chat_member. **Posts nothing.** | **Built and tested locally** |
+| 6 (next) | Automatic publishing: routing, queue, worker on the tick, approvals, retries, cooldown, windows, history, uncertain handling | — |
 | 7 | Analytics: `stats_daily`, 📊 dashboard | — |
 | 8 | Hardening: reviews, load test on staging, backup export/restore, monitoring, recovery docs | — |
 
@@ -37,7 +37,12 @@ and a stop until the owner says "implement Phase N".
 - Phase 4 → later: the "bot added" prompt's 📢 Destination button is wired to `destinations.manage`
   and answers "Phase 5" until destinations exist.
 
+- Phase 5 → Phase 6: `publishing/rules.js#matches(track, channel)` (match + needsApproval) and
+  `withinHours()`, `hoursOf()`; destinations keep `min_interval_seconds`, `daily_limit`,
+  `time_zone`, `last_published_at` for the worker; `destinations.onBotStatusChange` already disables
+  a channel that loses post rights.
+
 ## Module budget
 
-70 of ≤ 85 modules used after Phase 4 (+4). The platform refused a 104-module deploy for another bot.
-Rough plan: Phase 5 ≈ +3, Phase 6 ≈ +4 (captions exist already), Phase 7 ≈ +3, Phase 8 ≈ +2 → ≈ 82.
+74 of ≤ 85 modules used after Phase 5 (+4). The platform refused a 104-module deploy for another bot.
+Rough plan: Phase 6 ≈ +4 (captions and rules exist already), Phase 7 ≈ +3, Phase 8 ≈ +2 → ≈ 83.

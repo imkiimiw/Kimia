@@ -50,6 +50,9 @@ export const LIMITS = Object.freeze({
   sourcesMax: 50,
   alertSourceEverySeconds: 60 * 60,
   alertBotAddedEverySeconds: 60 * 60,
+  destinationsMax: 20,
+  alertDestinationEverySeconds: 60 * 60,
+  captionTemplateMax: 1000,
 });
 
 /**
@@ -110,7 +113,16 @@ export const ADMIN_SECTIONS = Object.freeze([
   { id: 'system', perm: 'system.view', phase: 1 },
 ]);
 
-export const CURRENT_PHASE = 4;
+export const CURRENT_PHASE = 5;
+
+/**
+ * Destination channels the owner named on 2026-11-05 (shown as one-tap "add" buttons; each tap
+ * still checks the bot's rights with Telegram and adds the channel disabled).
+ */
+export const SUGGESTED_DESTINATIONS = Object.freeze([
+  { chat_id: -1004370326177, username: 'WangerBeat', language: 'en' },
+  { chat_id: -1004391543350, username: 'WangerFlow', language: 'fa' },
+]);
 
 /** Genre keys (shown through i18n `genre.<key>`); channel rules in Phase 5 use the same keys. */
 export const GENRES = Object.freeze(['pop', 'rock', 'rap', 'electronic', 'rnb', 'jazz', 'classical', 'traditional', 'folk', 'instrumental', 'soundtrack', 'other']);
