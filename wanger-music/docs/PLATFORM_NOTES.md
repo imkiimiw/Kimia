@@ -116,6 +116,7 @@ deployed yet) · **Unknown** = neither documented nor measurable without deployi
 | Check / spec item | Result / decision |
 |---|---|
 | `migrate --local --dry-run` | 2 safe steps: `stats_daily` (`PRIMARY KEY (date, metric, dimension) WITHOUT ROWID`) and `users.idx_users_created` |
+| Production deploy (commit `e97e5f8`) | both steps applied by `migrate --safe`; 21 modules pushed (81 in all); `npm run smoke`: `stats_match: true` for today and 7 days, DB round trip 2 ms, 0 errors |
 | §13 Phase 7 "searches: inline queries arrive per keystroke, so count only first-page queries of 3+ characters, or sample" | First pages of ≥ 3 characters, from users who passed the gate, are counted (no sampling: deterministic and testable). The dashboard says this overstates real searches. |
 | "users: active" | Exact distinct users per local day: the day's first activity is one conditional `UPDATE` of `last_seen_at` (also for inline users, after the answer). `last_seen_at` therefore now also moves for inline-only use (once a day). |
 | "force-join conversions" | `force_join_ok_until = -1` marks a user stopped by the gate; leaving that state through a pass is a conversion. The rate shown (converted ÷ gated in the period) is approximate: the two may belong to different days. |

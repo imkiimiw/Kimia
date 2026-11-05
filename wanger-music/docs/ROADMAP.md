@@ -5,8 +5,9 @@ and a stop until the owner says "implement Phase N".
 
 **Deploy state (2026-11-05):** Phases 1–6 deployed to production with the owner's explicit OK
 (commit `2d7a9be`: migrate applied 17 safe steps, 78 modules pushed, webhook in sync; read-only smoke
-check green). Phase 7 is deployed the same way (see the Phase 7 report: 2 safe steps — `stats_daily`
-and `idx_users_created`).
+check green). Phase 7 deployed the same day (commit `e97e5f8`): 2 safe steps (`stats_daily`,
+`idx_users_created`), 21 modules updated (81 in all), webhook in sync; the smoke check found the
+dashboard equal to direct SQL counts (today and 7 days).
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -16,7 +17,7 @@ and `idx_users_created`).
 | 4 | Sources: `channel_post` handler, `sources` table, 📡 Sources (add / enable / mode off·draft·active / default language / remove), import pipeline as the system actor, "bot added to a channel" prompt (Source · Destination · Force-join · Ignore) | **Deployed** |
 | 5 | Destination channels: `destination_channels`; add (one-tap for @WangerBeat = English, @WangerFlow = Persian, or forward / @username / id) with the bot's rights checked; rules (languages, genres, excluded genres, min confidence); caption template with a preview to the owner; post format; schedule (interval, hours, daily limit, time zone); approval; enable / auto-publish; rights check; soft removal; health from my_chat_member. **Posts nothing.** | **Deployed** |
 | 6 | Automatic publishing: `publications`; routing on activation (idempotent, no backfill; explicit owner backfill with preview), approval queue + digest + review screen, worker on the tick (lease, interval / hours / daily limit, 429 cooldown, backoff, permanent errors), uncertain handling, history per track/channel, cancel on removal, delete channel posts, pause switch | **Deployed** |
-| 7 | Analytics: `stats_daily` (event counters written once per update; derived numbers recomputed for today + yesterday by the tick every 15 min and on open; retention 400 days, plays per track 90), 📊 dashboard (users total/new/active/blocked, inline + private searches, plays, top tracks, force-join conversions, publications per channel, sources), daily table, top tracks | **Built and tested; deploy with this phase** |
+| 7 | Analytics: `stats_daily` (event counters written once per update; derived numbers recomputed for today + yesterday by the tick every 15 min and on open; retention 400 days, plays per track 90), 📊 dashboard (users total/new/active/blocked, inline + private searches, plays, top tracks, force-join conversions, publications per channel, sources), daily table, top tracks | **Deployed** |
 | 8 (next) | Hardening: reviews, load test on staging, backup export/restore, monitoring, recovery docs | — |
 
 ## Interfaces already in place for later phases
