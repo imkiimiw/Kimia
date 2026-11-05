@@ -1,5 +1,9 @@
 .tgcloud/
 node_modules/
+# local settings and secrets (see .env.example)
+.env
 *.log
 # output of test/cloud/run-tests.mjs (raw `tgcloud run` logs and the summary)
 test/cloud/output/
+# the cloud tests' temporary devtools endpoint
+tgcloud/endpoints/zz_devtools.js

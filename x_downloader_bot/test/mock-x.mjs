@@ -106,12 +106,17 @@ export function createMockX() {
     const headers = { 'content-type': type, 'content-length': len, 'accept-ranges': 'bytes' };
     if (status === 206) headers['content-range'] = `bytes ${start}-${end}/${total}`;
     res.writeHead(status, headers);
-    // Deterministic bytes: byte i of the file is (i * 31) & 255.
+    // Deterministic bytes: byte i of the file is (i * 31) & 255, except an mp4's "ftyp" box name
+    // at offset 4 (what a real mp4 starts with, checked by the platform probe in the cloud tests).
     const step = 1024 * 1024;
+    const FTYP = [0x66, 0x74, 0x79, 0x70];
     for (let off = start; off <= end; off += step) {
       const n = Math.min(step, end - off + 1);
       const chunk = Buffer.allocUnsafe(n);
-      for (let i = 0; i < n; i += 1) chunk[i] = ((off + i) * 31) & 255;
+      for (let i = 0; i < n; i += 1) {
+        const at = off + i;
+        chunk[i] = type === 'video/mp4' && at >= 4 && at < 8 ? FTYP[at - 4] : (at * 31) & 255;
+      }
       res.write(chunk);
     }
     return res.end();

@@ -53,17 +53,22 @@
 
 با Node.js ۱۸ به بالا، در پوشه‌ی `x_downloader_bot`:
 
+1. توکن CLI را بگیرید: BotFather ← ربات ← Serverless ← CLI Access ← Access token (شکلش `app<id>:<secret>` است،
+   نه توکن خود ربات).
+2. آن را در متغیر **`XDownloader_BOT_TGCLOUD_TOKEN`** بگذارید: در تنظیمات محیط (Environment variables)، یا در
+   فایل `x_downloader_bot/.env` (از روی `.env.example`؛ این فایل در git نمی‌رود). اسم جدا برای هر ربات باعث
+   می‌شود هیچ‌وقت کد این ربات روی ربات دیگری در همین مخزن push نشود.
+3. دستورها (همه از طریق `scripts/tg.mjs`، که توکن را فقط به همان پردازش CLI می‌دهد):
+
 ```bash
 npm install
-npx tgcloud login              # توکن: BotFather ← ربات ← Serverless ← CLI Access ← Access token
-npx tgcloud status && npx tgcloud diff
-npx tgcloud push
-npx tgcloud migrate --dry-run
-npx tgcloud migrate --safe     # ۱۰ جدول
-npx tgcloud webhook            # باید in sync باشد؛ وگرنه: npx tgcloud webhook sync
+npm run tg -- status && npm run tg -- diff
+npm run tg -- push
+npm run tg -- migrate --dry-run
+npm run tg -- migrate --safe   # ۱۰ جدول
+npm run tg -- webhook          # باید in sync باشد؛ وگرنه: npm run tg -- webhook sync
+npm run deploy                 # بعدها: migrate --local --safe ← push ← migrate --safe ← webhook
 ```
-
-(در محیط ابری یا CI به‌جای `login` متغیر `TGCLOUD_TOKEN` را تنظیم کنید.)
 
 ## 🧪 تست
 

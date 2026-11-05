@@ -3,7 +3,7 @@
 // the local handlers against the bot's real database, the real Bot API and the real FxTwitter /
 // vxTwitter / twimg, without deploying.
 //
-//   node test/cloud/run-tests.mjs        (needs TGCLOUD_TOKEN or `npx tgcloud login`, and a migrated DB)
+//   npm run test:cloud        (needs XDownloader_BOT_TGCLOUD_TOKEN, see .env.example, and a migrated DB)
 //
 // - Downloads are sent to the OWNER's chat (5557901897), so the owner really receives the videos,
 //   albums and GIFs in Telegram. The owner's settings are restored at the end.
@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import JSON5 from 'json5';
+import { cliEnv } from '../../scripts/env.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const CLI = path.join(ROOT, 'node_modules/@tgcloud/cli/bin/tgcloud.js');
@@ -54,6 +55,13 @@ const log = (s) => fs.appendFileSync(LOG, `${s}\n`);
 // TGCLOUD_CLI_ARGS (JSON array of node arguments) replaces the real CLI; only
 // test/cloud/local-harness.mjs sets it, to check this script against the local emulation.
 const CLI_ARGS = process.env.TGCLOUD_CLI_ARGS ? JSON.parse(process.env.TGCLOUD_CLI_ARGS) : [CLI];
+// The real CLI gets this bot's token (XDownloader_BOT_TGCLOUD_TOKEN) as TGCLOUD_TOKEN, see scripts/env.mjs.
+const CHILD = process.env.TGCLOUD_CLI_ARGS ? { env: process.env } : cliEnv();
+if (CHILD.error) {
+  console.error(CHILD.error);
+  process.exit(1);
+}
+fs.mkdirSync(path.join(ROOT, '.tgcloud'), { recursive: true });
 let runs = 0;
 
 function tgcloudRun(module, args, ctx) {
@@ -66,7 +74,7 @@ function tgcloudRun(module, args, ctx) {
   try {
     out = execFileSync(process.execPath, argv, {
       cwd: ROOT,
-      env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1', TGCLOUD_NO_PAGER: '1' },
+      env: { ...CHILD.env, FORCE_COLOR: '0', NO_COLOR: '1', TGCLOUD_NO_PAGER: '1' },
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
       stdio: ['ignore', 'pipe', 'pipe'],
