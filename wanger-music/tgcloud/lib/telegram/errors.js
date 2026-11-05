@@ -23,7 +23,7 @@ export function classify(err) {
   if (code === 400) {
     if (/message is not modified/.test(d)) return out('not_modified');
     if (/message to edit not found|message can't be edited|message_id_invalid|message to delete not found/.test(d)) return out('message_gone');
-    if (/query is too old|query id is invalid/.test(d)) return out('query_expired');
+    if (/query is too old|query id is invalid|query_id_invalid/.test(d)) return out('query_expired');
     if (/chat not found|peer_id_invalid|channel_private|chat_id_invalid|group chat was deactivated/.test(d)) return out('chat_gone');
     if (/member list is inaccessible|chat_admin_required|not enough rights|need administrator rights|have no rights|chat_write_forbidden/.test(d)) return out('no_rights');
     // getChatMember for someone who isn't in the channel answers 400 "member not found" (measured

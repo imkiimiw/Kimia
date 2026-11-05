@@ -34,7 +34,7 @@ test('joining some → the message lists only the rest; joining all → unlocked
   await h.tap(U, 'fj:check');
   const texts = h.tg.calls.slice(m2).filter((c) => c.method === 'sendMessage' || c.method === 'editMessageText').map((c) => c.params.text);
   assert.match(texts[0], /عضویتت تأیید شد/);
-  assert.match(texts[1], /آرشیو آهنگ‌ها هنوز راه نیفتاده/, 'the t_ payload continued after unlocking');
+  assert.match(texts[1], /این آهنگ دیگه در دسترس نیست/, 'the t_ payload continued after unlocking (no such track here)');
   assert.equal(h.one('SELECT count(*) AS n FROM user_flows').n, 0);
   assert.ok(h.one('SELECT force_join_ok_until AS v FROM users WHERE telegram_id = ?', U).v > Date.now() / 1000);
 

@@ -99,6 +99,27 @@ card links other versions of the same song (e.g. a remix); ⚠️ marks a soft d
 The archive backlog (active tracks without a copy) is worked by the tick, ≤ 3 per tick and
 ≤ 18 per minute (`telegram/limiter.js#windowAllows`).
 
+## Search and inline mode (Phase 3)
+
+- **Index** (`search/terms.js`, pure): each ACTIVE track is stored in `track_terms` under the
+  normalized tokens of title / artist / album / featured artists / the artists' aliases, plus
+  space-free variants (neighbour pairs and the whole field). `catalog.activate` and edits index a
+  track; hide / remove / purge drop its terms; a rebuild cursor (`search.reindex_cursor`) lets
+  the tick index everything again in batches.
+- **Query** (`repositories/search.js`): ≤ 64 chars, ≤ 5 tokens; all tokens must match (earlier ones
+  exactly, the last as a prefix) — `INTERSECT` of primary-key lookups; ranked exact title/artist →
+  prefix → plays → newest. Empty query: most played, then newest.
+- **Inline** (`handlers/inline_query` → `bot/search_ui.onInlineQuery`): first-time user row → ban →
+  force-join gate (cached pass; non-members get the join button) → one query → one
+  `answerInlineQuery` (cached audio by file_id, `is_personal`, `cache_time`, `next_offset`). No
+  dedupe, no tick. An expired query id is a warning, not an error.
+- **Private chat**: plain text or `/search` → 10 buttons per page (`s:get:<publicId>` sends the audio,
+  `s:pg:<n>` pages; the query is read back from the message), plus an inline-search button.
+  `/start t_<publicId>` sends a track (after the gate), `/start search` asks for a name.
+- **Plays**: `chosen_inline_result` (deduped by update_id) and private sends add one to `play_count`.
+- **Artists** (`admin/artists_ui.js`): aliases such as "shadmehr" → «شادمهر عقیلی»; adding/removing
+  one re-indexes that artist's active tracks.
+
 ## Background work: the tick (no cron on this platform)
 
 `jobs/tick.js#runTick(trigger, budget)` runs processors in order — maintenance (prune
@@ -107,7 +128,7 @@ The archive backlog (active tracks without a copy) is worked by the tick, ≤ 3 
 
 1. **piggyback** after message / callback_query / my_chat_member updates, at most once per
    `tick.interval_seconds`, elected by one conditional `UPDATE` (2 s budget);
-   processors in order: maintenance → broadcast batch → archive backlog;
+   processors in order: maintenance → broadcast batch → archive backlog → search index rebuild;
 2. **manual**: 🧪 System Status «▶️ اجرای تیک» and the broadcast's «▶️ ادامه» (8 s budget);
 3. **scheduled**: `endpoints/opsTick.js` (owner id only) run every 30 min by
    `.github/workflows/wanger-music-tick.yml`, which pulls the **deployed** modules first.
@@ -130,6 +151,8 @@ Phase 1: `users`, `force_join_channels`, `settings`, `audit_log`, `user_flows`, 
 `error_log`, `alerts`, `broadcasts` (+ `progress_chat_id`, `progress_message_id`, `lock_until`).
 Phase 2: `tracks` (spec columns + `duplicate_of`, `archive_chat_id`; 8 indexes incl. the partial
 unique origin index) and `import_sessions` (bulk-summary counters).
+Phase 3: `track_terms` (PK term + track_id, WITHOUT ROWID), `artists`, `artist_aliases`; tracks
+index `(status, play_count, activated_at)` for the empty inline query.
 No foreign keys (the platform forbids them); enums and booleans are CHECK-constrained; 8 indexes
 back every lookup (`users.last_seen_at`, `lower(username)`, admins partial index, …).
 

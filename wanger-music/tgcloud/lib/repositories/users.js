@@ -19,6 +19,15 @@ export function createUsersRepo() {
         language_code = excluded.language_code, is_blocked = 0, last_seen_at = excluded.last_seen_at
       RETURNING *`).then((r) => r.rows[0] || null),
 
+    /**
+     * Someone who used inline mode before starting the bot: the bot can't message them yet, so the
+     * row starts with is_blocked = 1; their first /start (or my_chat_member "member") clears it.
+     */
+    insertInline: (u) => db.run(sql`
+      INSERT INTO users (telegram_id, username, first_name, language_code, role, is_banned, is_blocked, force_join_ok_until, created_at, last_seen_at)
+      VALUES (${u.telegram_id}, ${u.username}, ${u.first_name}, ${u.language_code}, 'user', 0, 1, 0, ${u.now}, ${u.now})
+      ON CONFLICT (telegram_id) DO NOTHING`),
+
     /** A row for someone known only by id (e.g. added as admin before they started the bot). */
     insertBare: (tid, now) => db.run(sql`
       INSERT INTO users (telegram_id, role, is_banned, is_blocked, force_join_ok_until, created_at, last_seen_at)

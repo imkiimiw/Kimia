@@ -68,6 +68,21 @@ deployed yet) · **Unknown** = neither documented nor measurable without deployi
 | §8.1 optional re-upload with a new cover/tags | Deferred (optional). Edits change the bot's catalog; Telegram keeps showing the file's own embedded title/performer/thumbnail (a Bot API rule), and the card says so. The 🖼 cover is stored for Phase 6 posts. |
 | §8.4 "mixed → unknown" | A text counts as one script when ≥ 90 % of its letters are in it; below that it is mixed → unknown (needs review). |
 
+## Phase 3 additions
+
+| Check | Result |
+|---|---|
+| `migrate --local --dry-run` | `track_terms` with `PRIMARY KEY (term, track_id) WITHOUT ROWID` accepted; 14 tables in all, all "safe" |
+| FTS5 | Still not available (see §4 above), so search is the `track_terms` table: exact lookups and prefix ranges (`term >= q AND term < q + U+FFFF`) on its primary key, combined with `INTERSECT`. Never a `%…%` scan. |
+| Module state | Not kept between invocations (§2), so no in-memory LRU. Telegram's per-user cache (`cache_time` from settings, `is_personal: true`) is the only cache; no DB cache table (not needed at this size). `catalog.version` is kept for a cache key if one is ever added. |
+
+| Spec item | Decision |
+|---|---|
+| §9 inline users who never started the bot | They get a users row (needed for the force-join pass) with `is_blocked = 1` (the bot can't message them yet); their first `/start` clears it. 👥 Users labels that number "can't receive messages". |
+| §9 "chosen_inline_result → play_count and stats" | play_count now; stats_daily is Phase 7. Needs BotFather `/setinlinefeedback` (owner). |
+| §9 one-letter queries | A one-letter last token matches exactly (not as a prefix), so it can't scan the whole index. |
+| §7.4 private search pagination | Stateless: the query is read back from the first line of the results message. |
+
 ## Design consequences
 
 - **State**: everything important is in the database; no module-level caches are relied on.

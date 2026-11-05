@@ -88,6 +88,8 @@ export function table(name, columns, extras) {
     t[key] = refs[key];
   }
   if (extras) t.__extras = Object.values(extras(refs));
+  t.withoutRowid = () => { t.__withoutRowid = true; return t; };
+  t.strict = () => t;
   return t;
 }
 
@@ -121,7 +123,7 @@ export function ddl(schema) {
       if (x.kind === 'check') parts.push(`CONSTRAINT "${x.name}" CHECK (${ddlText(x.cond, x.name)})`);
       if (x.kind === 'pk') parts.push(`PRIMARY KEY (${x.columns.map((c) => `"${c.name}"`).join(', ')})`);
     }
-    out.push(`CREATE TABLE "${t.__name}" (${parts.join(', ')})`);
+    out.push(`CREATE TABLE "${t.__name}" (${parts.join(', ')})${t.__withoutRowid ? ' WITHOUT ROWID' : ''}`);
     for (const ix of t.__extras.filter((x) => x.kind === 'index')) {
       const on = ix.cols.map((c) => (c instanceof Sql ? ddlText(c, ix.name) : `"${c.name}"`)).join(', ');
       const where = ix.cond ? ` WHERE ${ddlText(ix.cond, ix.name)}` : '';

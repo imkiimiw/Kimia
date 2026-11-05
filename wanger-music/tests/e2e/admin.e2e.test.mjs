@@ -144,5 +144,5 @@ test('/lang switches the interface; /help and /cancel work', async () => {
   await h.send(U, '/cancel');
   assert.equal(h.lastText(U), 'Nothing is in progress right now.');
   await h.send(U, 'some song');
-  assert.match(h.lastText(U), /Music search is coming soon/);
+  assert.match(h.lastText(U), /Nothing found for «some song»/, 'plain text is a search (empty catalog here)');
 });

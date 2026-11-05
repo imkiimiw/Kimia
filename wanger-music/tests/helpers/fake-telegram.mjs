@@ -23,6 +23,17 @@ export function createFakeTelegram() {
     }
     return channels.get(Number(ref)) || null;
   };
+  /** Rough HTML check like Telegram's: unknown or unbalanced tags → 400 can't parse entities. */
+  const checkHtml = (text, method) => {
+    const stack = [];
+    for (const m of String(text || '').matchAll(/<(\/?)([a-z-]+)[^>]*>/g)) {
+      const [, close, tag] = m;
+      if (!['b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del', 'code', 'pre', 'a', 'tg-spoiler', 'blockquote', 'span'].includes(tag)) fail(400, `Bad Request: can't parse entities: unsupported start tag "${tag}"`, method);
+      if (!close) stack.push(tag);
+      else if (stack.pop() !== tag) fail(400, `Bad Request: can't parse entities: unexpected end tag "${tag}"`, method);
+    }
+    if (stack.length) fail(400, `Bad Request: can't parse entities: can't find end tag corresponding to start tag "${stack.at(-1)}"`, method);
+  };
   const store = (chatId, msg) => {
     if (!messages.has(chatId)) messages.set(chatId, new Map());
     messages.get(chatId).set(msg.message_id, msg);
@@ -35,6 +46,7 @@ export function createFakeTelegram() {
     sendMessage(p, m) {
       if (p.chat_id > 0 && blocked.has(p.chat_id)) fail(403, 'Forbidden: bot was blocked by the user', m);
       if (!p.text || p.text.length > 4096) fail(400, 'Bad Request: message is too long', m);
+      if (p.parse_mode === 'HTML') checkHtml(p.text, m);
       return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, text: p.text, reply_markup: p.reply_markup || null, parse_mode: p.parse_mode });
     },
     editMessageText(p, m) {
@@ -46,6 +58,17 @@ export function createFakeTelegram() {
       return msg;
     },
     answerCallbackQuery: () => true,
+    answerInlineQuery(p, m) {
+      if (!Array.isArray(p.results) || p.results.length > 50) fail(400, 'Bad Request: RESULTS_TOO_MUCH', m);
+      if (String(p.next_offset || '').length > 64) fail(400, 'Bad Request: NEXT_OFFSET_INVALID', m);
+      for (const r of p.results) {
+        if (!r.id || String(r.id).length > 64) fail(400, 'Bad Request: RESULT_ID_INVALID', m);
+        if (r.parse_mode === 'HTML') checkHtml(r.caption, m);
+        if (r.caption && r.caption.length > 1024) fail(400, 'Bad Request: caption is too long', m);
+      }
+      if (p.button && !/^[A-Za-z0-9_-]{1,64}$/.test(p.button.start_parameter || '')) fail(400, 'Bad Request: START_PARAM_INVALID', m);
+      return true;
+    },
     copyMessage(p, m) {
       if (p.chat_id > 0 && blocked.has(p.chat_id)) fail(403, 'Forbidden: bot was blocked by the user', m);
       return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, copied_from: [p.from_chat_id, p.message_id] });

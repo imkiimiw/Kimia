@@ -1,7 +1,7 @@
 // Database schema — Phase 1 tables only (docs/SPEC.md §6). Later phases add their own tables.
 // No foreign keys (the platform forbids them): services create parents first, delete children first.
 // Enums are TEXT with CHECK; booleans are INTEGER 0/1 with CHECK; timestamps are unix seconds.
-import { table, integer, text, index, uniqueIndex, check, sql } from 'sdk/db';
+import { table, integer, text, index, uniqueIndex, check, primaryKey, sql } from 'sdk/db';
 
 export const users = table('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -173,6 +173,8 @@ export const tracks = table('tracks', {
   titleKeyIdx: index('idx_tracks_norm_title').on(t.normalizedTitle),
   artistKeyIdx: index('idx_tracks_norm_artist').on(t.normalizedArtist),
   archiveIdx: index('idx_tracks_archive_backlog').on(t.id).where(sql`${t.status} = 'active' AND ${t.archiveMessageId} IS NULL`),
+  // Phase 3: empty inline query → popular, then newest
+  popularIdx: index('idx_tracks_popular').on(t.status, t.playCount, t.activatedAt),
 }));
 
 /** Addition to the spec: counts one admin's run of forwarded audios for the bulk summary (atomic upserts). */
@@ -186,3 +188,32 @@ export const importSessions = table('import_sessions', {
   review: integer('review').notNull().default(0),
   messageId: integer('message_id'),
 });
+
+// ---------------------------------------------------------------- Phase 3: search
+
+/** Search index: normalized terms of title, artist, album, featured artists and aliases (+ space-free variants). */
+export const trackTerms = table('track_terms', {
+  term: text('term').notNull(),
+  trackId: integer('track_id').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.term, t.trackId] }),
+  byTrack: index('idx_track_terms_track').on(t.trackId),
+})).withoutRowid();
+
+export const artists = table('artists', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  normalizedName: text('normalized_name').notNull().unique(),
+  language: text('language'),
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  languageChk: check('artists_language_chk', sql`${t.language} IS NULL OR ${t.language} IN ('fa', 'en', 'other')`),
+  nameIdx: index('idx_artists_name').on(t.name),
+}));
+
+export const artistAliases = table('artist_aliases', {
+  aliasNormalized: text('alias_normalized').primaryKey(),
+  artistId: integer('artist_id').notNull(),
+}, (t) => ({
+  byArtist: index('idx_artist_aliases_artist').on(t.artistId),
+}));

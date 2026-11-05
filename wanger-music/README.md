@@ -4,7 +4,7 @@ A Telegram music bot that runs entirely on **Telegram Serverless**: instant sear
 Telegram-hosted music (inline and in private chat), plus automatic publishing of new tracks to the
 owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 
-**Status: Phases 1 (core) and 2 (music catalog) are built and tested locally; nothing is deployed yet.**
+**Status: Phases 1 (core), 2 (music catalog) and 3 (search + inline) are built and tested.** Deploy state: see [docs/ROADMAP.md](docs/ROADMAP.md).
 
 | Phase 1 feature | Where |
 |---|---|
@@ -29,6 +29,15 @@ owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 | 🎵 Music: counts, filters (needs review, drafts, active, hidden, removed, by language), search (title/artist prefix or `t_<id>`), track card, hide / remove / restore, owner-only purge | admin panel |
 | Optional archive channel: every activated track is copied there; failures alert the owner; the tick works the backlog | ⚙️ Settings |
 
+| Phase 3 feature | Where |
+|---|---|
+| `@Wange_Musicbot <song or artist>` in any chat: cached audio results, 20 per page, personal, popular + newest for an empty query, «🔎 جستجو در ربات» when nothing matches | inline |
+| Non-members get no results and «🔒 اول عضو کانال‌ها شو» (→ `/start join`) | inline |
+| Plain text or `/search` → result buttons that send the audio; pages; an inline-search button | private chat |
+| `/start t_<id>` sends that track (sharing, later channel captions); `/start search` | deep links |
+| Persian-aware matching: ي/ی, ك/ک, «می‌خوام» = «میخوام» = «می خوام», ۲ = 2, prefixes (“week” → The Weeknd), artist aliases (“shadmehr”) | search |
+| 🎤 Artists: other names for search; plays counted from inline choices and private sends; optional inline caption template | admin panel |
+
 ## Run it
 
 Everything runs from this folder. The repository root and its other folders are other bots.
@@ -36,7 +45,7 @@ Everything runs from this folder. The repository root and its other folders are 
 ```bash
 cd wanger-music
 npm ci
-npm test                         # 97 tests: unit + end-to-end (local SDK emulation, fake Telegram)
+npm test                         # 113 tests: unit + end-to-end (local SDK emulation, fake Telegram)
 export Music_BOT_TGCLOUD_TOKEN=app9280424458:…   # CLI access token (BotFather → bot → Serverless → CLI Access)
 npm run tg -- status             # the CLI, for this bot only
 npm run deploy                   # tests → stamp version → migrate --local --safe → push → migrate --safe → webhook
@@ -61,13 +70,16 @@ Docs: [ARCHITECTURE](docs/ARCHITECTURE.md) · [CONFIG](docs/CONFIG.md) ·
 - `getWebhookInfo` is restricted for bots here; System Status shows `npm run tg -- webhook` instead.
 - The membership check needs the bot to be an **admin** in every force-join channel (Telegram rule).
 - Editing a title/artist changes the bot's catalog; Telegram keeps showing the file's own embedded tags and thumbnail (re-uploading with new tags is optional in the spec and deferred).
-- User search, inline mode and channel publishing are Phases 3–6.
+- Inline usage counts need BotFather `/setinlinefeedback` (set it to 100%).
+- Source channels and channel publishing are Phases 4–6.
 
 ---
 
 ## راه‌اندازی سریع (فارسی)
 
-**وضعیت: فاز ۱ و ۲ ساخته و تست شده‌اند، ولی هنوز روی سرورلس دیپلوی نشده‌اند (منتظر تأیید شما).**
+**وضعیت: فاز ۱، ۲ و ۳ ساخته و تست شده‌اند.**
+
+جستجو (فاز ۳): اسم آهنگ را در چت ربات بفرستید، یا در هر چتی بنویسید <code>@Wange_Musicbot اسم آهنگ</code>. برای شمارش استفاده از اینلاین، در BotFather دستور <code>/setinlinefeedback</code> را روی ۱۰۰٪ بگذارید.
 
 افزودن آهنگ (فاز ۲): فایل صوتی را در چت خصوصی ربات بفرستید یا از کانال فوروارد کنید؛ پیش‌نویس ساخته می‌شود و با «✅ فعال کن» وارد آرشیو می‌شود. مدیریت: /admin ← 🎵 موزیک.
 

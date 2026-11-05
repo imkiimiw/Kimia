@@ -27,6 +27,20 @@ export function createUsersService({ repo, clock, audit, settings }) {
       return (await repo.upsertSeen(fresh)) || row;
     },
 
+    /** Inline mode: read only; a first-time inline user gets a row (needed for the force-join pass). */
+    async touchInline(from) {
+      const row = await repo.get(from.id);
+      if (row) return row;
+      await repo.insertInline({
+        telegram_id: from.id,
+        username: from.username || null,
+        first_name: from.first_name ? String(from.first_name).slice(0, 128) : null,
+        language_code: from.language_code ? String(from.language_code).slice(0, 16) : null,
+        now: clock.now(),
+      });
+      return repo.get(from.id);
+    },
+
     get: (tid) => repo.get(tid),
 
     /** @param {string} ref numeric id or @username */

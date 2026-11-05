@@ -26,6 +26,7 @@ export function statusView(lang, h) {
     users: h.stats.total, blocked: h.stats.blocked,
     tracks: `${digits(h.tracks.total, lang)} (✅ ${digits(h.tracks.active, lang)})`, pending: tp(lang, 'sys.later', { phase: 6 }), failed: tp(lang, 'sys.later', { phase: 6 }),
   }));
+  lines.push(t(lang, 'sys.search', { terms: h.search.terms, state: tp(lang, h.search.cursor >= 0 ? 'sys.search_rebuilding' : 'sys.search_ready') }));
   const tick = h.tickLast;
   lines.push(tick && tick.at ? t(lang, 'sys.tick', { ago: ago(h.now - tick.at, lang), trigger: tp(lang, `sys.trigger.${tick.trigger}`), ms: tick.ms }) : t(lang, 'sys.tick_never'));
   if (h.cooldownUntil > h.now) lines.push(t(lang, 'sys.cooldown', { left: tp(lang, 'common.in_s', { n: h.cooldownUntil - h.now }) }));

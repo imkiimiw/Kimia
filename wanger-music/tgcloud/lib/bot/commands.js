@@ -28,8 +28,8 @@ export function parseStartPayload(args) {
   return m ? { kind: 'track', publicId: m[1] } : { kind: 'none' };
 }
 
-const USER_COMMANDS = ['start', 'help', 'lang', 'cancel'];
-const STAFF_COMMANDS = ['start', 'help', 'lang', 'cancel', 'admin'];
+const USER_COMMANDS = ['start', 'search', 'help', 'lang', 'cancel'];
+const STAFF_COMMANDS = ['start', 'search', 'help', 'lang', 'cancel', 'admin'];
 
 /** @param {string[]} names @param {string} lang */
 const commandList = (names, lang) => names.map((c) => ({ command: c, description: tp(lang, `cmd.${c}`) }));

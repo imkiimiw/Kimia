@@ -9,6 +9,8 @@ import { createFlowsRepo } from '../repositories/flows.js';
 import { createBroadcastsRepo } from '../repositories/broadcasts.js';
 import { createSystemRepo } from '../repositories/system.js';
 import { createTracksRepo } from '../repositories/tracks.js';
+import { createSearchRepo } from '../repositories/search.js';
+import { createSearchService } from '../search/service.js';
 import { createTelegramClient } from '../telegram/client.js';
 import { createSettingsService } from '../settings/service.js';
 import { createAuditService } from '../audit/service.js';
@@ -24,7 +26,7 @@ import { createCatalogProvider } from '../music/providers/catalog.js';
 import { key } from '../music/normalize.js';
 
 /** Bumped when bootstrap() learns something new to set up. */
-const BOOTSTRAP_VERSION = 1;
+const BOOTSTRAP_VERSION = 2;
 
 /** Wall clock. Date.now() advances across awaits on this platform (not during pure CPU work). */
 export const systemClock = Object.freeze({ now: () => Math.floor(Date.now() / 1000), ms: () => Date.now() });
@@ -42,6 +44,7 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
     broadcasts: createBroadcastsRepo(),
     system: createSystemRepo(),
     tracks: createTracksRepo(),
+    search: createSearchRepo(),
   };
   /** @type {any} */
   const app = { kind, updateId, clock, log, repos, lang: 'fa', user: null };
@@ -59,7 +62,11 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
     repo: repos.broadcasts, users: app.users, tg: app.tg, settings: app.settings, audit: app.audit, clock, log,
     notify: (b, info) => notifyProgress(app, b, info),
   });
-  app.catalog = createCatalogService({ repo: repos.tracks, tg: app.tg, settings: app.settings, audit: app.audit, alerts: app.alerts, clock, log });
+  app.search = createSearchService({ repo: repos.search, settings: app.settings, audit: app.audit, clock, log });
+  app.catalog = createCatalogService({
+    repo: repos.tracks, tg: app.tg, settings: app.settings, audit: app.audit, alerts: app.alerts, clock, log,
+    index: { add: (t) => app.search.indexTrack(t), remove: (id) => app.search.unindex(id) },
+  });
   app.ingest = createIngestService({ repo: repos.tracks, catalog: app.catalog, audit: app.audit, clock, log });
   app.provider = createCatalogProvider({ repo: repos.tracks, key });
   await app.settings.load();
@@ -70,8 +77,10 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
 /** One-time setup (idempotent): internal rows and the force-join seed. */
 async function bootstrap(app) {
   if (Number(await app.settings.get('system.bootstrapped')) >= BOOTSTRAP_VERSION) return;
+  const from = Number(await app.settings.get('system.bootstrapped'));
   await app.settings.ensure('tick.last_at', 0);
   await app.forcejoin.seedIfNeeded();
+  if (from < 2) await app.search.requestRebuild(); // Phase 3: index tracks activated before search existed
   await app.settings.setInternal('system.bootstrapped', BOOTSTRAP_VERSION);
   app.log.info('bootstrapped');
 }

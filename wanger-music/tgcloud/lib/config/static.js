@@ -59,8 +59,9 @@ export const SETTINGS = Object.freeze({
   'forcejoin.failure_mode': { type: 'enum', values: ['open', 'closed'], default: 'open' },
   'forcejoin.ttl_seconds': { type: 'int', min: 60, max: 86400, default: 600 },
   'forcejoin.bypass_staff': { type: 'bool', default: true },
-  'inline.page_size': { type: 'int', min: 5, max: 50, default: 20, phase: 3 },
-  'inline.cache_time': { type: 'int', min: 0, max: 3600, default: 60, phase: 3 },
+  'inline.page_size': { type: 'int', min: 5, max: 50, default: 20 },
+  'inline.cache_time': { type: 'int', min: 0, max: 3600, default: 60 },
+  'inline.caption': { type: 'text', default: '', max: 512 },
   'tick.interval_seconds': { type: 'int', min: 10, max: 3600, default: 60 },
   'tick.budget_ms': { type: 'int', min: 1000, max: 20000, default: 8000 },
   'tick.piggyback_budget_ms': { type: 'int', min: 500, max: 5000, default: 2000 },
@@ -79,6 +80,7 @@ export const SETTINGS = Object.freeze({
   'commands.version': { type: 'int', default: 0, internal: true },
   'catalog.version': { type: 'int', default: 1, internal: true },
   'archive.rate': { type: 'json', default: null, internal: true },
+  'search.reindex_cursor': { type: 'int', default: -1, internal: true },
 });
 
 /** Time zones offered in ⚙️ Settings; the fixed offset is the fallback when Intl is missing. */
@@ -105,7 +107,7 @@ export const ADMIN_SECTIONS = Object.freeze([
   { id: 'system', perm: 'system.view', phase: 1 },
 ]);
 
-export const CURRENT_PHASE = 2;
+export const CURRENT_PHASE = 3;
 
 /** Genre keys (shown through i18n `genre.<key>`); channel rules in Phase 5 use the same keys. */
 export const GENRES = Object.freeze(['pop', 'rock', 'rap', 'electronic', 'rnb', 'jazz', 'classical', 'traditional', 'folk', 'instrumental', 'soundtrack', 'other']);
@@ -133,4 +135,4 @@ export const VERSION_MARKERS = Object.freeze([
 ]);
 
 /** Bump when the command menus change (e.g. /search in Phase 3); the owner's next update re-syncs them. */
-export const COMMANDS_VERSION = 1;
+export const COMMANDS_VERSION = 2;

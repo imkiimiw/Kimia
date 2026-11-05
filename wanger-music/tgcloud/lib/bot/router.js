@@ -10,6 +10,8 @@ import { LIMITS } from '../config/static.js';
 import { continueStart, sendJoinPrompt, helpView, langView } from './user.js';
 import { openPanel } from '../admin/panel.js';
 import { handleMedia } from '../admin/import_ui.js';
+import { searchFromText } from './search_ui.js';
+export { onInlineQuery, onChosenInlineResult } from './search_ui.js';
 
 /** Plain text of an i18n message for a toast (no HTML tags). */
 const toastText = (lang, key, vars) => tp(lang, key, vars).replace(/<[^>]+>/g, '');
@@ -76,7 +78,7 @@ export async function onMessage(app, message) {
         await app.tg.send(chat, langView(app.lang), 'lang');
         return 'lang';
       case 'search':
-        await app.tg.send(chat, { text: t(app.lang, 'search.soon') }, 'search_soon');
+        await searchFromText(app, user, cmd.args);
         return 'search';
       case 'admin':
         if (can(user, 'panel.open')) {
@@ -93,8 +95,8 @@ export async function onMessage(app, message) {
 
   if ((message.audio || message.voice || message.document) && (await handleMedia(app, user, message))) return 'import';
   if (text) {
-    await app.tg.send(chat, { text: t(app.lang, 'search.soon') }, 'search_soon');
-    return 'text';
+    await searchFromText(app, user, text);
+    return 'search';
   }
   await app.tg.send(chat, helpView(app.lang, user), 'help');
   return 'other';

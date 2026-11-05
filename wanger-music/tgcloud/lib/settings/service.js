@@ -28,6 +28,8 @@ export function validateSetting(key, value) {
       return value === null || Number.isSafeInteger(value) ? { ok: true, value } : { ok: false };
     case 'json':
       return { ok: true, value };
+    case 'text':
+      return typeof value === 'string' && value.length <= (d.max ?? 512) ? { ok: true, value } : { ok: false };
     default:
       return { ok: false };
   }

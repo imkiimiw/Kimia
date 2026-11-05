@@ -7,7 +7,10 @@ import { screen, homeButton, promptView } from './panel.js';
 import { EDITABLE_KEYS, cycleValue, validateSetting } from '../settings/service.js';
 import { syncCommandMenus } from '../bot/commands.js';
 import { parseChatRef } from '../telegram/chatref.js';
-import { UserError, parseIntInRange } from '../core/util.js';
+import { UserError, parseIntInRange, truncate } from '../core/util.js';
+import { unknownVariables, renderCaption, captionValues, CAPTION_VARS } from '../publishing/captions.js';
+import { BOT_USERNAME } from '../config/static.js';
+import { classify } from '../telegram/errors.js';
 
 const PERM = 'settings.manage';
 
@@ -19,6 +22,7 @@ function valueText(lang, key, v) {
   if (key === 'forcejoin.failure_mode') return tp(lang, `fjm.mode.${v}`);
   if (d.type === 'int') return digits(v, lang);
   if (d.type === 'chat') return v ? String(v) : tp(lang, 'common.empty');
+  if (d.type === 'text') return v ? truncate(String(v).replace(/\s+/g, ' '), 24) : tp(lang, 'common.empty');
   return String(v);
 }
 
@@ -50,6 +54,11 @@ export const routes = [
       if (d.type === 'int') {
         await app.flows.start(user.telegram_id, 'set_int', { key });
         await app.tg.send(user.telegram_id, promptView(lang, t(lang, 'set.int_prompt', { label: label(lang, key), min: d.min, max: d.max, value: await app.settings.get(key) })), 'setting_prompt');
+        return {};
+      }
+      if (d.type === 'text') {
+        await app.flows.start(user.telegram_id, 'set_text', { key });
+        await app.tg.send(user.telegram_id, promptView(lang, t(lang, 'set.text_prompt', { label: label(lang, key), vars: CAPTION_VARS.map((v) => `{${v}}`).join(' '), max: d.max || 512 })), 'setting_prompt');
         return {};
       }
       if (d.type === 'chat') {
@@ -87,6 +96,35 @@ export const flows = {
       await app.settings.set(user, key, n);
       await app.flows.clear(user.telegram_id);
       await app.tg.send(user.telegram_id, { text: t(app.lang, 'set.changed', { label: label(app.lang, key), value: valueText(app.lang, key, n) }) }, 'setting_saved');
+      await app.tg.send(user.telegram_id, await listView(app), 'settings');
+    },
+  },
+  set_text: {
+    perm: PERM,
+    maxInput: 1024,
+    async run(app, user, message, flow) {
+      const key = String(flow.data && flow.data.key);
+      const d = SETTINGS[key];
+      if (!d || d.type !== 'text') return app.flows.clear(user.telegram_id);
+      const raw = String(message.text || '').trim();
+      const value = raw === '-' ? '' : raw;
+      if (value.length > (d.max || 512)) throw new UserError('common.input_too_long', { max: d.max || 512 });
+      const unknown = unknownVariables(value);
+      if (unknown.length) throw new UserError('set.err.vars', { vars: unknown.map((v) => `{${v}}`).join(' ') });
+      if (value) {
+        // validation by preview: Telegram must accept the rendered HTML
+        const sample = { public_id: 'AbCdEfGh1', title: 'Sample Song', artist: 'Sample Artist', album: 'Sample Album', duration: 187, language: 'fa', genre: 'pop' };
+        const text = renderCaption(value, captionValues(sample, { botUsername: BOT_USERNAME, languageName: (l) => tp(app.lang, `tlang.${l}`), genreName: (g) => tp(app.lang, `genre.${g}`) }));
+        try {
+          await app.tg.call('sendMessage', { chat_id: user.telegram_id, text: `${t(app.lang, 'set.preview')}\n\n${text || '—'}`, parse_mode: 'HTML', link_preview_options: { is_disabled: true } }, 'template_preview');
+        } catch (e) {
+          if (classify(e).kind === 'bad_caption' || classify(e).kind === 'bad_request') throw new UserError('set.err.template', { reason: classify(e).description });
+          throw e;
+        }
+      }
+      await app.settings.set(user, key, value);
+      await app.flows.clear(user.telegram_id);
+      await app.tg.send(user.telegram_id, { text: t(app.lang, 'set.changed', { label: label(app.lang, key), value: valueText(app.lang, key, value) }) }, 'setting_saved');
       await app.tg.send(user.telegram_id, await listView(app), 'settings');
     },
   },

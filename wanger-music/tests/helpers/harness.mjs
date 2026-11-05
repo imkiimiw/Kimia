@@ -8,6 +8,8 @@ import messageHandler from '../../tgcloud/handlers/message.js';
 import callbackHandler from '../../tgcloud/handlers/callback_query.js';
 import myChatMemberHandler from '../../tgcloud/handlers/my_chat_member.js';
 import opsTick from '../../tgcloud/endpoints/opsTick.js';
+import inlineHandler from '../../tgcloud/handlers/inline_query.js';
+import chosenHandler from '../../tgcloud/handlers/chosen_inline_result.js';
 
 export const OWNER = 5557901897;
 export const SEED = [-1002407928564, -1001816009903, -1001910797391];
@@ -54,7 +56,8 @@ export function setup({ seedChannels = true, botAdminIn = SEED } = {}) {
     },
     /** Presses a button: data, and the message it sits on. */
     async press(fromId, data, messageId = null, chat = { id: fromId, type: 'private' }) {
-      const cq = { id: `cq${updateId}`, from: person(fromId), chat_instance: 'x', data, ...(messageId ? { message: { message_id: messageId, chat, date: 0 } } : {}) };
+      const stored = messageId ? tg.message(chat.id, messageId) : null;
+      const cq = { id: `cq${updateId}`, from: person(fromId), chat_instance: 'x', data, ...(messageId ? { message: { message_id: messageId, chat, date: 0, ...(stored && stored.text ? { text: stored.text.replace(/<[^>]+>/g, '') } : {}) } } : {}) };
       const update_id = updateId++;
       return callbackHandler(cq, { update: { update_id, callback_query: cq } });
     },
@@ -74,6 +77,18 @@ export function setup({ seedChannels = true, botAdminIn = SEED } = {}) {
       return myChatMemberHandler(upd, { update: { update_id: updateId++, my_chat_member: upd } });
     },
     opsTick: (userId) => opsTick({}, { initData: { user: { id: userId } } }),
+    /** An inline query; returns the answerInlineQuery params the bot sent (or null). */
+    async inline(fromId, query, offset = '') {
+      const q = { id: `iq${updateId}`, from: person(fromId), query, offset, chat_type: 'sender' };
+      const mark = tg.calls.length;
+      const result = await inlineHandler(q, { update: { update_id: updateId++, inline_query: q } });
+      const call = tg.calls.slice(mark).find((c) => c.method === 'answerInlineQuery');
+      return { result, answer: call ? call.params : null, calls: tg.calls.slice(mark) };
+    },
+    chosen: (fromId, resultId, updateIdOverride) => {
+      const r = { result_id: resultId, from: person(fromId), query: 'x' };
+      return chosenHandler(r, { update: { update_id: updateIdOverride ?? updateId++, chosen_inline_result: r } });
+    },
     lastText: (chatId) => (tg.lastTo(chatId) || {}).text || '',
     lastButtons: (chatId) => buttons(tg.lastTo(chatId)),
     mark: () => tg.calls.length,

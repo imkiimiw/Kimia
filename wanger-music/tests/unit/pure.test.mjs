@@ -146,6 +146,7 @@ test('error classification', () => {
   assert.equal(k(err(400, 'Bad Request: user not found')), 'user_not_found');
   assert.equal(k(err(400, 'Bad Request: member not found')), 'user_not_found', 'a non-member, not a broken channel');
   assert.equal(k(err(400, 'Bad Request: query is too old and response timeout expired')), 'query_expired');
+  assert.equal(k(err(400, 'Bad Request: QUERY_ID_INVALID')), 'query_expired');
   assert.equal(k(err(400, 'Bad Request: something else')), 'bad_request');
 });
 

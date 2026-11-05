@@ -6,12 +6,14 @@ import { btn, markup } from './keyboards.js';
 import { parseStartPayload } from './commands.js';
 import { joinView } from '../forcejoin/gate.js';
 import { isStaff, can } from '../permissions/policy.js';
+import { sendTrack } from './search_ui.js';
 
 /** @param {string} lang @param {any} user */
 export function welcomeView(lang, user) {
   return {
     text: t(lang, 'start.welcome', { bot: BOT_USERNAME }),
     keyboard: markup([
+      [{ text: tp(lang, 'search.btn_inline'), switch_inline_query_current_chat: '' }],
       [btn(tp(lang, 'start.btn_help'), 'u', 'help'), btn(tp(lang, 'start.btn_lang'), 'u', 'lang')],
       can(user, 'panel.open') ? [btn(tp(lang, 'common.home'), 'adm', 'home')] : [],
     ]),
@@ -33,8 +35,8 @@ export function langView(lang) {
 export async function continueStart(app, user, payloadText) {
   const p = parseStartPayload(payloadText);
   const chat = user.telegram_id;
-  if (p.kind === 'track') return app.tg.send(chat, { text: t(app.lang, 'start.track_soon') }, 'track_soon');
-  if (p.kind === 'search') await app.tg.send(chat, { text: t(app.lang, 'start.search_soon') }, 'search_soon');
+  if (p.kind === 'track') return sendTrack(app, user, /** @type {string} */ (p.publicId));
+  if (p.kind === 'search') return app.tg.send(chat, { text: t(app.lang, 'search.prompt'), keyboard: markup([[{ text: tp(app.lang, 'search.btn_inline'), switch_inline_query_current_chat: '' }]]) }, 'search_prompt');
   return app.tg.send(chat, welcomeView(app.lang, user), 'welcome');
 }
 

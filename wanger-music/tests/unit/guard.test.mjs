@@ -33,6 +33,7 @@ const PURE = [
   'lib/bot/codec.js', 'lib/bot/keyboards.js', 'lib/i18n/index.js', 'lib/i18n/fa.js', 'lib/i18n/en.js',
   'lib/permissions/policy.js', 'lib/forcejoin/gate.js',
   'lib/music/normalize.js', 'lib/music/classify.js', 'lib/music/duplicates.js',
+  'lib/search/terms.js', 'lib/publishing/captions.js',
 ];
 const SDK_ALLOWED = (f) => f === 'schema.js' || f.startsWith('lib/repositories/') || f === 'lib/telegram/client.js' || f.startsWith('endpoints/');
 
@@ -83,7 +84,7 @@ test('layout: flat handlers named after update types; valid endpoint names', () 
     assert.equal(f.split('/').length, 2, `${f} is one level deep`);
     assert.ok(types.has(path.basename(f, '.js')), `${f} is an update type`);
   }
-  assert.deepEqual(files.filter((x) => x.startsWith('handlers/')).sort(), ['handlers/callback_query.js', 'handlers/message.js', 'handlers/my_chat_member.js'], 'Phase 1–2 handlers only (inline arrives in Phase 3)');
+  assert.deepEqual(files.filter((x) => x.startsWith('handlers/')).sort(), ['handlers/callback_query.js', 'handlers/chosen_inline_result.js', 'handlers/inline_query.js', 'handlers/message.js', 'handlers/my_chat_member.js'], 'Phase 1–3 handlers only (channel_post arrives in Phase 4)');
   for (const f of files.filter((x) => x.startsWith('endpoints/'))) assert.match(path.basename(f, '.js'), /^[A-Za-z_][A-Za-z0-9_]*$/);
 });
 

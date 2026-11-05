@@ -50,6 +50,7 @@ function cardKeyboard(lang, viewer, tr) {
   const edits = [
     [btn(tp(lang, 'trk.btn.title'), 'trk', 'ed', id, 'title'), btn(tp(lang, 'trk.btn.artist'), 'trk', 'ed', id, 'artist'), btn(tp(lang, 'trk.btn.album'), 'trk', 'ed', id, 'album')],
     [btn(tp(lang, 'trk.btn.language'), 'trk', 'lang', id), btn(tp(lang, 'trk.btn.genre'), 'trk', 'genre', id), btn(tp(lang, 'trk.btn.cover'), 'trk', 'cover', id)],
+    tr.artist ? [btn(tp(lang, 'trk.btn.artist_card'), 'art', 'byt', id)] : [],
   ];
   const back = [btn(tp(lang, 'mus.back'), 'mus', 'home')];
   const play = btn(tp(lang, 'trk.btn.play'), 'trk', 'play', id);
@@ -78,7 +79,7 @@ async function homeView(app) {
       [f('active'), f('hidden'), f('removed')],
       [f('fa'), f('en')],
       [f('other'), f('unknown')],
-      [btn(tp(lang, 'mus.btn_search'), 'mus', 'find')],
+      [btn(tp(lang, 'mus.btn_search'), 'mus', 'find'), btn(tp(lang, 'art.btn_list'), 'art', 'ls', 0)],
       [homeButton(lang)],
     ]),
   };
