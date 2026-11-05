@@ -41,7 +41,7 @@ token. If a later provider needs an API key, it goes in the git-ignored
 | `LIMITS.captionTemplateMax` | 1000 | Caption template length (the rendered caption is cut to 1024) |
 | `SUGGESTED_DESTINATIONS` | @WangerBeat → en, @WangerFlow → fa | One-tap "add" buttons in 📢 Destination Channels |
 | `COMMANDS_VERSION` | 2 | Bump when command menus change; the owner's next update re-syncs them |
-| `CURRENT_PHASE` | 1 | Sections of later phases show an honest placeholder |
+| `CURRENT_PHASE` | 7 | Sections of later phases show an honest placeholder |
 
 ## Settings (`settings` table, ⚙️ Settings)
 
@@ -67,7 +67,12 @@ token. If a later provider needs an API key, it goes in the git-ignored
 
 Internal state keys (not editable): `system.bootstrapped`, `forcejoin.seeded`, `forcejoin.version`,
 `tick.last_at`, `tick.last`, `telegram.cooldown_until`, `commands.version`, `catalog.version`,
-`archive.rate`, `search.reindex_cursor`.
+`archive.rate`, `search.reindex_cursor`, `stats.aggregated_at` (last aggregation; the tick
+aggregates at most every 15 min), `stats.pruned_date` (retention runs once per local day).
+
+Analytics (Phase 7) has no editable settings. Fixed in `stats/service.js`: aggregation every 15 min,
+keep 400 days (per-track plays 90 days), periods today / 7 / 30 days. Days follow `time_zone`
+(changing it shifts the day boundaries from then on).
 
 ## Outside the bot
 
@@ -77,7 +82,7 @@ Internal state keys (not editable): `system.bootstrapped`, `forcejoin.seeded`, `
 | `WANGER_MUSIC_TGCLOUD_TOKEN` | GitHub → repository secrets | The same CLI token, for `.github/workflows/wanger-music-tick.yml` |
 | `WANGER_STAGING_TGCLOUD_TOKEN` | Environment (optional) | A staging bot's CLI token, for `npm run smoke -- --staging` |
 
-## Planned (not configured yet)
+## Channels (in the database, not in code)
 
 Source channels (Phase 4) live in the `sources` table, added in 📡 Sources or from the "bot added
 to a channel" prompt; each has enabled, import mode (off / draft / active, default draft) and a

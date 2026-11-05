@@ -14,7 +14,7 @@ test('a non-member gets the join message with 3 join buttons and «✅ عضو ش
   assert.match(h.lastText(U), /^برای استفاده از ربات، اول عضو این کانال‌ها شو 👇/);
   assert.deepEqual(h.lastButtons(U).map((b) => b.url || b.callback_data), ['https://t.me/HIDE_i_SEEK', 'https://t.me/Nepenthw_ir', 'https://t.me/wangerBots', 'fj:check']);
   assert.equal(h.lastButtons(U)[3].text, '✅ عضو شدم');
-  assert.equal(h.one('SELECT force_join_ok_until AS v FROM users WHERE telegram_id = ?', U).v, 0, 'failure not cached');
+  assert.equal(h.one('SELECT force_join_ok_until AS v FROM users WHERE telegram_id = ?', U).v, -1, 'failure not cached (-1 = gated, for conversion stats)');
 });
 
 test('joining some → the message lists only the rest; joining all → unlocked, then /start payload continues', async () => {

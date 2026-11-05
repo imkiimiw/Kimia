@@ -3,13 +3,24 @@ import { LIMITS } from '../config/static.js';
 import { assertCan, isOwnerId, isStaff } from '../permissions/policy.js';
 import { UserError } from '../core/util.js';
 import { normLang } from '../i18n/index.js';
+import { NOOP_STATS } from '../stats/service.js';
 
-/** @param {{repo: any, clock: any, audit: any, settings: any}} deps */
-export function createUsersService({ repo, clock, audit, settings }) {
+/** @param {{repo: any, clock: any, audit: any, settings: any, stats?: any}} deps */
+export function createUsersService({ repo, clock, audit, settings, stats = NOOP_STATS }) {
+  /** Counts a user's first activity of the local day (see repo.markActive). @param {any} row */
+  async function noteActive(row, now) {
+    const start = await stats.dayStart(now);
+    if (!row || row.last_seen_at >= start || !(await repo.markActive(row.telegram_id, start, now))) return false;
+    row.last_seen_at = now;
+    stats.count('users.active');
+    return true;
+  }
+
   const svc = {
     /**
      * Upserts the sender of a private-chat update. Reads always; writes only for a new user, a
-     * changed profile, an unblock, or when last_seen_at is older than 10 minutes.
+     * changed profile, an unblock, the first activity of a local day, or when last_seen_at is
+     * older than 10 minutes.
      * @param {{id: number, username?: string, first_name?: string, language_code?: string}} from
      */
     async touch(from) {
@@ -22,7 +33,16 @@ export function createUsersService({ repo, clock, audit, settings }) {
         language_code: from.language_code ? String(from.language_code).slice(0, 16) : null,
         now,
       };
-      if (row && row.username === fresh.username && row.first_name === fresh.first_name && row.language_code === fresh.language_code
+      if (!row) {
+        const created = await repo.insertSeen(fresh);
+        if (created) {
+          stats.count('users.active');
+          return created;
+        }
+        return repo.upsertSeen(fresh);
+      }
+      await noteActive(row, now);
+      if (row.username === fresh.username && row.first_name === fresh.first_name && row.language_code === fresh.language_code
         && !row.is_blocked && now - row.last_seen_at < LIMITS.lastSeenWriteSeconds) return row;
       return (await repo.upsertSeen(fresh)) || row;
     },
@@ -31,15 +51,19 @@ export function createUsersService({ repo, clock, audit, settings }) {
     async touchInline(from) {
       const row = await repo.get(from.id);
       if (row) return row;
-      await repo.insertInline({
+      const created = await repo.insertInline({
         telegram_id: from.id,
         username: from.username || null,
         first_name: from.first_name ? String(from.first_name).slice(0, 128) : null,
         language_code: from.language_code ? String(from.language_code).slice(0, 16) : null,
         now: clock.now(),
       });
+      if (created) stats.count('users.active');
       return repo.get(from.id);
     },
+
+    /** Inline mode, after the answer: the day's first inline use counts the user as active. */
+    noteActive: (row) => noteActive(row, clock.now()),
 
     get: (tid) => repo.get(tid),
 
@@ -96,6 +120,8 @@ export function createUsersService({ repo, clock, audit, settings }) {
     countRecipients: () => repo.countRecipients(),
     recipientsAfter: (cursor, limit) => repo.recipientsAfter(cursor, limit),
     setPass: (tid, until) => repo.setForceJoinPass(tid, until),
+    markGated: (tid) => repo.markGated(tid),
+    convertPass: (tid, until) => repo.convertPass(tid, until),
     clearAllPasses: () => repo.clearAllPasses(clock.now()),
   };
   return svc;

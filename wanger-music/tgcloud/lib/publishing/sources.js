@@ -8,6 +8,7 @@ import { UserError } from '../core/util.js';
 import { parseChatRef } from '../telegram/chatref.js';
 import { originOf } from '../music/ingest.js';
 import { t } from '../i18n/index.js';
+import { NOOP_STATS } from '../stats/service.js';
 
 const PERM = 'sources.manage';
 export const MODES = Object.freeze(['off', 'draft', 'active']);
@@ -22,9 +23,9 @@ export function botBecameAdmin(upd) {
 }
 
 /**
- * @param {{repo: any, tg: any, ingest: any, catalog: any, alerts: any, audit: any, clock: any, log: any}} deps
+ * @param {{repo: any, tg: any, ingest: any, catalog: any, alerts: any, audit: any, clock: any, log: any, stats?: any}} deps
  */
-export function createSourcesService({ repo, tg, ingest, catalog, alerts, audit, clock, log }) {
+export function createSourcesService({ repo, tg, ingest, catalog, alerts, audit, clock, log, stats = NOOP_STATS }) {
   async function mustGet(id) {
     const s = await repo.get(id);
     if (!s) throw new UserError('src.err.gone');
@@ -95,6 +96,9 @@ export function createSourcesService({ repo, tg, ingest, catalog, alerts, audit,
       const r = await ingest.importAudio(SYSTEM_ACTOR, post, { sourceType: 'telegram_channel', sourceId: src.id, sourceDefaultLanguage: src.default_language, origin });
       const now = clock.now();
       await repo.recordPost(src.id, now, r.kind === 'created');
+      stats.count('source.post', src.id);
+      if (r.kind === 'created') stats.count('source.import', src.id);
+      else stats.count('source.duplicate', src.id);
       if ((post.chat.title && post.chat.title !== src.title) || (post.chat.username || null) !== src.username) {
         await repo.update(src.id, { title: String(post.chat.title || src.title || '').slice(0, 128), username: post.chat.username || null }, now);
       }

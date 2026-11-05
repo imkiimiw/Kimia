@@ -111,7 +111,7 @@ test('inline gate: a non-member gets no results, a personal answer, cache_time 0
   assert.deepEqual(r.answer, { inline_query_id: r.answer.inline_query_id, results: [], is_personal: true, cache_time: 0, button: { text: '🔒 اول عضو کانال‌ها شو', start_parameter: 'join' } });
   assert.equal(r.result.result, 'gated');
   const u = h.one('SELECT is_blocked, force_join_ok_until FROM users WHERE telegram_id = ?', U);
-  assert.deepEqual({ ...u }, { is_blocked: 1, force_join_ok_until: 0 }, 'an inline-only user can’t be messaged yet; no pass cached');
+  assert.deepEqual({ ...u }, { is_blocked: 1, force_join_ok_until: -1 }, 'an inline-only user can’t be messaged yet; no pass cached (-1 = gated)');
   join(h, U);
   assert.deepEqual(ids((await h.inline(U, 'hello')).answer), [admin.public_id]);
   await h.send(U, '/start join');

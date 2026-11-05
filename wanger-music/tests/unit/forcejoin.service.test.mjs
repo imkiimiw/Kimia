@@ -25,12 +25,20 @@ function make({ members = {}, settings = {}, channels = [{ chat_id: A, username:
       return { status: m || 'left' };
     },
   };
-  const users = { setPass: async (tid, until) => passes.push([tid, until]), clearAllPasses: async () => { cleared += 1; return 1; } };
+  const gated = [];
+  const counted = [];
+  const users = {
+    setPass: async (tid, until) => passes.push([tid, until]),
+    clearAllPasses: async () => { cleared += 1; return 1; },
+    markGated: async (tid) => { gated.push(tid); return true; },
+    convertPass: async (tid, until) => { passes.push([tid, until]); return true; },
+  };
+  const stats = { count: (m) => counted.push(m), dayStart: async () => 0 };
   const s = fakeSettings(settings);
   const alerts = fakeAlerts(clock);
   const audit = fakeAudit();
-  const svc = createForceJoinService({ repo, users, tg, settings: s, alerts, audit, clock, log: noLog });
-  return { svc, clock, repo, calls, passes, alerts, audit, settings: s, cleared: () => cleared, members };
+  const svc = createForceJoinService({ repo, users, tg, settings: s, alerts, audit, clock, log: noLog, stats });
+  return { svc, clock, repo, calls, passes, gated, counted, alerts, audit, settings: s, cleared: () => cleared, members };
 }
 const user = (extra = {}) => ({ telegram_id: 42, role: 'user', force_join_ok_until: 0, ...extra });
 
@@ -183,4 +191,19 @@ test('gate views: join buttons per missing channel, invite links, and the inline
   const g = inlineGateAnswer('q1', 'fa');
   assert.deepEqual(g, { inline_query_id: 'q1', results: [], is_personal: true, cache_time: 0, button: { text: '🔒 اول عضو کانال‌ها شو', start_parameter: 'join' } });
   assert.match(g.button.start_parameter, /^[A-Za-z0-9_-]{1,64}$/);
+});
+
+test('conversions: a failed check marks the user gated once; a later pass counts one conversion', async () => {
+  const f = make({ members: { [A]: 'member', [B]: 'left', [C]: 'member' } });
+  const u = user();
+  assert.equal((await f.svc.check(u)).passed, false);
+  assert.equal(u.force_join_ok_until, -1);
+  assert.equal((await f.svc.check(u)).passed, false); // still gated: not counted again
+  assert.deepEqual(f.gated, [42]);
+  f.members[B] = 'member';
+  assert.equal((await f.svc.check(u, { useCache: false })).passed, true);
+  assert.ok(u.force_join_ok_until > 0);
+  assert.deepEqual(f.counted, ['fj.gated', 'fj.converted']);
+  assert.equal((await f.svc.check(u, { useCache: false })).passed, true); // a normal re-check is no conversion
+  assert.deepEqual(f.counted, ['fj.gated', 'fj.converted']);
 });

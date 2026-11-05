@@ -4,7 +4,7 @@ A Telegram music bot that runs entirely on **Telegram Serverless**: instant sear
 Telegram-hosted music (inline and in private chat), plus automatic publishing of new tracks to the
 owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 
-**Status: Phases 1–6 (core, catalog, search + inline, sources, destinations, automatic publishing) are built and tested; nothing is deployed yet.** Deploy state: see [docs/ROADMAP.md](docs/ROADMAP.md).
+**Status: Phases 1–7 (core, catalog, search + inline, sources, destinations, automatic publishing, analytics) are built, tested and deployed** (production, 2026-11-05). Next: Phase 8 (hardening). Deploy state: see [docs/ROADMAP.md](docs/ROADMAP.md).
 
 | Phase 1 feature | Where |
 |---|---|
@@ -59,6 +59,13 @@ owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 | At most once: an interrupted send becomes ⚠️ uncertain; the owner marks it published or sends it again | 🗳 Approvals |
 | History per track and per channel; removing a track cancels waiting posts; «🧹 Delete channel posts»; pause switch | track / channel cards, ⚙️ Settings |
 
+| Phase 7 feature | Where |
+|---|---|
+| 📊 Statistics for today / 7 / 30 days: users (total, new, active, blocked or never started), inline and in-bot searches (+ no-result), plays, force-join conversions, tracks, top 5 | admin panel (owner + admins) |
+| Per destination channel: published in the period and all time, awaiting approval, queued, failed, uncertain; per source: audio posts, imports, duplicates | 📊 Statistics |
+| «📈 Daily» (14 days) and «🔥 Most played» (period + all time) | 📊 Statistics |
+| Aggregated only (`stats_daily`): no per-user histories, no search texts; numbers recounted from the tables match direct counts | — |
+
 ## Run it
 
 Everything runs from this folder. The repository root and its other folders are other bots.
@@ -66,11 +73,11 @@ Everything runs from this folder. The repository root and its other folders are 
 ```bash
 cd wanger-music
 npm ci
-npm test                         # 152 tests: unit + end-to-end (local SDK emulation, fake Telegram)
+npm test                         # 170 tests: unit + end-to-end (local SDK emulation, fake Telegram)
 export Music_BOT_TGCLOUD_TOKEN=app9280424458:…   # CLI access token (BotFather → bot → Serverless → CLI Access)
 npm run tg -- status             # the CLI, for this bot only
 npm run deploy                   # tests → stamp version → migrate --local --safe → push → migrate --safe → webhook
-npm run smoke                    # read-only production check (System Status data)
+npm run smoke                    # read-only production check (System Status data + dashboard vs direct counts)
 ```
 
 `npm run deploy` applies only **safe** (additive) migration steps; anything marked warning/manual
@@ -84,7 +91,7 @@ After the first deploy:
 Docs: [ARCHITECTURE](docs/ARCHITECTURE.md) · [CONFIG](docs/CONFIG.md) ·
 [PLATFORM_NOTES](docs/PLATFORM_NOTES.md) · [ROADMAP](docs/ROADMAP.md) · [SPEC](docs/SPEC.md).
 
-## Known limitations (Phase 1)
+## Known limitations
 
 - **No scheduler on the platform**: broadcast batches run when a tick runs (traffic, buttons, or the
   30-minute GitHub Actions schedule), so timing depends on those.
@@ -95,12 +102,15 @@ Docs: [ARCHITECTURE](docs/ARCHITECTURE.md) · [CONFIG](docs/CONFIG.md) ·
 - Source channels: only posts made after the bot became an admin arrive (bots can't read history).
 - Publishing runs on the tick: posts go out when updates arrive, the owner taps «▶️ Run tick», or the
   GitHub Actions schedule runs (every 30 min) — timing depends on those.
+- Statistics: inline searches are counted per first page of 3+ characters (Telegram sends a query per
+  keystroke, so this overstates real searches); inline plays need `/setinlinefeedback`; event counts
+  (searches, plays, conversions, source posts) start with Phase 7; days follow the `time_zone` setting.
 
 ---
 
 ## راه‌اندازی سریع (فارسی)
 
-**وضعیت: فاز ۱، ۲ و ۳ ساخته و تست شده‌اند.**
+**وضعیت: فاز ۱ تا ۷ ساخته، تست و روی سرور اصلی دیپلوی شده‌اند.** فاز بعد: ۸ (مقاوم‌سازی).
 
 جستجو (فاز ۳): اسم آهنگ را در چت ربات بفرستید، یا در هر چتی بنویسید <code>@Wange_Musicbot اسم آهنگ</code>. برای شمارش استفاده از اینلاین، در BotFather دستور <code>/setinlinefeedback</code> را روی ۱۰۰٪ بگذارید.
 
@@ -117,5 +127,7 @@ Docs: [ARCHITECTURE](docs/ARCHITECTURE.md) · [CONFIG](docs/CONFIG.md) ·
 ۴. ربات باید در هر سه کانال عضویت اجباری ادمین باشد (الان هست: @HIDE_i_SEEK، @Nepenthw_ir، @wangerBots).
 ۵. (اختیاری) برای تیک زمان‌بندی‌شده هر ۳۰ دقیقه، در گیت‌هاب سکرت `WANGER_MUSIC_TGCLOUD_TOKEN` را با همان توکن CLI بسازید.
 
-کانال‌های مقصد (@WangerBeat برای آهنگ انگلیسی و @WangerFlow برای آهنگ فارسی) در **فاز ۵** اضافه می‌شوند؛
-تا وقتی خودتان کانالی را فعال نکنید، ربات هیچ‌جا پست نمی‌گذارد.
+کانال‌های مقصد (@WangerBeat برای آهنگ انگلیسی و @WangerFlow برای آهنگ فارسی) را از /admin ← 📢 کانال‌های مقصد با یک دکمه اضافه کنید؛
+تا وقتی خودتان کانالی را فعال و «انتشار خودکار» را روشن نکنید، ربات هیچ‌جا پست نمی‌گذارد.
+
+آمار (فاز ۷): /admin ← 📊 آمار — امروز، ۷ و ۳۰ روز اخیر؛ «📈 روزانه» و «🔥 پرپخش‌ها». فقط عددهای جمع‌شده ذخیره می‌شود (نه تاریخچه‌ی هر کاربر و نه متن جستجوها).

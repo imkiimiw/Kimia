@@ -3,7 +3,7 @@
 // and endpoints/opsTick (GitHub Actions schedule). Timing depends on traffic and the schedule.
 import { runMaintenance } from './maintenance.js';
 
-/** Processors in order (spec 10.7): maintenance → broadcast → publications → digests → archive → search index. */
+/** Processors in order (spec 10.7): maintenance → broadcast → publications → digests → archive → search index → stats (Phase 7: aggregation every 15 min, retention daily). */
 const PROCESSORS = [
   { name: 'maintenance', run: (app) => runMaintenance(app) },
   { name: 'broadcast', run: (app, deadlineMs) => app.broadcasts.runBatch({ deadlineMs }) },
@@ -11,6 +11,7 @@ const PROCESSORS = [
   { name: 'digests', run: (app) => app.publisher.runDigest() },
   { name: 'archive', run: (app, deadlineMs) => app.catalog.runArchiveBacklog({ deadlineMs }) },
   { name: 'search_index', run: (app, deadlineMs) => app.search.runReindex({ deadlineMs }) },
+  { name: 'stats', run: (app) => app.stats.runTick() },
 ];
 
 /**

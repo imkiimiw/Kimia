@@ -5,8 +5,8 @@
 **Read `docs/SPEC.md` and `docs/PLATFORM_NOTES.md` before each phase.** One phase at a time; at the
 end: all tests green, docs updated, the report (SPEC §15), then STOP and wait for the owner.
 
-- **Current phase: 6 done. Next: Phase 7 — analytics.** Nothing deployed yet (the owner must OK a deploy
-  explicitly; see docs/ROADMAP.md).
+- **Current phase: 7 done. Next: Phase 8 — production hardening.** Phases 1–7 are deployed
+  (owner's explicit OK, 2026-11-05; see docs/ROADMAP.md). Every new deploy still needs the owner's OK.
 - Stack: Telegram Serverless (tgcloud CLI 0.2.0), plain JS ES modules in `tgcloud/`, SQLite via
   `sdk/db` (raw SQL with the `sql` tag), Node 22 for local tests. No runtime dependencies.
 - This folder is its own tgcloud project (bot `@Wange_Musicbot`, app9280424458). The repo root and
@@ -33,7 +33,11 @@ end: all tests green, docs updated, the report (SPEC §15), then STOP and wait f
 - Invisible characters (ZWNJ…) are written as `\u200c` escapes, never literally (`node scripts/fix-invisible.mjs` repairs them).
 - Music text goes through `lib/music/normalize.js` only (display / key / compact); dup_key = artist|title|version keys.
 - Search: `track_terms` holds terms of ACTIVE tracks only (catalog calls index.add/remove); the inline path
-  never writes except a first-time user row / force-join pass, and never runs a tick.
+  writes nothing before the answer except a first-time user row / force-join state, and never runs a tick.
+- Analytics: count events only with `app.stats.count(metric, dim)` (buffered, flushed once by the boundary);
+  every metric is listed in `stats/service.js#METRICS` (a guard test checks it); never a text as a dimension,
+  never per-user rows. `force_join_ok_until = -1` means "gated" (conversion stats). Derived numbers are
+  recomputed by `stats.aggregate()`; don't count them as events.
 - Source imports run as `SYSTEM_ACTOR` (policy.js; audit actor 0) and never publish.
 - Destinations: rules/hours in `publishing/rules.js` (pure: matches(), withinHours()); captions in
   `publishing/captions.js`; previews go to the owner only; removal is soft (removed_at).
@@ -42,4 +46,4 @@ end: all tests green, docs updated, the report (SPEC §15), then STOP and wait f
   lease is `uncertain` and is NEVER re-sent automatically.
 - Keep ≤ 85 modules (the platform refused a 104-module deploy). Add handlers only in their phase.
 - Ask the owner before: new dependencies, deploys, migrate warnings, anything that posts to a real
-  channel or messages real users. Destination channels (@WangerBeat, @WangerFlow) are Phase 5.
+  channel or messages real users. Destination channels (@WangerBeat, @WangerFlow) exist only once the owner adds them.

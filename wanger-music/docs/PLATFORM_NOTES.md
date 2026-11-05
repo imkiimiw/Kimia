@@ -79,7 +79,7 @@ deployed yet) · **Unknown** = neither documented nor measurable without deployi
 | Spec item | Decision |
 |---|---|
 | §9 inline users who never started the bot | They get a users row (needed for the force-join pass) with `is_blocked = 1` (the bot can't message them yet); their first `/start` clears it. 👥 Users labels that number "can't receive messages". |
-| §9 "chosen_inline_result → play_count and stats" | play_count now; stats_daily is Phase 7. Needs BotFather `/setinlinefeedback` (owner). |
+| §9 "chosen_inline_result → play_count and stats" | play_count (Phase 3) and `play.inline` + `track.play` in stats_daily (Phase 7). Needs BotFather `/setinlinefeedback` (owner). |
 | §9 one-letter queries | A one-letter last token matches exactly (not as a prefix), so it can't scan the whole index. |
 | §7.4 private search pagination | Stateless: the query is read back from the first line of the results message. |
 
@@ -102,11 +102,33 @@ deployed yet) · **Unknown** = neither documented nor measurable without deployi
 | §10.4 reviewers | Owner + admins (`approvals.review`); admins see 🗳 Approvals in /admin. Uncertain / failed actions, backfill, history and post deletion are owner-only. |
 | Caption language | Language/genre names in captions use the channel's first rules language (English channel → English names, otherwise Persian). |
 
+## First production deploy (Phases 1–6, 2026-11-05)
+
+| Check | Result |
+|---|---|
+| `migrate --safe` | 17 steps applied, 0 skipped (all additive); a second `migrate --dry-run` → "No schema changes" |
+| `push` | 78 modules accepted; webhook "in sync" (message, channel_post, inline_query, chosen_inline_result, callback_query, my_chat_member) |
+| Read-only smoke (`npm run smoke`) | version 0.1.0 / `2d7a9be`, bot `Wange_Musicbot`, DB round trip 2 ms, tick ran (piggyback), 3 force-join channels ok, 0 errors |
+| Inline latency (`tgcloud run handlers/inline_query`, owner id, fake query ids) | 38–125 ms per run with an empty catalog (the answer fails with QUERY_ID_INVALID, classified as an expired query: no error row). The 800 ms p95 target is far away; a staging bot with a real catalog is still needed for the spec's p95 measurement. |
+
+## Phase 7 additions
+
+| Check / spec item | Result / decision |
+|---|---|
+| `migrate --local --dry-run` | 2 safe steps: `stats_daily` (`PRIMARY KEY (date, metric, dimension) WITHOUT ROWID`) and `users.idx_users_created` |
+| §13 Phase 7 "searches: inline queries arrive per keystroke, so count only first-page queries of 3+ characters, or sample" | First pages of ≥ 3 characters, from users who passed the gate, are counted (no sampling: deterministic and testable). The dashboard says this overstates real searches. |
+| "users: active" | Exact distinct users per local day: the day's first activity is one conditional `UPDATE` of `last_seen_at` (also for inline users, after the answer). `last_seen_at` therefore now also moves for inline-only use (once a day). |
+| "force-join conversions" | `force_join_ok_until = -1` marks a user stopped by the gate; leaving that state through a pass is a conversion. The rate shown (converted ÷ gated in the period) is approximate: the two may belong to different days. |
+| "publications per channel (published, failed, pending)" | Published per day is recounted from `publications.published_at` (so a purge lowers it); waiting / queued / failed / uncertain are live counts. |
+| §13 "Done when: the dashboard numbers match direct database counts on staging" | There is no staging bot. `tests/e2e/stats.e2e.test.mjs` compares every dashboard number with SQL on the tables (local emulation), and the production smoke check compares the live dashboard with direct counts **read-only** (it may write the day's derived rows, nothing else). |
+| `dayStart` on daylight-saving days | Fixed: the offset is read at the found midnight (it was read at `now`, so a DST day started an hour off). Tehran has no DST; Berlin / London / New York benefit. |
+
 ## Design consequences
 
 - **State**: everything important is in the database; no module-level caches are relied on.
 - **Atomicity**: one statement per state change; claims are `UPDATE … WHERE <expected state> RETURNING`.
-- **Background work**: `runTick` (maintenance → broadcast batch → later publications/digests), run
+- **Background work**: `runTick` (maintenance → broadcast → publications → digests → archive →
+  search index → stats), run
   piggyback after updates (never inline), by the owner's buttons, and by `endpoints/opsTick.js`
   from a GitHub Actions schedule (fallback for the missing scheduler).
 - **Budgets**: piggyback tick 2 s, manual/scheduled tick 8 s (both settings; wall limit ≈ 30 s,

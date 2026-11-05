@@ -57,7 +57,8 @@ export function createSearchRepo() {
     activeAfter: (cursor, limit) => db.all(sql`SELECT * FROM tracks WHERE status = 'active' AND id > ${cursor} ORDER BY id LIMIT ${limit}`),
     activeByArtist: (artistKey, limit) => db.all(sql`SELECT * FROM tracks WHERE status = 'active' AND normalized_artist = ${artistKey} ORDER BY id LIMIT ${limit}`),
 
-    addPlay: (publicId) => db.run(sql`UPDATE tracks SET play_count = play_count + 1 WHERE public_id = ${publicId} AND status = 'active'`).then((r) => r.rowsAffected),
+    /** @returns {Promise<number|null>} the track id when an active track was counted */
+    addPlay: (publicId) => db.run(sql`UPDATE tracks SET play_count = play_count + 1 WHERE public_id = ${publicId} AND status = 'active' RETURNING id`).then((r) => (r.rows[0] ? r.rows[0].id : null)),
 
     // ---- artists and aliases
 

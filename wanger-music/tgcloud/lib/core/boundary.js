@@ -1,4 +1,5 @@
-// The error boundary around every handler and endpoint: dedupe → run → piggyback tick, and on any
+// The error boundary around every handler and endpoint: dedupe → run → piggyback tick → write the
+// analytics counters buffered during the update (one statement), and on any
 // error: structured log → error_log row → throttled owner alert → normal return (never rethrows,
 // since platform redelivery after a throw is undocumented; see docs/PLATFORM_NOTES.md).
 import { createApp } from './context.js';
@@ -48,10 +49,12 @@ export async function runHandler(kind, payload, ctx, fn, { dedupe = true, tick =
         await report(app, `tick:${kind}`, updateId, userId, e);
       }
     }
+    await app.stats.flush();
     app.log.info('handled', { user_id: userId, status: typeof result === 'string' ? result : 'ok', duration_ms: Date.now() - started });
     return { ok: true, result, tick: tickSummary ? tickSummary.results : null, trace: app.tg.trace };
   } catch (e) {
     await report(app, kind, updateId, userId, e);
+    if (app) await app.stats.flush(); // what happened before the error still counts (flush never throws)
     return { ok: false, trace: app ? app.tg.trace : [] };
   }
 }
@@ -61,7 +64,9 @@ export async function runEndpoint(name, fn) {
   let app = null;
   try {
     app = await createApp({ kind: `endpoint:${name}` });
-    return { ok: true, result: await fn(app), trace: app.tg.trace };
+    const result = await fn(app);
+    await app.stats.flush();
+    return { ok: true, result, trace: app.tg.trace };
   } catch (e) {
     await report(app, `endpoint:${name}`, null, null, e);
     return { ok: false };

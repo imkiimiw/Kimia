@@ -18,8 +18,10 @@ test('only the owner sees and uses /admin; a normal user gets the unknown-comman
   await h.send(OWNER, '/admin');
   assert.match(h.lastText(OWNER), /پنل مدیریت Wanger Music/);
   assert.deepEqual(h.lastButtons(OWNER).map((b) => b.text), ['🎵 موزیک', '📡 منابع', '📢 کانال‌های مقصد', '🔐 عضویت اجباری', '👥 کاربران', '📣 پیام همگانی', '🗳 تأییدها و انتشار', '📊 آمار', '⚙️ تنظیمات', '🧪 وضعیت سیستم']);
-  await h.tap(OWNER, 'adm:sec:stats');
-  assert.match(h.lastText(OWNER), /در فاز ۷ اضافه می‌شود/);
+  await h.tap(OWNER, 'sts:home:7');
+  assert.match(h.lastText(OWNER), /📊 <b>آمار<\/b> · ۷ روز اخیر/);
+  await h.pressLast(OWNER, 'adm:sec:stats'); // a placeholder button from before Phase 7 opens the fresh menu
+  assert.match(h.lastText(OWNER), /پنل مدیریت Wanger Music/);
 });
 
 test('every registered admin route rejects a normal user (table-driven over the registry)', async () => {
@@ -55,7 +57,7 @@ test('an admin without a permission is denied; with it, allowed; admin features 
   assert.ok(scoped[0].params.commands.some((c) => c.command === 'admin'));
 
   await h.send(ADMIN, '/admin');
-  assert.deepEqual(h.lastButtons(ADMIN).map((b) => b.callback_data), ['mus:home', 'apr:home', 'adm:sec:stats'], 'only permitted sections');
+  assert.deepEqual(h.lastButtons(ADMIN).map((b) => b.callback_data), ['mus:home', 'apr:home', 'sts:home:7'], 'only permitted sections');
   const user = { telegram_id: ADMIN, role: 'admin' };
   for (const r of CALLBACK_ROUTES.filter((x) => x.perm && !can(user, x.perm))) {
     const mark = h.mark();

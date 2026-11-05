@@ -6,11 +6,12 @@ import { outcomeOf, evaluate } from './gate.js';
 import { UserError } from '../core/util.js';
 import { parseChatRef, isValidInviteLink } from '../telegram/chatref.js';
 import { t, raw } from '../i18n/index.js';
+import { NOOP_STATS } from '../stats/service.js';
 
 /**
- * @param {{repo: any, users: any, tg: any, settings: any, alerts: any, audit: any, clock: any, log: any}} deps
+ * @param {{repo: any, users: any, tg: any, settings: any, alerts: any, audit: any, clock: any, log: any, stats?: any}} deps
  */
-export function createForceJoinService({ repo, users, tg, settings, alerts, audit, clock, log }) {
+export function createForceJoinService({ repo, users, tg, settings, alerts, audit, clock, log, stats = NOOP_STATS }) {
   /** One channel, with one quick retry on a transient error (429/5xx/network). */
   async function checkOne(channel, userId) {
     let result = null;
@@ -82,8 +83,12 @@ export function createForceJoinService({ repo, users, tg, settings, alerts, audi
       const verdict = evaluate(results, mode);
       if (verdict.passed) {
         const until = now + Number(await settings.get('forcejoin.ttl_seconds'));
-        await users.setPass(user.telegram_id, until);
+        if (user.force_join_ok_until === -1 && (await users.convertPass(user.telegram_id, until))) stats.count('fj.converted');
+        else await users.setPass(user.telegram_id, until);
         user.force_join_ok_until = until;
+      } else if (user.force_join_ok_until !== -1 && (await users.markGated(user.telegram_id))) {
+        user.force_join_ok_until = -1;
+        stats.count('fj.gated');
       }
       return verdict;
     },

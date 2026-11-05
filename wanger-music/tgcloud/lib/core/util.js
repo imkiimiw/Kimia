@@ -93,6 +93,29 @@ export function localParts(ts, tz) {
   return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(), hh: d.getUTCHours(), mm: d.getUTCMinutes() };
 }
 
+/**
+ * Unix time of local midnight (in `tz`) of the day containing `now`. The offset is re-read at the
+ * midnight found, so a day on which daylight saving time changes starts at the right instant.
+ */
+export function dayStart(now, tz) {
+  const off = tzOffsetSeconds(tz, now);
+  const midnight = Math.floor((now + off) / 86400) * 86400; // local midnight, written as if it were UTC
+  return midnight - tzOffsetSeconds(tz, midnight - off);
+}
+
+/** The local calendar date of `ts` in `tz`, as 'YYYY-MM-DD' (Gregorian; stats_daily keys). */
+export function localDate(ts, tz) {
+  const p = localParts(ts, tz);
+  return `${p.y}-${pad(p.m)}-${pad(p.d)}`;
+}
+
+/** 'YYYY-MM-DD' shifted by `days` (calendar arithmetic, no time zone involved). */
+export function addDays(date, days) {
+  const [y, m, d] = String(date).split('-').map(Number);
+  const x = new Date(Date.UTC(y, m - 1, d + days));
+  return `${x.getUTCFullYear()}-${pad(x.getUTCMonth() + 1)}-${pad(x.getUTCDate())}`;
+}
+
 /** Gregorian → Solar Hijri (Jalali), the jdf algorithm; plain arithmetic. @returns {[number, number, number]} */
 export function toJalali(gy, gm, gd) {
   const gdm = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];

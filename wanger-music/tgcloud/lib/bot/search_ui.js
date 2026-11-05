@@ -39,30 +39,52 @@ export async function onInlineQuery(app, q) {
   });
   if (user.is_banned) {
     await answer({ inline_query_id: q.id, results: [], is_personal: true, cache_time: 0 });
+    await app.users.noteActive(user);
     return 'banned';
   }
   const verdict = await app.forcejoin.check(user);
   if (!verdict.passed) {
     await answer(inlineGateAnswer(q.id, app.lang));
+    await app.users.noteActive(user); // as in private chat, where the user is touched before the gate
     return 'gated';
   }
   const offset = /^\d{1,4}$/.test(String(q.offset || '')) ? Number(q.offset) : 0;
   const limit = Number(await app.settings.get('inline.page_size'));
   const page = await app.search.query(q.query, { limit, offset });
   await answer(inlineAnswer(q.id, page, { lang: app.lang, cacheTime: Number(await app.settings.get('inline.cache_time')), caption: await app.settings.get('inline.caption') }));
+  // after the answer: analytics (written by the boundary at the very end) and the day's activity
+  if (countsAsSearch(page, offset)) {
+    app.stats.count('search.inline');
+    if (!page.tracks.length) app.stats.count('search.inline_empty');
+  }
+  await app.users.noteActive(user);
   return { results: page.tracks.length, offset, more: page.more };
 }
+
+/**
+ * Telegram sends an inline query per keystroke: only first pages of 3+ characters count (spec Phase 7).
+ * @param {{q: {text: string}}} page @param {number} offset
+ */
+export const countsAsSearch = (page, offset) => offset === 0 && [...String(page.q.text || '')].length >= 3;
 
 /** chosen_inline_result: counts a play (needs /setinlinefeedback in BotFather). */
 export async function onChosenInlineResult(app, r) {
   if (!r || !/^[A-Za-z0-9]{8,10}$/.test(String(r.result_id || ''))) return 'ignored';
-  return (await app.search.addPlay(r.result_id)) ? 'counted' : 'unknown_track';
+  const id = await app.search.addPlay(r.result_id);
+  if (!id) return 'unknown_track';
+  app.stats.count('play.inline');
+  app.stats.count('track.play', id);
+  return 'counted';
 }
 
-/** The results message of a private search (page = 0-based). */
-async function resultsView(app, text, page) {
-  const lang = app.lang;
+/** The results message of a private search (page = 0-based). @returns {Promise<{view: any, res: any}>} */
+async function results(app, text, page) {
   const res = await app.search.query(text, { limit: PRIVATE_PAGE, offset: page * PRIVATE_PAGE });
+  return { view: resultsView(app.lang, res, page), res };
+}
+
+/** @param {string} lang @param {any} res a search page @param {number} page */
+function resultsView(lang, res, page) {
   if (!res.q.tokens.length) return { text: t(lang, 'search.prompt'), keyboard: markup([[{ text: tp(lang, 'search.btn_inline'), switch_inline_query_current_chat: '' }]]) };
   const inline = { text: tp(lang, 'search.btn_inline'), switch_inline_query_current_chat: res.q.text };
   if (!res.tracks.length) return { text: t(lang, page ? 'search.no_more' : 'search.none', { q: res.q.text }), keyboard: markup([[inline]]) };
@@ -73,7 +95,14 @@ async function resultsView(app, text, page) {
 }
 
 /** Plain text or /search <query> in private chat. */
-export const searchFromText = async (app, user, text) => app.tg.send(user.telegram_id, await resultsView(app, text, 0), 'search_results');
+export async function searchFromText(app, user, text) {
+  const { view, res } = await results(app, text, 0);
+  if (res.q.tokens.length) {
+    app.stats.count('search.private');
+    if (!res.tracks.length) app.stats.count('search.private_empty');
+  }
+  return app.tg.send(user.telegram_id, view, 'search_results');
+}
 
 /** Sends an active track's audio (by file_id) and counts the play. @returns {Promise<boolean>} */
 export async function sendTrack(app, user, publicId) {
@@ -83,7 +112,11 @@ export async function sendTrack(app, user, publicId) {
     return false;
   }
   await app.tg.call('sendAudio', { chat_id: user.telegram_id, audio: tr.audio_file_id }, 'track');
-  await app.search.addPlay(tr.public_id);
+  const id = await app.search.addPlay(tr.public_id);
+  if (id) {
+    app.stats.count('play.private');
+    app.stats.count('track.play', id);
+  }
   return true;
 }
 
@@ -100,7 +133,7 @@ export const routes = [
     async run(app, user, [page], cq) {
       const q = queryOf(cq.message);
       if (!q) return { toast: tp(app.lang, 'common.expired_user'), alert: true };
-      await app.tg.show(user.telegram_id, cq.message.message_id, await resultsView(app, q, Number(page)), 'search_results');
+      await app.tg.show(user.telegram_id, cq.message.message_id, (await results(app, q, Number(page))).view, 'search_results');
       return {};
     },
   },

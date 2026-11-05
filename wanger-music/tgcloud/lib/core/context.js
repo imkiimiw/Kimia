@@ -31,6 +31,8 @@ import { createCatalogService } from '../music/catalog.js';
 import { createIngestService } from '../music/ingest.js';
 import { createCatalogProvider } from '../music/providers/catalog.js';
 import { key } from '../music/normalize.js';
+import { createStatsRepo } from '../repositories/stats.js';
+import { createStatsService } from '../stats/service.js';
 
 /** Bumped when bootstrap() learns something new to set up. */
 const BOOTSTRAP_VERSION = 2;
@@ -55,19 +57,24 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
     sources: createSourcesRepo(),
     destinations: createDestinationsRepo(),
     publications: createPublicationsRepo(),
+    stats: createStatsRepo(),
   };
   /** @type {any} */
   const app = { kind, updateId, clock, log, repos, lang: 'fa', user: null };
   app.audit = createAuditService({ repo: repos.system, clock });
   app.settings = createSettingsService({ repo: repos.settings, clock, audit: app.audit });
-  app.users = createUsersService({ repo: repos.users, clock, audit: app.audit, settings: app.settings });
+  app.stats = createStatsService({
+    repo: repos.stats, settings: app.settings, clock, log,
+    live: { userStats: () => app.users.stats(), trackCounts: () => app.catalog.counts(), channels: () => repos.destinations.list(), sources: () => repos.sources.list() },
+  });
+  app.users = createUsersService({ repo: repos.users, clock, audit: app.audit, settings: app.settings, stats: app.stats });
   app.tg = createTelegramClient({ log, onBlocked: (chatId) => app.users.markBlocked(chatId, true) });
   app.alerts = createAlertsService({
     repo: repos.system, tg: app.tg, clock, log,
     ownerLang: async () => app.users.languageOf(await app.users.get(OWNER_ID)),
   });
   app.flows = createFlowsService({ repo: repos.flows, clock });
-  app.forcejoin = createForceJoinService({ repo: repos.forcejoin, users: app.users, tg: app.tg, settings: app.settings, alerts: app.alerts, audit: app.audit, clock, log });
+  app.forcejoin = createForceJoinService({ repo: repos.forcejoin, users: app.users, tg: app.tg, settings: app.settings, alerts: app.alerts, audit: app.audit, clock, log, stats: app.stats });
   app.broadcasts = createBroadcastService({
     repo: repos.broadcasts, users: app.users, tg: app.tg, settings: app.settings, audit: app.audit, clock, log,
     notify: (b, info) => notifyProgress(app, b, info),
@@ -83,7 +90,7 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
   app.destinations = createDestinationsService({ repo: repos.destinations, tg: app.tg, settings: app.settings, alerts: app.alerts, audit: app.audit, clock, log, onRemoved: (id) => app.publisher.cancelForChannel(id) });
   app.publisher = createPublisher({ repo: repos.publications, channels: repos.destinations, tg: app.tg, users: app.users, settings: app.settings, alerts: app.alerts, audit: app.audit, clock, log });
   app.worker = createWorker({ pubs: repos.publications, channels: repos.destinations, catalog: app.catalog, sources: { get: (id) => repos.sources.get(id) }, settings: app.settings, tg: app.tg, alerts: app.alerts, clock, log });
-  app.sources = createSourcesService({ repo: repos.sources, tg: app.tg, ingest: app.ingest, catalog: app.catalog, alerts: app.alerts, audit: app.audit, clock, log });
+  app.sources = createSourcesService({ repo: repos.sources, tg: app.tg, ingest: app.ingest, catalog: app.catalog, alerts: app.alerts, audit: app.audit, clock, log, stats: app.stats });
   await app.settings.load();
   await bootstrap(app);
   return app;

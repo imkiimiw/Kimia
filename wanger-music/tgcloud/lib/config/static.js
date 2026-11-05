@@ -89,6 +89,8 @@ export const SETTINGS = Object.freeze({
   'catalog.version': { type: 'int', default: 1, internal: true },
   'archive.rate': { type: 'json', default: null, internal: true },
   'search.reindex_cursor': { type: 'int', default: -1, internal: true },
+  'stats.aggregated_at': { type: 'int', default: 0, internal: true },
+  'stats.pruned_date': { type: 'text', default: '', internal: true },
 });
 
 /** Time zones offered in ⚙️ Settings; the fixed offset is the fallback when Intl is missing. */
@@ -116,7 +118,7 @@ export const ADMIN_SECTIONS = Object.freeze([
   { id: 'system', perm: 'system.view', phase: 1 },
 ]);
 
-export const CURRENT_PHASE = 6;
+export const CURRENT_PHASE = 7;
 
 /**
  * Destination channels the owner named on 2026-11-05 (shown as one-tap "add" buttons; each tap

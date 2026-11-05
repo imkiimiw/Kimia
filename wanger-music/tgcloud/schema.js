@@ -1,4 +1,4 @@
-// Database schema — Phase 1 tables only (docs/SPEC.md §6). Later phases add their own tables.
+// Database schema (docs/SPEC.md §6), each table added in the phase that needs it (Phases 1–7).
 // No foreign keys (the platform forbids them): services create parents first, delete children first.
 // Enums are TEXT with CHECK; booleans are INTEGER 0/1 with CHECK; timestamps are unix seconds.
 import { table, integer, text, index, uniqueIndex, check, primaryKey, sql } from 'sdk/db';
@@ -23,6 +23,8 @@ export const users = table('users', {
   lastSeenIdx: index('idx_users_last_seen').on(t.lastSeenAt),
   usernameIdx: index('idx_users_username').on(sql`lower(${t.username})`),
   adminsIdx: index('idx_users_admins').on(t.role).where(sql`${t.role} = 'admin'`),
+  // Phase 7: new users per day (stats aggregation counts a created_at range)
+  createdIdx: index('idx_users_created').on(t.createdAt),
 }));
 
 export const forceJoinChannels = table('force_join_channels', {
@@ -309,3 +311,19 @@ export const publications = table('publications', {
   channelIdx: index('idx_pub_channel_status').on(t.channelId, t.status, t.id),
   dailyIdx: index('idx_pub_channel_published').on(t.channelId, t.publishedAt).where(sql`${t.status} = 'published'`),
 }));
+
+/**
+ * Phase 7 — aggregated daily numbers (never per-user histories). date = the local day ('YYYY-MM-DD'
+ * in the time_zone setting); dimension = '' for totals, else a channel / source / track id.
+ * Event counters are added up (INSERT … ON CONFLICT DO UPDATE SET value = value + n); numbers that
+ * can be counted from the tables (new users, published posts…) are recomputed for today and
+ * yesterday by the aggregator, so they always equal a direct count.
+ */
+export const statsDaily = table('stats_daily', {
+  date: text('date').notNull(),
+  metric: text('metric').notNull(),
+  dimension: text('dimension').notNull().default(''),
+  value: integer('value').notNull().default(0),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.date, t.metric, t.dimension] }),
+})).withoutRowid();

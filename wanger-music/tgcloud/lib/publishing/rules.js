@@ -4,7 +4,7 @@
 // (below it a track still goes to the channel, but only through approval).
 import { GENRES, CONFIDENCE_ORDER } from '../config/static.js';
 import { toAsciiDigits } from '../music/normalize.js';
-import { tzOffsetSeconds } from '../core/util.js';
+import { tzOffsetSeconds, dayStart } from '../core/util.js';
 
 export const RULE_LANGUAGES = Object.freeze(['fa', 'en', 'other']);
 export const DEFAULT_RULES = Object.freeze({ languages: [], genres: [], exclude_genres: [], min_language_confidence: 'medium' });
@@ -91,11 +91,8 @@ export function hoursOf(stored) {
   }
 }
 
-/** Unix time of local midnight (in `tz`) of the day containing `now`. */
-export function dayStart(now, tz) {
-  const off = tzOffsetSeconds(tz, now);
-  return Math.floor((now + off) / 86400) * 86400 - off;
-}
+/** Unix time of local midnight (moved to core/util.js; re-exported for existing callers). */
+export { dayStart };
 
 /** Local hour (0–23) of `now` in `tz`. */
 export const localHour = (now, tz) => Math.floor((((now + tzOffsetSeconds(tz, now)) % 86400) + 86400) % 86400 / 3600);

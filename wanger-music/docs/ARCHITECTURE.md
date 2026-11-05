@@ -10,14 +10,14 @@ bot's SQLite database.
 ```
 handlers/*.js, endpoints/*.js        thin: hand the payload to the boundary and the router
         │
-lib/core/boundary.js                 error boundary · update dedupe · piggyback tick
+lib/core/boundary.js                 error boundary · update dedupe · piggyback tick · stats flush
 lib/core/context.js                  DI: builds repositories + services once per invocation
         │
 lib/bot/router.js  ── routes.js      order of checks; one registry of callback routes and flows
 lib/bot/user.js, lib/admin/*_ui.js   screens (views + routes + flows); no SQL, no sdk
         │
 services: users/ forcejoin/ broadcast/ settings/ audit/ alerts/ bot/flows.js jobs/ core/health.js
-          music/catalog.js music/ingest.js music/providers/catalog.js
+          music/catalog.js music/ingest.js music/providers/catalog.js stats/service.js
         │
 lib/repositories/*.js                ALL SQL (raw sql`…`, one statement per state change)
 lib/telegram/client.js               ALL outbound Bot API calls (+ trace, blocked hook)
@@ -28,7 +28,7 @@ sdk  (db, api)
 Pure modules (no `sdk`, unit-tested directly): `config/static.js`, `core/util.js`,
 `core/logger.js`, `core/version.js`, `telegram/{html,errors,limiter,chatref}.js`,
 `bot/{codec,keyboards}.js`, `i18n/*`, `permissions/policy.js`, `forcejoin/gate.js`,
-`music/{normalize,classify,duplicates}.js`.
+`music/{normalize,classify,duplicates}.js`, `search/terms.js`, `publishing/{captions,rules}.js`.
 `tests/unit/guard.test.mjs` fails if one of them reaches `sdk`, if anything but `core/context.js`
 imports a repository, if SQL appears outside `repositories/`, or if a handler grows logic.
 
@@ -48,6 +48,7 @@ handlers/message.js
     │   ├ pending flow step (permission re-checked) → flow handler
     │   └ command / text
     ├ maybePiggyback(): one conditional UPDATE on tick.last_at elects a tick (never inline)
+    ├ app.stats.flush(): the update's analytics counters in one upsert (also after an error)
     └ on any error: JSON log → error_log → throttled owner alert → return { ok: false }
 ```
 
@@ -173,6 +174,37 @@ restores the row (disabled) with its settings. **Nothing is posted to any channe
 - **Removal**: hide / remove cancels the track's waiting rows; «🧹 Delete channel posts» deletes its
   published posts (failures reported); purge deletes the rows first (children first).
 
+## Analytics (Phase 7)
+
+`stats_daily (date, metric, dimension, value)`, PK `(date, metric, dimension)`, WITHOUT ROWID;
+date = the local day in the `time_zone` setting. Aggregated only: no per-user rows, no search texts
+(a guard test checks that no dimension is a text). Every metric is listed in `stats/service.js#METRICS`.
+
+- **Event counters** — `app.stats.count(metric, dim)` buffers in memory; the boundary writes the
+  buffer once at the end of the update (`INSERT … VALUES …, … ON CONFLICT DO UPDATE SET value =
+  value + excluded.value`). The inline answer is sent before anything is written.
+  - `users.active`: the day's first activity of a user (private chat, or inline after the answer) is a
+    conditional `UPDATE users SET last_seen_at = now WHERE … AND last_seen_at < local midnight` —
+    exactly one per user per day, so it equals `count(last_seen_at >= midnight)`.
+  - `search.inline` (+ `_empty`): first page, ≥ 3 characters, user past the gate — Telegram sends a
+    query per keystroke, so this is more than "searches" (documented on the dashboard).
+    `search.private` (+ `_empty`): text or /search, not pagination.
+  - `play.inline` (chosen result, needs `/setinlinefeedback`), `play.private` (result buttons and
+    `t_<id>`), `track.play` per track (top tracks) — each only when `play_count` really went up.
+  - `fj.gated` / `fj.converted`: `force_join_ok_until = -1` marks "stopped by the gate"; one
+    conditional `UPDATE` sets it (counted once), and a pass that replaces `-1` is a conversion.
+  - `source.post` / `source.import` / `source.duplicate` per source.
+- **Derived numbers** — `users.new`, `users.total`, `tracks.activated`, `pub.published` per channel
+  are recounted from the tables for today and yesterday (overwrite; channels that lost their posts
+  get 0) by the tick processor `stats` (≤ every 15 min) and whenever 📊 opens, so they equal a
+  direct count; yesterday's late events are picked up after midnight.
+- **Retention** — once per local day: rows older than 400 days, `track.play` older than 90.
+- **📊 dashboard** (`admin/stats_ui.js`, `stats.view`): today / 7 / 30 days — users (total, new,
+  active in the period, active today, blocked or never started), searches, plays, force-join
+  conversions, tracks, top 5, per channel (published in the period, all time, awaiting approval,
+  queued, failed, uncertain — live), per source; «📈 Daily» (14 days) and «🔥 Most played» (period +
+  all time).
+
 ## Background work: the tick (no cron on this platform)
 
 `jobs/tick.js#runTick(trigger, budget)` runs processors in order — maintenance (prune
@@ -182,7 +214,7 @@ restores the row (disabled) with its settings. **Nothing is posted to any channe
 1. **piggyback** after message / callback_query / my_chat_member updates, at most once per
    `tick.interval_seconds`, elected by one conditional `UPDATE` (2 s budget);
    processors in order: maintenance → broadcast batch → publications → approval digests →
-   archive backlog → search index rebuild;
+   archive backlog → search index rebuild → stats (aggregation, retention);
 2. **manual**: 🧪 System Status «▶️ اجرای تیک» and the broadcast's «▶️ ادامه» (8 s budget);
 3. **scheduled**: `endpoints/opsTick.js` (owner id only) run every 30 min by
    `.github/workflows/wanger-music-tick.yml`, which pulls the **deployed** modules first.
@@ -212,6 +244,7 @@ Phase 5: `destination_channels` (spec columns + `bot_rights` JSON and `removed_a
 Phase 6: `publications` (spec columns + `cover_message_id`, `deleted_at`; UNIQUE track+channel;
 indexes status+next_attempt, channel+status, channel+published_at) and
 `destination_channels.publishing_since`.
+Phase 7: `stats_daily` (see Analytics) and `users` index `created_at`.
 No foreign keys (the platform forbids them); enums and booleans are CHECK-constrained; 8 indexes
 back every lookup (`users.last_seen_at`, `lower(username)`, admins partial index, …).
 
