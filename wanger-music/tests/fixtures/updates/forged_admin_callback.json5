@@ -1,0 +1,5 @@
+{
+  "about": "A normal user sends a forged admin callback: expect only answerCallbackQuery («این دکمه دیگه کار نمی‌کنه…»).",
+  "module": "handlers/callback_query",
+  "payload": { "id": "smoke-cq-2", "chat_instance": "smoke", "from": { "id": 1000001, "is_bot": false, "first_name": "Smoke" }, "data": "bc:go:1", "message": { "message_id": 1, "date": 0, "chat": { "id": 1000001, "type": "private" } } }
+}

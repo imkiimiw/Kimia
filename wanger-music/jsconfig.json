@@ -1,0 +1,16 @@
+{
+  // Editor type-checking for tgcloud/ (checkJs). SDK types: types/sdk.d.ts (local, never deployed).
+  // Optional CLI check with a globally installed TypeScript: `tsc -p jsconfig.json`.
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "strict": false,
+    "skipLibCheck": true
+  },
+  "include": ["tgcloud/**/*.js", "types/*.d.ts"]
+}

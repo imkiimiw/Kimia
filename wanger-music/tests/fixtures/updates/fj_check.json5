@@ -1,0 +1,5 @@
+{
+  "about": "The same user taps «✅ عضو شدم»: re-checked without cache; still missing → the message lists the rest.",
+  "module": "handlers/callback_query",
+  "payload": { "id": "smoke-cq-1", "chat_instance": "smoke", "from": { "id": 1000001, "is_bot": false, "first_name": "Smoke" }, "data": "fj:check", "message": { "message_id": 1, "date": 0, "chat": { "id": 1000001, "type": "private" } } }
+}

@@ -1,0 +1,5 @@
+{
+  "about": "The test user blocks the bot: expect is_blocked = 1.",
+  "module": "handlers/my_chat_member",
+  "payload": { "chat": { "id": 1000001, "type": "private" }, "from": { "id": 1000001, "is_bot": false, "first_name": "Smoke" }, "date": 0, "old_chat_member": { "status": "member", "user": { "id": 9280424458, "is_bot": true } }, "new_chat_member": { "status": "kicked", "user": { "id": 9280424458, "is_bot": true } } }
+}

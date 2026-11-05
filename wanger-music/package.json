@@ -1,0 +1,20 @@
+{
+  "name": "wanger-music",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Wanger Music — Telegram music bot (search, delivery, channel publishing) on Telegram Serverless.",
+  "scripts": {
+    "test": "node --no-warnings --import ./tests/sdk/register.mjs --test tests/unit/*.test.mjs tests/e2e/*.test.mjs",
+    "test:unit": "node --no-warnings --import ./tests/sdk/register.mjs --test tests/unit/*.test.mjs",
+    "test:e2e": "node --no-warnings --import ./tests/sdk/register.mjs --test tests/e2e/*.test.mjs",
+    "tg": "node scripts/tg.mjs",
+    "status": "node scripts/tg.mjs status",
+    "stamp": "node scripts/stamp-version.mjs",
+    "deploy": "node scripts/deploy.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "@tgcloud/cli": "^0.2.0"
+  }
+}

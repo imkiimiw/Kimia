@@ -1,0 +1,9 @@
+# tgcloud CLI state, including any saved access token: never commit
+.tgcloud/
+node_modules/
+# local secrets, if a later phase ever needs one (see docs/CONFIG.md); never commit
+tgcloud/lib/config/secrets.js
+.env
+*.log
+# temporary smoke-test module (scripts/smoke.mjs deletes it)
+tgcloud/endpoints/zz_*.js
