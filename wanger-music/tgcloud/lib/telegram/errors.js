@@ -26,7 +26,9 @@ export function classify(err) {
     if (/query is too old|query id is invalid/.test(d)) return out('query_expired');
     if (/chat not found|peer_id_invalid|channel_private|chat_id_invalid|group chat was deactivated/.test(d)) return out('chat_gone');
     if (/member list is inaccessible|chat_admin_required|not enough rights|need administrator rights|have no rights|chat_write_forbidden/.test(d)) return out('no_rights');
-    if (/user not found|participant_id_invalid|user_id_invalid/.test(d)) return out('user_not_found');
+    // getChatMember for someone who isn't in the channel answers 400 "member not found" (measured
+    // on the platform by another bot in this repository): that means "not a member", not a broken channel.
+    if (/member not found|user not found|participant_id_invalid|user_id_invalid|user_not_participant/.test(d)) return out('user_not_found');
     if (/wrong file identifier|wrong remote file|file_id|failed to get http url content|wrong type of the web page content/.test(d)) return out('bad_file');
     if (/can't parse entities|caption is too long|message caption is too long|entity/.test(d)) return out('bad_caption');
     return out('bad_request');

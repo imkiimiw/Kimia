@@ -84,6 +84,17 @@ test('bot not admin: failure mode open skips the channel, closed locks; owner al
   assert.deepEqual(v.missing.map((c) => c.chat_id), [B]);
 });
 
+test('400 "member not found" (Telegram\'s answer for a non-member) counts as not joined, even in open mode', async () => {
+  const f = make({ members: { [A]: apiError(400, 'Bad Request: member not found'), [B]: 'member', [C]: 'member' } });
+  const v = await f.svc.check(user());
+  assert.equal(v.passed, false);
+  assert.deepEqual(v.missing.map((c) => c.chat_id), [A]);
+  assert.deepEqual(v.broken, []);
+  assert.equal(f.repo.rows.find((r) => r.chat_id === A).last_check_status, 'ok', 'the channel is healthy');
+  assert.equal(f.alerts.sent.length, 0, 'no alert');
+  assert.equal(f.calls.filter((c) => c[0] === A).length, 1, 'not retried');
+});
+
 test('chat not found → not_found health and an alert', async () => {
   const f = make({ members: { [A]: apiError(400, 'Bad Request: chat not found'), [B]: 'member', [C]: 'member' } });
   assert.equal((await f.svc.check(user())).passed, true);

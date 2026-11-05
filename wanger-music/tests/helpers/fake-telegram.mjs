@@ -60,7 +60,9 @@ export function createFakeTelegram() {
       if (!c || c.gone) fail(400, 'Bad Request: chat not found', m);
       if (p.user_id === BOT_ID) return { ...c.bot, user: { id: BOT_ID, is_bot: true } };
       if (c.bot.status !== 'administrator') fail(400, 'Bad Request: member list is inaccessible', m);
-      return c.members.get(p.user_id) || { status: 'left', user: { id: p.user_id } };
+      const mem = c.members.get(p.user_id);
+      if (!mem) fail(400, 'Bad Request: member not found', m); // what Telegram answers for a non-member
+      return mem;
     },
     sendAudio(p, m) {
       if (p.chat_id < 0) {
