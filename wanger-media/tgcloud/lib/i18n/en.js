@@ -304,4 +304,23 @@ export default {
   'g.only_admins': '⛔ Only group admins can change the settings.',
   'g.join_prompt': '{name}, to use me in this group please join these channels first:',
   'g.intro': '👋 Hi! I’m <b>Wanger Media</b>. Post a link to a post and I’ll reply with its media and the source link.\nAdmins: /settings · Everyone: /status, /help\n\nBy sending links here you confirm you may download and share them.',
+
+  // Phase 6: commands and the bot profile
+  'cmd.start': 'Main menu',
+  'cmd.download': 'How to download',
+  'cmd.downloads': 'My downloads',
+  'cmd.settings': 'Language and quality',
+  'cmd.language': 'Change the language',
+  'cmd.help': 'Help',
+  'cmd.about': 'About the bot',
+  'cmd.admin': 'Admin panel',
+  'gcmd.settings': 'Group settings (admins)',
+  'gcmd.status': 'Settings, usage and what I can see',
+  'gcmd.platforms': 'Supported platforms',
+  'gcmd.help': 'How I work in groups',
+  'profile.description': 'Send me a link to a public post — X (Twitter), Pinterest, Snapchat and more — and I’ll send back its media with the source link. Works in private chats and in groups.\n\nYou are responsible for having the right to download and share what you request.',
+  'profile.short': 'Send a link, get the media back — X, Pinterest, Snapchat and more.',
+  'adm.btn.profile': '🔧 Apply commands and descriptions',
+  'adm.profile_ok': '✅ Commands and descriptions applied in fa, en and ru.',
+  'adm.profile_failed': '⚠️ Some calls failed: {failed}',
 };

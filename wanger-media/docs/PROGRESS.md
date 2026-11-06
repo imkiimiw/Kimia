@@ -1,7 +1,21 @@
 # Progress
 
-**Current state: Phase 5 deployed (cloud revision 5, 2026-11-06). Working through Phases 6–8 under
-the owner's standing approval (CLAUDE.md). The owner's Telegram test of Phase 3 is still open.**
+**Current state: Phase 6 deployed (cloud revision 6, version 1.0.0, 2026-11-06). Working through
+Phases 7–8 under the owner's standing approval (CLAUDE.md). The owner's Telegram test of Phase 3 is
+still open.**
+
+## Phase 6 — Launch (2026-11-06) ✅ deployed (revision 6)
+
+Done:
+- `lib/botprofile.js`: localized command menus (private, groups, owner's /admin) and descriptions
+  (long + short) in fa, en (default), ru; owner button in Admin › Switches; applied once at launch
+  (14 calls OK, read back).
+- README walkthrough: Windows setup, Serverless + CLI token, migrate → push, forced-join channels,
+  groups and privacy mode, the admin panel, honest limits.
+- Version 1.0.0. Tests: **201 passing** (profile scopes/languages/limits, owner-only button).
+- Final review: the error boundary, gates and permission checks re-read; no open issues found.
+  Not done (outside this folder, brief §2): a CI job in `.github/workflows/ci.yml`.
+
 
 ## Phase 5 — Groups (2026-11-06) ✅ deployed (revision 5)
 
@@ -172,7 +186,7 @@ Folder and CLI wrapper set up; Serverless limits measured on this bot; 14 platfo
 
 ## Remaining phases
 
-6 Launch ·
+
 7 Remaining platforms (one per session) · 8 `external` service (only on request).
 
 ## What I need from the owner

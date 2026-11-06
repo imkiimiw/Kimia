@@ -135,3 +135,10 @@ One line each: the choice — the reason. Newest phase last.
 - The bot introduces itself once each time it is added, in the adder's language (stored as the group language).
 - Forced join in groups is a separate owner switch, off by default; when on, a non-member gets one join prompt per 6 hours per group instead of the download; a positive check is cached per (group, member) for 5 minutes; an API error is never "member".
 - Channel posts and automatic forwards from a linked channel are never picked up — brief §8: channels don't auto-download.
+
+## Phase 6 (2026-11-06)
+
+- Command menus per scope and language: private chats (start, download, downloads, settings, language, help, about), groups (settings, status, platforms, help), and the owner's chat adds /admin; English is the default (no language_code), fa and ru are explicit — Telegram falls back to the default for other languages.
+- The profile (commands + description + short description) is applied by the owner from Admin › Switches, and was applied once at launch via `tgcloud run` (14 calls, read back with getMyCommands) — idempotent, so it can be re-applied after any text change.
+- The description names X, Pinterest and Snapchat "and more" rather than a fixed list — platforms are switched on and off by the owner, and Phase 7 adds more.
+- Version 1.0.0 at launch (Phase 6); README is in English (brief §2: docs in English) and covers Windows setup, BotFather/Serverless, the CLI token, migrate → push, channels, groups/privacy mode and the admin panel.

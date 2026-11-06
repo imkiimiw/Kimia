@@ -5,6 +5,7 @@ import { BUILT_PLATFORMS, DEFAULT_LIMITS, LANGS, PLATFORM_NAMES } from '../confi
 import * as system from '../db/system.js';
 import { LANG_NAMES, t, tp } from '../i18n/index.js';
 import { limitsFrom } from '../policy.js';
+import { apply as applyProfile } from '../botprofile.js';
 import { canManageChannels } from '../roles.js';
 import * as ui from '../ui.js';
 import { clip, tehranDay } from '../util.js';
@@ -59,6 +60,7 @@ export async function switchesScreen(user, notice = null) {
     [ui.button(tp(lang, dls ? 'adm.btn.dl_off' : 'adm.btn.dl_on'), 'A:sd')],
     canManageChannels(user.actor) ? [ui.button(tp(lang, fj ? 'adm.btn.fj_off' : 'adm.btn.fj_on'), 'A:sf')] : [],
     canManageChannels(user.actor) ? [ui.button(tp(lang, gj ? 'adm.btn.gj_off' : 'adm.btn.gj_on'), 'A:sg')] : [],
+    canManageChannels(user.actor) ? [ui.button(tp(lang, 'adm.btn.profile'), 'A:sp')] : [],
     [ui.button(tp(lang, 'adm.btn.quota_limit'), 'A:sl:q'), ui.button(tp(lang, 'adm.btn.cooldown'), 'A:sl:c'), ui.button(tp(lang, 'adm.btn.max_mb'), 'A:sl:m')],
     ui.navRow(lang, 'A'),
   ];
@@ -162,4 +164,12 @@ export async function auditScreen(user, page) {
   if (p > 0) pager.push(ui.button(tp(lang, 'btn.prev'), `A:a:${p - 1}`));
   if (more && p < AUDIT_PAGES - 1) pager.push(ui.button(tp(lang, 'btn.next'), `A:a:${p + 1}`));
   return { view: 'admin_audit', screen: { text: lines.join('\n'), reply_markup: ui.markup([pager, ui.navRow(lang, 'A')]) } };
+}
+
+/** Owner only: sets the localized command menus and descriptions (lib/botprofile.js). */
+export async function applyBotProfile(ctx, user) {
+  if (!canManageChannels(user.actor)) return { toast: t(user.lang, 'adm.denied'), alert: true };
+  const r = await applyProfile(ctx);
+  await system.audit(ctx.now, user.id, 'bot.profile', null, { ok: r.ok, failed: r.failed.length });
+  return { ...(await switchesScreen(user, r.ok ? t(user.lang, 'adm.profile_ok') : t(user.lang, 'adm.profile_failed', { failed: r.failed.join(', ') }))) };
 }

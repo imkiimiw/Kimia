@@ -49,6 +49,9 @@ export function createTelegram({ channels = CHANNELS } = {}) {
         return { message_id: params.message_id, chat: { id: params.chat_id, type: 'private' }, text: params.text };
       case 'answerCallbackQuery':
       case 'deleteMessage':
+      case 'setMyCommands':
+      case 'setMyDescription':
+      case 'setMyShortDescription':
         return true;
       case 'copyMessage': {
         if (state.rateLimitAt && state.calls.filter((c) => c.method === 'copyMessage').length === state.rateLimitAt) {

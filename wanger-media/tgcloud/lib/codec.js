@@ -45,7 +45,7 @@ export const ADMIN_SECTIONS = {
   ub: [[ID, /^(0|1|7|30)$/]], uu: [[ID]], uq: [[ID]], un: [[ID]], uh: [[ID, /^\d{1,2}$/]],
   c: [[], [SMALL_ID]], ca: [[]], ct: [[SMALL_ID]], cr: [[SMALL_ID]], cd: [[SMALL_ID]], cD: [[SMALL_ID]], // channels
   p: [[]], pb: [[]], pba: [[/^(url|account|domain)$/]], pbd: [[SMALL_ID]], pc: [[]], pe: [[PLATFORM]], // platforms
-  s: [[]], sm: [[]], sd: [[]], sf: [[]], sg: [[]], sl: [[/^[qcm]$/]], // switches and limits
+  s: [[]], sm: [[]], sd: [[]], sf: [[]], sg: [[]], sp: [[]], sl: [[/^[qcm]$/]], // switches and limits
   t: [[]], te: [[TEXT_KEY, LANG]], tr: [[TEXT_KEY, LANG]], // texts
   b: [[]], bn: [[]], bs: [[SMALL_ID]], bg: [[SMALL_ID]], bx: [[SMALL_ID]], // broadcast
   a: [[/^\d$/]], // audit log page

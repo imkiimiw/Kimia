@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DISCLAIMER_VERSION_AT } from '../../tgcloud/lib/config.js';
+import { DISCLAIMER_VERSION_AT, VERSION } from '../../tgcloud/lib/config.js';
 import { ALICE, BORIS, buttonsOf, OWNER, setup } from '../helpers/harness.js';
 
 let h;
@@ -78,7 +78,7 @@ describe('main menu and navigation', () => {
     await h.onboard(ALICE, 'en');
     expect((await h.send(ALICE, '/help')).view).toBe('help');
     expect((await h.send(ALICE, '/about')).view).toBe('about');
-    expect(screen().text).toContain('version 0.3.0');
+    expect(screen().text).toContain(`version ${VERSION}`);
     expect(screen().text).not.toContain('Serverless');
     expect(screen().text).toContain('\n@wangerBots');
     expect((await h.send(ALICE, '/settings')).view).toBe('settings');

@@ -390,3 +390,17 @@ describe('audit log', () => {
     expect((await press(ALICE, 'A:a:0')).ignored).toBe('not_allowed');
   });
 });
+
+describe('bot profile', () => {
+  it('only the owner applies the commands and descriptions; it is audit-logged', async () => {
+    role(SARA, 'super_admin');
+    await press(SARA, 'A:sp');
+    expect(toast().text).toBe('⛔ You don’t have permission for that.');
+    expect(h.tg.calls('setMyCommands')).toHaveLength(0);
+    await press(OWNER, 'A:sp');
+    expect(h.tg.calls('setMyCommands')).toHaveLength(8);
+    expect(h.tg.calls('setMyDescription')).toHaveLength(3);
+    expect(screenOf(OWNER).text).toContain('Commands and descriptions applied');
+    expect(h.row("SELECT actor_id FROM audit_log WHERE action = 'bot.profile'").actor_id).toBe(OWNER.id);
+  });
+});
