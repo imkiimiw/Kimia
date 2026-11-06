@@ -30,6 +30,7 @@ import { alertOwner } from './alerts.js';
 import { CB, decode } from './codec.js';
 import { BOT_USERNAME, DISCLAIMER_VERSION_AT, DOUBLE_TAP_MS, ERROR_ALERT_EVERY_S, HOUSEKEEP_EVERY_S } from './config.js';
 import * as groups from './db/groups.js';
+import * as groupChat from './groups.js';
 import * as system from './db/system.js';
 import * as users from './db/users.js';
 import { detectLang, LANG_NAMES, normLang, t, tp } from './i18n/index.js';
@@ -43,7 +44,7 @@ import { disclaimer, formatTime, joinGate, languagePicker, plain } from './ui.js
 import { clip, displayName, errorText, nowSec, tehranDay } from './util.js';
 
 const SETTING_KEYS = [
-  'seed.channels', 'switch.maintenance', 'switch.forced_join', 'hk', ACTIVE_KEY,
+  'seed.channels', 'switch.maintenance', 'switch.forced_join', 'switch.group_join', 'hk', ACTIVE_KEY,
   ...['welcome', 'join'].flatMap((k) => ['fa', 'en', 'ru'].map((l) => `text.${k}.${l}`)),
 ];
 
@@ -229,6 +230,13 @@ async function open(ctx, user, message, target, arg) {
 }
 
 export const onMessage = (msg, sdkCtx) => boundary('message', sdkCtx, async (ctx) => {
+  if (msg && msg.chat && (msg.chat.type === 'group' || msg.chat.type === 'supergroup')) {
+    if (!groupChat.isRelevant(msg)) return { ignored: 'group_chatter' }; // nothing is written for ordinary chat
+    if (!(await dedupe(ctx))) return { dup: true };
+    await loadState(ctx);
+    if (ctx.flags.maintenance) return { ignored: 'maintenance' };
+    return groupChat.onGroupMessage(ctx, msg);
+  }
   if (!msg || !msg.chat || msg.chat.type !== 'private' || !msg.from || msg.from.is_bot) return { ignored: 'not_private' };
   if (!(await dedupe(ctx))) return { dup: true };
   ctx.replyChat = msg.chat.id;
@@ -280,6 +288,20 @@ export const onMessage = (msg, sdkCtx) => boundary('message', sdkCtx, async (ctx
 export const onCallback = (cq, sdkCtx) => boundary('callback_query', sdkCtx, async (ctx) => {
   if (!cq || !cq.from || !cq.id) return { ignored: 'malformed' };
   const msg = cq.message;
+  if (msg && msg.chat && (msg.chat.type === 'group' || msg.chat.type === 'supergroup')) {
+    const d = decode(cq.data);
+    if (!d || d.code !== CB.GROUP) {
+      await tg.answer(ctx, cq.id);
+      return { ignored: 'group_button' };
+    }
+    if (!(await dedupe(ctx))) return { dup: true };
+    if (!(await groups.claimTap(msg.chat.id, `${msg.message_id}:${cq.data}`, ctx.nowMs, DOUBLE_TAP_MS))) {
+      await tg.answer(ctx, cq.id);
+      return { doubleTap: true };
+    }
+    await loadState(ctx);
+    return groupChat.onSettingsButton(ctx, cq, d);
+  }
   if (!msg || !msg.chat || msg.chat.type !== 'private') {
     await tg.answer(ctx, cq.id);
     return { ignored: 'not_private' };
@@ -388,7 +410,8 @@ export const onMyChatMember = (upd, sdkCtx) => boundary('my_chat_member', sdkCtx
     if (r.activated) incs.push(['groups_active', '', 1], ['groups_joined', tehranDay(ctx.now), 1]);
     if (r.deactivated) incs.push(['groups_active', '', -1]);
     if (incs.length) await system.count(incs);
-    return { view: 'group_status', status, ...r };
+    const intro = r.activated ? await groupChat.introduce(ctx, chat, upd.from) : null;
+    return { view: 'group_status', status, ...r, ...(intro ? { intro: true } : {}) };
   }
   if (chat.type === 'channel') return { view: 'channel_status', ...(await join.onChannelStatus(ctx, chat, status)) };
   return { ignored: chat.type };

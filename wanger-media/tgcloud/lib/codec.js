@@ -24,6 +24,8 @@ const CODES = {
   d: none, // how to download
   // admin panel (Phase 4): A[:<section>[:args]] — see ADMIN_SECTIONS
   A: (a) => adminArgs(a),
+  // group settings (Phase 5): G (refresh) · G:a|o|s toggles · G:x close · G:<field>:<value>
+  G: (a) => groupArgs(a),
   P: (a) => a.length === 1 && BUILT_PLATFORMS.includes(a[0]), // one platform
   M: (a) => a.length === 3 && BUILT_PLATFORMS.includes(a[0]) && METHODS.includes(a[1]) && (a[2] === '0' || a[2] === '1'), // method off/on (on → risk note)
   C: (a) => a.length === 2 && BUILT_PLATFORMS.includes(a[0]) && METHODS.includes(a[1]), // confirm enabling after the risk note
@@ -43,13 +45,20 @@ export const ADMIN_SECTIONS = {
   ub: [[ID, /^(0|1|7|30)$/]], uu: [[ID]], uq: [[ID]], un: [[ID]], uh: [[ID, /^\d{1,2}$/]],
   c: [[], [SMALL_ID]], ca: [[]], ct: [[SMALL_ID]], cr: [[SMALL_ID]], cd: [[SMALL_ID]], cD: [[SMALL_ID]], // channels
   p: [[]], pb: [[]], pba: [[/^(url|account|domain)$/]], pbd: [[SMALL_ID]], pc: [[]], pe: [[PLATFORM]], // platforms
-  s: [[]], sm: [[]], sd: [[]], sf: [[]], sl: [[/^[qcm]$/]], // switches and limits
+  s: [[]], sm: [[]], sd: [[]], sf: [[]], sg: [[]], sl: [[/^[qcm]$/]], // switches and limits
   t: [[]], te: [[TEXT_KEY, LANG]], tr: [[TEXT_KEY, LANG]], // texts
   b: [[]], bn: [[]], bs: [[SMALL_ID]], bg: [[SMALL_ID]], bx: [[SMALL_ID]], // broadcast
   a: [[/^\d$/]], // audit log page
   x: [[], [ID]], xa: [[]], xr: [[ID, ROLE]], xf: [[ID, /^[0-7]$/]], // staff
   i: [[]], // cancel the pending input
 };
+const GROUP_VALUES = { l: ['1', '2', '3', '5'], m: ['10', '20', '50'], u: ['0', '10', '30', '60'], g: ['0', '5', '15', '30'], L: LANGS, p: BUILT_PLATFORMS };
+function groupArgs(a) {
+  if (!a.length) return true;
+  if (a.length === 1) return ['a', 'o', 's', 'x'].includes(a[0]);
+  return a.length === 2 && Object.prototype.hasOwnProperty.call(GROUP_VALUES, a[0]) && GROUP_VALUES[a[0]].includes(a[1]);
+}
+
 function adminArgs(a) {
   if (!a.length) return true; // admin home
   const forms = Object.prototype.hasOwnProperty.call(ADMIN_SECTIONS, a[0]) ? ADMIN_SECTIONS[a[0]] : null;
@@ -60,7 +69,7 @@ function adminArgs(a) {
 export const CB = {
   HOME: 'h', LANG_MENU: 'l', LANG_SET: 'L', JOIN_CHECK: 'j', ACCEPT: 'a', HISTORY: 'H',
   SETTINGS: 's', QUALITY_MENU: 'q', QUALITY_SET: 'Q', HELP: 'i', ABOUT: 'o', DOWNLOAD: 'd',
-  ADMIN: 'A', PLATFORM: 'P', METHOD: 'M', CONFIRM: 'C', PAUSE: 'E', HEALTH: 'T',
+  ADMIN: 'A', PLATFORM: 'P', METHOD: 'M', CONFIRM: 'C', PAUSE: 'E', HEALTH: 'T', GROUP: 'G',
 };
 
 /** UTF-8 byte length without TextEncoder. */

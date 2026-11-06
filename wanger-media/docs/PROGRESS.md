@@ -1,7 +1,27 @@
 # Progress
 
-**Current state: Phase 4 deployed (cloud revision 4, 2026-11-06). Working through Phases 5–8 under
+**Current state: Phase 5 deployed (cloud revision 5, 2026-11-06). Working through Phases 6–8 under
 the owner's standing approval (CLAUDE.md). The owner's Telegram test of Phase 3 is still open.**
+
+## Phase 5 — Groups (2026-11-06) ✅ deployed (revision 5)
+
+Done:
+- `lib/groups.js`: links of usable platforms picked up in groups (text and text_link entities, up to
+  `max_links`), media replied with the source link; everything else ignored silently; ordinary chat
+  costs no write.
+- Per-group settings via `/settings` (admins only, re-checked on every press, anonymous admins,
+  double-tap guard): auto-download, admins-only, silent, links per message, max MB, member and group
+  cooldowns, language, allowed platforms; audit-logged.
+- `/status` (settings, today's usage, honest privacy diagnosis), `/platforms`, `/help`; intro when
+  the bot is added (adder's language).
+- Forced join in groups: owner switch (Admin › Switches), off by default; one prompt per member per
+  6 hours; positive checks cached per member.
+- Channel posts / automatic forwards ignored.
+- Schema: table `group_members`, `groups.last_dl_at`, `groups.last_cb`, `groups.last_cb_at_ms`.
+- Tests: **197 passing** (13 new group tests: intro and privacy diagnosis, pick-up, silence, cooldowns,
+  max links, admins-only, banned, silent mode, channel forwards, forced join prompt, settings by
+  admins only incl. demotion, double tap, /status, /help) + query plans for the group flows.
+
 
 ## Phase 4 — Admin panel (2026-11-06) ✅ deployed (revision 4)
 
@@ -152,7 +172,7 @@ Folder and CLI wrapper set up; Serverless limits measured on this bot; 14 platfo
 
 ## Remaining phases
 
-5 Groups · 6 Launch ·
+6 Launch ·
 7 Remaining platforms (one per session) · 8 `external` service (only on request).
 
 ## What I need from the owner

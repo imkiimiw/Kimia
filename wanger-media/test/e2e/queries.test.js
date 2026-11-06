@@ -72,12 +72,22 @@ describe('query plans', () => {
     await h.send(OWNER, 'hello everyone'); capture();
     await h.press(OWNER, 'A:bs:1', { messageId: 94 }); capture();
     await h.send(ALICE, '/start'); capture();
+    // Phase 5: groups
+    const G = { id: -100500600, title: 'G' };
+    h.tg.state.groupRoles.set(G.id, { [OWNER.id]: 'creator' });
+    await h.chatMember({ chat: { ...G, type: 'supergroup' }, from: OWNER, date: 0, new_chat_member: { status: 'member' }, old_chat_member: { status: 'left' } }); capture();
+    h.row(`INSERT INTO settings (key, value, updated_at) VALUES ('switch.group_join', 'true', 1) RETURNING key`);
+    h.tg.setMember(BORIS.id);
+    await h.sendGroup(BORIS, G, 'https://x.com/SpaceX/status/2112592291147747809'); capture();
+    await h.sendGroup(ALICE, G, 'https://x.com/SpaceX/status/2112592291147747809'); capture();
+    for (const text of ['/settings', '/status', '/help', 'hello']) { await h.sendGroup(OWNER, G, text); capture(); }
+    for (const data of ['G:a', 'G:p:x', 'G:l:1', 'G:L:fa', 'G:x']) { await h.pressGroup(OWNER, G, data, { messageId: 970 }); capture(); }
     h.advance(3 * 86400);
     await h.send(ALICE, 'housekeeping'); capture();
 
     const seen = new Map();
     for (const q of log) if (!seen.has(q.text)) seen.set(q.text, q.params);
-    expect(seen.size).toBeGreaterThan(60);
+    expect(seen.size).toBeGreaterThan(70);
     const offenders = [];
     for (const [text, params] of seen) {
       const plan = rawDatabase().prepare('EXPLAIN QUERY PLAN ' + text).all(params);

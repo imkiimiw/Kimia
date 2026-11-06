@@ -118,6 +118,7 @@ export async function onButton(ctx, user, d, message) {
     case 'sm': r = await sys.toggle(ctx, user, 'm'); break;
     case 'sd': r = await sys.toggle(ctx, user, 'd'); break;
     case 'sf': r = await sys.toggle(ctx, user, 'f'); break;
+    case 'sg': r = await sys.toggle(ctx, user, 'g'); break;
     case 'sl': r = sys.limitPrompt(user, x); break;
     case 't': r = await sys.textsScreen(user); break;
     case 'te': r = sys.textPrompt(user, x, y); break;

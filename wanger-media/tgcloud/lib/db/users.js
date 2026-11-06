@@ -94,3 +94,9 @@ export async function claimDownload(id, day, now, quota, cooldownS) {
 export async function refundDownload(id, day) {
   await db.run(sql`UPDATE users SET dl_count = max(dl_count - 1, 0) WHERE id = ${id} AND dl_day IS ${day}`);
 }
+
+/** Ban and staff role of any Telegram user, whether or not they have a users row (group members). */
+export async function standing(id) {
+  return db.get(sql`SELECT (SELECT until FROM bans WHERE user_id = ${id}) AS ban_until,
+    (SELECT role FROM roles WHERE user_id = ${id}) AS role, (SELECT perms FROM roles WHERE user_id = ${id}) AS role_perms`);
+}

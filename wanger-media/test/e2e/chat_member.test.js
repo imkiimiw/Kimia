@@ -39,7 +39,8 @@ describe('my_chat_member', () => {
     await h.chatMember(upd(g, 'member'));
     expect(h.counter('groups_active')).toBe(1);
     expect(h.counter('groups_joined', '2026-11-05')).toBe(2);
-    expect(h.tg.state.calls).toHaveLength(0); // silent in Phase 1
+    // Phase 5: an intro each time the bot is added (twice here), never on promotion or removal
+    expect(h.tg.calls('sendMessage').filter((c) => c.params.chat_id === g.id)).toHaveLength(2);
   });
 
   it('a redelivered my_chat_member does not count a group twice', async () => {

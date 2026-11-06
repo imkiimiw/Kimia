@@ -22,6 +22,8 @@ export function createTelegram({ channels = CHANNELS } = {}) {
     nextMessageId: 500,
     refuseUrls: false, // Telegram can't fetch media URLs (forces the upload fallback)
     rateLimitAt: 0, // the n-th copyMessage answers 429 (once)
+    groupRoles: new Map(), // group chat id → { userId: 'creator' | 'administrator' | 'member' }
+    readAll: false, // getMe.can_read_all_group_messages (privacy mode off)
   };
 
   const channelOf = (ref) => {
@@ -41,7 +43,7 @@ export function createTelegram({ channels = CHANNELS } = {}) {
     switch (method) {
       case 'sendMessage': {
         if (state.unreachable.has(Number(params.chat_id))) throw state.unreachable.get(Number(params.chat_id));
-        return { message_id: ++state.nextMessageId, chat: { id: params.chat_id, type: 'private' }, text: params.text };
+        return { message_id: ++state.nextMessageId, chat: { id: params.chat_id, type: Number(params.chat_id) < 0 ? 'supergroup' : 'private' }, text: params.text };
       }
       case 'editMessageText':
         return { message_id: params.message_id, chat: { id: params.chat_id, type: 'private' }, text: params.text };
@@ -87,7 +89,13 @@ export function createTelegram({ channels = CHANNELS } = {}) {
         if (!ch) throw err(400, 'Bad Request: chat not found');
         return { id: ch.id, type: 'channel', title: ch.title, username: ch.username };
       }
+      case 'getMe':
+        return { id: BOT_ID, is_bot: true, username: 'Wanger_mediabot', can_read_all_group_messages: state.readAll };
       case 'getChatMember': {
+        if (state.groupRoles.has(Number(params.chat_id))) {
+          const roles = state.groupRoles.get(Number(params.chat_id));
+          return { status: roles[params.user_id] || 'member', user: { id: params.user_id } };
+        }
         const ch = channelOf(params.chat_id);
         if (!ch) throw err(400, 'Bad Request: chat not found');
         if (params.user_id === BOT_ID) {

@@ -121,3 +121,17 @@ One line each: the choice — the reason. Newest phase last.
 ## Owner's standing approval (2026-11-06)
 
 - "Do all phases to the end, one by one; report each phase when done; I approve all of them" — each phase is deployed (safe migration + push) when its tests pass, without asking; destructive migrations, `push --force`, money and accounts stay with the owner (CLAUDE.md records the instruction for later sessions).
+
+## Phase 5 (2026-11-06)
+
+- In groups only links of built platforms that are switched on (and allowed by the group) get a reply; every other link — unknown sites, unbuilt or switched-off platforms, Telegram links — is ignored silently and not recorded — answering every link in a chat would be spam.
+- Ordinary group messages (no link, no command) are recognised before anything is written — groups can be busy and writes are slow.
+- Group members don't need a private users row or the disclaimer; the intro and /help say that sending links means they may download and share them — asking every member to accept first would make auto-download useless in groups.
+- Group downloads don't count against the private daily quota; groups have their own cooldowns (per member, default 30 s; per group, default 5 s); cooldown hits are silent — Telegram allows ~20 messages a minute per group and replies about waiting would add to it.
+- The member's own cooldown is checked (read-only) before the group's slot is claimed — a member who is still waiting must not block the next member (a test caught this).
+- `/settings` works for group admins only (getChatMember on every command and button; anonymous admins posting as the group count); changes are audit-logged; a double tap is ignored.
+- Settings: auto-download, admins-only, silent mode (no status or error messages, only media), links per message (1/2/3/5), max file size (10/20/50 MB, never above the global limit), member and group cooldowns, language, allowed platforms.
+- What the bot can see is reported honestly: admin → sees everything; privacy mode off (getMe.can_read_all_group_messages) → sees everything; otherwise only commands, replies and mentions, with the steps to change it — brief §5.
+- The bot introduces itself once each time it is added, in the adder's language (stored as the group language).
+- Forced join in groups is a separate owner switch, off by default; when on, a non-member gets one join prompt per 6 hours per group instead of the download; a positive check is cached per (group, member) for 5 minutes; an API error is never "member".
+- Channel posts and automatic forwards from a linked channel are never picked up — brief §8: channels don't auto-download.

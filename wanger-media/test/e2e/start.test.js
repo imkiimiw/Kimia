@@ -149,12 +149,12 @@ describe('/start and language', () => {
     expect(h.counter('users_new', '2026-11-06')).toBe(0);
   });
 
-  it('group messages are ignored without any database write (groups come in Phase 5)', async () => {
-    const msg = { message_id: 1, from: ALICE, chat: { id: -100777, type: 'supergroup', title: 'G' }, date: 0, text: '/start' };
+  it('ordinary group chatter is ignored without any database write or reply', async () => {
+    const msg = { message_id: 1, from: ALICE, chat: { id: -100777, type: 'supergroup', title: 'G' }, date: 0, text: 'hello everyone' };
     const { default: message } = await import('../../tgcloud/handlers/message.js');
     h.resetCalls();
     const r = await message(msg, { update: { update_id: 5, message: msg } });
-    expect(r.ignored).toBe('not_private');
+    expect(r.ignored).toBe('group_chatter');
     expect(h.stats.queries).toBe(0);
     expect(h.tg.state.calls).toHaveLength(0);
   });

@@ -75,7 +75,21 @@ export const groups = table('groups', {
   addedBy: integer('added_by').notNull().default(0),
   addedAt: integer('added_at').notNull().default(0),
   updatedAt: integer('updated_at').notNull().default(0),
+  lastDlAt: integer('last_dl_at').notNull().default(0), // group cooldown (Phase 5)
+  lastCb: text('last_cb'), // double-tap guard for the group's /settings buttons
+  lastCbAtMs: integer('last_cb_at_ms').notNull().default(0),
 });
+
+/** Per-member state inside a group (Phase 5): member cooldown, forced-join pass and prompt throttle. */
+export const groupMembers = table('group_members', {
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  lastDlAt: integer('last_dl_at').notNull().default(0),
+  joinOkUntil: integer('join_ok_until').notNull().default(0),
+  promptedAt: integer('prompted_at').notNull().default(0),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.chatId, t.userId] }),
+}));
 
 /** Per-group settings (Phase 5); changed only by that group's admins. */
 export const groupSettings = table('group_settings', {

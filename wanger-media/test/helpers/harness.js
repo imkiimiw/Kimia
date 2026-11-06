@@ -41,6 +41,17 @@ export function setup(options = {}) {
       const update = { update_id: id ?? ++updateId, message: msg };
       return message(msg, { update });
     },
+    /** A message in a group (links get url entities, like Telegram); `extra` merges into the message. */
+    async sendGroup(from, chat, text, { id, extra = {} } = {}) {
+      const msg = { message_id: messageId++, from, chat: { type: 'supergroup', ...chat }, date: Math.floor(Date.now() / 1000), text,
+        ...(linkEntities(text).length ? { entities: linkEntities(text) } : {}), ...extra };
+      return message(msg, { update: { update_id: id ?? ++updateId, message: msg } });
+    },
+    /** Presses a button on a bot message in a group. */
+    async pressGroup(from, chat, data, { messageId: mid = 950, id } = {}) {
+      const cq = { id: 'gcq' + (id ?? updateId + 1), from, data, message: { message_id: mid, chat: { type: 'supergroup', ...chat }, date: 0, text: '…' } };
+      return callbackQuery(cq, { update: { update_id: id ?? ++updateId, callback_query: cq } });
+    },
     /** Presses a button on a bot message ({ message_id, chat }) with callback_data `data`. */
     async press(from, data, { messageId: mid = 900, id, chatType = 'private' } = {}) {
       const cq = {

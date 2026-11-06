@@ -94,17 +94,18 @@ function denyOrFail(reason, extra = {}) {
  * Handles one link for `user` (from lib/router.js prepareUser) sent in `msg`.
  * → the result (also recorded): { status: ok|failed|denied, reason?, platform?, method?, … }
  */
-export async function handleLink(ctx, user, msg, link) {
+export async function handleLink(ctx, user, msg, link, scope = { kind: 'private' }) {
   const lang = user.lang;
   const chatId = msg.chat.id;
   const day = tehranDay(ctx.now);
-  const status = await sendStatus(ctx, chatId, msg.message_id, lang);
-  if (!status) return { status: 'failed', reason: 'unreachable' };
+  const group = scope.kind === 'group';
+  const status = group && scope.settings.silent ? null : await sendStatus(ctx, chatId, msg.message_id, lang);
+  if (!status && !group) return { status: 'failed', reason: 'unreachable' };
 
   let claimed = false;
   let result;
   try {
-    result = await run(ctx, user, msg, link, day, () => { claimed = true; });
+    result = await run(ctx, user, msg, link, day, () => { claimed = true; }, scope);
   } catch (err) {
     result = { status: 'failed', reason: 'unavailable', error: errorText(err) };
     await system.logError(ctx.now, 'download', errorText(err), err && err.stack ? String(err.stack).slice(0, 1500) : null).catch(() => {});
@@ -121,13 +122,15 @@ export async function handleLink(ctx, user, msg, link) {
   const incs = [[result.status === 'ok' ? 'dl_ok' : result.status === 'failed' ? 'dl_failed' : 'dl_denied', day, 1]];
   if (p && result.status !== 'denied') incs.push([`dl_${result.status}:${p}`, day, 1], [`dl_${result.status}:${p}`, '', 1]);
   if (result.cached) incs.push(['dl_cached', day, 1]);
+  if (group && result.status !== 'denied') incs.push([`g_${result.status}:${chatId}`, day, 1]);
   await system.count(incs);
 
   await finishStatus(ctx, chatId, status, lang, result);
   return result;
 }
 
-async function run(ctx, user, msg, link, day, onClaim) {
+async function run(ctx, user, msg, link, day, onClaim, scope) {
+  const group = scope.kind === 'group';
   const id = registry.identify(link);
   if (id.kind === 'invalid') return denyOrFail('invalid_link');
   if (id.kind === 'telegram') return denyOrFail('telegram_link');
@@ -140,11 +143,15 @@ async function run(ctx, user, msg, link, day, onClaim) {
 
   const s = await system.loadSettings(settingKeys(adapter.id));
   const global = limitsFrom(s.limits && s.limits.value);
-  const limits = user.row.quota_override != null ? { ...global, quota_per_day: user.row.quota_override } : global;
+  // Private: the user's daily quota (or their personal one). Groups: the group's own cooldowns were
+  // claimed by lib/groups.js, and the group's size limit can only lower the global one.
+  const limits = group
+    ? { ...global, max_mb: Math.min(global.max_mb, Number(scope.settings.max_mb) || global.max_mb) }
+    : user.row.quota_override != null ? { ...global, quota_per_day: user.row.quota_override } : global;
   const state = platformState(s['platform:' + adapter.id] && s['platform:' + adapter.id].value);
   const host = parseUrl(link).host;
   const hit = await downloadsDb.blockedBy({ urlKey: ref.key, account: ref.account, domains: domainCandidates(host) });
-  const exempt = isStaff(user.actor);
+  const exempt = group || isStaff(user.actor);
   const pre = precheck({
     downloadsOn: s['switch.downloads'] ? s['switch.downloads'].value !== false : true,
     exempt, user: user.row, today: day, now: ctx.now, limits, adapter, state, blocked: !!hit,
