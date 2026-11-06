@@ -12,7 +12,7 @@ import { openPanel } from '../admin/panel.js';
 import { handleMedia } from '../admin/import_ui.js';
 import { searchFromText } from './search_ui.js';
 import { promptBotAdded } from '../admin/sources_ui.js';
-import { botBecameAdmin } from '../publishing/sources.js';
+import { botBecameAdmin, isGroupChat } from '../publishing/sources.js';
 export { onInlineQuery, onChosenInlineResult } from './search_ui.js';
 
 /** Plain text of an i18n message for a toast (no HTML tags). */
@@ -20,6 +20,8 @@ const toastText = (lang, key, vars) => tp(lang, key, vars).replace(/<[^>]+>/g, '
 
 /** @param {any} app @param {any} message */
 export async function onMessage(app, message) {
+  // a group where the bot is admin: only a registered source group matters (no user rows, no replies)
+  if (message && isGroupChat(message.chat)) return app.sources.handlePost(message);
   if (!message || !message.chat || message.chat.type !== 'private' || !message.from || message.from.is_bot) return 'ignored';
   const user = await app.users.touch(message.from);
   app.user = user;

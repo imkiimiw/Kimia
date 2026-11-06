@@ -134,6 +134,23 @@ the bot becomes admin of an unknown channel (`my_chat_member`), the owner gets S
 (Phase 5) · Force-join · Ignore; nothing is registered until they choose. Bots can't read channel
 history, so only posts made after the bot became admin arrive.
 
+**Groups as sources** (added after Phase 8, on the owner's request): a group or supergroup where the
+bot is admin is a source too (`sources.chat_type` = channel / supergroup / group; `source_type` stays
+`telegram_channel`, "a Telegram chat", so no CHECK constraint had to change). Being admin is also what
+makes Telegram deliver every group message to a bot (privacy mode only lets commands through
+otherwise). Group messages arrive on `handlers/message`; the router sends them to the same
+`handlePost` before anything else — no user rows, no replies in the group. Chatter without audio
+skips the dedupe row and the piggyback tick. A basic group that becomes a supergroup
+(`migrate_to_chat_id`) keeps its source row with the new id. When the owner or an admin makes the
+bot admin of a group, the prompt offers Source · Ignore only.
+
+**Bulk activation**: «✅ فعال‌سازی همه» on a forwarded-batch summary activates that admin's ready
+drafts of that batch (created between the batch start and the next batch); «✅ فعال‌سازی همه‌ی
+آماده‌ها» on 🎵 Music → drafts activates every ready draft (e.g. a source in draft mode). Both run
+`catalog.activateMany` (activate() per track, ≤ 300 per press, 15 s budget; drafts without
+title/artist or with a pending duplicate stay). Setting `import.auto_activate`: staff imports are
+activated right away when they're ready.
+
 ## Destination channels (Phase 5)
 
 `publishing/destinations.js` + `admin/destinations_ui.js`. Adding (one-tap buttons for the
@@ -265,6 +282,7 @@ indexes status+next_attempt, channel+status, channel+published_at) and
 `destination_channels.publishing_since`.
 Phase 7: `stats_daily` (see Analytics) and `users` index `created_at`.
 Phase 8: `users.flood_at`, `users.flood_n`; publications index `(channel_id, id)`.
+After Phase 8: `sources.chat_type` (groups as sources).
 No foreign keys (the platform forbids them); enums and booleans are CHECK-constrained; 8 indexes
 back every lookup (`users.last_seen_at`, `lower(username)`, admins partial index, …).
 

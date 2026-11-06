@@ -17,12 +17,15 @@ const PERM = 'catalog.manage';
 /** Caption of an archived copy (HTML). */
 export const archiveCaption = (tr) => `#t${tr.public_id}\n🎵 ${esc(tr.title || '')}\n👤 ${esc(tr.artist || '')}${tr.album ? `\n💿 ${esc(tr.album)}` : ''}`;
 
+/** Tracks one «✅ Activate all» press activates at most (the rest: press again). */
+const ACTIVATE_MANY_MAX = 300;
+
 /**
  * @param {{repo: any, tg: any, settings: any, audit: any, alerts: any, clock: any, log: any, index?: {add: (t: any) => Promise<any>, remove: (id: number) => Promise<any>}, publishing?: {routeTrack: (t: any) => Promise<any>, cancelForTrack: (id: number) => Promise<any>, deleteForTrack: (id: number) => Promise<any>}}} deps
  *   index: the search index (Phase 3) — a track is indexed while it is active
  *   publishing: routing on activation, cancellation on hide/remove, cleanup on purge (Phase 6)
  */
-export function createCatalogService({ repo, tg, settings, audit, alerts, clock, log, index = { add: async () => {}, remove: async () => {} }, publishing = { routeTrack: async () => 0, cancelForTrack: async () => 0, deleteForTrack: async () => 0 } }) {
+export function createCatalogService({ repo, tg, settings, audit, alerts, clock, log, index = { add: async (_t) => {}, remove: async (_id) => {} }, publishing = { routeTrack: async (_t) => 0, cancelForTrack: async (_id) => 0, deleteForTrack: async (_id) => 0 } }) {
   async function mustGet(id) {
     const tr = await repo.get(id);
     if (!tr) throw new UserError('trk.err.gone');
@@ -117,6 +120,35 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
       const archive = await settings.get('archive.chat_id');
       if (archive && !row.archive_message_id && (await archiveSlot())) await archiveOne(row, archive);
       return (await repo.get(id)) || row;
+    },
+
+    /**
+     * «✅ Activate all»: every ready draft (or one admin's import batch), oldest first, until the
+     * deadline or ACTIVATE_MANY_MAX; drafts that need a review stay drafts.
+     * @param {any} actor @param {{addedBy?: number, from?: number, to?: number}} filter @param {number} deadlineMs
+     * @returns {Promise<{activated: number, left: number, review: number}>}
+     */
+    async activateMany(actor, filter, deadlineMs) {
+      assertCan(actor, PERM);
+      let activated = 0;
+      /** @type {Set<number>} */
+      const tried = new Set();
+      while (clock.ms() < deadlineMs && activated < ACTIVATE_MANY_MAX) {
+        const rows = (await repo.readyDrafts(filter, 25)).filter((r) => !tried.has(r.id));
+        if (!rows.length) break;
+        for (const r of rows) {
+          if (clock.ms() >= deadlineMs) break;
+          tried.add(r.id);
+          try {
+            await svc.activate(actor, r.id);
+            activated += 1;
+          } catch (e) {
+            if (!(e instanceof UserError)) throw e;
+          }
+        }
+      }
+      const c = await repo.countDrafts(filter);
+      return { activated, left: c.ready, review: c.total - c.ready };
     },
 
     /** active → hidden: leaves search at once. */

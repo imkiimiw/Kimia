@@ -1,7 +1,8 @@
-// SourcesService (spec §10.1): Telegram channels where the bot is admin, whose NEW audio posts run
-// the ingestion pipeline (normalize → dedupe → classify → draft or active track). It never
-// publishes. Posts from unregistered channels are ignored. Bots can't read channel history, so
-// only posts made after the bot became an admin arrive.
+// SourcesService (spec §10.1): Telegram channels — and, since the owner asked, groups — where the bot
+// is admin, whose NEW audio posts run the ingestion pipeline (normalize → dedupe → classify → draft
+// or active track). It never publishes. Posts from unregistered chats are ignored. Bots can't read
+// history, so only posts made after the bot became an admin arrive (in a group, being admin is also
+// what makes Telegram deliver every message, not only commands).
 import { LIMITS } from '../config/static.js';
 import { assertCan, SYSTEM_ACTOR } from '../permissions/policy.js';
 import { UserError } from '../core/util.js';
@@ -13,10 +14,13 @@ import { NOOP_STATS } from '../stats/service.js';
 const PERM = 'sources.manage';
 export const MODES = Object.freeze(['off', 'draft', 'active']);
 export const SOURCE_LANGUAGES = Object.freeze([null, 'fa', 'en', 'other']);
+/** Chat kinds a source can be. */
+export const SOURCE_CHAT_TYPES = Object.freeze(['channel', 'supergroup', 'group']);
+export const isGroupChat = (chat) => !!chat && (chat.type === 'group' || chat.type === 'supergroup');
 
-/** Did this my_chat_member make the bot an admin of a channel it wasn't admin of? (pure) */
+/** Did this my_chat_member make the bot an admin of a channel or group it wasn't admin of? (pure) */
 export function botBecameAdmin(upd) {
-  if (!upd || !upd.chat || upd.chat.type !== 'channel') return false;
+  if (!upd || !upd.chat || !SOURCE_CHAT_TYPES.includes(upd.chat.type)) return false;
   const was = upd.old_chat_member && upd.old_chat_member.status;
   const now = upd.new_chat_member && upd.new_chat_member.status;
   return (now === 'administrator' || now === 'creator') && was !== 'administrator' && was !== 'creator';
@@ -45,18 +49,18 @@ export function createSourcesService({ repo, tg, ingest, catalog, alerts, audit,
     get: (id) => repo.get(id),
     getByChatId: (chatId) => repo.getByChatId(chatId),
 
-    /** Adds a channel from a forwarded post, @username, t.me link or numeric id. */
+    /** Adds a channel or group from a forwarded post, @username, t.me link or numeric id. */
     async add(actor, text, message) {
       assertCan(actor, PERM);
       const ref = parseChatRef(text, message);
       if (!ref) throw new UserError('fjm.err.ref');
       if (ref.kind === 'invite') throw new UserError('fjm.err.invite');
-      const info = await tg.inspectChannel(ref.kind === 'username' ? '@' + ref.value : ref.value);
+      const info = await tg.inspectChannel(ref.kind === 'username' ? '@' + ref.value : ref.value, { allowGroups: true });
       if (!info.ok) throw new UserError({ not_channel: 'src.err.not_channel', transient: 'fjm.err.transient' }[info.error] || 'fjm.err.not_found');
-      if (info.chat.type !== 'channel') throw new UserError('src.err.not_channel');
+      if (!SOURCE_CHAT_TYPES.includes(info.chat.type)) throw new UserError('src.err.not_channel');
       if (!info.isAdmin) throw new UserError('src.err.not_admin', { title: info.chat.title || '' });
       if (await repo.getByChatId(info.chat.id)) throw new UserError('src.err.duplicate');
-      const row = await repo.insert({ chat_id: info.chat.id, username: info.chat.username || null, title: String(info.chat.title || '').slice(0, 128), max: LIMITS.sourcesMax, now: clock.now() });
+      const row = await repo.insert({ chat_id: info.chat.id, username: info.chat.username || null, title: String(info.chat.title || '').slice(0, 128), chat_type: info.chat.type, max: LIMITS.sourcesMax, now: clock.now() });
       if (!row) throw new UserError((await repo.getByChatId(info.chat.id)) ? 'src.err.duplicate' : 'src.err.max', { max: LIMITS.sourcesMax });
       await audit.record(actor, 'source.add', 'source', row.chat_id, { title: row.title });
       return row;
@@ -82,13 +86,19 @@ export function createSourcesService({ repo, tg, ingest, catalog, alerts, audit,
     },
 
     /**
-     * channel_post: imports an audio post of an enabled source.
+     * channel_post, or a message in a group: imports an audio post of an enabled source.
      * @returns {Promise<string>} what happened (for the handler's result / logs)
      */
     async handlePost(post) {
-      if (!post || !post.chat || post.chat.type !== 'channel') return 'ignored';
+      if (!post || !post.chat || !SOURCE_CHAT_TYPES.includes(post.chat.type)) return 'ignored';
       const src = await repo.getByChatId(post.chat.id);
       if (!src) return 'unregistered';
+      if (post.migrate_to_chat_id && Number.isSafeInteger(post.migrate_to_chat_id)) {
+        // a basic group became a supergroup: same source, new chat id
+        await repo.moveChat(src.id, post.migrate_to_chat_id, 'supergroup', clock.now());
+        log.info('source_migrated', { chat_id: post.migrate_to_chat_id });
+        return 'migrated';
+      }
       if (!src.enabled || src.auto_import === 'off') return 'off';
       if (!post.audio) return 'not_audio';
       const fwd = originOf(post);
@@ -116,7 +126,7 @@ export function createSourcesService({ repo, tg, ingest, catalog, alerts, audit,
       return 'draft';
     },
 
-    /** my_chat_member in a source channel: warns the owner when the bot is no longer an admin. */
+    /** my_chat_member in a source channel or group: warns the owner when the bot is no longer an admin. */
     async onBotStatusChange(chat, member) {
       const src = await repo.getByChatId(chat.id);
       if (!src) return false;

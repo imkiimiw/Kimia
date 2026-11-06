@@ -68,6 +68,7 @@ token. If a later provider needs an API key, it goes in the git-ignored
 | `time_zone` | `Asia/Tehran` | Asia/Tehran, UTC, Europe/Istanbul, Asia/Dubai, Europe/Berlin, Europe/London, America/New_York | Dates in the panel; schedules later |
 | `archive.chat_id` | empty | a channel where the bot can post | Every activated track is copied there (`#t<id>` caption) |
 | `import.bulk_summary` | `true` | on/off | A run of forwarded audios gets one summary message instead of a card each |
+| `import.auto_activate` | `false` | on/off | Audio the owner/admins send or forward is activated right away when it has a title and an artist (otherwise it stays a draft) |
 | `backup.weekly` | `false` | on/off | A backup document is sent to the owner once a week from the tick (Phase 8) |
 
 Internal state keys (not editable): `system.bootstrapped`, `forcejoin.seeded`, `forcejoin.version`,
@@ -92,8 +93,8 @@ keep 400 days (per-track plays 90 days), periods today / 7 / 30 days. Days follo
 
 ## Channels (in the database, not in code)
 
-Source channels (Phase 4) live in the `sources` table, added in 📡 Sources or from the "bot added
-to a channel" prompt; each has enabled, import mode (off / draft / active, default draft) and a
+Source channels — and groups, since the owner asked after Phase 8 (`chat_type`) — live in the `sources`
+table, added in 📡 Sources or from the "bot added" prompt; each has enabled, import mode (off / draft / active, default draft) and a
 default language.
 
 Destination channels (Phase 5) live in the `destination_channels` table, never in code; per channel:

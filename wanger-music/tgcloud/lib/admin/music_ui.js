@@ -9,6 +9,8 @@ import { screen, homeButton, promptView } from './panel.js';
 import { can } from '../permissions/policy.js';
 import { UserError, truncate } from '../core/util.js';
 import { trackPublicationLines } from './approvals_ui.js';
+import { activationText } from './import_ui.js';
+
 
 const PERM = 'catalog.manage';
 const FILTERS = ['review', 'draft', 'active', 'hidden', 'removed', 'fa', 'en', 'other', 'unknown'];
@@ -96,6 +98,7 @@ async function listView(app, filter, page) {
   const p = Math.min(Math.max(0, page), pages - 1);
   const rows = (await app.catalog.list(filter, p, size)).map((tr) => [btn(`${tr.duplicate_of ? '⚠️ ' : ''}${label(lang, tr)}`, 'trk', 'v', tr.id)]);
   if (pages > 1) rows.push([p > 0 ? btn(tp(lang, 'common.prev'), 'mus', 'ls', filter, p - 1) : null, p < pages - 1 ? btn(tp(lang, 'common.next'), 'mus', 'ls', filter, p + 1) : null]);
+  if ((filter === 'draft' || filter === 'review') && count) rows.push([btn(tp(lang, 'mus.btn_activate_all'), 'mus', 'actall', filter)]);
   rows.push([btn(tp(lang, 'mus.back'), 'mus', 'home')]);
   const head = t(lang, 'mus.list', { name: tp(lang, `mus.filter.${filter}`), count });
   return { text: `${head}\n${count ? t(lang, 'common.page', { page: p + 1, pages }) : t(lang, 'mus.list_empty')}`, keyboard: markup(rows) };
@@ -137,6 +140,15 @@ export const routes = [
       if (!FILTERS.includes(filter)) return { toast: tp(app.lang, 'common.expired'), alert: true };
       await screen(app, user, cq, await listView(app, filter, page), 'music_list');
       return {};
+    },
+  },
+  {
+    // «✅ Activate all ready drafts» (also the drafts a source channel/group imported)
+    ns: 'mus', action: 'actall', args: ['word'], perm: PERM,
+    async run(app, user, [filter], cq) {
+      const r = await app.catalog.activateMany(user, {}, app.clock.ms() + 15000);
+      await screen(app, user, cq, await listView(app, FILTERS.includes(filter) ? filter : 'draft', 0), 'music_list');
+      return { toast: activationText(app.lang, r), alert: true };
     },
   },
   {

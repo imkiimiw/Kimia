@@ -15,8 +15,8 @@ const langName = (lang, l) => (l ? tp(lang, `tlang.${l}`) : tp(lang, 'src.lang.n
 async function listView(app) {
   const lang = app.lang;
   const rows = await app.sources.list();
-  const lines = rows.map((s, i) => `${digits(i + 1, lang)}. ${s.enabled ? '✅' : '⏸'} ${esc(title(s))} · ${esc(tp(lang, `src.mode.${s.auto_import}`))} · ${esc(langName(lang, s.default_language))}`);
-  const buttons = rows.map((s, i) => [btn(`${digits(i + 1, lang)}. ${title(s)}`.slice(0, 60), 'src', 'v', s.id)]);
+  const lines = rows.map((s, i) => `${digits(i + 1, lang)}. ${s.enabled ? '✅' : '⏸'} ${tp(lang, `src.type.${s.chat_type || 'channel'}`)} ${esc(title(s))} · ${esc(tp(lang, `src.mode.${s.auto_import}`))} · ${esc(langName(lang, s.default_language))}`);
+  const buttons = rows.map((s, i) => [btn(`${digits(i + 1, lang)}. ${tp(lang, `src.type.${s.chat_type || 'channel'}`)} ${title(s)}`.slice(0, 60), 'src', 'v', s.id)]);
   if (rows.length < LIMITS.sourcesMax) buttons.push([btn(tp(lang, 'src.btn_add'), 'src', 'add')]);
   buttons.push([homeButton(lang)]);
   return { text: t(lang, 'src.title', { count: rows.length, list: raw(lines.length ? lines.join('\n') : t(lang, 'src.empty')) }), keyboard: markup(buttons) };
@@ -30,7 +30,7 @@ async function cardView(app, s) {
       title: title(s), handle: s.username ? '@' + s.username : '', chat_id: String(s.chat_id),
       state: tp(lang, s.enabled ? 'fjm.state.on' : 'fjm.state.off'), mode: tp(lang, `src.mode.${s.auto_import}`),
       lang: langName(lang, s.default_language), imported: s.imported_count, last: dateTime(s.last_post_at || 0, tz, lang),
-    }) + '\n\n' + t(lang, 'src.mode_help'),
+    }) + '\n' + t(lang, 'src.view_type', { type: tp(lang, `src.type_name.${s.chat_type || 'channel'}`) }) + '\n\n' + t(lang, 'src.mode_help'),
     keyboard: markup([
       [btn(tp(lang, s.enabled ? 'fjm.btn_disable' : 'fjm.btn_enable'), 'src', 'tog', s.id)],
       [btn(tp(lang, 'src.btn_mode', { mode: tp(lang, `src.mode.${s.auto_import}`) }), 'src', 'mode', s.id)],
@@ -59,8 +59,8 @@ const cardAction = (action, fn) => ({
 });
 
 /**
- * Asks the owner what a channel the bot was just made admin of is for (at most once an hour per
- * channel). Nothing is registered until the owner picks.
+ * Asks the owner what a channel or group the bot was just made admin of is for (at most once an hour
+ * per chat). Nothing is registered until the owner picks.
  */
 export async function promptBotAdded(app, chat, from) {
   if (!(await app.alerts.claim(`added:${chat.id}`, LIMITS.alertBotAddedEverySeconds))) return false;
@@ -68,13 +68,18 @@ export async function promptBotAdded(app, chat, from) {
   const lang = await app.users.languageOf(owner);
   const by = from ? `${displayName({ first_name: from.first_name, username: from.username, telegram_id: from.id })} (${from.id})` : '?';
   try {
-    await app.tg.send(OWNER_ID, {
-      text: t(lang, 'bnew.prompt', { title: chat.title || String(chat.id), handle: chat.username ? '@' + chat.username : '', chat_id: String(chat.id), by }),
-      keyboard: markup([
-        [btn(tp(lang, 'bnew.btn_src'), 'bnew', 'src', chat.id), btn(tp(lang, 'bnew.btn_dst'), 'bnew', 'dst', chat.id)],
-        [btn(tp(lang, 'bnew.btn_fj'), 'bnew', 'fj', chat.id), btn(tp(lang, 'bnew.btn_no'), 'bnew', 'no', chat.id)],
-      ]),
-    }, 'bot_added_prompt');
+    const vars = { title: chat.title || String(chat.id), handle: chat.username ? '@' + chat.username : '', chat_id: String(chat.id), by };
+    // a group can only be a source (destinations and force-join are channels)
+    const view = chat.type === 'channel'
+      ? {
+        text: t(lang, 'bnew.prompt', vars),
+        keyboard: markup([
+          [btn(tp(lang, 'bnew.btn_src'), 'bnew', 'src', chat.id), btn(tp(lang, 'bnew.btn_dst'), 'bnew', 'dst', chat.id)],
+          [btn(tp(lang, 'bnew.btn_fj'), 'bnew', 'fj', chat.id), btn(tp(lang, 'bnew.btn_no'), 'bnew', 'no', chat.id)],
+        ]),
+      }
+      : { text: t(lang, 'bnew.prompt_group', vars), keyboard: markup([[btn(tp(lang, 'bnew.btn_src'), 'bnew', 'src', chat.id), btn(tp(lang, 'bnew.btn_no'), 'bnew', 'no', chat.id)]]) };
+    await app.tg.send(OWNER_ID, view, 'bot_added_prompt');
     return true;
   } catch (e) {
     app.log.warn('bot_added_prompt_failed', { chat_id: chat.id, error: String(e && (e.description || e.message)).slice(0, 120) });

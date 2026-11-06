@@ -100,9 +100,10 @@ export function createTelegramClient({ log, onBlocked, api = sdkApi }) {
     /**
      * Resolves a channel reference and checks the bot's own rights there.
      * @param {string|number} chatRef '@username' or a numeric id
+     * @param {{allowGroups?: boolean}} [opts] also accept a basic group (sources only)
      * @returns {Promise<{ok: true, chat: any, member: any, isAdmin: boolean, canPost: boolean} | {ok: false, error: 'not_found'|'not_channel'|'transient'|'no_rights'}>}
      */
-    async inspectChannel(chatRef) {
+    async inspectChannel(chatRef, { allowGroups = false } = {}) {
       let chat;
       try {
         chat = await call('getChat', { chat_id: chatRef }, 'inspect');
@@ -110,7 +111,7 @@ export function createTelegramClient({ log, onBlocked, api = sdkApi }) {
         const k = classify(e).kind;
         return { ok: false, error: k === 'transient' || k === 'rate_limit' ? 'transient' : 'not_found' };
       }
-      if (chat.type !== 'channel' && chat.type !== 'supergroup') return { ok: false, error: 'not_channel' };
+      if (chat.type !== 'channel' && chat.type !== 'supergroup' && !(allowGroups && chat.type === 'group')) return { ok: false, error: 'not_channel' };
       let member = null;
       try {
         member = await call('getChatMember', { chat_id: chat.id, user_id: BOT_ID }, 'inspect');

@@ -73,6 +73,12 @@ owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 | Flood guard (30 messages / presses per minute per user); quiet handling of users who blocked the bot; inline answers survive a broken file | — |
 | Staging bot `@Wangermusic_bot` with a mirror script, fixtures, load test (inline p95 166 ms with 5000 tracks), query-plan review in CI | `scripts/staging.mjs`, `scripts/loadtest.mjs`, `npm run query-review` |
 
+| After Phase 8 | Where |
+|---|---|
+| Groups as sources: a group where the bot is admin imports the songs members send (draft or straight into search) | 📡 Sources, or make the bot admin of the group |
+| «✅ فعال‌سازی همه» (activate all) on a forwarded batch, and for all ready drafts | batch summary, 🎵 Music → drafts |
+| Setting: tracks the owner/admins send go live at once | ⚙️ Settings |
+
 ## Run it
 
 Everything runs from this folder. The repository root and its other folders are other bots.
@@ -119,7 +125,7 @@ Docs: [ARCHITECTURE](docs/ARCHITECTURE.md) · [CONFIG](docs/CONFIG.md) ·
 
 ## راه‌اندازی سریع (فارسی)
 
-**وضعیت: هر ۸ فاز ساخته، تست و روی سرور اصلی دیپلوی شده‌اند.** راهنمای نگهداری (دیپلوی، بکاپ، بازگردانی، رفع مشکل): [docs/OPERATIONS.md](docs/OPERATIONS.md).
+**وضعیت: هر ۸ فاز ساخته، تست و روی سرور اصلی دیپلوی شده‌اند.** بعد از آن: گروه هم می‌تواند منبع باشد، و دکمه‌ی «✅ فعال‌سازی همه» برای پیش‌نویس‌ها اضافه شد. راهنمای نگهداری (دیپلوی، بکاپ، بازگردانی، رفع مشکل): [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 بکاپ (فاز ۸): /admin ← 🧪 وضعیت سیستم ← «💾 بکاپ بگیر» — فایل JSON برای خودتان فرستاده می‌شود؛ بکاپ هفتگی را در ⚙️ تنظیمات روشن کنید.
 

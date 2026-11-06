@@ -239,6 +239,8 @@ export const sources = table('sources', {
   importedCount: integer('imported_count').notNull().default(0),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  // added later: 'channel' | 'supergroup' | 'group' (NULL = a channel added before groups could be sources)
+  chatType: text('chat_type'),
 }, (t) => ({
   typeChk: check('sources_type_chk', sql`${t.sourceType} IN ('telegram_channel')`),
   importChk: check('sources_auto_import_chk', sql`${t.autoImport} IN ('off', 'draft', 'active')`),

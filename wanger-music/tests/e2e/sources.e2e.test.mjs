@@ -29,22 +29,28 @@ test('posts from unregistered channels are ignored', async () => {
   assert.equal(tracks(h).length, 0);
 });
 
-test('adding a source: forward / @username / id; the bot must be an admin of a channel', async () => {
+test('adding a source: forward / @username / id; the bot must be an admin; a group can be a source too', async () => {
   const h = setup();
   const s = await addSource(h);
-  assert.deepEqual([s.title, s.username, s.enabled, s.auto_import, s.default_language], ['Persian Hits', 'PersianHits', 1, 'draft', null]);
-  assert.match(h.tg.callsOf('sendMessage', OWNER).at(-2).params.text, /به‌عنوان کانال منبع اضافه شد/);
+  assert.deepEqual([s.title, s.username, s.enabled, s.auto_import, s.default_language, s.chat_type], ['Persian Hits', 'PersianHits', 1, 'draft', null, 'channel']);
+  assert.match(h.tg.callsOf('sendMessage', OWNER).at(-2).params.text, /به‌عنوان منبع اضافه شد/);
   h.tg.addChannel({ id: OTHER, username: 'NoAdminHere', title: 'No Admin', botAdmin: false });
   await h.tap(OWNER, 'src:home');
   await h.tap(OWNER, 'src:add');
   await h.send(OWNER, '@NoAdminHere');
   assert.match(h.lastText(OWNER), /ربات توی «No Admin» ادمین نیست/);
+  h.tg.addChannel({ id: -1003300000008, username: 'SomeUser', title: 'Person', type: 'private' });
+  await h.send(OWNER, '@SomeUser');
+  assert.match(h.lastText(OWNER), /فقط کانال یا گروه می‌تونه منبع باشه/);
   h.tg.addChannel({ id: -1003300000009, username: 'SomeGroup', title: 'Group', type: 'supergroup' });
   await h.send(OWNER, '@SomeGroup');
-  assert.match(h.lastText(OWNER), /فقط کانال \(نه گروه\)/);
+  assert.equal(h.one('SELECT chat_type FROM sources WHERE chat_id = ?', -1003300000009).chat_type, 'supergroup');
+  await h.tap(OWNER, 'src:home');
+  assert.match(h.lastText(OWNER), /👥 Group/);
+  await h.tap(OWNER, 'src:add');
   await h.send(OWNER, '@PersianHits');
   assert.match(h.lastText(OWNER), /قبلاً منبع شده/);
-  assert.equal(h.one('SELECT count(*) AS n FROM sources').n, 1);
+  assert.equal(h.one('SELECT count(*) AS n FROM sources').n, 2);
   assert.ok(h.q('SELECT action FROM audit_log').some((r) => r.action === 'source.add'));
 });
 
@@ -167,5 +173,5 @@ test('losing admin in a source warns the owner', async () => {
   await addSource(h);
   const r = await h.myChatMember({ id: SRC, type: 'channel', title: 'Persian Hits' }, OWNER, 'left', 'administrator');
   assert.equal(r.result, 'source_channel');
-  assert.match(h.lastText(OWNER), /دیگه ادمین کانال منبع «Persian Hits» نیست/);
+  assert.match(h.lastText(OWNER), /دیگه ادمین منبع «Persian Hits» نیست/);
 });

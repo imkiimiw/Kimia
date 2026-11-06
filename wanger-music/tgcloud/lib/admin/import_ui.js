@@ -6,16 +6,28 @@ import { btn, markup } from '../bot/keyboards.js';
 import { can } from '../permissions/policy.js';
 import { mediaRefusal } from '../music/ingest.js';
 import { trackView } from './music_ui.js';
-import { truncate } from '../core/util.js';
+import { truncate, UserError } from '../core/util.js';
 
 const PERM = 'catalog.manage';
 
 function summaryView(lang, s) {
   return {
     text: t(lang, 'imp.summary', { total: s.total, created: s.created, duplicates: s.duplicates, review: s.review }),
-    keyboard: markup([[btn(tp(lang, 'imp.btn_review'), 'mus', 'ls', 'draft', 0), btn(tp(lang, 'imp.btn_refresh'), 'imp', 'ref')]]),
+    keyboard: markup([
+      [btn(tp(lang, 'imp.btn_activate_all'), 'imp', 'act', s.started_at)],
+      [btn(tp(lang, 'imp.btn_review'), 'mus', 'ls', 'draft', 0), btn(tp(lang, 'imp.btn_refresh'), 'imp', 'ref')],
+    ]),
   };
 }
+
+/** The toast after «✅ Activate all» (plain text). @param {{activated: number, left: number, review: number}} r */
+export function activationText(lang, r) {
+  if (!r.activated && !r.left) return tp(lang, 'act.none') + (r.review ? tp(lang, 'act.review', { n: r.review }) : '');
+  return tp(lang, 'act.done', { n: r.activated }) + (r.left ? tp(lang, 'act.left', { n: r.left }) : '') + (r.review ? tp(lang, 'act.review', { n: r.review }) : '');
+}
+
+/** One press works at most this long (the platform's wall limit is ≈ 30 s). */
+const ACTIVATE_BUDGET_MS = 15000;
 
 function duplicateView(lang, tr) {
   return {
@@ -37,10 +49,19 @@ export async function handleMedia(app, user, message) {
     return true;
   }
   const result = await app.ingest.importAudio(user, message);
+  let activated = false;
+  if (result.kind === 'created' && (await app.settings.get('import.auto_activate'))) {
+    try {
+      result.track = await app.catalog.activate(user, result.track.id); // straight into search (setting)
+      activated = true;
+    } catch (e) {
+      if (!(e instanceof UserError)) throw e; // not ready (no title/artist, duplicate): stays a draft
+    }
+  }
   const session = await app.ingest.recordSession(chat, result);
   const bulk = (await app.settings.get('import.bulk_summary')) && session && session.total > 1;
   if (!bulk) {
-    if (result.kind === 'created') await app.tg.send(chat, await trackView(app, user, result.track, { header: t(lang, 'imp.header') }), 'import_card');
+    if (result.kind === 'created') await app.tg.send(chat, await trackView(app, user, result.track, { header: t(lang, activated ? 'imp.header_active' : 'imp.header') }), 'import_card');
     else await app.tg.send(chat, duplicateView(lang, result.existing), 'import_duplicate');
     return true;
   }
@@ -54,6 +75,17 @@ export async function handleMedia(app, user, message) {
 }
 
 export const routes = [
+  {
+    // «✅ Activate all» on a batch summary: the drafts this admin imported in that batch
+    ns: 'imp', action: 'act', args: ['uint'], perm: PERM,
+    async run(app, user, [startedAt], cq) {
+      const s = await app.ingest.getSession(user.telegram_id);
+      const to = s && s.started_at > startedAt ? s.started_at - 1 : app.clock.now(); // a later batch is not this one
+      const r = await app.catalog.activateMany(user, { addedBy: user.telegram_id, from: Number(startedAt), to }, app.clock.ms() + ACTIVATE_BUDGET_MS);
+      if (s && s.started_at === startedAt && cq.message) await app.tg.edit(user.telegram_id, cq.message.message_id, summaryView(app.lang, s), 'import_summary');
+      return { toast: activationText(app.lang, r), alert: true };
+    },
+  },
   {
     ns: 'imp', action: 'ref', args: [], perm: PERM,
     async run(app, user, _a, cq) {

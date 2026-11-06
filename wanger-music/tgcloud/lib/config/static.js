@@ -88,6 +88,7 @@ export const SETTINGS = Object.freeze({
   time_zone: { type: 'tz', default: 'Asia/Tehran' },
   'archive.chat_id': { type: 'chat', default: null },
   'import.bulk_summary': { type: 'bool', default: true },
+  'import.auto_activate': { type: 'bool', default: false },
   'backup.weekly': { type: 'bool', default: false },
   // internal state (not editable)
   'system.bootstrapped': { type: 'int', default: 0, internal: true },

@@ -14,6 +14,10 @@ const inList = (list) => commaJoin(list.map((v) => sql`${v}`));
 const EDITABLE = ['title', 'artist', 'featured_artists', 'album', 'version', 'genre', 'language', 'language_confidence', 'language_source',
   'cover_file_id', 'normalized_title', 'normalized_artist', 'dup_key', 'duplicate_of', 'audio_file_id'];
 
+/** What catalog.activate() accepts (it also checks these). */
+const READY = sql`(coalesce(title, '') != '' AND coalesce(artist, '') != '' AND duplicate_of IS NULL)`;
+/** @param {{addedBy?: number|null, from?: number, to?: number}} f */
+const batchOf = (f) => (f && f.addedBy ? sql`AND added_by = ${f.addedBy} AND created_at >= ${f.from || 0} AND created_at <= ${f.to || 0}` : sql``);
 const REVIEW = sql`(title IS NULL OR artist IS NULL OR language = 'unknown' OR language_confidence = 'low' OR duplicate_of IS NOT NULL)`;
 
 /** WHERE clause of a list filter: a status, 'review', or a language (non-removed tracks). */
@@ -86,6 +90,12 @@ export function createTracksRepo() {
 
     /** Deletes a removed track for good (owner's purge). */
     purge: (id) => db.run(sql`DELETE FROM tracks WHERE id = ${id} AND status = 'removed'`).then((r) => r.rowsAffected),
+
+    /** Drafts activate() accepts (title + artist, no pending duplicate), oldest first; optionally one admin's import batch. */
+    readyDrafts: (f, limit) => db.all(sql`SELECT * FROM tracks WHERE status = 'draft' AND ${READY} ${batchOf(f)} ORDER BY id LIMIT ${limit}`),
+    /** Drafts of the same filter: how many are ready and how many in all. */
+    countDrafts: (f) => db.get(sql`SELECT coalesce(sum(${READY}), 0) AS ready, count(*) AS total FROM tracks WHERE status = 'draft' ${batchOf(f)}`)
+      .then((r) => ({ ready: r ? Number(r.ready) : 0, total: r ? Number(r.total) : 0 })),
 
     list: (filter, limit, offset) => db.all(sql`
       SELECT id, public_id, title, artist, status, language, duplicate_of FROM tracks WHERE ${filterWhere(filter)}

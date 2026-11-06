@@ -24,6 +24,13 @@ code with a synthetic catalog (5000 tracks, ~2000 users) for load and restore te
 | 7 | Analytics: `stats_daily` (event counters written once per update; derived numbers recomputed for today + yesterday by the tick every 15 min and on open; retention 400 days, plays per track 90), 📊 dashboard (users total/new/active/blocked, inline + private searches, plays, top tracks, force-join conversions, publications per channel, sources), daily table, top tracks | **Deployed** |
 | 8 | Hardening: staging bot + mirror script, security / error / rate-limit / index reviews (docs/REVIEW.md, `npm run query-review` in CI), load test on staging, backup export (owner button, weekly, CLI) and restore (CLI, verified on staging), monitoring (warnings on System Status + throttled owner alerts, webhook report from the GitHub job), flood guard, platform limits (4096 values / 10 000 rows per statement) mirrored locally, docs/OPERATIONS.md | **Deployed** |
 
+## After Phase 8 (owner's requests)
+
+| Date | Change | Status |
+|---|---|---|
+| 2026-11-06 | Groups as sources (`sources.chat_type`), «✅ فعال‌سازی همه» on batch summaries and on 🎵 Music drafts, setting `import.auto_activate` | **Deployed** |
+| 2026-11-06 | Refused: Spotify / SoundCloud / YouTube Music / Amazon Music / Deezer as audio sources, and reading channels where the bot isn't admin (copyright, the services' terms, spec "never build" list). Offered instead: "listen on" links + metadata, Jamendo / downloadable-by-artist SoundCloud, artists' permission | — |
+
 ## Interfaces already in place for later phases
 
 - `runTick` has a processor list (`lib/jobs/tick.js`): Phase 6 adds `publications` and `digests`.

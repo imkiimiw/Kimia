@@ -39,7 +39,8 @@ end: all tests green, docs updated, the report (SPEC §15), then STOP and wait f
   every metric is listed in `stats/service.js#METRICS` (a guard test checks it); never a text as a dimension,
   never per-user rows. `force_join_ok_until = -1` means "gated" (conversion stats). Derived numbers are
   recomputed by `stats.aggregate()`; don't count them as events.
-- Source imports run as `SYSTEM_ACTOR` (policy.js; audit actor 0) and never publish.
+- Source imports run as `SYSTEM_ACTOR` (policy.js; audit actor 0) and never publish. Sources are channels or groups
+  (`sources.chat_type`; group messages reach `handlePost` through handlers/message, never touching users).
 - Destinations: rules/hours in `publishing/rules.js` (pure: matches(), withinHours()); captions in
   `publishing/captions.js`; previews go to the owner only; removal is soft (removed_at).
 - Publishing: routing only on activation (publishing_since → no backfill), one row per (track, channel),

@@ -1,4 +1,5 @@
-// SQL for `sources` (source channels).
+// SQL for `sources` (source channels and groups; source_type stays 'telegram_channel' = a Telegram
+// chat, chat_type says which kind).
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
 
@@ -16,8 +17,8 @@ export function createSourcesRepo() {
     getByChatId: (chatId) => db.get(sql`SELECT * FROM sources WHERE chat_id = ${chatId}`),
     /** Returns the new row, or null if the chat is a source already or the list is full. */
     insert: (s) => db.run(sql`
-      INSERT INTO sources (source_type, chat_id, username, title, default_language, enabled, auto_import, imported_count, created_at, updated_at)
-      SELECT 'telegram_channel', ${s.chat_id}, ${s.username}, ${s.title}, NULL, 1, 'draft', 0, ${s.now}, ${s.now}
+      INSERT INTO sources (source_type, chat_id, username, title, default_language, enabled, auto_import, imported_count, created_at, updated_at, chat_type)
+      SELECT 'telegram_channel', ${s.chat_id}, ${s.username}, ${s.title}, NULL, 1, 'draft', 0, ${s.now}, ${s.now}, ${s.chat_type || 'channel'}
       WHERE (SELECT count(*) FROM sources) < ${s.max}
       ON CONFLICT (chat_id) DO NOTHING RETURNING *`).then(first),
     update: (id, patch, now) => {
@@ -26,6 +27,8 @@ export function createSourcesRepo() {
       return db.run(sql`UPDATE sources SET ${commaJoin(sets)}, updated_at = ${now} WHERE id = ${id} RETURNING *`).then(first);
     },
     remove: (id) => db.run(sql`DELETE FROM sources WHERE id = ${id}`).then((r) => r.rowsAffected),
+    /** A group became a supergroup: Telegram gives it a new id. */
+    moveChat: (id, chatId, chatType, now) => db.run(sql`UPDATE sources SET chat_id = ${chatId}, chat_type = ${chatType}, updated_at = ${now} WHERE id = ${id} RETURNING *`).then(first),
     /** One more post seen (and, when a track was created, one more import). */
     recordPost: (id, now, imported) => db.run(sql`
       UPDATE sources SET last_post_at = ${now}, imported_count = imported_count + ${imported ? 1 : 0} WHERE id = ${id}`),

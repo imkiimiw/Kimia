@@ -138,6 +138,17 @@ deployed yet) · **Unknown** = neither documented nor measurable without deployi
 | Load test (5000 tracks, 4 parallel) | inline p95 166 ms, private search p95 273 ms, chosen p95 118 ms — see docs/REVIEW.md. |
 | `ON CONFLICT (pk) DO UPDATE … ON CONFLICT DO NOTHING` (two upsert clauses) | Works (restore merges). |
 
+## After Phase 8: groups as sources (owner's request, 2026-11-06)
+
+| Item | Finding / decision |
+|---|---|
+| Spec §10.1 "A source is a Telegram channel" | The owner asked for groups too. Same rule as channels: the bot must be an admin (the spec forbids reading chats where it isn't). |
+| Privacy mode (official Bot API) | A bot that is an admin of a group receives every message there; otherwise only commands, replies and mentions. So admin is required, and enough. |
+| Schema | `sources.source_type` is CHECK-constrained to `'telegram_channel'`; changing a CHECK isn't a safe migration, so a new nullable column `chat_type` says channel / supergroup / group (one safe step). |
+| Group → supergroup | Telegram gives the group a new id and sends `migrate_to_chat_id` in the old group: the source row is moved to the new id. |
+| Cost | Group chatter arrives as `message` updates; messages without audio skip the dedupe row and the piggyback tick (measured on staging: `unregistered`, `tick: null`). |
+| Bot history | As with channels, only messages sent after the bot became admin arrive; older songs: forward them (and «✅ فعال‌سازی همه»). |
+
 ## Design consequences
 
 - **State**: everything important is in the database; no module-level caches are relied on.
