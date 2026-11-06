@@ -8,7 +8,7 @@ and a stop until the owner says "implement Phase N".
 check green). Phase 7 deployed the same day (commit `e97e5f8`): 2 safe steps (`stats_daily`,
 `idx_users_created`), 21 modules updated (81 in all), webhook in sync; the smoke check found the
 dashboard equal to direct SQL counts (today and 7 days).
-Phase 8 deployed on 2026-11-06 (commit `cd2bfba`): 3 safe steps (`users.flood_at`, `users.flood_n`,
+Phase 8 deployed on 2026-11-06 (commit `0a0440d`; the live version stamp says `cd2bfba`, its hash before a rebase — same content): 3 safe steps (`users.flood_at`, `users.flood_n`,
 `idx_pub_channel_id`), 83 modules, webhook in sync; smoke check green (`stats_match: true`, 0 errors);
 first production backup sent to the owner (19 rows, 5 KB). Staging (`@Wangermusic_bot`) runs the same
 code with a synthetic catalog (5000 tracks, ~2000 users) for load and restore tests.
