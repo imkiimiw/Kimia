@@ -164,8 +164,17 @@ state in [docs/PROGRESS.md](docs/PROGRESS.md) — read PROGRESS first.
 - **This folder is its own tgcloud project** (`@Wanger_mediabot`, app9080356648) inside a repository
   with other bots. Run the CLI only as `npm run tg -- <command>` from `wanger-media/`: it passes the
   CLI token from `Media_BOT_TGCLOUD_TOKEN` and can't reach another bot. Never bare `npx tgcloud`.
-- **Owner = numeric id `5557901897`** (`tgcloud/lib/config.js` from Phase 1).
+- **Code map:** `handlers/*` (thin) → `lib/router.js` (error boundary, de-duplication, the order of
+  checks and the `callback_data` table) → `lib/join.js`, `lib/ui.js`, `lib/alerts.js` → `lib/db/*.js`
+  (all SQL, raw `sql` tag) → `sdk`. Bot API calls only through `lib/tg.js`; permissions only in
+  `lib/roles.js`; texts only in `lib/i18n/{fa,en,ru}.js` (same keys; `t()` escapes, `tp()` plain).
+- **Owner = numeric id `5557901897`** (`lib/config.js`): immune to bans and demotion; only the owner
+  manages forced-join channels and SUPER_ADMIN.
 - **Measured on this bot (2026-11-05):** CPU ≈ 3 s per invocation; a query fails above ≈ 50 000
-  rows read; ≤ 4 000 bound parameters per statement; no `URL`, `atob`, timers or `AbortController`
-  in the isolate; no scheduler. Details: docs/PLATFORMS.md §1.
+  rows read (`test/e2e/queries.test.js` checks the plans); ≤ 4 000 bound parameters per statement; no
+  `URL`, `atob`, timers or `AbortController` in the isolate; no transactions; no scheduler.
+- Pure modules (config, util, roles, codec, ui, i18n) never import `sdk`; ≤ 90 modules; invisible
+  characters as `\u200c` escapes — `test/static/guard.test.js` enforces these.
+- Handlers return `{ ok, view, trace }`; `trace` lists every Bot API call with its view name.
+- Tests: `npm test` (Vitest; `test/sdk/` emulates the SDK on node:sqlite, `test/helpers/` fakes Telegram).
 - Ask the owner before `push`, before `migrate --safe`, and before anything that messages real users.

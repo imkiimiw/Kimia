@@ -5,10 +5,13 @@
   "type": "module",
   "description": "Wanger Media — multilingual (fa/en/ru) Telegram media-link bot on Telegram Serverless.",
   "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
     "tg": "node scripts/tg.mjs",
     "status": "node scripts/tg.mjs status"
   },
   "devDependencies": {
-    "@tgcloud/cli": "^0.2.0"
+    "@tgcloud/cli": "^0.2.0",
+    "vitest": "^5.1.0"
   }
 }
