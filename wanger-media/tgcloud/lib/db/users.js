@@ -58,3 +58,19 @@ export async function langOf(id) {
   const r = await db.get(sql`SELECT lang, tg_lang FROM users WHERE id = ${id}`);
   return r ? r.lang || r.tg_lang : null;
 }
+
+/** Records that the user accepted the disclaimer. */
+export async function setDisclaimer(id, now) {
+  await db.run(sql`UPDATE users SET disclaimer_at = ${now} WHERE id = ${id}`);
+}
+
+/** The user's preferred quality ('auto' when never set). */
+export async function getQuality(id) {
+  const r = await db.get(sql`SELECT quality FROM user_settings WHERE user_id = ${id}`);
+  return (r && r.quality) || 'auto';
+}
+
+export async function setQuality(id, quality, now) {
+  await db.run(sql`INSERT INTO user_settings (user_id, quality, updated_at) VALUES (${id}, ${quality}, ${now})
+    ON CONFLICT(user_id) DO UPDATE SET quality = excluded.quality, updated_at = excluded.updated_at`);
+}

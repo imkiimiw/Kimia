@@ -51,6 +51,13 @@ export function setup(options = {}) {
       const update = { update_id: id ?? ++updateId, my_chat_member: upd };
       return myChatMember(upd, { update });
     },
+    /** First run for `from`: /start, language, member of every channel, disclaimer accepted. */
+    async onboard(from, lang = 'en') {
+      h.tg.setMember(from.id);
+      await h.send(from, '/start');
+      await h.press(from, 'L:' + lang, { messageId: 1 });
+      return h.press(from, 'a', { messageId: 2 });
+    },
     /** Moves the clock forward by `seconds`. */
     advance(seconds) { vi.setSystemTime(Date.now() + seconds * 1000); },
     rows(text, ...params) { return rawDatabase().prepare(text).all(...params); },

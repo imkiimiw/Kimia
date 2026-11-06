@@ -60,9 +60,11 @@ describe('i18n', () => {
     expect(detectLang(undefined)).toBe('en');
   });
 
-  it('Persian texts keep @usernames on their own line', () => {
+  it('Persian texts keep @usernames and links on their own line', () => {
     for (const [k, v] of Object.entries(LOCALES.fa)) {
-      if (v.includes('{channel}')) expect(v, k).toMatch(/\n\{channel\}\n/);
+      for (const line of v.split('\n')) {
+        if (line.includes('{channel}') || line.includes('http')) expect(line.trim(), k).toMatch(/^@?\{channel\}$|^https?:\/\/\S+$/);
+      }
     }
   });
 });

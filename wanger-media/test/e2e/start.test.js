@@ -46,15 +46,18 @@ describe('/start and language', () => {
     expect(toast.text).toContain('Русский');
   });
 
-  it('“check again” after joining everything shows the welcome screen; the pass is cached', async () => {
+  it('“check again” after joining → disclaimer (first use) → home menu; the pass is cached', async () => {
     await h.send(ALICE, '/start');
     await h.press(ALICE, 'L:en');
     h.tg.setMember(ALICE.id, 'member');
     const r = await h.press(ALICE, 'j', { messageId: 901 });
-    expect(r.view).toBe('home');
+    expect(r.view).toBe('disclaimer');
+    expect(h.tg.calls('answerCallbackQuery').at(-1).params.text).toBe('✅ Membership confirmed. Thank you!');
+    expect(datas(h.lastScreen(ALICE.id))).toEqual(['a']);
+    expect((await h.press(ALICE, 'a', { messageId: 901 })).view).toBe('home');
     expect(h.lastScreen(ALICE.id).text).toContain('Welcome to <b>Wanger Media</b>');
     expect(h.lastScreen(ALICE.id).text).toContain('isn’t available yet');
-    expect(datas(h.lastScreen(ALICE.id))).toEqual(['l']); // only built features have buttons
+    expect(datas(h.lastScreen(ALICE.id))).toEqual(['H:0', 's', 'i', 'o']); // no Download button before Phase 3
 
     h.resetCalls();
     const again = await h.send(ALICE, '/start');
@@ -69,13 +72,11 @@ describe('/start and language', () => {
   });
 
   it('a second /start never shows the language picker again; /language does', async () => {
-    h.tg.setMember(ALICE.id);
-    await h.send(ALICE, '/start');
-    await h.press(ALICE, 'L:en');
+    await h.onboard(ALICE, 'en');
     expect((await h.send(ALICE, '/start')).view).toBe('home');
     const r = await h.send(ALICE, '/language');
     expect(r.view).toBe('language');
-    expect(datas(h.lastScreen(ALICE.id))).toEqual(['L:fa', 'L:en', 'L:ru', 'h']);
+    expect(datas(h.lastScreen(ALICE.id))).toEqual(['L:fa', 'L:en', 'L:ru', 'h', 'h']);
     expect(h.lastScreen(ALICE.id).text).toBe('🌐 Please choose your language:');
   });
 
@@ -89,7 +90,9 @@ describe('/start and language', () => {
 
     h.row("INSERT INTO roles (user_id, role) VALUES (?, 'support') RETURNING user_id", BORIS.id);
     await h.send(BORIS, '/start');
-    expect((await h.press(BORIS, 'L:ru')).join.skipped).toBe(true);
+    const staff = await h.press(BORIS, 'L:ru');
+    expect(staff.join.skipped).toBe(true);
+    expect(staff.view).toBe('disclaimer'); // staff accept the disclaimer like users; only the owner doesn't
   });
 
   it('a banned user is told so (permanent and timed); the owner can never be banned', async () => {
@@ -116,9 +119,7 @@ describe('/start and language', () => {
   });
 
   it('an unknown or expired button shows a toast and a fresh screen', async () => {
-    h.tg.setMember(ALICE.id);
-    await h.send(ALICE, '/start');
-    await h.press(ALICE, 'L:en');
+    await h.onboard(ALICE, 'en');
     const r = await h.press(ALICE, 'old:menu:42', { messageId: 777 });
     expect(r.expired).toBe(true);
     expect(r.view).toBe('home');
@@ -130,8 +131,8 @@ describe('/start and language', () => {
     await h.send(ALICE, '/start');
     h.tg.failNext('editMessageText', h.tg.err(400, 'Bad Request: message to edit not found'));
     const r = await h.press(ALICE, 'L:en');
-    expect(r.view).toBe('home');
-    expect(h.tg.calls('sendMessage').at(-1).params.text).toContain('Welcome');
+    expect(r.view).toBe('disclaimer');
+    expect(h.tg.calls('sendMessage').at(-1).params.text).toContain('Before you start');
   });
 
   it('counts new and active users once per day (running counters, Tehran days)', async () => {
@@ -216,7 +217,8 @@ describe('forced join', () => {
     h.row(`INSERT INTO settings (key, value, updated_at) VALUES ('switch.forced_join', 'false', 1) RETURNING key`);
     await h.send(ALICE, '/start');
     const r = await h.press(ALICE, 'L:en');
-    expect(r.view).toBe('home');
+    expect(r.view).toBe('disclaimer');
+    expect(r.join.skipped).toBe(true);
     expect(h.tg.calls('getChatMember').filter((c) => c.params.user_id === ALICE.id)).toHaveLength(0);
   });
 });

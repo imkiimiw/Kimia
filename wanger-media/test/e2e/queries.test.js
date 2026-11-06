@@ -30,12 +30,19 @@ describe('query plans', () => {
     await h.chatMember({ chat: { id: -1001, type: 'supergroup', title: 'G' }, from: ALICE, date: 0, new_chat_member: { status: 'member' }, old_chat_member: { status: 'left' } }); capture();
     await h.chatMember({ chat: { id: CHANNELS[0].id, type: 'channel', username: 'HIDE_i_SEEK' }, from: OWNER, date: 0, new_chat_member: { status: 'member' }, old_chat_member: { status: 'administrator' } }); capture();
     await h.chatMember({ chat: { id: ALICE.id, type: 'private' }, from: ALICE, date: 0, new_chat_member: { status: 'kicked' }, old_chat_member: { status: 'member' } }); capture();
+    // Phase 2: disclaimer, dashboard, history, settings
+    await h.chatMember({ chat: { id: ALICE.id, type: 'private' }, from: ALICE, date: 0, new_chat_member: { status: 'member' }, old_chat_member: { status: 'kicked' } }); capture();
+    await h.press(ALICE, 'a', { messageId: 4 }); capture();
+    for (let i = 0; i < 30; i++) h.row(`INSERT INTO downloads (user_id, chat_id, platform, url, status, created_at) VALUES (?, ?, 'x', 'u', 'ok', ?) RETURNING id`, ALICE.id, ALICE.id, i);
+    stats.log = [];
+    for (const data of ['H:0', 'H:2', 's', 'q', 'Q:best', 'l:s', 'L:ru:s', 'i', 'o', 'h']) { await h.press(ALICE, data, { messageId: 5 }); capture(); }
+    await h.send(ALICE, '/downloads'); capture();
     h.advance(3 * 86400);
     await h.send(ALICE, 'housekeeping'); capture();
 
     const seen = new Map();
     for (const q of log) if (!seen.has(q.text)) seen.set(q.text, q.params);
-    expect(seen.size).toBeGreaterThan(20);
+    expect(seen.size).toBeGreaterThan(25);
     const offenders = [];
     for (const [text, params] of seen) {
       const plan = rawDatabase().prepare('EXPLAIN QUERY PLAN ' + text).all(params);

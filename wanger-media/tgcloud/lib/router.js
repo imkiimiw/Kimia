@@ -6,26 +6,30 @@
 //   3. settings (first run: seed the forced-join channels), the user row (+ running counters)
 //   4. buttons only: same button on the same message within DOUBLE_TAP_MS → ignored
 //   5. ban (never the owner) → maintenance (staff exempt) → language (first run) → forced join
-//      (staff exempt) → the screen
+//      (staff exempt) → disclaimer (first use; the owner is exempt) → the screen (lib/menu.js)
 // Handlers never throw: errors are stored in error_log, the owner gets a throttled alert, the user
 // a short "something went wrong", and the handler returns { ok: false }.
 //
 // callback_data codes (lib/codec.js):
-//   h          home
-//   l          language picker
-//   L:<lang>   set language (fa | en | ru)
-//   j          check forced join again
+//   h          home                       s          settings
+//   l[:s]      language picker            q          quality picker
+//   L:<lang>[:s] set language (fa|en|ru)  Q:<q>      set quality (auto|best|small)
+//   j          check forced join again    i          help
+//   a          accept the disclaimer      o          about
+//   H:<page>   my downloads, page 0–12
+// ":s" = opened from Settings, so the picker returns there.
 import { alertOwner } from './alerts.js';
 import { CB, decode } from './codec.js';
-import { BOT_USERNAME, DOUBLE_TAP_MS, ERROR_ALERT_EVERY_S, HOUSEKEEP_EVERY_S } from './config.js';
+import { BOT_USERNAME, DISCLAIMER_VERSION_AT, DOUBLE_TAP_MS, ERROR_ALERT_EVERY_S, HOUSEKEEP_EVERY_S } from './config.js';
 import * as groups from './db/groups.js';
 import * as system from './db/system.js';
 import * as users from './db/users.js';
 import { detectLang, LANG_NAMES, normLang, tp } from './i18n/index.js';
 import * as join from './join.js';
+import * as menu from './menu.js';
 import { actorOf, isOwnerId, isStaff } from './roles.js';
 import * as tg from './tg.js';
-import { formatTime, joinGate, languagePicker, plain, welcome } from './ui.js';
+import { disclaimer, formatTime, joinGate, languagePicker, plain } from './ui.js';
 import { clip, displayName, errorText, nowSec, tehranDay } from './util.js';
 
 const SETTING_KEYS = ['seed.channels', 'switch.maintenance', 'switch.forced_join', 'hk'];
@@ -160,15 +164,39 @@ export function command(text) {
 
 const joinSummary = (r) => ({ pass: r.pass, missing: (r.missing || []).length, unknown: (r.unknown || []).length, cached: !!r.cached, skipped: !!r.skipped });
 
-/** Home after the forced-join gate; `message` = the bot message to edit (buttons), else a new one. */
-async function showHome(ctx, user, message) {
-  const lang = user.lang;
-  const r = await join.check(ctx, user);
-  const view = r.pass ? 'home' : 'join';
-  const screen = r.pass ? welcome(lang, user.name) : joinGate(lang, r);
+/** Shows a screen: edits `message` (buttons) or sends a new message (commands, text). */
+async function show(ctx, user, message, view, screen) {
   if (message) await tg.edit(ctx, view, message, screen);
   else await reply(ctx, user, view, screen);
-  return { view, join: joinSummary(r) };
+}
+
+export const needsDisclaimer = (user) => !isOwnerId(user.id) && (Number(user.row && user.row.disclaimer_at) || 0) < DISCLAIMER_VERSION_AT;
+
+/**
+ * Forced join, then the disclaimer. → { held, join }: `held` is null when the user may see menus;
+ * otherwise the gate or the disclaimer has been shown and `held` is the result to hand back.
+ */
+async function gateway(ctx, user, message) {
+  const r = await join.check(ctx, user);
+  const summary = joinSummary(r);
+  if (!r.pass) {
+    await show(ctx, user, message, 'join', joinGate(user.lang, r));
+    return { held: { view: 'join', join: summary }, join: summary };
+  }
+  if (needsDisclaimer(user)) {
+    await show(ctx, user, message, 'disclaimer', disclaimer(user.lang));
+    return { held: { view: 'disclaimer', join: summary }, join: summary };
+  }
+  return { held: null, join: summary };
+}
+
+/** Opens a menu target after the gateway. */
+async function open(ctx, user, message, target, arg) {
+  const g = await gateway(ctx, user, message);
+  if (g.held) return g.held;
+  const { view, screen } = await menu.build(user, target, arg);
+  await show(ctx, user, message, view, screen);
+  return { view, join: g.join };
 }
 
 export const onMessage = (msg, sdkCtx) => boundary('message', sdkCtx, async (ctx) => {
@@ -187,7 +215,7 @@ export const onMessage = (msg, sdkCtx) => boundary('message', sdkCtx, async (ctx
     await reply(ctx, user, 'language', languagePicker({ current: user.lang, preselected: user.preselected }));
     return { view: 'language' };
   }
-  return showHome(ctx, user, null);
+  return open(ctx, user, null, menu.COMMAND_TARGETS[cmd] || 'home', 0);
 });
 
 export const onCallback = (cq, sdkCtx) => boundary('callback_query', sdkCtx, async (ctx) => {
@@ -219,7 +247,7 @@ export const onCallback = (cq, sdkCtx) => boundary('callback_query', sdkCtx, asy
       await tg.edit(ctx, 'language', msg, languagePicker({ current: null, preselected: user.preselected }));
       return { view: 'language', expired: true };
     }
-    return { ...(await showHome(ctx, user, msg)), expired: true };
+    return { ...(await open(ctx, user, msg, 'home')), expired: true };
   }
 
   if (d.code === CB.LANG_SET) {
@@ -228,27 +256,47 @@ export const onCallback = (cq, sdkCtx) => boundary('callback_query', sdkCtx, asy
     user.lang = l;
     ctx.lang = l;
     await tg.answer(ctx, cq.id, tp(l, 'lang.saved', { name: LANG_NAMES[l] }));
-    return showHome(ctx, user, msg);
+    return open(ctx, user, msg, d.args[1] === 's' ? 'settings' : 'home');
   }
   if (!user.lang || d.code === CB.LANG_MENU) {
     await tg.answer(ctx, cq.id);
-    await tg.edit(ctx, 'language', msg, languagePicker({ current: user.lang, preselected: user.preselected }));
+    await tg.edit(ctx, 'language', msg, languagePicker({ current: user.lang, preselected: user.preselected, from: d.args[0] || null }));
     return { view: 'language' };
   }
   if (d.code === CB.JOIN_CHECK) {
     const r = await join.check(ctx, user);
-    if (r.pass) {
-      await tg.answer(ctx, cq.id, tp(lang, 'join.ok'));
-      await tg.edit(ctx, 'home', msg, welcome(lang, user.name));
-      return { view: 'home', join: joinSummary(r) };
+    if (!r.pass) {
+      await tg.answer(ctx, cq.id, tp(lang, r.missing.length ? 'join.not_yet' : 'join.cant_check'), true);
+      await tg.edit(ctx, 'join', msg, joinGate(lang, r));
+      return { view: 'join', join: joinSummary(r) };
     }
-    await tg.answer(ctx, cq.id, tp(lang, r.missing.length ? 'join.not_yet' : 'join.cant_check'), true);
-    await tg.edit(ctx, 'join', msg, joinGate(lang, r));
-    return { view: 'join', join: joinSummary(r) };
+    await tg.answer(ctx, cq.id, tp(lang, 'join.ok'));
+    return open(ctx, user, msg, 'home');
   }
-  // CB.HOME
+  if (d.code === CB.ACCEPT) {
+    if (needsDisclaimer(user)) {
+      // Never earlier than the current version's date, so an acceptance always satisfies it.
+      const at = Math.max(ctx.now, DISCLAIMER_VERSION_AT);
+      await users.setDisclaimer(user.id, at);
+      user.row.disclaimer_at = at;
+    }
+    await tg.answer(ctx, cq.id, tp(lang, 'disclaimer.ok'));
+    return open(ctx, user, msg, 'home');
+  }
+  if (d.code === CB.QUALITY_SET) {
+    const g = await gateway(ctx, user, msg);
+    if (g.held) {
+      await tg.answer(ctx, cq.id);
+      return g.held;
+    }
+    await users.setQuality(user.id, d.args[0], ctx.now);
+    await tg.answer(ctx, cq.id, tp(lang, 'quality.saved', { name: tp(lang, 'quality.' + d.args[0]) }));
+    return open(ctx, user, msg, 'settings');
+  }
+
   await tg.answer(ctx, cq.id);
-  return showHome(ctx, user, msg);
+  const targets = { [CB.HISTORY]: 'downloads', [CB.SETTINGS]: 'settings', [CB.QUALITY_MENU]: 'quality', [CB.HELP]: 'help', [CB.ABOUT]: 'about' };
+  return open(ctx, user, msg, targets[d.code] || 'home', d.code === CB.HISTORY ? Number(d.args[0]) : 0);
 });
 
 export const onMyChatMember = (upd, sdkCtx) => boundary('my_chat_member', sdkCtx, async (ctx) => {

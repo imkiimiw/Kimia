@@ -1,9 +1,35 @@
 # Progress
 
-**Current state: Phase 1 (Foundation) done and deployed (cloud revision 1, 2026-11-06). Next: Phase 2
-(User dashboard), only when the owner names it.**
+**Current state: Phase 2 (User dashboard) built and tested — waiting for the owner's OK to push.**
+Live: Phase 1 (cloud revision 1). No schema change in Phase 2, so no migration.
 
-## Phase 1 — Foundation (2026-11-06) ✅
+## Phase 2 — User dashboard (2026-11-06) ✅ code · ⏳ push
+
+Done:
+- Flow: language (first run) → forced join → **disclaimer** (first use, versioned; owner exempt) →
+  **main menu**: 📥 My downloads · ⚙️ Settings · ❓ Help · ℹ️ About. No Download button yet (Phase 3).
+- My downloads: latest 100, 8 per page, newest first, 🔼/🔽 pager, honest empty state, escaped.
+- Settings: language (returns to Settings in the new language) and preferred quality (auto / best /
+  data saver; stored in `user_settings`; the screen says it applies once downloads exist).
+- Help (commands; honest that downloading isn't available yet) and About (version 0.2.0, channel,
+  what is stored about the user). Commands: /help, /about, /settings, /downloads (/history), /language.
+- Back and Home on every non-home screen; expired or invalid buttons → toast + fresh screen; the
+  gates (ban, maintenance, forced join, disclaimer) run before every screen and every setting change.
+- New modules: `lib/menu.js`, `lib/db/downloads.js` (23 modules in all).
+- Tests: **99 passing** — Phase 1 suite updated for the disclaimer step, plus dashboard flows,
+  pagination (own rows only, cap at 100, clamping), settings, language from settings, gates on
+  navigation, Back/Home on every screen in every language, callback validity, query plans (the
+  history queries use the index; checked by removing the index and seeing the test fail).
+- Bug found by the tests and fixed: the last history page could show entries beyond the latest 100;
+  a disclaimer accepted before its version date kept reappearing.
+- Platform (no writes): group-chat payloads with fake ids → ignored, all modules load; a temporary
+  read-only module built all six screens from the real database.
+
+Remaining for Phase 2 (after the owner's OK): `npm run tg -- push` (8 changed/new modules), then the
+owner tries the menu in Telegram.
+
+## Phase 1 — Foundation (2026-11-06) ✅ deployed
+
 
 Done:
 - `tgcloud/schema.js`: 14 tables — users, user_settings, roles, forced_channels, groups,
@@ -58,12 +84,11 @@ Folder and CLI wrapper set up; Serverless limits measured on this bot; 14 platfo
 
 ## Remaining phases
 
-2 User dashboard · 3 Download core (X, Pinterest, Snapchat) · 4 Admin panel · 5 Groups · 6 Launch ·
+3 Download core (X, Pinterest, Snapchat) · 4 Admin panel · 5 Groups · 6 Launch ·
 7 Remaining platforms (one per session) · 8 `external` service (only on request).
 
 ## What I need from the owner
 
-1. **Try it in Telegram:** send `/start` to @Wanger_mediabot (you skip the gate as owner; a second
-   account shows the gate and the "check again" flow).
+1. **OK to push Phase 2** (code only; no database change).
 2. Later, not now: privacy mode is ON. For groups (Phase 5), either turn it off in BotFather
    (`/setprivacy` → Disable, then remove and re-add the bot) or make the bot admin in each group.

@@ -61,3 +61,16 @@ One line each: the choice — the reason. Newest phase last.
 - Vitest runs with `pool: 'forks'` — node:sqlite is used by the SDK emulator.
 - Real-database checks use a fake user id (100000001) before `push`, and their rows are deleted with targeted statements afterwards — "No invented numbers": the counters must only count real users.
 - Temporary `zz_*` modules are deleted before every `push` — the CLI uploads every file under `tgcloud/`, `.gitignore` doesn't apply to it.
+
+## Phase 2 (2026-11-06)
+
+- The main menu has no Download button until Phase 3 — brief §2: no buttons for unbuilt features; "My downloads", Settings, Help and About are built.
+- The disclaimer comes after the forced-join gate and before every menu screen; the owner is exempt, staff are not — it is about the user's own downloads; the owner runs the bot.
+- The disclaimer is versioned by `DISCLAIMER_VERSION_AT`: anyone who accepted earlier must accept again; an acceptance is stored as max(now, that date) — changing the text in substance needs a new acceptance, and an acceptance must never fall "before" its own version.
+- The preferred quality (auto / best / data saver) is stored now and its screen says it applies once downloads exist — the brief puts it in Phase 2; saying so plainly keeps it from being fake.
+- "My downloads" shows the latest 100 entries, 8 per page, by offset on `idx_downloads_user`; the count reads at most 100 index entries — bounded work far below the 50 000-rows-read limit, without keyset complexity.
+- Every non-home screen has Back (to its parent: home, or settings for the quality and language pickers) and Home — brief §8.
+- The language picker opened from Settings carries `:s` in its callback_data and returns to Settings — the user stays where they were.
+- Arrows are avoided on the history pager (🔼 Newer / 🔽 Older) — left/right arrows read backwards in right-to-left Persian.
+- About states what is stored about the user (id, name, username, language, settings, activity dates, download history) — honest privacy note; matches the schema.
+- Phase 2 platform check without database writes: fake ids in group-chat payloads (ignored → every module loads) plus a temporary read-only module that builds each screen from the real database — a fake user can't pass the real forced-join gate, so a fake private run would only add rows to clean up.

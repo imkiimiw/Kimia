@@ -165,9 +165,10 @@ state in [docs/PROGRESS.md](docs/PROGRESS.md) — read PROGRESS first.
   with other bots. Run the CLI only as `npm run tg -- <command>` from `wanger-media/`: it passes the
   CLI token from `Media_BOT_TGCLOUD_TOKEN` and can't reach another bot. Never bare `npx tgcloud`.
 - **Code map:** `handlers/*` (thin) → `lib/router.js` (error boundary, de-duplication, the order of
-  checks and the `callback_data` table) → `lib/join.js`, `lib/ui.js`, `lib/alerts.js` → `lib/db/*.js`
-  (all SQL, raw `sql` tag) → `sdk`. Bot API calls only through `lib/tg.js`; permissions only in
-  `lib/roles.js`; texts only in `lib/i18n/{fa,en,ru}.js` (same keys; `t()` escapes, `tp()` plain).
+  checks and the `callback_data` table) → `lib/menu.js` (dashboard screens), `lib/join.js`, `lib/ui.js`,
+  `lib/alerts.js` → `lib/db/*.js` (all SQL, raw `sql` tag) → `sdk`. Bot API calls only through
+  `lib/tg.js`; permissions only in `lib/roles.js`; texts only in `lib/i18n/{fa,en,ru}.js` (same keys;
+  `t()` escapes, `tp()` plain).
 - **Owner = numeric id `5557901897`** (`lib/config.js`): immune to bans and demotion; only the owner
   manages forced-join channels and SUPER_ADMIN.
 - **Measured on this bot (2026-11-05):** CPU ≈ 3 s per invocation; a query fails above ≈ 50 000
