@@ -10,11 +10,12 @@
 // 'meta'. A failure that isn't the user's doing and an information card give the quota back (the
 // cooldown stays).
 import { alertOwner } from './alerts.js';
-import { BUILT_PLATFORMS, PLATFORM_NAMES, TG_URL_PHOTO_MAX } from './config.js';
+import { BUILT_PLATFORMS, MB, PLATFORM_NAMES, TG_UPLOAD_MAX, TG_UPLOAD_PHOTO_MAX, TG_URL_PHOTO_MAX } from './config.js';
 import * as downloadsDb from './db/downloads.js';
 import * as system from './db/system.js';
 import * as users from './db/users.js';
 import { deliver, DeliveryError, sendCard, sendCached } from './delivery.js';
+import * as external from './external.js';
 import { HttpError, probe, ResolveError } from './platforms/common.js';
 import * as registry from './platforms/index.js';
 import { choose, domainCandidates, limitsFrom, platformState, precheck } from './policy.js';
@@ -34,14 +35,14 @@ const OUTCOME = {
   downloads_off: 'denied', quota: 'denied', cooldown: 'denied', platform_off: 'denied', platform_paused: 'denied',
   blocked: 'denied', sensitive: 'denied', restricted: 'denied', private: 'denied',
   not_found: 'failed', no_media: 'failed', too_big: 'failed', size_unknown: 'failed', unavailable: 'failed',
-  unsupported: 'failed', delivery: 'failed', slow: 'failed', file_type: 'failed', login_wall: 'failed',
+  unsupported: 'failed', delivery: 'failed', slow: 'failed', file_type: 'failed', login_wall: 'failed', drm: 'failed',
 };
 
 /** Extra advice after some refusals, per platform (i18n 'dl.hint.<platform>'). */
 const HINTS = { discord: ['unsupported_kind', 'not_found'], twitch: ['unsupported_kind'] };
 const STATUS_COUNTER = { ok: 'dl_ok', meta: 'dl_meta', failed: 'dl_failed', denied: 'dl_denied' };
 
-export const settingKeys = (platformId) => ['switch.downloads', 'limits', 'platform:' + platformId];
+export const settingKeys = (platformId) => ['switch.downloads', 'limits', 'platform:' + platformId, external.SETTING];
 
 async function sendStatus(ctx, chatId, replyTo, lang) {
   try {
@@ -55,13 +56,13 @@ async function sendStatus(ctx, chatId, replyTo, lang) {
 
 async function finishStatus(ctx, chatId, status, lang, result) {
   if (!status) return;
-  if (result.status === 'ok' || result.status === 'meta') {
+  if ((result.status === 'ok' || result.status === 'meta') && !result.relayed) {
     try {
       await tg.call(ctx, 'dl_status', 'deleteMessage', { chat_id: chatId, message_id: status.message_id });
       return;
     } catch { /* fall through: say it's done instead */ }
   }
-  const screen = result.status === 'ok' || result.status === 'meta' ? plain(lang, 'dl.done') : plain(lang, 'dl.err.' + result.reason, {
+  const screen = result.relayed ? plain(lang, 'dl.relayed') : result.status === 'ok' || result.status === 'meta' ? plain(lang, 'dl.done') : plain(lang, 'dl.err.' + result.reason, {
     platform: PLATFORM_NAMES[result.platform] || result.platform || '',
     quota: result.quota, wait: result.wait,
     size: result.bytes ? (result.bytes / 1048576).toFixed(1) : '?',
@@ -159,6 +160,7 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
     ? { ...global, max_mb: Math.min(global.max_mb, Number(scope.settings.max_mb) || global.max_mb) }
     : user.row.quota_override != null ? { ...global, quota_per_day: user.row.quota_override } : global;
   const state = platformState(s['platform:' + adapter.id] && s['platform:' + adapter.id].value);
+  const ext = external.configFrom(s[external.SETTING] && s[external.SETTING].value);
   const host = parseUrl(link).host;
   const hit = await downloadsDb.blockedBy({ urlKey: ref.key, account: ref.account, domains: domainCandidates(host) });
   const exempt = group || isStaff(user.actor);
@@ -204,7 +206,9 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
   let lastErr = null;
   for (const method of pre.methods) {
     try {
-      post = await adapter.resolve(ctx, ref, method);
+      post = method === 'external'
+        ? await external.resolve(ctx, ext, { platform: adapter.id, ref, maxBytes: limits.max_mb * MB, quality })
+        : await adapter.resolve(ctx, ref, method);
       break;
     } catch (err) {
       lastErr = err instanceof ResolveError ? err : new ResolveError('unavailable', errorText(err));
@@ -217,7 +221,9 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
   if (post.account && (await downloadsDb.blockedBy({ account: post.account }))) return denyOrFail('blocked', base);
   if (post.meta) return infoCard(ctx, user, msg, adapter, ref, post, quality, base);
 
-  await probeAll(ctx, post, adapter.mediaHosts, adapter.headSafe === true);
+  // Files of the method 'external' may come only from the owner's service host.
+  const allow = post.mediaHosts || adapter.mediaHosts;
+  await probeAll(ctx, post, allow, post.mediaHosts ? false : adapter.headSafe === true);
   const maxBytes = limits.max_mb * 1048576;
   const choices = [];
   let firstError = null;
@@ -226,6 +232,8 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
     if (c.error) firstError = firstError || c;
     else choices.push({ item, ...c });
   }
+  const relayed = group ? null : await relayBig(ctx, user, msg, adapter, post, choices[0] || null, quality, ext, base);
+  if (relayed) return relayed;
   if (!choices.length) {
     if (firstError && firstError.error === 'too_big') return denyOrFail('too_big', { ...base, bytes: firstError.bytes, max: firstError.max });
     return denyOrFail('no_media', base);
@@ -239,7 +247,7 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
   let sent;
   try {
     sent = await deliver(ctx, {
-      chatId: msg.chat.id, replyTo: msg.message_id, choices, allow: adapter.mediaHosts, maxBytes,
+      chatId: msg.chat.id, replyTo: msg.message_id, choices, allow, maxBytes,
       caption: buildCaption(user.lang, post, notes), name: `${adapter.id}_${String(ref.id || 'media').slice(-24)}`,
     });
   } catch (err) {
@@ -253,6 +261,27 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
     await downloadsDb.cachePut(ref.key, quality, adapter.id, sent.items, JSON.stringify({ title: post.title, author: post.author, notes }), sent.bytes, ctx.now);
   }
   return { status: 'ok', ...base, bytes: sent.bytes, items: sent.items.length };
+}
+
+/**
+ * The owner's large-file relay (lib/external.js): in private chats, for a single-item post resolved
+ * by the bot itself, when nothing fits Telegram's 50 MB upload limit — or the user prefers the best
+ * quality and a bigger ready-made variant exists. The service sends the file later; if it doesn't
+ * take the job, the bot sends what it can. → a result, or null.
+ */
+async function relayBig(ctx, user, msg, adapter, post, choice, quality, ext, base) {
+  if (!ext || !ext.relay || post.method === 'external' || post.items.length !== 1) return null;
+  const item = post.items[0];
+  const upMax = item.type === 'photo' ? TG_UPLOAD_PHOTO_MAX : TG_UPLOAD_MAX;
+  const big = item.variants.find((v) => Number.isFinite(v.bytes) && v.bytes <= ext.maxBytes);
+  if (!big || big.bytes <= upMax) return null;
+  if (choice && !(quality === 'best' && choice.variant !== big)) return null;
+  const queued = await external.relay(ctx, ext, {
+    request_id: `${msg.chat.id}:${msg.message_id}`, url: big.url, allow_hosts: adapter.mediaHosts, bytes: big.bytes, type: item.type,
+    chat_id: msg.chat.id, reply_to_message_id: msg.message_id, caption: buildCaption(user.lang, post, []),
+    fail_text: plain(user.lang, 'dl.relay_failed').text,
+  });
+  return queued ? { status: 'ok', ...base, method: 'relay', relayed: true, bytes: big.bytes, items: 1 } : null;
 }
 
 /**

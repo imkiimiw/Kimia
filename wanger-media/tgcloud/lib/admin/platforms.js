@@ -4,6 +4,8 @@
 // (URL / account / domain) and purging cached file_ids for a URL. Every change is audit-logged.
 import { BUILT_PLATFORMS } from '../config.js';
 import * as admin from '../db/admin.js';
+import { isConfigured as externalConfigured } from './external.js';
+import { canManageChannels } from '../roles.js';
 import * as downloadsDb from '../db/downloads.js';
 import * as system from '../db/system.js';
 import { t, tp } from '../i18n/index.js';
@@ -26,7 +28,7 @@ async function stateOf(id) {
 export async function listScreen(user) {
   const s = await system.loadSettings(registry.ADAPTERS.map((a) => key(a.id)));
   const rows = registry.ADAPTERS.map((adapter) => ({ adapter, state: platformState(s[key(adapter.id)] && s[key(adapter.id)].value) }));
-  return { view: 'admin', screen: ui.adminPlatforms(user.lang, rows, registry.STUBS.map((x) => x.id)) };
+  return { view: 'admin', screen: ui.adminPlatforms(user.lang, rows, registry.STUBS.map((x) => x.id), canManageChannels(user.actor)) };
 }
 
 export async function platformScreen(user, id, healthLine = null) {
@@ -41,6 +43,7 @@ export async function platformScreen(user, id, healthLine = null) {
 export async function setMethod(ctx, user, id, method, on, confirmed) {
   const adapter = registry.byId(id);
   if (!adapter.methodOrder.includes(method)) return platformScreen(user, id);
+  if (on && method === 'external' && !(await externalConfigured())) return { ...(await platformScreen(user, id)), toast: t(user.lang, 'adm.ext.need_config'), alert: true };
   if (on && NEEDS_RISK_NOTE.includes(method) && !confirmed) return { view: 'admin_risk', screen: ui.adminRisk(user.lang, adapter, method) };
   const state = await stateOf(id);
   state.methods[method] = on;

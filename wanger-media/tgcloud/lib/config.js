@@ -8,8 +8,8 @@ export const OWNER_ID = 5557901897;
 export const BOT_ID = 9080356648;
 export const BOT_USERNAME = 'Wanger_mediabot';
 
-export const VERSION = '1.1.0';
-export const PHASE = 7;
+export const VERSION = '1.2.0';
+export const PHASE = 8;
 
 /** The bot's own channel, shown in About. */
 export const CHANNEL_USERNAME = 'wangerBots';

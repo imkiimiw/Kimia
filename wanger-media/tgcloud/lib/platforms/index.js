@@ -5,6 +5,7 @@
 // Platforms without an adapter are recognised by their hosts and reported UNAVAILABLE, so a user
 // gets an honest answer instead of "unknown link".
 import { BUILT_PLATFORMS } from '../config.js';
+import { RISK_NOTE as EXTERNAL_RISK } from '../external.js';
 import { hostMatches, parseUrl } from '../url.js';
 import discord from './discord.js';
 import facebook from './facebook.js';
@@ -21,8 +22,14 @@ import x from './x.js';
 import youtube from './youtube.js';
 
 const ALL = [x, instagram, tiktok, pinterest, snapchat, facebook, threads, youtube, reddit, twitch, discord, spotify, soundcloud];
+/** Platforms the owner's service may never resolve: Spotify is DRM-protected (brief §7). */
+const NO_EXTERNAL = ['spotify'];
+/** Every other adapter also offers the method 'external' (the owner's service, lib/external.js), last. */
+const withExternal = (a) => (NO_EXTERNAL.includes(a.id) ? a : {
+  ...a, methodOrder: [...a.methodOrder, 'external'], riskNotes: { ...a.riskNotes, external: EXTERNAL_RISK },
+});
 /** Built adapters in the order of config BUILT_PLATFORMS (the order screens list them). */
-export const ADAPTERS = BUILT_PLATFORMS.map((id) => ALL.find((a) => a.id === id));
+export const ADAPTERS = BUILT_PLATFORMS.map((id) => withExternal(ALL.find((a) => a.id === id)));
 export const byId = (id) => ADAPTERS.find((a) => a.id === id) || null;
 
 /**

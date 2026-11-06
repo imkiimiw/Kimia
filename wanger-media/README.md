@@ -5,7 +5,7 @@ the media back, in private chats or in groups. Forced channel membership, a user
 admin panel are built in. It runs entirely on [Telegram Serverless](https://core.telegram.org/bots/serverless)
 — no server, VPS or paid service.
 
-**Status:** Phases 0–7 done and deployed (version 1.1.0). What each platform can do, honestly: [docs/PLATFORMS.md](docs/PLATFORMS.md).
+**Status:** Phases 0–8 done and deployed (version 1.2.0). What each platform can do, honestly: [docs/PLATFORMS.md](docs/PLATFORMS.md).
 Progress: [docs/PROGRESS.md](docs/PROGRESS.md) · decisions: [docs/DECISIONS.md](docs/DECISIONS.md) ·
 the original brief: [docs/BRIEF.md](docs/BRIEF.md).
 
@@ -107,6 +107,13 @@ the command menus and the bot description in fa, en and ru.
 - **⚙️ Switches & limits:** maintenance, downloads on/off, forced join (also for groups), daily quota,
   cooldown, max file size. **✏️ Texts:** the welcome and forced-join texts per language.
 - **📜 Audit log:** every sensitive action, newest first.
+
+## Large files (optional, your own server)
+
+Files over 50 MB can't go through Telegram's cloud Bot API. If you rent a small server, the relay in
+[external-service/](external-service/README.md) sends them (up to 2000 MB) through Telegram's local Bot
+API server; connect it in `/admin` → 🧩 Platforms → 🔌 External service. Research, contract and the
+uploader findings: [docs/PHASE8.md](docs/PHASE8.md). Without it, nothing changes.
 
 ## Honest limits
 

@@ -239,7 +239,7 @@ with smaller ready-made variants (X), images by URL and by upload (Pinterest), s
 The metadata-only platforms (Spotify, YouTube, SoundCloud, TikTok, Reddit, Twitch) are cheap and
 truthful to add later in Phase 7, one per session.
 
-## 6. `external` service contract (draft; finalised in Phase 3, not built)
+## 6. `external` service contract (draft — the final contract and the built service: [PHASE8.md](PHASE8.md))
 
 `POST <owner's base URL>/v1/resolve`, header `Authorization: Bearer <key stored by the owner>`, JSON
 `{ "url", "platform", "max_bytes", "quality": "best"|"small", "request_id" }` →

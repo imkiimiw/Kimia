@@ -49,7 +49,7 @@ export function resolveLocation(base, location) {
  * Resolves to the final response (any status) with `res.finalUrl` set — or, when `stopAt(url)` is
  * true for a redirect target, to { stoppedAt: url } without requesting it (short links).
  */
-export async function request(ctx, url, { allow, method = 'GET', headers = {}, stopAt = null } = {}) {
+export async function request(ctx, url, { allow, method = 'GET', headers = {}, stopAt = null, body = undefined } = {}) {
   let current = url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     if (!isAllowedFetch(current, allow)) throw new HttpError('blocked_host', `not allowed: ${String(current).slice(0, 120)}`);
@@ -57,13 +57,13 @@ export async function request(ctx, url, { allow, method = 'GET', headers = {}, s
     const t0 = Date.now();
     let res;
     try {
-      res = await fetch(current, { method, redirect: 'manual', headers: { 'User-Agent': USER_AGENT, ...headers } });
+      res = await fetch(current, { method, redirect: 'manual', headers: { 'User-Agent': USER_AGENT, ...headers }, ...(body !== undefined ? { body } : {}) });
     } catch (err) {
       record(ctx, method, current, 0, t0);
       throw new HttpError('network', (err && err.message) || 'request failed');
     }
     record(ctx, method, current, res.status, t0);
-    if (res.status >= 300 && res.status < 400 && header(res, 'location')) {
+    if (method !== 'POST' && res.status >= 300 && res.status < 400 && header(res, 'location')) { // a POST (body, key) is never re-sent
       current = resolveLocation(current, header(res, 'location'));
       continue;
     }

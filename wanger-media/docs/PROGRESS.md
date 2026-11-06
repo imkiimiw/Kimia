@@ -1,9 +1,33 @@
 # Progress
 
-**Current state: Phase 7 deployed (cloud revision 7, version 1.1.0, 2026-11-06). Phase 8 (the
-`external` download service and an uploader) is next under the owner's standing approval
-(CLAUDE.md). Still open with the owner: switching methods on in /admin → 🧩 Platforms (all are off —
-none was switched on yet) and the Telegram test of Phase 3.**
+**Current state: all phases (0–8) done; Phase 8 deployed (cloud revision 8, version 1.2.0,
+2026-11-06). Open with the owner: switching methods on in /admin → 🧩 Platforms (all are off), the
+Telegram test of Phase 3, and — only if wanted — a server for the large-file relay (Phase 8).**
+
+## Phase 8 — External service and uploader (2026-11-06) ✅ deployed (revision 8) · service not hosted
+
+Done:
+- Research (docs/PHASE8.md): what a service can lift (cloud Bot API 50 MB → local Bot API server
+  2000 MB; ≈ 30 s wall time) and what it must not (blocks, DRM, cookies); the final contract
+  (health, relay, resolve); hosting needs; the uploader per platform (all need the owner's accounts
+  and an app review or audit; Spotify and Twitch have no upload API).
+- Bot: `lib/external.js` + owner-only Admin › Platforms › 🔌 External service (address, key — never
+  shown, message deleted — relay on/off, max size, test, remove; audit-logged). Large-file relay in
+  private chats; the method `external` on every adapter except Spotify (OFF, risk note, needs the
+  service configured); `drm` reason; audio items in delivery; POSTs never follow redirects.
+- Reference relay `external-service/` (Node 22, no dependencies; Docker Compose with
+  telegram-bot-api and Caddy; README with setup for the owner); smoke-tested locally (health, auth,
+  refusals) — the full path needs the owner's server.
+- Not built: an uploader (blocked on the owner's developer accounts and approvals); a resolve engine
+  (would break the hard limits for the platforms that need one).
+- Tests: **251 passing** (17 new: owner-only config, key never shown/logged and its message deleted,
+  key sent only to the service, relay job contents and fall-backs, never in groups, resolve with
+  host checks and code mapping, the relay service's checks).
+- Deployed under the owner's standing approval: no schema change → `push` (revision 8); webhook in
+  sync; read-only check afterwards: no errors, the service is not configured (nothing changes for
+  users until the owner sets it up).
+- Open risk (Unverified): using a local Bot API server for the same bot without `logOut` — test with
+  a test bot first (external-service/README.md).
 
 ## Phase 7 — Remaining platforms (2026-11-06) ✅ deployed (revision 7)
 

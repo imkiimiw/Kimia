@@ -171,3 +171,29 @@ One line each: the choice — the reason. Newest phase last.
 - LinkedIn stays a stub refused with its reason (posts only for logged-in members, 403).
 - `dl.note.cover_only` became generic ("only the cover image") since Instagram uses it too.
 - Version 1.1.0.
+
+## Phase 8 (2026-11-06)
+
+- Started under the owner's standing approval ("all phases to the end") although the brief says
+  "only when I ask": everything that costs money or needs the owner's accounts is prepared, not used.
+- **The external service is a large-file relay**, not a downloader: it only fetches a file the bot
+  already found by an allowed method, from the platform's allowlisted CDN, and uploads it through a
+  local Bot API server (≤ 2000 MB). A resolve engine (e.g. yt-dlp) is not shipped: for the platforms
+  that would need one (YouTube, TikTok, …) it works only by getting around their measures, which the
+  brief forbids "whatever the settings" (docs/PHASE8.md §1).
+- The bot implements the whole contract (relay + resolve + health) so a compliant service can plug
+  in; the method `external` is on every adapter except Spotify (DRM), OFF, behind a risk note, and
+  can't be switched on before the service is configured.
+- Relay only in private chats and for single-file posts: when nothing fits 50 MB, or the user prefers
+  "best" and a bigger ready-made file exists. Groups keep their own size limit. The relay is
+  asynchronous (the service sends the file; Serverless's ≈ 30 s can't wait), so the bot reports
+  "being sent" and the service sends `fail_text` if it fails. Relayed files are not cached.
+- The service key lives in the settings table, is never displayed or logged, the owner's message with
+  it is deleted, and it is sent only to the service host (allowlist of one host; POSTs never follow
+  redirects). Configuration is owner-only (the owner's server, account and money).
+- Uploader: not built — every useful target needs the owner's developer accounts, OAuth and an app
+  review or audit (docs/PHASE8.md §4).
+- Open risk (Unverified): Telegram's docs ask bots to `logOut` from the cloud before using a local
+  Bot API server; the relay only sends through it, but whether that disturbs updates to Serverless is
+  untested → the owner tests with a test bot first (external-service/README.md).
+- Version 1.2.0.

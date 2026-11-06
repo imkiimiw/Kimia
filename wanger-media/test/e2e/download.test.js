@@ -345,13 +345,13 @@ describe('owner panel', () => {
     expect(datas()).toEqual(['A:o', 'A:u', 'A:c', 'A:p', 'A:s', 'A:t', 'A:b', 'A:a:0', 'A:x', 'h']); // the owner sees every section
     await h.press(OWNER, 'A:p', { messageId: 69 });
     expect(ownerScreen().text).toContain('Not supported (no public access): LinkedIn');
-    expect(datas()).toEqual([...BUILT_PLATFORMS.map((p) => 'P:' + p), 'A:pb', 'A:pc', 'A', 'h']);
+    expect(datas()).toEqual([...BUILT_PLATFORMS.map((p) => 'P:' + p), 'A:pb', 'A:pc', 'A:z', 'A', 'h']); // A:z: the owner's external service
     expect(buttonsOf(ownerScreen())[0].text).toContain('⚪');
 
     await h.press(OWNER, 'P:x', { messageId: 70 });
     expect(ownerScreen().text).toContain('Capability: supported');
     expect(ownerScreen().text).toContain('Official API: requires approval');
-    expect(datas()).toEqual(['M:x:public:1', 'M:x:thirdparty:1', 'E:x:1', 'T:x', 'A:pe:x', 'A:p', 'h']);
+    expect(datas()).toEqual(['M:x:public:1', 'M:x:thirdparty:1', 'M:x:external:1', 'E:x:1', 'T:x', 'A:pe:x', 'A:p', 'h']);
 
     await h.press(OWNER, 'M:x:public:1', { messageId: 70 });
     expect(ownerScreen().text).toContain('forbid crawling or scraping');

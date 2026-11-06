@@ -175,6 +175,10 @@ state in [docs/PROGRESS.md](docs/PROGRESS.md) — read PROGRESS first.
   choice) → `lib/delivery.js` (Telegram). All outbound HTTP goes through `lib/platforms/common.js`:
   allowlist on every hop, manual redirects, honest User-Agent, no cookies, sizes before bytes.
   **Never HEAD a CDN not marked `headSafe`** (a HEAD to Snapchat's CDN crashes the invocation).
+- **External service (Phase 8):** `lib/external.js` (the owner's server: large-file relay + the method
+  `external`; config in settings 'external', key never shown/logged, sent only to that host) and
+  `lib/admin/external.js` (owner only). The reference relay lives in `external-service/` (plain Node,
+  not deployed to Serverless; contract in docs/PHASE8.md).
 - **Admin panel:** `/admin` → `lib/admin/index.js` (permission check for every button and input, then
   `users`, `channels`, `platforms`, `system` (overview/switches/texts/audit), `staff`, `broadcast`).
   Pending text input lives in `settings` ('input:<id>'). Broadcast engine: `lib/broadcast.js`

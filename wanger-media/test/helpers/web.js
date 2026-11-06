@@ -40,9 +40,10 @@ export function createWeb(routes = {}) {
   setFetch(async (url, opts = {}) => {
     const method = (opts.method || 'GET').toUpperCase();
     const headers = opts.headers || {};
-    log.push({ url, method, range: headers.Range || null, ua: headers['User-Agent'] || null, redirect: opts.redirect || 'follow' });
+    const body = typeof opts.body === 'string' ? opts.body : null;
+    log.push({ url, method, range: headers.Range || null, ua: headers['User-Agent'] || null, auth: headers.Authorization || null, body, redirect: opts.redirect || 'follow' });
     let r = find(url);
-    if (typeof r === 'function') r = r({ url, method, headers });
+    if (typeof r === 'function') r = r({ url, method, headers, body });
     if (r instanceof Error) throw r;
     if (!r) return response({ status: 404, body: 'not found', url });
     if (r.redirect) {

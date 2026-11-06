@@ -50,6 +50,7 @@ export const ADMIN_SECTIONS = {
   b: [[]], bn: [[]], bs: [[SMALL_ID]], bg: [[SMALL_ID]], bx: [[SMALL_ID]], // broadcast
   a: [[/^\d$/]], // audit log page
   x: [[], [ID]], xa: [[]], xr: [[ID, ROLE]], xf: [[ID, /^[0-7]$/]], // staff
+  z: [[]], zu: [[]], zk: [[]], zm: [[]], zr: [[]], zt: [[]], zx: [[]], // the owner's external service
   i: [[]], // cancel the pending input
 };
 const GROUP_VALUES = { l: ['1', '2', '3', '5'], m: ['10', '20', '50'], u: ['0', '10', '30', '60'], g: ['0', '5', '15', '30'], L: LANGS, p: BUILT_PLATFORMS };

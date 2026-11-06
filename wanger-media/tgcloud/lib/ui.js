@@ -159,7 +159,7 @@ export function pairs(buttons, n = 2) {
 }
 
 /** The list of built platforms with their state; unbuilt ones are named, without buttons. */
-export function adminPlatforms(lang, rows, notBuilt) {
+export function adminPlatforms(lang, rows, notBuilt, owner = false) {
   const lines = [t(lang, 'admin.title')];
   if (notBuilt.length) lines.push('', t(lang, 'admin.not_built', { list: notBuilt.map((id) => PLATFORM_NAMES[id] || id).join(', ') }));
   return {
@@ -167,6 +167,7 @@ export function adminPlatforms(lang, rows, notBuilt) {
     reply_markup: markup([
       ...pairs(rows.map(({ adapter, state }) => button(`${tp(lang, 'admin.state.' + platformStateKey(adapter, state))} · ${adapter.name}`, encode(CB.PLATFORM, adapter.id)))),
       [button(tp(lang, 'adm.btn.blocklist'), encode(CB.ADMIN, 'pb')), button(tp(lang, 'adm.btn.purge'), encode(CB.ADMIN, 'pc'))],
+      owner ? [button(tp(lang, 'adm.btn.external'), encode(CB.ADMIN, 'z'))] : [],
       navRow(lang, encode(CB.ADMIN)),
     ]),
   };

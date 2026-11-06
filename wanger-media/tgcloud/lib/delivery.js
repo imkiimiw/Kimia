@@ -22,8 +22,10 @@ export class DeliveryError extends Error {
   }
 }
 
-const EXT = { photo: 'jpg', video: 'mp4', gif: 'mp4' };
-const MIME = { photo: 'image/jpeg', video: 'video/mp4', gif: 'video/mp4' };
+const EXT = { photo: 'jpg', video: 'mp4', gif: 'mp4', audio: 'mp3' };
+const MIME = { photo: 'image/jpeg', video: 'video/mp4', gif: 'video/mp4', audio: 'audio/mpeg' };
+/** Albums take photos and videos; GIFs and audio go on their own. */
+const inAlbum = (type) => type === 'photo' || type === 'video';
 const uploadMax = (type, maxBytes) => Math.min(type === 'photo' ? TG_UPLOAD_PHOTO_MAX : TG_UPLOAD_MAX, maxBytes);
 
 /** The file_id of what a sent message carries. */
@@ -31,6 +33,7 @@ export function fileIdOf(message, type) {
   if (!message) return null;
   if (type === 'photo' && Array.isArray(message.photo) && message.photo.length) return message.photo[message.photo.length - 1].file_id;
   if (type === 'gif') return (message.animation && message.animation.file_id) || (message.document && message.document.file_id) || (message.video && message.video.file_id) || null;
+  if (type === 'audio') return (message.audio && message.audio.file_id) || (message.document && message.document.file_id) || null;
   return (message.video && message.video.file_id) || (message.document && message.document.file_id) || null;
 }
 
@@ -41,6 +44,7 @@ function single(ctx, chatId, replyTo, item, media, caption) {
   const dims = { ...(item.width ? { width: item.width } : {}), ...(item.height ? { height: item.height } : {}), ...(item.duration ? { duration: item.duration } : {}) };
   if (item.type === 'photo') return tg.call(ctx, 'dl_photo', 'sendPhoto', { ...base, photo: media });
   if (item.type === 'gif') return tg.call(ctx, 'dl_gif', 'sendAnimation', { ...base, animation: media, ...dims });
+  if (item.type === 'audio') return tg.call(ctx, 'dl_audio', 'sendAudio', { ...base, audio: media, ...(item.duration ? { duration: item.duration } : {}) });
   return tg.call(ctx, 'dl_video', 'sendVideo', { ...base, video: media, ...dims, supports_streaming: true });
 }
 
@@ -72,8 +76,8 @@ const refusedUrl = (err) => !!err && err.code === 400 && URL_REFUSED.test(String
  * → { items: [{ type, file_id }], bytes, messages }
  */
 export async function deliver(ctx, { chatId, replyTo, choices, caption, allow, maxBytes, name }) {
-  const groupable = choices.filter((c) => c.item.type !== 'gif');
-  const gifs = choices.filter((c) => c.item.type === 'gif');
+  const groupable = choices.filter((c) => inAlbum(c.item.type));
+  const gifs = choices.filter((c) => !inAlbum(c.item.type));
   const sent = [];
   let captionUsed = false;
 
@@ -147,8 +151,8 @@ export async function sendCard(ctx, { chatId, replyTo, cover, caption }) {
 export async function sendCached(ctx, { chatId, replyTo, items, caption }) {
   const entries = items.map((it) => ({ item: { type: it.type }, media: it.file_id }));
   try {
-    const groupable = entries.filter((e) => e.item.type !== 'gif');
-    const gifs = entries.filter((e) => e.item.type === 'gif');
+    const groupable = entries.filter((e) => inAlbum(e.item.type));
+    const gifs = entries.filter((e) => !inAlbum(e.item.type));
     let captionUsed = false;
     if (groupable.length >= 2) {
       for (let start = 0; start < groupable.length; start += 10) {

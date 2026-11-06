@@ -170,7 +170,9 @@ describe('capabilities are truthful', () => {
       const st = a.capabilities().status;
       expect(MEDIA_PLATFORMS.includes(a.id), a.id).toBe(st === 'SUPPORTED' || st === 'LIMITED');
       if (st === 'METADATA_ONLY') expect(a.mediaHosts, a.id).toEqual([]);
-      for (const m of a.methodOrder) expect(a.capabilities().methods[m], `${a.id} ${m}`).toBe(st === 'METADATA_ONLY' ? 'METADATA_ONLY' : a.capabilities().methods[m]);
+      for (const m of a.methodOrder.filter((x) => x !== 'external')) if (st === 'METADATA_ONLY') expect(a.capabilities().methods[m], `${a.id} ${m}`).toBe('METADATA_ONLY');
+      expect(a.methodOrder.includes('external'), a.id).toBe(a.id !== 'spotify'); // the owner's service; never for DRM-protected Spotify
+      expect(a.methodOrder.at(-1) === 'external' || a.id === 'spotify', a.id).toBe(true);
     }
     // no official API that downloads media is built anywhere (they need approval, OAuth or money)
     for (const id of ['x', 'instagram', 'pinterest', 'snapchat', 'tiktok', 'facebook']) expect(registry.byId(id).capabilities().methods.official).toBe('REQUIRES_APPROVAL');

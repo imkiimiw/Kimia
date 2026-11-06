@@ -11,6 +11,7 @@ import { can, canManageChannels, isStaff, P } from '../roles.js';
 import * as ui from '../ui.js';
 import * as platforms from './platforms.js';
 import * as bcast from './broadcast.js';
+import * as externalAdmin from './external.js';
 import * as channels from './channels.js';
 import * as staff from './staff.js';
 import * as sys from './system.js';
@@ -54,6 +55,7 @@ function allowed(actor, section) {
   if (c === 'b') return can(actor, P.BROADCAST);
   if (c === 'a') return can(actor, P.VIEW_AUDIT);
   if (c === 'x') return can(actor, P.MANAGE_ADMINS);
+  if (c === 'z') return canManageChannels(actor); // the owner's external service
   return false;
 }
 
@@ -134,6 +136,11 @@ export async function onButton(ctx, user, d, message) {
     case 'xa': r = staff.addPrompt(user); break;
     case 'xr': r = await staff.setRole(ctx, user, id, y); break;
     case 'xf': r = await staff.toggleFlag(ctx, user, id, Number(y)); break;
+    case 'z': r = await externalAdmin.screen(user); break;
+    case 'zu': case 'zk': case 'zm': r = externalAdmin.prompt(user, section); break;
+    case 'zr': r = await externalAdmin.toggleRelay(ctx, user); break;
+    case 'zt': r = await externalAdmin.test(ctx, user); break;
+    case 'zx': r = await externalAdmin.clear(ctx, user); break;
     default: return { denied: true };
   }
   return finish(ctx, user, r);
@@ -158,7 +165,7 @@ export async function pendingInput(ctx, user) {
  * `done`).
  */
 export async function onInput(ctx, user, pending, msg) {
-  const section = { us: 'u', uq: 'uq', un: 'un', ca: 'ca', pba: 'pba', pc: 'pc', sl: 'sl', te: 'te', bn: 'bn', xa: 'xa' }[pending.k];
+  const section = { us: 'u', uq: 'uq', un: 'un', ca: 'ca', pba: 'pba', pc: 'pc', sl: 'sl', te: 'te', bn: 'bn', xa: 'xa', zu: 'zu', zk: 'zk', zm: 'zm' }[pending.k];
   if (!section || !allowed(user.actor, section)) {
     await clearInput(user);
     return { error: t(user.lang, 'adm.denied') };
@@ -172,6 +179,7 @@ export async function onInput(ctx, user, pending, msg) {
   else if (pending.k === 'sl') r = await sys.onLimitInput(ctx, user, pending.a, text);
   else if (pending.k === 'te') r = await sys.onTextInput(ctx, user, pending.a, text);
   else if (pending.k === 'bn') r = await bcast.onInput(ctx, user, msg);
+  else if (pending.k === 'zu' || pending.k === 'zk' || pending.k === 'zm') r = await externalAdmin.onInput(ctx, user, pending.k, msg);
   else r = await staff.onInput(ctx, user, text);
   if (!r.error || r.done) await clearInput(user);
   if (r.error) return r;
