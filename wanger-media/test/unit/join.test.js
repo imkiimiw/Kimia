@@ -35,7 +35,7 @@ describe('forced join: classifying getChatMember', () => {
     expect(channelProblem('forbidden')).toBe('not_admin');
     expect(channelProblem('chat_not_found')).toBe('error');
     expect(channelProblem('bad_request')).toBe('error');
-    for (const k of ['rate', 'network', 'server']) expect(channelProblem(k)).toBeNull();
+    for (const k of ['rate', 'network', 'server', 'user_not_found']) expect(channelProblem(k)).toBeNull();
   });
 });
 

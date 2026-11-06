@@ -1,9 +1,9 @@
 # Progress
 
-**Current state: Phase 1 (Foundation) built and tested locally — waiting for the owner's OK to
-create the tables and deploy.** Nothing is deployed yet (cloud revision 0, no tables).
+**Current state: Phase 1 (Foundation) done and deployed (cloud revision 1, 2026-11-06). Next: Phase 2
+(User dashboard), only when the owner names it.**
 
-## Phase 1 — Foundation (2026-11-06) ✅ code · ⏳ deploy
+## Phase 1 — Foundation (2026-11-06) ✅
 
 Done:
 - `tgcloud/schema.js`: 14 tables — users, user_settings, roles, forced_channels, groups,
@@ -28,7 +28,7 @@ Done:
   demotion → owner alert. Running counters: users, users_new, users_active, groups_active,
   groups_joined.
 - Error boundary: error_log + owner alert (≤ every 30 min per source) + "something went wrong".
-- Tests: **74 passing** (`npm test`) — i18n, roles (owner vs user, immunity, ranks), codec,
+- Tests: **76 passing** (`npm test`) — i18n, roles (owner vs user, immunity, ranks), codec,
   forced-join classification, Bot API errors, /start flows, gate, seeding (also concurrent),
   duplicates and double taps, housekeeping, error boundary, my_chat_member, query plans (no scans of
   growing tables), module rules (budget, imports, purity, no secrets, no missing globals).
@@ -36,12 +36,18 @@ Done:
   it stopped at "no such table" as expected. `migrate --local --dry-run` → 14 new tables, nothing
   dropped or changed.
 
-Remaining for Phase 1 (after the owner's OK):
-1. `npm run tg -- migrate --local --safe` (creates the 14 tables).
-2. A few `tgcloud run` checks with fake ids on the real database, then delete the fake rows and
-   reset the counters they touched (the seeded channels stay — they are real).
-3. `npm run tg -- push` (the webhook goes live; the 5 queued updates are then delivered).
-4. The owner sends `/start` to @Wanger_mediabot to see it work.
+Deployed with the owner's OK (2026-11-06):
+1. `migrate --local --safe` → 14 tables; all 5 indexes verified in `sqlite_master`.
+2. Fake-id checks on the real database (user 100000001): first run seeded the 3 channels (real chat
+   ids and titles; the bot is admin in all three), language picker, language saved, gate with 3
+   missing channels ("member not found"), redelivered update skipped, block recorded. The fake rows
+   (user, 3 counter rows, update ids 1–4) were deleted afterwards; temporary modules removed.
+3. `push` → 21 modules, revision 1. Webhook: `message, callback_query, my_chat_member`, in sync,
+   queue empty. `migrate --dry-run` → in sync. The queued updates were handled without errors
+   (2 users, 1 group recorded; counters match).
+
+Two fixes found while preparing the real-database checks (tests added): "user not found" no longer
+blames a channel, and editing a message in a chat the bot can't reach is not an error.
 
 Not done here: a CI job — `.github/workflows/ci.yml` is outside this folder (brief §2).
 
@@ -57,6 +63,7 @@ Folder and CLI wrapper set up; Serverless limits measured on this bot; 14 platfo
 
 ## What I need from the owner
 
-1. **OK to create the tables and deploy** (the 3 steps above). Nothing destructive: 14 new tables.
+1. **Try it in Telegram:** send `/start` to @Wanger_mediabot (you skip the gate as owner; a second
+   account shows the gate and the "check again" flow).
 2. Later, not now: privacy mode is ON. For groups (Phase 5), either turn it off in BotFather
    (`/setprivacy` → Disable, then remove and re-add the bot) or make the bot admin in each group.

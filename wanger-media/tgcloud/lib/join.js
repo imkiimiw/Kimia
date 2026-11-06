@@ -34,8 +34,8 @@ export function classifyMember(result, error) {
 /** How a failed check reflects on the channel's own setup: 'not_admin', 'error' or null (transient). */
 export function channelProblem(reason) {
   if (reason === 'forbidden') return 'not_admin';
-  if (reason === 'chat_not_found' || reason === 'bad_request' || reason === 'user_not_found' || reason === 'unexpected_status') return 'error';
-  return null; // rate limit, network, server: says nothing about the channel
+  if (reason === 'chat_not_found' || reason === 'bad_request' || reason === 'unexpected_status') return 'error';
+  return null; // rate limit, network, server, an unknown user id: says nothing about the channel
 }
 
 const chatRef = (ch) => (ch.chat_id ? ch.chat_id : '@' + ch.username);

@@ -57,5 +57,7 @@ One line each: the choice — the reason. Newest phase last.
 - The Phase 1 home screen says plainly that downloading isn't available yet and offers only the Language button — no placeholders, no buttons for unbuilt features.
 - Group messages are ignored without any database write until Phase 5; `my_chat_member` already records groups silently — group counts are right from day one.
 - `callback_data` codes are single letters plus arguments (`h`, `l`, `L:<lang>`, `j`) — the 64-byte limit leaves room for later screens.
-- Invisible characters (ZWNJ) are written as `‌` escapes in source, enforced by a test — literal ones are invisible in review and easy to break.
+- Invisible characters (ZWNJ) are written as `\u200c` escapes in source, enforced by a test — literal ones are invisible in review and easy to break.
 - Vitest runs with `pool: 'forks'` — node:sqlite is used by the SDK emulator.
+- Real-database checks use a fake user id (100000001) before `push`, and their rows are deleted with targeted statements afterwards — "No invented numbers": the counters must only count real users.
+- Temporary `zz_*` modules are deleted before every `push` — the CLI uploads every file under `tgcloud/`, `.gitignore` doesn't apply to it.

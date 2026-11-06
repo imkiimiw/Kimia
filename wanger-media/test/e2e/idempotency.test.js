@@ -88,4 +88,22 @@ describe('error boundary', () => {
     expect(h.row('SELECT blocked FROM users WHERE id = ?', ALICE.id).blocked).toBe(1);
     expect(h.rows('SELECT id FROM error_log')).toHaveLength(0);
   });
+
+  it('a chat that can no longer be reached (blocked, deleted, a fake id) is not reported as an error', async () => {
+    await h.send(ALICE, '/start');
+    h.tg.failNext('editMessageText', h.tg.err(400, 'Bad Request: chat not found'));
+    const r = await h.press(ALICE, 'L:en');
+    expect(r.ok).toBe(true);
+    expect(h.rows('SELECT id FROM error_log')).toHaveLength(0);
+    expect(h.tg.calls('sendMessage').filter((c) => c.params.chat_id === 5557901897)).toHaveLength(0);
+  });
+
+  it('an unknown user id ("user not found") never marks a channel broken or alerts the owner', async () => {
+    await h.send(ALICE, '/start');
+    for (const ch of h.tg.state.channels) h.tg.state.members.set(`${ch.id}|${ALICE.id}`, h.tg.err(400, 'Bad Request: user not found'));
+    const r = await h.press(ALICE, 'L:en');
+    expect(r.join).toMatchObject({ pass: false, unknown: 3 });
+    expect(h.rows("SELECT id FROM forced_channels WHERE bot_status != 'ok'")).toHaveLength(0);
+    expect(h.tg.calls('sendMessage').filter((c) => c.params.chat_id === 5557901897)).toHaveLength(0);
+  });
 });

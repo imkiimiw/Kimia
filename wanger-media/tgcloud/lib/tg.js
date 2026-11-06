@@ -61,6 +61,7 @@ export async function edit(ctx, view, message, screen) {
     }));
   } catch (err) {
     if (err && err.kind === 'not_modified') return null;
+    if (err && (err.kind === 'blocked' || err.kind === 'chat_not_found')) return null; // nobody to show it to
     if (err && (err.kind === 'gone' || err.kind === 'bad_request')) return send(ctx, view, message.chat.id, screen);
     throw err;
   }
