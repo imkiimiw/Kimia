@@ -117,3 +117,7 @@ One line each: the choice — the reason. Newest phase last.
 - Broadcast batches read users by id range including blocked ones (skipped in code) — filtering on `blocked` in SQL could read far more than 25 rows when many users have blocked the bot.
 - Staff permission flags can only narrow a role's defaults; going back to the defaults stores NULL.
 - Credentials screens are not built: no built adapter has an official method that needs a key yet — brief §2: no buttons for unbuilt features.
+
+## Owner's standing approval (2026-11-06)
+
+- "Do all phases to the end, one by one; report each phase when done; I approve all of them" — each phase is deployed (safe migration + push) when its tests pass, without asking; destructive migrations, `push --force`, money and accounts stay with the owner (CLAUDE.md records the instruction for later sessions).

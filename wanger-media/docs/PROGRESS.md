@@ -1,9 +1,9 @@
 # Progress
 
-**Current state: Phase 4 (Admin panel) built and tested — waiting for the owner's OK to migrate and
-push. Live: Phase 3 (cloud revision 3); its Telegram test by the owner is still open.**
+**Current state: Phase 4 deployed (cloud revision 4, 2026-11-06). Working through Phases 5–8 under
+the owner's standing approval (CLAUDE.md). The owner's Telegram test of Phase 3 is still open.**
 
-## Phase 4 — Admin panel (2026-11-06) ✅ code · ⏳ deploy
+## Phase 4 — Admin panel (2026-11-06) ✅ deployed (revision 4)
 
 Done:
 - `/admin` (and a 🛠 button in the menu) for every staff role; sections by permission, every button
@@ -30,8 +30,9 @@ Done:
   flags, blocklist/purge/failures, audit pages, query plans.
 - Platform (no writes): modules load; all admin screens built from the real database.
 
-Remaining for Phase 4 (after the owner's OK): `migrate --local --safe` (4 additive changes) → `push`
-→ the owner opens `/admin` in Telegram.
+Deployed under the owner's standing approval: `migrate --local --safe` (4 applied) → `push`
+(revision 4); webhook and schema in sync; read-only check afterwards: no errors, broadcast table
+reachable.
 
 
 ## Phase 3 — Download core (2026-11-06) ✅ deployed (revision 3) · ⏳ owner's test in Telegram
@@ -156,8 +157,7 @@ Folder and CLI wrapper set up; Serverless limits measured on this bot; 14 platfo
 
 ## What I need from the owner
 
-1. **OK to migrate (4 additive changes) and push Phase 4.**
-2. Phase 3 test (still open): `/admin` → 🧩 Platforms → switch methods on → send one public link
+1. Phase 3 test (still open): `/admin` → 🧩 Platforms → switch methods on → send one public link
    each from X, Pinterest and Snapchat Spotlight.
-3. Later, not now: privacy mode is ON. For groups (Phase 5), either turn it off in BotFather
+2. Later, not now: privacy mode is ON. For groups (Phase 5), either turn it off in BotFather
    (`/setprivacy` → Disable, then remove and re-add the bot) or make the bot admin in each group.
