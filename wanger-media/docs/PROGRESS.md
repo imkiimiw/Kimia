@@ -1,9 +1,9 @@
 # Progress
 
-**Current state: Phase 3 (Download core) built and tested — waiting for the owner's OK to migrate and
-push.** Live: Phases 1–2 (cloud revision 2).
+**Current state: Phase 3 deployed (cloud revision 3, 2026-11-06) — waiting for the owner's test in
+Telegram. Phase 4 (Admin panel) started right away at the owner's request.**
 
-## Phase 3 — Download core (2026-11-06) ✅ code · ⏳ deploy · ⏳ owner's test in Telegram
+## Phase 3 — Download core (2026-11-06) ✅ deployed (revision 3) · ⏳ owner's test in Telegram
 
 Done:
 - Registry + 3 adapters behind one interface (`identify`, `capabilities`, `expand`, `resolve`,
@@ -31,10 +31,11 @@ Done:
   Pinterest video pins do expose an MP4; the owner's max size wasn't applied to by-URL sends; the
   Pinterest pinner name lives in `profile_url`; HTML entities in post texts.
 
-Remaining for Phase 3:
-1. Owner's OK → `npm run tg -- migrate --local --safe` (4 additive changes) → `npm run tg -- push`.
-2. The owner switches methods on in `/admin` and sends one public link from each platform — Phase 3
-   is done when the media arrives (brief §11.3).
+Deployed with the owner's OK: `migrate --local --safe` (4 changes applied) → `push` (21 modules,
+revision 3); webhook and schema in sync; read-only check: no errors, new columns present.
+
+Remaining for Phase 3: the owner switches methods on in `/admin` and sends one public link from each
+platform — Phase 3 is done when the media arrives (brief §11.3).
 
 
 ## Phase 2 — User dashboard (2026-11-06) ✅ deployed (revision 2)
@@ -124,8 +125,7 @@ Folder and CLI wrapper set up; Serverless limits measured on this bot; 14 platfo
 
 ## What I need from the owner
 
-1. **OK to migrate (4 additive changes) and push Phase 3.**
-2. Then in Telegram: `/admin` → each platform → switch its methods on (read the risk note), and send
+1. In Telegram: `/admin` → each platform → switch its methods on (read the risk note), and send
    one public link from X, Pinterest and Snapchat Spotlight.
-3. Later, not now: privacy mode is ON. For groups (Phase 5), either turn it off in BotFather
+2. Later, not now: privacy mode is ON. For groups (Phase 5), either turn it off in BotFather
    (`/setprivacy` → Disable, then remove and re-add the bot) or make the bot admin in each group.
