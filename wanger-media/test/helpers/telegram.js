@@ -20,6 +20,7 @@ export function createTelegram({ channels = CHANNELS } = {}) {
     unreachable: new Map(), // chat id → BotApiError for sendMessage
     failNext: new Map(), // method → BotApiError (thrown once)
     nextMessageId: 500,
+    refuseUrls: false, // Telegram can't fetch media URLs (forces the upload fallback)
   };
 
   const channelOf = (ref) => {
@@ -44,7 +45,34 @@ export function createTelegram({ channels = CHANNELS } = {}) {
       case 'editMessageText':
         return { message_id: params.message_id, chat: { id: params.chat_id, type: 'private' }, text: params.text };
       case 'answerCallbackQuery':
+      case 'deleteMessage':
         return true;
+      case 'sendPhoto':
+      case 'sendVideo':
+      case 'sendAnimation': {
+        if (state.unreachable.has(Number(params.chat_id))) throw state.unreachable.get(Number(params.chat_id));
+        const field = { sendPhoto: 'photo', sendVideo: 'video', sendAnimation: 'animation' }[method];
+        const src = params[field];
+        if (state.refuseUrls && typeof src === 'string' && /^https?:/.test(src)) {
+          throw err(400, 'Bad Request: failed to get HTTP URL content');
+        }
+        if (typeof src === 'string' && /^stale_/.test(src)) throw err(400, 'Bad Request: wrong file identifier/HTTP URL specified');
+        const id = `${field}_${++state.nextMessageId}`;
+        const msg = { message_id: state.nextMessageId, chat: { id: params.chat_id, type: 'private' }, caption: params.caption };
+        if (field === 'photo') msg.photo = [{ file_id: id + '_s' }, { file_id: id }];
+        else msg[field] = { file_id: id };
+        return msg;
+      }
+      case 'sendMediaGroup': {
+        if (state.refuseUrls && params.media.some((m) => typeof m.media === 'string' && /^https?:/.test(m.media))) {
+          throw err(400, 'Bad Request: failed to get HTTP URL content');
+        }
+        if (params.media.some((m) => typeof m.media === 'string' && /^stale_/.test(m.media))) throw err(400, 'Bad Request: wrong file identifier/HTTP URL specified');
+        return params.media.map((m) => {
+          const id = `${m.type}_${++state.nextMessageId}`;
+          return { message_id: state.nextMessageId, chat: { id: params.chat_id }, ...(m.type === 'photo' ? { photo: [{ file_id: id }] } : { video: { file_id: id } }) };
+        });
+      }
       case 'getChat': {
         const ch = channelOf(params.chat_id);
         if (!ch) throw err(400, 'Bad Request: chat not found');

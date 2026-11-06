@@ -16,6 +16,9 @@ export const users = table('users', {
   lastCb: text('last_cb'), // double-tap guard: message id + data of the last button press
   lastCbAtMs: integer('last_cb_at_ms').notNull().default(0),
   seenDay: text('seen_day'), // Tehran date of the last activity, for the "active users" counter
+  dlDay: text('dl_day'), // Tehran date of dl_count (daily download quota)
+  dlCount: integer('dl_count').notNull().default(0),
+  lastDlAt: integer('last_dl_at').notNull().default(0), // cooldown between downloads
   createdAt: integer('created_at').notNull(),
   lastSeenAt: integer('last_seen_at').notNull(),
 }, (t) => ({
@@ -128,6 +131,18 @@ export const counters = table('counters', {
   value: integer('value').notNull().default(0),
 }, (t) => ({
   pk: primaryKey({ columns: [t.name, t.day] }),
+}));
+
+/** Owner's blocklist (brief §6): kind url (value = platform:id), account (platform:name), domain. */
+export const blocklist = table('blocklist', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  kind: text('kind').notNull(),
+  value: text('value').notNull(),
+  reason: text('reason'),
+  byId: integer('by_id').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  byValue: uniqueIndex('uidx_blocklist_kind_value').on(t.kind, t.value),
 }));
 
 /** Banned users (until = 0 means permanent). */

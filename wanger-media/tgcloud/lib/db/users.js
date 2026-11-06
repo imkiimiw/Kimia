@@ -74,3 +74,20 @@ export async function setQuality(id, quality, now) {
   await db.run(sql`INSERT INTO user_settings (user_id, quality, updated_at) VALUES (${id}, ${quality}, ${now})
     ON CONFLICT(user_id) DO UPDATE SET quality = excluded.quality, updated_at = excluded.updated_at`);
 }
+
+/**
+ * Takes one download from the user's daily quota if the quota and the cooldown allow it — one
+ * conditional statement, so parallel requests can't both pass. false = quota or cooldown hit.
+ */
+export async function claimDownload(id, day, now, quota, cooldownS) {
+  const r = await db.run(sql`UPDATE users SET
+      dl_count = CASE WHEN dl_day IS ${day} THEN dl_count + 1 ELSE 1 END,
+      dl_day = ${day}, last_dl_at = ${now}
+    WHERE id = ${id} AND (dl_day IS NOT ${day} OR dl_count < ${quota}) AND last_dl_at <= ${now - cooldownS}`);
+  return r.rowsAffected === 1;
+}
+
+/** Gives a download back after a failure (the cooldown stays, so failing links can't be hammered). */
+export async function refundDownload(id, day) {
+  await db.run(sql`UPDATE users SET dl_count = max(dl_count - 1, 0) WHERE id = ${id} AND dl_day IS ${day}`);
+}

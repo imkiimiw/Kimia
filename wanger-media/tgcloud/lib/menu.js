@@ -3,9 +3,10 @@
 import { HISTORY_MAX, HISTORY_PAGE } from './config.js';
 import * as downloads from './db/downloads.js';
 import * as users from './db/users.js';
+import { enabledPlatforms } from './download.js';
 import * as ui from './ui.js';
 
-/** → { view, screen } for target 'home' | 'downloads' | 'settings' | 'quality' | 'help' | 'about'. */
+/** → { view, screen } for target 'home' | 'download' | 'downloads' | 'settings' | 'quality' | 'help' | 'about'. */
 export async function build(user, target, arg = 0) {
   const lang = user.lang;
   switch (target) {
@@ -23,7 +24,9 @@ export async function build(user, target, arg = 0) {
     case 'quality':
       return { view: 'quality', screen: ui.qualityPicker(lang, await users.getQuality(user.id)) };
     case 'help':
-      return { view: 'help', screen: ui.help(lang) };
+      return { view: 'help', screen: ui.help(lang, await enabledPlatforms()) };
+    case 'download':
+      return { view: 'download', screen: ui.downloadInfo(lang, await enabledPlatforms()) };
     case 'about':
       return { view: 'about', screen: ui.about(lang) };
     default:
@@ -32,4 +35,4 @@ export async function build(user, target, arg = 0) {
 }
 
 /** Private-chat commands → menu targets (anything else opens home). */
-export const COMMAND_TARGETS = { help: 'help', about: 'about', settings: 'settings', downloads: 'downloads', history: 'downloads' };
+export const COMMAND_TARGETS = { help: 'help', about: 'about', settings: 'settings', downloads: 'downloads', history: 'downloads', download: 'download' };

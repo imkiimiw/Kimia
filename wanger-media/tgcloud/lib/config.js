@@ -8,8 +8,8 @@ export const OWNER_ID = 5557901897;
 export const BOT_ID = 9080356648;
 export const BOT_USERNAME = 'Wanger_mediabot';
 
-export const VERSION = '0.2.0';
-export const PHASE = 2;
+export const VERSION = '0.3.0';
+export const PHASE = 3;
 
 /** The bot's own channel, shown in About. */
 export const CHANNEL_USERNAME = 'wangerBots';
@@ -62,3 +62,18 @@ export const PLATFORM_NAMES = {
   facebook: 'Facebook', linkedin: 'LinkedIn', youtube: 'YouTube', reddit: 'Reddit', twitch: 'Twitch',
   threads: 'Threads', discord: 'Discord', spotify: 'Spotify', soundcloud: 'SoundCloud',
 };
+
+/** Platforms with a built adapter (lib/platforms/), and the method ids an adapter may offer. */
+export const BUILT_PLATFORMS = ['x', 'pinterest', 'snapchat'];
+export const METHODS = ['official', 'public', 'thirdparty', 'external'];
+
+/** Telegram's own limits (Bot API): by URL Telegram fetches the file itself; uploads go through us. */
+export const MB = 1024 * 1024;
+export const TG_URL_MAX = 20 * MB;
+export const TG_URL_PHOTO_MAX = 5 * MB;
+export const TG_UPLOAD_MAX = 50 * MB;
+export const TG_UPLOAD_PHOTO_MAX = 10 * MB;
+export const CAPTION_MAX = 1024;
+
+/** Download limits until the owner changes them (settings key 'limits', Phase 4 screen). */
+export const DEFAULT_LIMITS = { quota_per_day: 30, cooldown_s: 15, max_mb: 50 };

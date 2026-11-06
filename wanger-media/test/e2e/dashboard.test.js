@@ -57,13 +57,14 @@ describe('disclaimer', () => {
 describe('main menu and navigation', () => {
   it('home offers exactly the built features; every other screen has Back and Home to the right parent', async () => {
     await h.onboard(ALICE, 'en');
-    expect(datas(screen())).toEqual(['H:0', 's', 'i', 'o']);
+    expect(datas(screen())).toEqual(['d', 'H:0', 's', 'i', 'o']);
     const expectNav = (back) => {
       const d = datas(screen());
       expect(d.slice(-2), JSON.stringify(d)).toEqual([back, 'h']);
       const labels = buttonsOf(screen()).slice(-2).map((b) => b.text);
       expect(labels).toEqual(['⬅️ Back', '🏠 Home']);
     };
+    await h.press(ALICE, 'd', { messageId: 19 }); expectNav('h');
     await h.press(ALICE, 'H:0', { messageId: 20 }); expectNav('h');
     await h.press(ALICE, 's', { messageId: 21 }); expectNav('h');
     await h.press(ALICE, 'q', { messageId: 22 }); expectNav('s');
@@ -77,7 +78,8 @@ describe('main menu and navigation', () => {
     await h.onboard(ALICE, 'en');
     expect((await h.send(ALICE, '/help')).view).toBe('help');
     expect((await h.send(ALICE, '/about')).view).toBe('about');
-    expect(screen().text).toContain('version 0.2.0');
+    expect(screen().text).toContain('version 0.3.0');
+    expect(screen().text).not.toContain('Serverless');
     expect(screen().text).toContain('\n@wangerBots');
     expect((await h.send(ALICE, '/settings')).view).toBe('settings');
     expect((await h.send(ALICE, '/downloads')).view).toBe('downloads');
@@ -85,10 +87,21 @@ describe('main menu and navigation', () => {
     expect((await h.send(ALICE, '/unknown')).view).toBe('home');
   });
 
-  it('help is honest about what exists', async () => {
+  it('help and the Download screen list only the platforms switched on', async () => {
     await h.onboard(ALICE, 'ru');
     await h.send(ALICE, '/help');
-    expect(screen().text).toContain('Скачивание пока недоступно');
+    expect(screen().text).toContain('— пока ни одной —');
+    h.row(`INSERT INTO settings (key, value, updated_at) VALUES ('platform:x', '{"methods":{"public":true}}', 1) RETURNING key`);
+    h.row(`INSERT INTO settings (key, value, updated_at) VALUES ('platform:snapchat', '{"methods":{"public":true},"paused":true}', 1) RETURNING key`);
+    await h.send(ALICE, '/help');
+    expect(screen().text).toContain('X (Twitter): фото, видео, GIF');
+    expect(screen().text).not.toContain('Snapchat'); // paused
+    expect(screen().text).not.toContain('Pinterest'); // off
+    await h.press(ALICE, 'd', { messageId: 9 });
+    expect(screen().text).toContain('X (Twitter)');
+    h.row(`INSERT INTO settings (key, value, updated_at) VALUES ('switch.downloads', 'false', 1) RETURNING key`);
+    await h.press(ALICE, 'd', { messageId: 10 });
+    expect(screen().text).toContain('Скачивание сейчас выключено');
   });
 
   it('navigation still runs the gates: a user who left a channel gets the gate, a banned user the ban', async () => {
@@ -167,7 +180,6 @@ describe('settings', () => {
     expect(screen().text).toContain('Preferred quality: Auto (recommended)');
     await h.press(ALICE, 'q', { messageId: 50 });
     expect(buttonsOf(screen()).find((b) => b.callback_data === 'Q:auto').text.startsWith('✓')).toBe(true);
-    expect(screen().text).toContain('once they are available');
     const r = await h.press(ALICE, 'Q:small', { messageId: 50 });
     expect(r.view).toBe('settings');
     expect(h.tg.calls('answerCallbackQuery').at(-1).params.text).toBe('✅ Quality: Data saver');

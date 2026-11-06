@@ -10,14 +10,21 @@
 // Handlers never throw: errors are stored in error_log, the owner gets a throttled alert, the user
 // a short "something went wrong", and the handler returns { ok: false }.
 //
+// A private message with a link (entities: url / text_link) goes to lib/download.js after the
+// gates (the first link only). /admin and the owner panel's buttons are owner-only (lib/admin.js),
+// re-checked on every command and every button.
+//
 // callback_data codes (lib/codec.js):
 //   h          home                       s          settings
 //   l[:s]      language picker            q          quality picker
 //   L:<lang>[:s] set language (fa|en|ru)  Q:<q>      set quality (auto|best|small)
 //   j          check forced join again    i          help
 //   a          accept the disclaimer      o          about
-//   H:<page>   my downloads, page 0–12
+//   H:<page>   my downloads, page 0–12    d          how to download
+//   owner panel: A list · P:<pid> platform · M:<pid>:<method>:<0|1> method off/on (on → risk note)
+//                C:<pid>:<method> confirm after the risk note · E:<pid>:<1|0> pause/resume · T:<pid> health
 // ":s" = opened from Settings, so the picker returns there.
+import * as admin from './admin.js';
 import { alertOwner } from './alerts.js';
 import { CB, decode } from './codec.js';
 import { BOT_USERNAME, DISCLAIMER_VERSION_AT, DOUBLE_TAP_MS, ERROR_ALERT_EVERY_S, HOUSEKEEP_EVERY_S } from './config.js';
@@ -27,6 +34,8 @@ import * as users from './db/users.js';
 import { detectLang, LANG_NAMES, normLang, tp } from './i18n/index.js';
 import * as join from './join.js';
 import * as menu from './menu.js';
+import { handleLink } from './download.js';
+import { extractLinks } from './url.js';
 import { actorOf, isOwnerId, isStaff } from './roles.js';
 import * as tg from './tg.js';
 import { disclaimer, formatTime, joinGate, languagePicker, plain } from './ui.js';
@@ -215,6 +224,18 @@ export const onMessage = (msg, sdkCtx) => boundary('message', sdkCtx, async (ctx
     await reply(ctx, user, 'language', languagePicker({ current: user.lang, preselected: user.preselected }));
     return { view: 'language' };
   }
+  if (cmd === 'admin' && admin.canUsePanel(user)) {
+    const r = await admin.listScreen(user);
+    await reply(ctx, user, r.view, r.screen);
+    return { view: r.view };
+  }
+  const links = cmd ? [] : extractLinks(msg);
+  if (links.length) {
+    const g = await gateway(ctx, user, null);
+    if (g.held) return g.held;
+    const result = await handleLink(ctx, user, msg, links[0]);
+    return { view: 'download', download: { status: result.status, reason: result.reason || null, platform: result.platform || null, method: result.method || null, cached: !!result.cached } };
+  }
   return open(ctx, user, null, menu.COMMAND_TARGETS[cmd] || 'home', 0);
 });
 
@@ -294,10 +315,31 @@ export const onCallback = (cq, sdkCtx) => boundary('callback_query', sdkCtx, asy
     return open(ctx, user, msg, 'settings');
   }
 
+  if ('APMCET'.includes(d.code)) return ownerPanel(ctx, user, cq, msg, d);
+
   await tg.answer(ctx, cq.id);
-  const targets = { [CB.HISTORY]: 'downloads', [CB.SETTINGS]: 'settings', [CB.QUALITY_MENU]: 'quality', [CB.HELP]: 'help', [CB.ABOUT]: 'about' };
+  const targets = { [CB.HISTORY]: 'downloads', [CB.SETTINGS]: 'settings', [CB.QUALITY_MENU]: 'quality', [CB.HELP]: 'help', [CB.ABOUT]: 'about', [CB.DOWNLOAD]: 'download' };
   return open(ctx, user, msg, targets[d.code] || 'home', d.code === CB.HISTORY ? Number(d.args[0]) : 0);
 });
+
+/** The owner panel's buttons: owner only, checked again on every press; others get a silent answer. */
+async function ownerPanel(ctx, user, cq, msg, d) {
+  if (!admin.canUsePanel(user)) {
+    await tg.answer(ctx, cq.id);
+    return { ignored: 'not_owner' };
+  }
+  const [pid, a1, a2] = d.args;
+  let r;
+  if (d.code === CB.ADMIN) r = await admin.listScreen(user);
+  else if (d.code === CB.PLATFORM) r = await admin.platformScreen(user, pid);
+  else if (d.code === CB.METHOD) r = await admin.setMethod(ctx, user, pid, a1, a2 === '1', false);
+  else if (d.code === CB.CONFIRM) r = await admin.setMethod(ctx, user, pid, a1, true, true);
+  else if (d.code === CB.PAUSE) r = await admin.setPaused(ctx, user, pid, a1 === '1');
+  else r = await admin.health(ctx, user, pid);
+  await tg.answer(ctx, cq.id, r.toast ? r.toast.replace(/<[^>]+>/g, '') : undefined);
+  await tg.edit(ctx, r.view, msg, r.screen);
+  return { view: r.view };
+}
 
 export const onMyChatMember = (upd, sdkCtx) => boundary('my_chat_member', sdkCtx, async (ctx) => {
   if (!upd || !upd.chat || !upd.new_chat_member) return { ignored: 'malformed' };

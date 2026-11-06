@@ -22,9 +22,17 @@ export class InputFile {
 let handler = null;
 export const setApiHandler = (fn) => { handler = fn; };
 
+/** Deep copy like an HTTP call would make, with InputFile replaced by a small descriptor. */
+function copy(v) {
+  if (v instanceof InputFile) return { __file: v.name, type: v.type, size: v.bytes ? v.bytes.length ?? v.bytes.byteLength : 0 };
+  if (Array.isArray(v)) return v.map(copy);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined).map(([k, x]) => [k, copy(x)]));
+  return v;
+}
+
 export const api = new Proxy({}, {
   get: (_, method) => async (params = {}) => {
     if (!handler) throw new Error(`api.${String(method)} called with no fake Telegram installed`);
-    return handler(String(method), JSON.parse(JSON.stringify(params)));
+    return handler(String(method), copy(params));
   },
 });

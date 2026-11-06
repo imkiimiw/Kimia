@@ -1,6 +1,6 @@
 // callback_data codes: "<code>[:<arg>…]", at most 64 bytes (Bot API limit). Unknown or malformed data
 // decodes to null, which the router treats as an expired menu. Pure module: must not import 'sdk'.
-import { HISTORY_MAX, HISTORY_PAGE, LANGS, QUALITIES } from './config.js';
+import { BUILT_PLATFORMS, HISTORY_MAX, HISTORY_PAGE, LANGS, METHODS, QUALITIES } from './config.js';
 
 export const MAX_CALLBACK_BYTES = 64;
 
@@ -21,10 +21,19 @@ const CODES = {
   Q: (a) => a.length === 1 && QUALITIES.includes(a[0]), // set quality
   i: none, // help
   o: none, // about
+  d: none, // how to download
+  // owner panel (Phase 3: platforms only)
+  A: none, // platforms list
+  P: (a) => a.length === 1 && BUILT_PLATFORMS.includes(a[0]), // one platform
+  M: (a) => a.length === 3 && BUILT_PLATFORMS.includes(a[0]) && METHODS.includes(a[1]) && (a[2] === '0' || a[2] === '1'), // method off/on (on → risk note)
+  C: (a) => a.length === 2 && BUILT_PLATFORMS.includes(a[0]) && METHODS.includes(a[1]), // confirm enabling after the risk note
+  E: (a) => a.length === 2 && BUILT_PLATFORMS.includes(a[0]) && (a[1] === '0' || a[1] === '1'), // pause (1) / resume (0)
+  T: (a) => a.length === 1 && BUILT_PLATFORMS.includes(a[0]), // health check
 };
 export const CB = {
   HOME: 'h', LANG_MENU: 'l', LANG_SET: 'L', JOIN_CHECK: 'j', ACCEPT: 'a', HISTORY: 'H',
-  SETTINGS: 's', QUALITY_MENU: 'q', QUALITY_SET: 'Q', HELP: 'i', ABOUT: 'o',
+  SETTINGS: 's', QUALITY_MENU: 'q', QUALITY_SET: 'Q', HELP: 'i', ABOUT: 'o', DOWNLOAD: 'd',
+  ADMIN: 'A', PLATFORM: 'P', METHOD: 'M', CONFIRM: 'C', PAUSE: 'E', HEALTH: 'T',
 };
 
 /** UTF-8 byte length without TextEncoder. */

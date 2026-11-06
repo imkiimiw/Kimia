@@ -56,8 +56,8 @@ describe('/start and language', () => {
     expect(datas(h.lastScreen(ALICE.id))).toEqual(['a']);
     expect((await h.press(ALICE, 'a', { messageId: 901 })).view).toBe('home');
     expect(h.lastScreen(ALICE.id).text).toContain('Welcome to <b>Wanger Media</b>');
-    expect(h.lastScreen(ALICE.id).text).toContain('isn’t available yet');
-    expect(datas(h.lastScreen(ALICE.id))).toEqual(['H:0', 's', 'i', 'o']); // no Download button before Phase 3
+    expect(h.lastScreen(ALICE.id).text).toContain('Send me a link to a post');
+    expect(datas(h.lastScreen(ALICE.id))).toEqual(['d', 'H:0', 's', 'i', 'o']);
 
     h.resetCalls();
     const again = await h.send(ALICE, '/start');

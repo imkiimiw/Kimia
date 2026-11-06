@@ -25,8 +25,11 @@ export function setup(options = {}) {
   let updateId = 10_000;
   let messageId = 1;
 
+  /** Like Telegram, marks every http(s) link in the text with a url entity (UTF-16 offsets). */
+  const linkEntities = (text) => [...String(text || '').matchAll(/https?:\/\/\S+/g)].map((m) => ({ type: 'url', offset: m.index, length: m[0].length }));
   const privateMessage = (from, text) => ({
     message_id: messageId++, from, chat: { id: from.id, type: 'private', first_name: from.first_name }, date: Math.floor(Date.now() / 1000), text,
+    ...(linkEntities(text).length ? { entities: linkEntities(text) } : {}),
   });
 
   const h = {

@@ -2,9 +2,9 @@
 // here leads to something built (brief §2: no buttons for unbuilt features), and every screen except
 // home has Back and Home (brief §8). Pure module: must not import 'sdk'.
 import { CB, encode } from './codec.js';
-import { CHANNEL_USERNAME, HISTORY_MAX, LANGS, PLATFORM_NAMES, QUALITIES, VERSION } from './config.js';
+import { BOT_USERNAME, CAPTION_MAX, CHANNEL_USERNAME, HISTORY_MAX, LANGS, PLATFORM_NAMES, QUALITIES, VERSION } from './config.js';
 import { LANG_NAMES, t, tp } from './i18n/index.js';
-import { clip } from './util.js';
+import { clip, esc } from './util.js';
 
 const button = (text, data) => ({ text, callback_data: data });
 const urlButton = (text, url) => ({ text, url });
@@ -52,15 +52,46 @@ export function disclaimer(lang) {
   return { text: t(lang, 'disclaimer.text'), reply_markup: markup([[button(tp(lang, 'btn.accept'), encode(CB.ACCEPT))]]) };
 }
 
-/** Main menu. There is no Download button until the download core exists (Phase 3). */
+/** Main menu. */
 export function home(lang, name) {
   return {
     text: t(lang, 'welcome.text', { name }),
     reply_markup: markup([
+      [button(tp(lang, 'btn.download'), encode(CB.DOWNLOAD))],
       [button(tp(lang, 'btn.downloads'), encode(CB.HISTORY, 0)), button(tp(lang, 'btn.settings'), encode(CB.SETTINGS))],
       [button(tp(lang, 'btn.help'), encode(CB.HELP)), button(tp(lang, 'btn.about'), encode(CB.ABOUT))],
     ]),
   };
+}
+
+/** The platforms users can download from right now, one line each. */
+export function platformLines(lang, ids) {
+  return ids.length ? ids.map((id) => t(lang, 'platform.' + id)).join('\n') : t(lang, 'platforms.none');
+}
+
+/** "How to download" (the menu's Download button). */
+export function downloadInfo(lang, ids) {
+  const text = ids.length ? t(lang, 'download.text').replace('{platforms}', platformLines(lang, ids)) : t(lang, 'download.none');
+  return { text, reply_markup: markup([navRow(lang)]) };
+}
+
+/**
+ * A media caption (Telegram HTML, ≤ 1024 characters): the post's text, its author, the platform
+ * and the source link — always (brief §6) — then notes. The link sits on its own line (brief §4).
+ */
+export function caption(lang, post, notes = []) {
+  const tail = [];
+  if (post.author) tail.push('👤 ' + esc(post.author));
+  tail.push(t(lang, 'dl.source', { platform: PLATFORM_NAMES[post.platform] || post.platform }));
+  tail.push(esc(post.url));
+  for (const n of notes) tail.push(t(lang, 'dl.note.' + n));
+  tail.push('@' + BOT_USERNAME);
+  const rest = tail.join('\n');
+  const text = String(post.title || '').replace(/https?:\/\/t\.co\/\S+/g, '').trim();
+  const room = CAPTION_MAX - rest.length - 2;
+  const head = text && room > 20 ? esc(clip(text, Math.min(room, 600))) : '';
+  const out = head ? `${head}\n\n${rest}` : rest;
+  return out.length <= CAPTION_MAX ? out : out.slice(0, CAPTION_MAX);
 }
 
 const STATUS_ICON = { ok: '✅', failed: '❌', denied: '⛔' };
@@ -105,7 +136,63 @@ export function qualityPicker(lang, current) {
   };
 }
 
-export const help = (lang) => ({ text: t(lang, 'help.text'), reply_markup: markup([navRow(lang)]) });
+export const help = (lang, ids = []) => ({
+  text: t(lang, 'help.text').replace('{platforms}', platformLines(lang, ids)),
+  reply_markup: markup([navRow(lang)]),
+});
+
+// ---- owner panel (Phase 3: platforms) -------------------------------------------------------
+
+const METHOD_ICON = { true: '🟢', false: '⚪' };
+export const platformStateKey = (adapter, state) => (state.paused ? 'paused' : adapter.methodOrder.some((m) => state.methods[m] === true) ? 'on' : 'off');
+
+/** The list of built platforms with their state; unbuilt ones are named, without buttons. */
+export function adminPlatforms(lang, rows, notBuilt) {
+  const lines = [t(lang, 'admin.title')];
+  if (notBuilt.length) lines.push('', t(lang, 'admin.not_built', { list: notBuilt.map((id) => PLATFORM_NAMES[id] || id).join(', ') }));
+  return {
+    text: lines.join('\n'),
+    reply_markup: markup([
+      ...rows.map(({ adapter, state }) => [button(`${tp(lang, 'admin.state.' + platformStateKey(adapter, state))} · ${adapter.name}`, encode(CB.PLATFORM, adapter.id))]),
+      [button(tp(lang, 'btn.home'), encode(CB.HOME))],
+    ]),
+  };
+}
+
+/** One platform: capability, each method (on/off, or why it can't be used), pause and health. */
+export function adminPlatform(lang, adapter, state, healthLine = null) {
+  const caps = adapter.capabilities();
+  const lines = [t(lang, 'admin.platform', {
+    platform: adapter.name, state: tp(lang, 'admin.state.' + platformStateKey(adapter, state)), status: tp(lang, 'status.' + caps.status),
+  }), ''];
+  const rows = [];
+  for (const m of adapter.methodOrder) {
+    const on = state.methods[m] === true;
+    lines.push(t(lang, 'admin.method_line', { icon: METHOD_ICON[on], method: tp(lang, 'method.' + m) }));
+    rows.push([button(tp(lang, on ? 'admin.btn.disable' : 'admin.btn.enable', { method: tp(lang, 'method.' + m) }), encode(CB.METHOD, adapter.id, m, on ? '0' : '1'))]);
+  }
+  for (const [m, st] of Object.entries(caps.methods)) {
+    if (!adapter.methodOrder.includes(m)) lines.push(t(lang, 'admin.method_na', { method: tp(lang, 'method.' + m), status: tp(lang, 'status.' + st) }));
+  }
+  if (healthLine) lines.push('', healthLine);
+  rows.push([
+    button(tp(lang, state.paused ? 'admin.btn.resume' : 'admin.btn.pause'), encode(CB.PAUSE, adapter.id, state.paused ? '0' : '1')),
+    button(tp(lang, 'admin.btn.health'), encode(CB.HEALTH, adapter.id)),
+  ]);
+  rows.push(navRow(lang, encode(CB.ADMIN)));
+  return { text: lines.join('\n'), reply_markup: markup(rows) };
+}
+
+/** The risk note shown before a `public`/`thirdparty`/`external` method is switched on (brief §6). */
+export function adminRisk(lang, adapter, method) {
+  const notes = (adapter.riskNotes && adapter.riskNotes[method]) || {};
+  return {
+    text: t(lang, 'admin.risk', { method: tp(lang, 'method.' + method), platform: adapter.name, note: notes[lang] || notes.en || '' }),
+    reply_markup: markup([
+      [button(tp(lang, 'admin.btn.confirm'), encode(CB.CONFIRM, adapter.id, method)), button(tp(lang, 'admin.btn.cancel'), encode(CB.PLATFORM, adapter.id))],
+    ]),
+  };
+}
 
 export const about = (lang) => ({
   text: t(lang, 'about.text', { version: VERSION, channel: CHANNEL_USERNAME }),
