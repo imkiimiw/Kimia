@@ -205,6 +205,25 @@ date = the local day in the `time_zone` setting. Aggregated only: no per-user ro
   queued, failed, uncertain — live), per source; «📈 Daily» (14 days) and «🔥 Most played» (period +
   all time).
 
+## Phase 8: backups, monitoring, flood guard, platform limits
+
+- **Backup** (`backup/service.js`, `repositories/backup.js`): `BACKUP_TABLES` lists the core tables
+  and their columns (a test keeps it equal to the schema). Export reads each table in key order
+  (keyset pages of 1000), builds one JSON document and sends it to the owner (`tg.sendDocument`);
+  `backup.last` keeps its `file_id`. Restore (`scripts/backup.mjs`) sends chunks through a temporary
+  owner-only module: validated (table, columns ⊂ schema incl. the key, values = number/string/null)
+  and upserted (`ON CONFLICT (pk) DO UPDATE … ON CONFLICT DO NOTHING`), then `finishRestore`
+  clears/rebuilds the search index. Weekly export: tick processor `backup` (setting `backup.weekly`).
+- **Monitoring** (`core/health.js`): `healthWarnings()` (errors in the last hour, failed/uncertain
+  publications in 24 h, scheduled tick, cooldown, the webhook report the GitHub job passes to
+  `opsTick`) → System Status; tick processor `monitor` → owner alerts, ≤ 1 per kind per 3 h.
+- **Flood guard**: `users.flood()` — one conditional `UPDATE` counts the update in a 60 s window
+  (`flood_at`, `flood_n`); over 30 → ignored (one notice); staff exempt.
+- **Platform limits** (measured): ≤ 4096 bound values and ≤ 10 000 rows written per statement.
+  Mass writes are batched (≤ 5000); the local SDK enforces both, so tests catch a regression.
+- **Unreachable sender**: a failed reply to the update's own sender (blocked / chat gone / 429 for
+  that chat) is a warning, not an error (`boundary.senderUnreachable`).
+
 ## Background work: the tick (no cron on this platform)
 
 `jobs/tick.js#runTick(trigger, budget)` runs processors in order — maintenance (prune
@@ -214,7 +233,7 @@ date = the local day in the `time_zone` setting. Aggregated only: no per-user ro
 1. **piggyback** after message / callback_query / my_chat_member updates, at most once per
    `tick.interval_seconds`, elected by one conditional `UPDATE` (2 s budget);
    processors in order: maintenance → broadcast batch → publications → approval digests →
-   archive backlog → search index rebuild → stats (aggregation, retention);
+   archive backlog → search index rebuild → stats (aggregation, retention) → weekly backup → monitor;
 2. **manual**: 🧪 System Status «▶️ اجرای تیک» and the broadcast's «▶️ ادامه» (8 s budget);
 3. **scheduled**: `endpoints/opsTick.js` (owner id only) run every 30 min by
    `.github/workflows/wanger-music-tick.yml`, which pulls the **deployed** modules first.
@@ -245,6 +264,7 @@ Phase 6: `publications` (spec columns + `cover_message_id`, `deleted_at`; UNIQUE
 indexes status+next_attempt, channel+status, channel+published_at) and
 `destination_channels.publishing_since`.
 Phase 7: `stats_daily` (see Analytics) and `users` index `created_at`.
+Phase 8: `users.flood_at`, `users.flood_n`; publications index `(channel_id, id)`.
 No foreign keys (the platform forbids them); enums and booleans are CHECK-constrained; 8 indexes
 back every lookup (`users.last_seen_at`, `lower(username)`, admins partial index, …).
 
@@ -254,4 +274,6 @@ back every lookup (`users.last_seen_at`, `lower(username)`, admins partial index
 `tests/e2e/` (the real handlers against `tests/sdk/` — node:sqlite with the real schema, refusing
 what the platform refuses — and `tests/helpers/fake-telegram.mjs`, a strict fake Bot API).
 `npm run smoke`: a read-only production check with `tgcloud run`; `--staging` runs
-`tests/fixtures/updates/*.json5` on a staging bot.
+`tests/fixtures/updates/*.json5` on the staging bot. `npm run query-review`: query plans of every
+statement the tests run (CI). Staging: `scripts/staging.mjs` (mirror + CLI), `scripts/loadtest.mjs`,
+`scripts/backup.mjs` — see docs/OPERATIONS.md.

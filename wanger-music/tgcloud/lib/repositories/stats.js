@@ -10,6 +10,22 @@ const n0 = (r) => (r ? Number(r.n) || 0 : 0);
 
 /** @typedef {{metric: string, dimension: string, value: number}} StatRow */
 
+/** The platform refuses a statement that writes more than 10 000 rows: deletes go in batches. */
+const WRITE_BATCH = 5000;
+/**
+ * Deletes the rows matching `cond` in key order, WRITE_BATCH at a time (stats_daily has no rowid:
+ * the batch ends at the WRITE_BATCH-th key, compared column by column).
+ */
+async function deleteBatched(cond) {
+  let total = 0;
+  for (;;) {
+    const e = await db.get(sql`SELECT date, metric, dimension FROM stats_daily WHERE ${cond} ORDER BY date, metric, dimension LIMIT 1 OFFSET ${WRITE_BATCH - 1}`);
+    if (!e) return total + (await db.run(sql`DELETE FROM stats_daily WHERE ${cond}`)).rowsAffected;
+    total += (await db.run(sql`DELETE FROM stats_daily WHERE ${cond} AND (date < ${e.date}
+      OR (date = ${e.date} AND metric < ${e.metric}) OR (date = ${e.date} AND metric = ${e.metric} AND dimension <= ${e.dimension}))`)).rowsAffected;
+  }
+}
+
 export function createStatsRepo() {
   /** @param {string} date @param {StatRow[]} rows @param {boolean} add */
   async function write(date, rows, add) {
@@ -71,8 +87,8 @@ export function createStatsRepo() {
     /** All-time published posts per channel (partial index idx_pub_channel_published). */
     publishedByChannel: () => db.all(sql`SELECT channel_id, count(*) AS n FROM publications WHERE status = 'published' GROUP BY channel_id LIMIT 500`),
 
-    /** Retention: whole days before `date`, and per-track plays before `playsDate` (a bounded window). */
-    pruneBefore: (date) => db.run(sql`DELETE FROM stats_daily WHERE date < ${date}`).then((r) => r.rowsAffected),
-    prunePlays: (from, to) => db.run(sql`DELETE FROM stats_daily WHERE date >= ${from} AND date < ${to} AND metric = 'track.play'`).then((r) => r.rowsAffected),
+    /** Retention: whole days before `date`, and per-track plays in [from, to) — ≤ 5000 rows per statement. */
+    pruneBefore: (date) => deleteBatched(sql`date < ${date}`),
+    prunePlays: (from, to) => deleteBatched(sql`date >= ${from} AND date < ${to} AND metric = 'track.play'`),
   };
 }

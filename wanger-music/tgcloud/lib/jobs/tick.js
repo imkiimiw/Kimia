@@ -2,8 +2,9 @@
 // within the time budget. Triggers: piggyback after updates (never inline), the owner's buttons,
 // and endpoints/opsTick (GitHub Actions schedule). Timing depends on traffic and the schedule.
 import { runMaintenance } from './maintenance.js';
+import { runMonitor } from '../core/health.js';
 
-/** Processors in order (spec 10.7): maintenance → broadcast → publications → digests → archive → search index → stats (Phase 7: aggregation every 15 min, retention daily). */
+/** Processors in order (spec 10.7): maintenance → broadcast → publications → digests → archive → search index → stats (Phase 7: aggregation every 15 min, retention daily) → backup (Phase 8: weekly, when on) → monitor (Phase 8: warnings → throttled owner alerts). */
 const PROCESSORS = [
   { name: 'maintenance', run: (app) => runMaintenance(app) },
   { name: 'broadcast', run: (app, deadlineMs) => app.broadcasts.runBatch({ deadlineMs }) },
@@ -12,6 +13,8 @@ const PROCESSORS = [
   { name: 'archive', run: (app, deadlineMs) => app.catalog.runArchiveBacklog({ deadlineMs }) },
   { name: 'search_index', run: (app, deadlineMs) => app.search.runReindex({ deadlineMs }) },
   { name: 'stats', run: (app) => app.stats.runTick() },
+  { name: 'backup', run: (app, _deadlineMs, trigger) => app.backup.runWeekly(trigger) },
+  { name: 'monitor', run: (app) => runMonitor(app) },
 ];
 
 /**
@@ -29,7 +32,7 @@ export async function runTick(app, trigger, budgetMs) {
       continue;
     }
     try {
-      results[p.name] = await p.run(app, deadlineMs);
+      results[p.name] = await p.run(app, deadlineMs, trigger);
     } catch (e) {
       results[p.name] = 'error';
       await app.alerts.recordError({ handler: `tick:${p.name}`, err: e, context: { trigger } });

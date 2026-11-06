@@ -18,7 +18,7 @@ dashboard equal to direct SQL counts (today and 7 days).
 | 5 | Destination channels: `destination_channels`; add (one-tap for @WangerBeat = English, @WangerFlow = Persian, or forward / @username / id) with the bot's rights checked; rules (languages, genres, excluded genres, min confidence); caption template with a preview to the owner; post format; schedule (interval, hours, daily limit, time zone); approval; enable / auto-publish; rights check; soft removal; health from my_chat_member. **Posts nothing.** | **Deployed** |
 | 6 | Automatic publishing: `publications`; routing on activation (idempotent, no backfill; explicit owner backfill with preview), approval queue + digest + review screen, worker on the tick (lease, interval / hours / daily limit, 429 cooldown, backoff, permanent errors), uncertain handling, history per track/channel, cancel on removal, delete channel posts, pause switch | **Deployed** |
 | 7 | Analytics: `stats_daily` (event counters written once per update; derived numbers recomputed for today + yesterday by the tick every 15 min and on open; retention 400 days, plays per track 90), 📊 dashboard (users total/new/active/blocked, inline + private searches, plays, top tracks, force-join conversions, publications per channel, sources), daily table, top tracks | **Deployed** |
-| 8 (next) | Hardening: reviews, load test on staging, backup export/restore, monitoring, recovery docs | — |
+| 8 | Hardening: staging bot + mirror script, security / error / rate-limit / index reviews (docs/REVIEW.md, `npm run query-review` in CI), load test on staging, backup export (owner button, weekly, CLI) and restore (CLI, verified on staging), monitoring (warnings on System Status + throttled owner alerts, webhook report from the GitHub job), flood guard, platform limits (4096 values / 10 000 rows per statement) mirrored locally, docs/OPERATIONS.md | **Deployed** |
 
 ## Interfaces already in place for later phases
 
@@ -52,5 +52,6 @@ dashboard equal to direct SQL counts (today and 7 days).
 
 ## Module budget
 
-81 of ≤ 85 modules used after Phase 7 (+3: `repositories/stats`, `stats/service`, `admin/stats_ui`).
-The platform refused a 104-module deploy for another bot. Phase 8 ≈ +2 → ≈ 83.
+83 of ≤ 85 modules after Phase 8 (+2: `repositories/backup`, `backup/service`). The platform
+refused a 104-module deploy for another bot. All eight phases are built; new features should first
+merge modules if they need room.

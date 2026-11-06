@@ -49,19 +49,26 @@ export function createSearchService({ repo, settings, audit, clock, log }) {
 
     addPlay: (publicId) => repo.addPlay(publicId),
 
-    /** Tick processor: rebuilds the index in small batches while search.reindex_cursor ≥ 0. */
+    /**
+     * Tick processor: rebuilds the index while search.reindex_cursor ≥ 0, batch after batch until the
+     * tick's time budget is spent (Phase 8: one batch per tick made a restored catalog take hours).
+     */
     async runReindex({ deadlineMs }) {
       let cursor = Number(await settings.get('search.reindex_cursor'));
       if (cursor < 0) return { skipped: 'done' };
-      const rows = await repo.activeAfter(cursor, REBUILD_BATCH);
       let n = 0;
-      for (const tr of rows) {
-        if (clock.ms() >= deadlineMs) break;
-        await indexTrack(tr);
-        cursor = tr.id;
-        n += 1;
+      let done = false;
+      while (!done && clock.ms() < deadlineMs) {
+        const rows = await repo.activeAfter(cursor, REBUILD_BATCH);
+        let i = 0;
+        for (; i < rows.length && clock.ms() < deadlineMs; i += 1) {
+          await indexTrack(rows[i]);
+          cursor = rows[i].id;
+          n += 1;
+        }
+        done = i === rows.length && rows.length < REBUILD_BATCH;
+        if (i < rows.length) break; // out of time inside the batch
       }
-      const done = n === rows.length && rows.length < REBUILD_BATCH;
       await settings.setInternal('search.reindex_cursor', done ? -1 : cursor);
       if (done) log.info('search_index_rebuilt', { count: n });
       return { indexed: n, done };

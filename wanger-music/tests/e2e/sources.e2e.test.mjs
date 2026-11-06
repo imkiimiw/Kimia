@@ -130,7 +130,11 @@ test('the bot made admin of a new channel: the owner is asked Source · Destinat
   const h = setup();
   const NEW = -1003300000077;
   h.tg.addChannel({ id: NEW, username: 'FreshChan', title: 'Fresh' });
-  const r = await h.myChatMember({ id: NEW, type: 'channel', title: 'Fresh', username: 'FreshChan' }, 999, 'administrator', 'left');
+  // a stranger making the bot admin of their channel asks nobody (Phase 8: no prompt flood)
+  const stranger = await h.myChatMember({ id: NEW, type: 'channel', title: 'Fresh', username: 'FreshChan' }, 999, 'administrator', 'left');
+  assert.equal(stranger.result, 'other_chat');
+  assert.equal(h.tg.callsOf('sendMessage', OWNER).length, 0);
+  const r = await h.myChatMember({ id: NEW, type: 'channel', title: 'Fresh', username: 'FreshChan' }, OWNER, 'administrator', 'left');
   assert.equal(r.result, 'owner_asked');
   const prompt = h.tg.lastTo(OWNER);
   assert.match(prompt.text, /ربات ادمین کانال «Fresh» @FreshChan شد/);

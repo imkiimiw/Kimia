@@ -32,6 +32,11 @@ export async function onMessage(app, message) {
     if (cmd && cmd.name === 'start') await app.tg.send(chat, { text: t(app.lang, 'start.banned') }, 'banned');
     return 'banned';
   }
+  const flood = await app.users.flood(user);
+  if (flood !== 'ok') {
+    if (flood === 'notify') await app.tg.send(chat, { text: t(app.lang, 'common.too_fast', { s: LIMITS.floodWindowSeconds }) }, 'too_fast');
+    return 'flood';
+  }
   if (cmd && cmd.name === 'cancel') {
     const n = await app.flows.clear(chat);
     await app.tg.send(chat, { text: t(app.lang, n ? 'common.cancelled' : 'common.nothing_to_cancel') }, 'cancel');
@@ -120,6 +125,7 @@ export async function onCallback(app, cq) {
     const staff = isStaff(user);
     const expired = () => answer({ text: tp(app.lang, staff ? 'common.expired' : 'common.expired_user'), alert: true });
     if (user.is_banned) return answer({ text: tp(app.lang, 'start.banned') });
+    if ((await app.users.flood(user)) !== 'ok') return answer({ text: tp(app.lang, 'common.too_fast', { s: LIMITS.floodWindowSeconds }) });
 
     const d = decode(cq.data);
     const route = d && findRoute(d.ns, d.action);
@@ -164,7 +170,16 @@ export async function onMyChatMember(app, upd) {
   const destination = await app.destinations.onBotStatusChange(upd.chat, upd.new_chat_member);
   app.log.info('bot_chat_status', { chat_id: upd.chat.id, status });
   if (forceJoin || source || destination) return destination ? 'destination_channel' : forceJoin ? 'forcejoin_channel' : 'source_channel';
-  if (botBecameAdmin(upd) && (await promptBotAdded(app, upd.chat, upd.from))) return 'owner_asked';
+  if (botBecameAdmin(upd)) {
+    // Phase 8 review: only the owner or an admin making the bot admin is worth a prompt — anyone can
+    // add a bot to their channel, and a prompt per stranger's channel would flood the owner.
+    const by = upd.from ? await app.users.get(upd.from.id) : null;
+    if (!(isOwner(by || { telegram_id: upd.from && upd.from.id }) || isStaff(by))) {
+      app.log.info('bot_added_by_stranger', { chat_id: upd.chat.id, user_id: upd.from ? upd.from.id : null });
+      return 'other_chat';
+    }
+    if (await promptBotAdded(app, upd.chat, upd.from)) return 'owner_asked';
+  }
   return 'other_chat';
 }
 

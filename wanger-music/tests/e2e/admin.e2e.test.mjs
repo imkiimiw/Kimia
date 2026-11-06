@@ -1,7 +1,7 @@
 // Authorization and the admin panel, end to end.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, OWNER, SEED } from '../helpers/harness.mjs';
+import { setup, advance, OWNER, SEED } from '../helpers/harness.mjs';
 import { CALLBACK_ROUTES } from '../../tgcloud/lib/bot/routes.js';
 import { can } from '../../tgcloud/lib/permissions/policy.js';
 
@@ -33,6 +33,7 @@ test('every registered admin route rejects a normal user (table-driven over the 
   for (const r of adminRoutes) {
     const data = [r.ns, r.action, ...sampleArgs(r.args)].join(':');
     assert.ok(!data.includes('undefined'), `sample args for ${r.ns}:${r.action}`);
+    advance(3); // a normal user's presses are spaced out (the flood guard allows 30 a minute)
     const mark = h.mark();
     const res = await h.press(U, data, 1);
     assert.equal(res.ok, true, data);

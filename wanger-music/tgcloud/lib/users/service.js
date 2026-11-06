@@ -88,6 +88,17 @@ export function createUsersService({ repo, clock, audit, settings, stats = NOOP_
 
     markBlocked: (tid, flag) => repo.setBlocked(tid, flag),
 
+    /**
+     * Flood guard for private messages and button presses (staff are never limited).
+     * @returns {Promise<'ok'|'notify'|'drop'>} notify = the first update over the limit (tell them once)
+     */
+    async flood(user) {
+      if (isStaff(user)) return 'ok';
+      const n = await repo.hit(user.telegram_id, clock.now(), LIMITS.floodWindowSeconds);
+      if (n <= LIMITS.floodMax) return 'ok';
+      return n === LIMITS.floodMax + 1 ? 'notify' : 'drop';
+    },
+
     async setBanned(actor, tid, flag) {
       assertCan(actor, 'users.ban');
       const target = await repo.get(tid);

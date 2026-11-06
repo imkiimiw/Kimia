@@ -47,3 +47,5 @@ jobs:
           cache-dependency-path: wanger-music/package-lock.json
       - run: npm ci
       - run: npm test
+      # Phase 8: every full scan of a growing table must be on the reviewed list
+      - run: npm run query-review

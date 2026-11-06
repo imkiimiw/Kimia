@@ -46,6 +46,17 @@ export function createUsersRepo() {
       INSERT INTO users (telegram_id, role, is_banned, is_blocked, force_join_ok_until, created_at, last_seen_at)
       VALUES (${tid}, 'user', 0, 0, 0, ${now}, 0) ON CONFLICT (telegram_id) DO NOTHING`),
 
+    /**
+     * Flood guard: counts this update in the user's window (a new window when the old one ended).
+     * One statement; SET expressions see the old row, so both columns use the same window test.
+     * @returns {Promise<number>} updates counted in the current window
+     */
+    hit: (tid, now, windowSeconds) => db.run(sql`
+      UPDATE users SET
+        flood_n = CASE WHEN flood_at <= ${now - windowSeconds} THEN 1 ELSE flood_n + 1 END,
+        flood_at = CASE WHEN flood_at <= ${now - windowSeconds} THEN ${now} ELSE flood_at END
+      WHERE telegram_id = ${tid} RETURNING flood_n`).then((r) => (r.rows[0] ? Number(r.rows[0].flood_n) : 0)),
+
     setBlocked: (tid, flag) => db.run(sql`UPDATE users SET is_blocked = ${flag ? 1 : 0} WHERE telegram_id = ${tid} AND is_blocked != ${flag ? 1 : 0}`),
     setBanned: (tid, flag) => db.run(sql`UPDATE users SET is_banned = ${flag ? 1 : 0} WHERE telegram_id = ${tid} RETURNING *`).then((r) => r.rows[0] || null),
     setRole: (tid, role) => db.run(sql`UPDATE users SET role = ${role} WHERE telegram_id = ${tid} RETURNING *`).then((r) => r.rows[0] || null),
@@ -59,7 +70,16 @@ export function createUsersRepo() {
     convertPass: (tid, until) => db.run(sql`UPDATE users SET force_join_ok_until = ${until} WHERE telegram_id = ${tid} AND force_join_ok_until = -1`).then((r) => r.rowsAffected > 0),
 
     /** Invalidates every active force-join pass in one statement. */
-    clearAllPasses: (now) => db.run(sql`UPDATE users SET force_join_ok_until = 0 WHERE force_join_ok_until > ${now}`).then((r) => r.rowsAffected),
+    async clearAllPasses(now) {
+      // ≤ 5000 rows per statement: the platform refuses a statement that writes more than 10 000
+      let total = 0;
+      for (;;) {
+        const n = (await db.run(sql`UPDATE users SET force_join_ok_until = 0 WHERE id IN (
+          SELECT id FROM users WHERE force_join_ok_until > ${now} LIMIT 5000)`)).rowsAffected;
+        total += n;
+        if (n < 5000) return total;
+      }
+    },
 
     listAdmins: (limit, offset) => db.all(sql`SELECT * FROM users WHERE role = 'admin' ORDER BY id LIMIT ${limit} OFFSET ${offset}`),
     listAdminIds: (limit) => db.all(sql`SELECT telegram_id FROM users WHERE role = 'admin' ORDER BY id LIMIT ${limit}`),

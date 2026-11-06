@@ -3,8 +3,9 @@
 //                              data and compares the 📊 dashboard with direct SQL counts (no messages
 //                              sent; the only write is the dashboard's refresh of today's derived stats)
 //   npm run smoke -- --staging every fixture in tests/fixtures/updates/ through its handler, on the
-//                              STAGING bot only (needs WANGER_STAGING_TGCLOUD_TOKEN); these write to
-//                              the staging database and message the owner from the staging bot
+//                              STAGING bot only (scripts/staging.mjs: WANGER_STAGING_TGCLOUD_TOKEN or
+//                              WANGER_STAGING_TOKEN_FILE); these write to the staging database and may
+//                              message the owner from the staging bot
 // The temporary module tgcloud/endpoints/zz_smoke.js is deleted afterwards; never push while it exists
 // (scripts/deploy.mjs refuses to).
 import fs from 'node:fs';
@@ -18,22 +19,20 @@ const staging = process.argv.includes('--staging');
 const run = (args, env = process.env) => spawnSync(process.execPath, [path.join(ROOT, 'scripts/tg.mjs'), 'run', ...args], { cwd: ROOT, stdio: 'inherit', env });
 
 if (staging) {
-  const token = process.env.WANGER_STAGING_TGCLOUD_TOKEN;
-  if (!/^app\d+:\S+$/.test(token || '')) {
-    console.error('Set WANGER_STAGING_TGCLOUD_TOKEN (the staging bot\'s CLI access token). Fixtures never run on production.');
+  // the staging mirror (scripts/staging.mjs): its own folder and CLI state, patched for the staging bot
+  const { sync, tg } = await import('./staging.mjs');
+  try {
+    sync();
+  } catch (e) {
+    console.error(String(e.message || e));
     process.exit(1);
   }
-  if (token === process.env.Music_BOT_TGCLOUD_TOKEN) {
-    console.error('WANGER_STAGING_TGCLOUD_TOKEN is the production token. Refusing.');
-    process.exit(1);
-  }
-  const env = { ...process.env, Music_BOT_TGCLOUD_TOKEN: token };
   const dir = path.join(ROOT, 'tests/fixtures/updates');
   let failed = 0;
   for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.json5')).sort()) {
     const fx = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
     console.log(`\n=== ${f}: ${fx.about}`);
-    const r = run([fx.module, JSON.stringify(fx.payload), ...(fx.ctx ? ['--ctx', JSON.stringify(fx.ctx)] : [])], env);
+    const r = tg(['run', fx.module, JSON.stringify(fx.payload), ...(fx.ctx ? ['--ctx', JSON.stringify(fx.ctx)] : [])]);
     if (r.status !== 0) failed += 1;
   }
   process.exit(failed ? 1 : 0);

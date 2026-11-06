@@ -16,6 +16,9 @@ export const users = table('users', {
   forceJoinOkUntil: integer('force_join_ok_until').notNull().default(0),
   createdAt: integer('created_at').notNull(),
   lastSeenAt: integer('last_seen_at').notNull().default(0),
+  // Phase 8 flood guard: start of the current window and the updates counted in it
+  floodAt: integer('flood_at').notNull().default(0),
+  floodN: integer('flood_n').notNull().default(0),
 }, (t) => ({
   roleChk: check('users_role_chk', sql`${t.role} IN ('user', 'admin')`),
   langChk: check('users_ui_language_chk', sql`${t.uiLanguage} IS NULL OR ${t.uiLanguage} IN ('fa', 'en')`),
@@ -310,6 +313,8 @@ export const publications = table('publications', {
   dueIdx: index('idx_pub_status_next').on(t.status, t.nextAttemptAt),
   channelIdx: index('idx_pub_channel_status').on(t.channelId, t.status, t.id),
   dailyIdx: index('idx_pub_channel_published').on(t.channelId, t.publishedAt).where(sql`${t.status} = 'published'`),
+  // Phase 8 (query review): a channel's history, newest first, without sorting all its rows
+  historyIdx: index('idx_pub_channel_id').on(t.channelId, t.id),
 }));
 
 /**

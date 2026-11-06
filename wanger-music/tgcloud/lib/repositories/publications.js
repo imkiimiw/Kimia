@@ -67,14 +67,23 @@ export function createPublicationsRepo() {
     /** A track left the catalog: its waiting publications are cancelled. */
     cancelForTrack: (trackId, now) => db.run(sql`
       UPDATE publications SET status = 'cancelled', updated_at = ${now} WHERE track_id = ${trackId} AND status IN ('pending_approval', 'queued')`).then((r) => r.rowsAffected),
-    cancelForChannel: (channelId, now) => db.run(sql`
-      UPDATE publications SET status = 'cancelled', updated_at = ${now} WHERE channel_id = ${channelId} AND status IN ('pending_approval', 'queued')`).then((r) => r.rowsAffected),
+    async cancelForChannel(channelId, now) {
+      let total = 0; // ≤ 5000 rows per statement (platform write cap: 10 000)
+      for (;;) {
+        const n = (await db.run(sql`UPDATE publications SET status = 'cancelled', updated_at = ${now} WHERE id IN (
+          SELECT id FROM publications WHERE channel_id = ${channelId} AND status IN ('pending_approval', 'queued') LIMIT 5000)`)).rowsAffected;
+        total += n;
+        if (n < 5000) return total;
+      }
+    },
     deleteForTrack: (trackId) => db.run(sql`DELETE FROM publications WHERE track_id = ${trackId}`).then((r) => r.rowsAffected),
     sweepOrphans: (cap) => db.run(sql`
       DELETE FROM publications WHERE id IN (
         SELECT p.id FROM publications p LEFT JOIN tracks t ON t.id = p.track_id WHERE t.id IS NULL LIMIT ${cap})`).then((r) => r.rowsAffected),
     markDeleted: (id, now) => db.run(sql`UPDATE publications SET deleted_at = ${now}, updated_at = ${now} WHERE id = ${id} AND deleted_at IS NULL`),
 
+    /** Publications that failed or became uncertain since `since` (monitoring; index on status). */
+    brokenSince: (since) => db.get(sql`SELECT count(*) AS n FROM publications WHERE status IN ('failed', 'uncertain') AND updated_at >= ${since}`).then((r) => (r ? Number(r.n) : 0)),
     publishedSince: (channelId, since) => db.get(sql`SELECT count(*) AS n FROM publications WHERE channel_id = ${channelId} AND status = 'published' AND published_at >= ${since}`).then((r) => (r ? r.n : 0)),
     counts: () => db.get(sql`
       SELECT coalesce(sum(status = 'pending_approval'), 0) AS pending, coalesce(sum(status = 'queued'), 0) AS queued,

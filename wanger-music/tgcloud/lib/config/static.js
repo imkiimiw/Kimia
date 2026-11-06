@@ -24,6 +24,9 @@ export const LIMITS = Object.freeze({
   forceJoinMax: 10,
   flowTtlSeconds: 15 * 60,
   lastSeenWriteSeconds: 10 * 60,
+  // Phase 8 flood guard: more than floodMax messages/button presses in floodWindowSeconds → ignored
+  floodWindowSeconds: 60,
+  floodMax: 30,
   processedUpdatesKeepSeconds: 48 * 3600,
   errorLogKeep: 2000,
   errorMessageMax: 500,
@@ -38,7 +41,14 @@ export const LIMITS = Object.freeze({
   channelHealthWriteSeconds: 10 * 60,
   adminPageSize: 10,
   recentErrors: 5,
-  maintenanceDeleteCap: 500,
+  // Phase 8 monitoring: thresholds for owner alerts (each kind at most every alertMonitorEverySeconds)
+  monitorErrorsPerHour: 10,
+  monitorPubFailuresPerDay: 3,
+  monitorTickStaleSeconds: 2 * 3600,
+  monitorWebhookPending: 100,
+  monitorCooldownSeconds: 600,
+  alertMonitorEverySeconds: 3 * 3600,
+  maintenanceDeleteCap: 5000, // rows per prune statement (platform write cap: 10 000 rows per statement)
   importBulkWindowSeconds: 60,
   trackTextMax: 200,
   softDuplicateSeconds: 3,
@@ -78,6 +88,7 @@ export const SETTINGS = Object.freeze({
   time_zone: { type: 'tz', default: 'Asia/Tehran' },
   'archive.chat_id': { type: 'chat', default: null },
   'import.bulk_summary': { type: 'bool', default: true },
+  'backup.weekly': { type: 'bool', default: false },
   // internal state (not editable)
   'system.bootstrapped': { type: 'int', default: 0, internal: true },
   'forcejoin.seeded': { type: 'int', default: 0, internal: true },
@@ -91,6 +102,9 @@ export const SETTINGS = Object.freeze({
   'search.reindex_cursor': { type: 'int', default: -1, internal: true },
   'stats.aggregated_at': { type: 'int', default: 0, internal: true },
   'stats.pruned_date': { type: 'text', default: '', internal: true },
+  'backup.last': { type: 'json', default: null, internal: true },
+  'monitor.webhook': { type: 'json', default: null, internal: true },
+  'monitor.scheduled_at': { type: 'int', default: 0, internal: true },
 });
 
 /** Time zones offered in ⚙️ Settings; the fixed offset is the fallback when Intl is missing. */
@@ -118,7 +132,7 @@ export const ADMIN_SECTIONS = Object.freeze([
   { id: 'system', perm: 'system.view', phase: 1 },
 ]);
 
-export const CURRENT_PHASE = 7;
+export const CURRENT_PHASE = 8;
 
 /**
  * Destination channels the owner named on 2026-11-05 (shown as one-tap "add" buttons; each tap

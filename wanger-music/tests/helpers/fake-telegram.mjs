@@ -10,6 +10,8 @@ export function createFakeTelegram() {
   /** chatId → { id, type, title, username, invite_link, bot: status object, members: Map } */
   const channels = new Map();
   const blocked = new Set();
+  /** @type {Map<string, Uint8Array>} uploaded documents, by file_id */
+  const files = new Map();
   /** messages[chatId][messageId] = { text, reply_markup } */
   const messages = new Map();
   /** scripted failures: { method, match?(params), code, description, parameters, times } */
@@ -105,6 +107,21 @@ export function createFakeTelegram() {
       } else if (p.chat_id > 0 && blocked.has(p.chat_id)) fail(403, 'Forbidden: bot was blocked by the user', m);
       return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, photo: [{ file_id: p.photo }], caption: p.caption || null });
     },
+    sendDocument(p, m) {
+      if (p.chat_id > 0 && blocked.has(p.chat_id)) fail(403, 'Forbidden: bot was blocked by the user', m);
+      const d = p.document;
+      if (!d || !(d.bytes instanceof Uint8Array)) fail(400, 'Bad Request: there is no document in the request', m);
+      if (d.bytes.length > 50 * 1024 * 1024) fail(413, 'Request Entity Too Large', m);
+      const file_id = `DOC${++nextMessageId}`;
+      files.set(file_id, d.bytes);
+      return store(p.chat_id, { message_id: nextMessageId, chat: { id: p.chat_id }, document: { file_id, file_unique_id: `DU${nextMessageId}`, file_name: d.name, mime_type: d.type, file_size: d.bytes.length }, caption: p.caption || null });
+    },
+    getFileContent(p, m) {
+      const bytes = files.get(p.file_id);
+      if (!bytes) fail(400, 'Bad Request: wrong file_id or the file is temporarily unavailable', m);
+      if (bytes.length > 20 * 1024 * 1024) fail(400, 'Bad Request: file is too big', m);
+      return bytes;
+    },
     setMyCommands: () => true,
     deleteMyCommands: () => true,
     deleteMessage: () => true,
@@ -127,6 +144,7 @@ export function createFakeTelegram() {
   return {
     handler,
     calls,
+    files,
     channels,
     blocked,
     messages,

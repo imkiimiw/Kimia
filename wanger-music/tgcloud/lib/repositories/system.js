@@ -14,8 +14,12 @@ export function createSystemRepo() {
     insertError: (e) => db.run(sql`
       INSERT INTO error_log (created_at, handler, update_id, user_id, code, message, stack, context)
       VALUES (${e.created_at}, ${e.handler}, ${e.update_id}, ${e.user_id}, ${e.code}, ${e.message}, ${e.stack}, ${e.context})`),
+    /** Errors since `since`, among the newest `cap` rows (bounded: no time index on error_log). */
+    errorsSince: (since, cap) => db.get(sql`SELECT count(*) AS n FROM (SELECT created_at FROM error_log ORDER BY id DESC LIMIT ${cap}) WHERE created_at >= ${since}`).then((r) => (r ? Number(r.n) : 0)),
     recentErrors: (n) => db.all(sql`SELECT id, created_at, handler, code, message FROM error_log ORDER BY id DESC LIMIT ${n}`),
-    pruneErrors: (keep) => db.run(sql`DELETE FROM error_log WHERE id <= (SELECT coalesce(max(id), 0) FROM error_log) - ${keep}`).then((r) => r.rowsAffected),
+    /** Keeps the newest `keep` rows; ≤ 5000 deletions per statement (the platform's write cap is 10 000 rows). */
+    pruneErrors: (keep) => db.run(sql`DELETE FROM error_log WHERE id IN (
+      SELECT id FROM error_log WHERE id <= (SELECT coalesce(max(id), 0) FROM error_log) - ${keep} ORDER BY id LIMIT 5000)`).then((r) => r.rowsAffected),
 
     /**
      * Throttle election in one statement: a row comes back only when the alert may be sent

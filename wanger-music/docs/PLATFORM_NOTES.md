@@ -124,10 +124,25 @@ deployed yet) · **Unknown** = neither documented nor measurable without deployi
 | §13 "Done when: the dashboard numbers match direct database counts on staging" | There is no staging bot. `tests/e2e/stats.e2e.test.mjs` compares every dashboard number with SQL on the tables (local emulation), and the production smoke check compares the live dashboard with direct counts **read-only** (it may write the day's derived rows, nothing else). |
 | `dayStart` on daylight-saving days | Fixed: the offset is read at the found midnight (it was read at `now`, so a DST day started an hour off). Tehran has no DST; Berlin / London / New York benefit. |
 
+## Phase 8 additions (measured on the staging bot, 2026-11-06)
+
+| Check | Result |
+|---|---|
+| **Bound values per statement** | **≤ 4096.** 292 rows × 14 values = 4088 worked; 4102 failed with a bare `Run error` (also 1030 × 4 = 4120). Every statement stays under 4000; the local SDK enforces 4096. |
+| **Rows written per statement** | **≤ 10 000.** An `INSERT … SELECT` of 10 000 rows worked, 10 001 failed with `Sqlite query rows_written limit exceeded` and wrote nothing. Index entries don't count (deleting 5000 tracks with 9 indexes worked); the limit is per statement, not per invocation. Mass writes go in batches of ≤ 5000; the local SDK enforces it (rolled back). |
+| `tgcloud run` output | 1 MB strings come back intact in one run (backups are downloaded in ≈ 1 MB base64 slices). |
+| `tgcloud run` input | One shell argument (Linux caps it at 128 KiB): restore chunks are ≤ 96 KB. |
+| `tgcloud run` rate limit | After ~100 calls in about a minute: `Too many requests: retry after N` (2–14 s seen). Scripts wait and retry. |
+| `sendDocument` with `InputFile` | Works (a 1.65 MB JSON backup); `getFileContent` downloads it back. |
+| Staging bot | `@Wangermusic_bot`, id 9217669709; inline mode is off in BotFather, so its inline answers fail with `USER_BOT_INVALID` (search itself runs; timings are valid). |
+| Load test (5000 tracks, 4 parallel) | inline p95 166 ms, private search p95 273 ms, chosen p95 118 ms — see docs/REVIEW.md. |
+| `ON CONFLICT (pk) DO UPDATE … ON CONFLICT DO NOTHING` (two upsert clauses) | Works (restore merges). |
+
 ## Design consequences
 
 - **State**: everything important is in the database; no module-level caches are relied on.
 - **Atomicity**: one statement per state change; claims are `UPDATE … WHERE <expected state> RETURNING`.
+- **Statement size**: ≤ 4000 bound values and ≤ 5000 rows written per statement (platform caps 4096 / 10 000).
 - **Background work**: `runTick` (maintenance → broadcast → publications → digests → archive →
   search index → stats), run
   piggyback after updates (never inline), by the owner's buttons, and by `endpoints/opsTick.js`

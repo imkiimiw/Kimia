@@ -169,5 +169,6 @@ the code map is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
   statement per state change; background work runs in the tick (`lib/jobs/tick.js`).
 - Handlers return `{ ok, result, tick, trace }` — `trace` lists every Bot API call with its view
   name, so `npm run tg -- run handlers/message '…'` shows what the bot did.
-- Tests: `npm test` (local emulation in `tests/sdk/`, fake Telegram in `tests/helpers/`).
+- Tests: `npm test` (local emulation in `tests/sdk/`, fake Telegram in `tests/helpers/`); `npm run query-review`.
+- Operations (deploy, staging bot, backups, restore, recovery): [docs/OPERATIONS.md](docs/OPERATIONS.md).
 

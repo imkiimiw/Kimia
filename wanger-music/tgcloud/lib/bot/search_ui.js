@@ -1,7 +1,7 @@
 // Search for everyone (spec §9): inline mode (@bot <query> in any chat), private-chat search
 // (/search, or any plain text), result buttons that send the audio by file_id, and the t_<id>
 // deep link. Only active tracks, only our catalog; nothing slow runs in the inline path.
-import { BOT_USERNAME } from '../config/static.js';
+import { BOT_USERNAME, LIMITS } from '../config/static.js';
 import { t, tp } from '../i18n/index.js';
 import { btn, markup } from './keyboards.js';
 import { truncate } from '../core/util.js';
@@ -33,8 +33,16 @@ export async function onInlineQuery(app, q) {
   const user = await app.users.touchInline(q.from);
   app.user = user;
   app.lang = await app.users.languageOf(user);
-  const answer = (params) => app.tg.call('answerInlineQuery', params, 'inline').catch((e) => {
-    if (classify(e).kind !== 'query_expired') throw e;
+  const answer = (params) => app.tg.call('answerInlineQuery', params, 'inline').catch(async (e) => {
+    const kind = classify(e).kind;
+    if (kind === 'bad_file' && params.results.length) {
+      // Telegram refused a file among the results (deleted, or restored from another bot's backup) and
+      // doesn't say which: the user still gets an answer (the in-bot search button), the owner a note.
+      app.log.warn('inline_bad_file', { user_id: q.from.id, count: params.results.length });
+      await app.alerts.owner('inline_bad_file', (lang) => t(lang, 'alert.inline_bad_file'), LIMITS.alertErrorEverySeconds);
+      return answer({ inline_query_id: params.inline_query_id, results: [], is_personal: true, cache_time: 0, button: { text: tp(app.lang, 'inline.no_results_button'), start_parameter: 'search' } });
+    }
+    if (kind !== 'query_expired') throw e;
     app.log.warn('inline_query_expired', { user_id: q.from.id });
   });
   if (user.is_banned) {

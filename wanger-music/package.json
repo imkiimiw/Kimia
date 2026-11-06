@@ -12,7 +12,9 @@
     "status": "node scripts/tg.mjs status",
     "stamp": "node scripts/stamp-version.mjs",
     "deploy": "node scripts/deploy.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "query-review": "node scripts/query-review.mjs",
+    "staging": "node scripts/staging.mjs"
   },
   "devDependencies": {
     "@tgcloud/cli": "^0.2.0"

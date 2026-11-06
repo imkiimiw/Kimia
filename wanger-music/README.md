@@ -4,7 +4,7 @@ A Telegram music bot that runs entirely on **Telegram Serverless**: instant sear
 Telegram-hosted music (inline and in private chat), plus automatic publishing of new tracks to the
 owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 
-**Status: Phases 1–7 (core, catalog, search + inline, sources, destinations, automatic publishing, analytics) are built, tested and deployed** (production, 2026-11-05). Next: Phase 8 (hardening). Deploy state: see [docs/ROADMAP.md](docs/ROADMAP.md).
+**Status: all 8 phases (core, catalog, search + inline, sources, destinations, automatic publishing, analytics, production hardening) are built, tested and deployed.** Deploy state: [docs/ROADMAP.md](docs/ROADMAP.md) · operations: [docs/OPERATIONS.md](docs/OPERATIONS.md) · review: [docs/REVIEW.md](docs/REVIEW.md).
 
 | Phase 1 feature | Where |
 |---|---|
@@ -66,6 +66,13 @@ owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 | «📈 Daily» (14 days) and «🔥 Most played» (period + all time) | 📊 Statistics |
 | Aggregated only (`stats_daily`): no per-user histories, no search texts; numbers recounted from the tables match direct counts | — |
 
+| Phase 8 feature | Where |
+|---|---|
+| 💾 Backup: one JSON document of the core tables sent to the owner; optional weekly backup; download / restore scripts (verified on the staging bot: every row identical after a full restore) | 🧪 System Status, ⚙️ Settings, `scripts/backup.mjs` |
+| Monitoring: warnings on System Status and owner alerts (≤ 1 per kind per 3 h) for rising errors, failing publications, a stopped schedule, long cooldowns and webhook problems reported by the GitHub job; the job fails visibly when the tick fails | 🧪 System Status, owner's chat |
+| Flood guard (30 messages / presses per minute per user); quiet handling of users who blocked the bot; inline answers survive a broken file | — |
+| Staging bot `@Wangermusic_bot` with a mirror script, fixtures, load test (inline p95 166 ms with 5000 tracks), query-plan review in CI | `scripts/staging.mjs`, `scripts/loadtest.mjs`, `npm run query-review` |
+
 ## Run it
 
 Everything runs from this folder. The repository root and its other folders are other bots.
@@ -73,11 +80,13 @@ Everything runs from this folder. The repository root and its other folders are 
 ```bash
 cd wanger-music
 npm ci
-npm test                         # 170 tests: unit + end-to-end (local SDK emulation, fake Telegram)
+npm test                         # 186 tests: unit + end-to-end (local SDK emulation, fake Telegram)
+npm run query-review             # query plans of every statement the tests run (no unexpected full scans)
 export Music_BOT_TGCLOUD_TOKEN=app9280424458:…   # CLI access token (BotFather → bot → Serverless → CLI Access)
 npm run tg -- status             # the CLI, for this bot only
 npm run deploy                   # tests → stamp version → migrate --local --safe → push → migrate --safe → webhook
 npm run smoke                    # read-only production check (System Status data + dashboard vs direct counts)
+node scripts/backup.mjs export   # a backup now (sent to the owner); fetch / restore: docs/OPERATIONS.md
 ```
 
 `npm run deploy` applies only **safe** (additive) migration steps; anything marked warning/manual
@@ -110,7 +119,9 @@ Docs: [ARCHITECTURE](docs/ARCHITECTURE.md) · [CONFIG](docs/CONFIG.md) ·
 
 ## راه‌اندازی سریع (فارسی)
 
-**وضعیت: فاز ۱ تا ۷ ساخته، تست و روی سرور اصلی دیپلوی شده‌اند.** فاز بعد: ۸ (مقاوم‌سازی).
+**وضعیت: هر ۸ فاز ساخته، تست و روی سرور اصلی دیپلوی شده‌اند.** راهنمای نگهداری (دیپلوی، بکاپ، بازگردانی، رفع مشکل): [docs/OPERATIONS.md](docs/OPERATIONS.md).
+
+بکاپ (فاز ۸): /admin ← 🧪 وضعیت سیستم ← «💾 بکاپ بگیر» — فایل JSON برای خودتان فرستاده می‌شود؛ بکاپ هفتگی را در ⚙️ تنظیمات روشن کنید.
 
 جستجو (فاز ۳): اسم آهنگ را در چت ربات بفرستید، یا در هر چتی بنویسید <code>@Wange_Musicbot اسم آهنگ</code>. برای شمارش استفاده از اینلاین، در BotFather دستور <code>/setinlinefeedback</code> را روی ۱۰۰٪ بگذارید.
 

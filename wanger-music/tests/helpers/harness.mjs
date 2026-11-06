@@ -85,7 +85,7 @@ export function setup({ seedChannels = true, botAdminIn = SEED } = {}) {
       const upd = { chat, from: person(from), date: 0, old_chat_member: { status: oldStatus, user: { id: 9280424458 } }, new_chat_member: { status: newStatus, user: { id: 9280424458 } } };
       return myChatMemberHandler(upd, { update: { update_id: updateId++, my_chat_member: upd } });
     },
-    opsTick: (userId) => opsTick({}, { initData: { user: { id: userId } } }),
+    opsTick: (userId, input = {}) => opsTick(input, { initData: { user: { id: userId } } }),
     /** An inline query; returns the answerInlineQuery params the bot sent (or null). */
     async inline(fromId, query, offset = '') {
       const q = { id: `iq${updateId}`, from: person(fromId), query, offset, chat_type: 'sender' };

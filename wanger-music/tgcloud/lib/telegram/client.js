@@ -1,7 +1,7 @@
 // The one path for outbound Bot API calls (spec 10.8). Adds HTML defaults, records a trace of
 // every call (handlers return it, so `tgcloud run` shows what the bot did), treats "message is not
 // modified" as success, and reports 403 "blocked by the user" through the onBlocked hook.
-import { api as sdkApi } from 'sdk';
+import { api as sdkApi, InputFile } from 'sdk';
 import { classify } from './errors.js';
 import { BOT_ID } from '../config/static.js';
 
@@ -83,6 +83,16 @@ export function createTelegramClient({ log, onBlocked, api = sdkApi }) {
     getChat: (chatId) => call('getChat', { chat_id: chatId }),
     getChatMember: (chatId, userId) => call('getChatMember', { chat_id: chatId, user_id: userId }),
     getMe: () => call('getMe', {}),
+    /**
+     * Uploads bytes as a document (≤ 50 MB).
+     * @param {number} chatId @param {Uint8Array} bytes @param {string} filename
+     * @param {{type?: string, caption?: string}} [opts] @param {string} [viewName]
+     */
+    sendDocument: (chatId, bytes, filename, { type = 'application/octet-stream', caption = '' } = {}, viewName = 'document') => call('sendDocument', {
+      chat_id: chatId, document: new InputFile(bytes, filename, { type }), ...(caption ? { caption, parse_mode: 'HTML' } : {}),
+    }, viewName),
+    /** Downloads a file the bot can see (≤ 20 MB, Bot API getFile cap). @returns {Promise<Uint8Array>} */
+    fileContent: (fileId) => call('getFileContent', { file_id: fileId }, 'file'),
     getWebhookInfo: () => call('getWebhookInfo', {}),
     setMyCommands: (params) => call('setMyCommands', params),
     deleteMyCommands: (params) => call('deleteMyCommands', params),

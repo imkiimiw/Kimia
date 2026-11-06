@@ -8,9 +8,30 @@ import { createLogger } from './logger.js';
 import { LIMITS } from '../config/static.js';
 import { t } from '../i18n/index.js';
 import { truncate } from './util.js';
+import { classify } from '../telegram/errors.js';
+
+/**
+ * A reply to the update's own sender that failed because that person can't be reached (blocked the
+ * bot, deleted the chat / account) or because Telegram throttled that one chat (429). Nothing is
+ * wrong with the bot: warn, mark them unreachable, no error row and no owner alert.
+ * @param {any} app @param {number|null} userId @param {any} err
+ */
+export function senderUnreachable(app, userId, err) {
+  if (!app || !userId || userId <= 0) return null;
+  const kind = classify(err).kind;
+  if (!['blocked', 'chat_gone', 'rate_limit'].includes(kind)) return null;
+  const last = [...app.tg.trace].reverse().find((c) => !c.ok);
+  return last && Number(last.chat_id) === userId ? kind : null;
+}
 
 /** Logs, stores and (throttled) alerts an error. Never throws. */
 async function report(app, handler, updateId, userId, err) {
+  const quiet = senderUnreachable(app, userId, err);
+  if (quiet) {
+    app.log.warn('sender_unreachable', { handler, user_id: userId, error_code: quiet });
+    if (quiet !== 'rate_limit') await app.users.markBlocked(userId, true).catch(() => null);
+    return;
+  }
   const log = app ? app.log : createLogger({ update_id: updateId, handler });
   log.error('handler_failed', { handler, user_id: userId, error_code: String((err && (err.code || err.name)) || 'Error'), error: String((err && (err.description || err.message)) || err) });
   if (!app) return;

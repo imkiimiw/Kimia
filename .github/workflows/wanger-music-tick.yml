@@ -6,6 +6,8 @@ name: Wanger Music tick
 # from Phase 6, scheduled posts and retries) also run on normal traffic and on the owner's buttons;
 # this only guarantees progress when the bot is quiet. Public repository → Actions minutes are free.
 # Does nothing until the repository secret WANGER_MUSIC_TGCLOUD_TOKEN (the CLI access token) exists.
+# Phase 8: it also passes `tgcloud webhook` to the tick (webhook monitoring) and fails when the tick
+# fails, so a broken bot shows up as a failed workflow (GitHub e-mails the repository owner).
 
 on:
   schedule:
@@ -55,7 +57,12 @@ jobs:
           mkdir .tgcloud
           npx tgcloud pull --force
       - if: steps.gate.outputs.run == 'true'
-        name: Run the tick
+        name: Run the tick (with the webhook state the CLI sees)
         working-directory: wanger-music
         run: |
-          npx tgcloud run endpoints/opsTick '{}' --ctx '{ initData: { user: { id: 5557901897 } } }'
+          # Phase 8 monitoring: the bot can't read its own webhook here, the CLI can; the tick warns
+          # the owner about an out-of-sync webhook, a long queue or a recent webhook error.
+          ARGS=$(npx tgcloud --no-pager webhook 2>&1 | node scripts/webhook-state.mjs)
+          npx tgcloud run endpoints/opsTick "$ARGS" --ctx '{ initData: { user: { id: 5557901897 } } }' | tee tick.log
+          # a failed tick fails this run, so GitHub notifies the repository owner even if the bot can't
+          grep -q '{ok:true' tick.log

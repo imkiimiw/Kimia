@@ -6,3 +6,6 @@ declare var console: {
   warn(...args: any[]): void;
   error(...args: any[]): void;
 };
+// Measured available (PLATFORM_NOTES "Globals"): used by backups to turn JSON into upload bytes.
+declare class TextEncoder { encode(s?: string): Uint8Array; }
+declare class TextDecoder { constructor(label?: string); decode(b?: Uint8Array): string; }

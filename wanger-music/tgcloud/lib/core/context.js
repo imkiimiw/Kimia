@@ -33,6 +33,8 @@ import { createCatalogProvider } from '../music/providers/catalog.js';
 import { key } from '../music/normalize.js';
 import { createStatsRepo } from '../repositories/stats.js';
 import { createStatsService } from '../stats/service.js';
+import { createBackupRepo, BACKUP_TABLES } from '../repositories/backup.js';
+import { createBackupService } from '../backup/service.js';
 
 /** Bumped when bootstrap() learns something new to set up. */
 const BOOTSTRAP_VERSION = 2;
@@ -58,6 +60,7 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
     destinations: createDestinationsRepo(),
     publications: createPublicationsRepo(),
     stats: createStatsRepo(),
+    backup: createBackupRepo(),
   };
   /** @type {any} */
   const app = { kind, updateId, clock, log, repos, lang: 'fa', user: null };
@@ -90,6 +93,7 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
   app.destinations = createDestinationsService({ repo: repos.destinations, tg: app.tg, settings: app.settings, alerts: app.alerts, audit: app.audit, clock, log, onRemoved: (id) => app.publisher.cancelForChannel(id) });
   app.publisher = createPublisher({ repo: repos.publications, channels: repos.destinations, tg: app.tg, users: app.users, settings: app.settings, alerts: app.alerts, audit: app.audit, clock, log });
   app.worker = createWorker({ pubs: repos.publications, channels: repos.destinations, catalog: app.catalog, sources: { get: (id) => repos.sources.get(id) }, settings: app.settings, tg: app.tg, alerts: app.alerts, clock, log });
+  app.backup = createBackupService({ repo: repos.backup, tables: BACKUP_TABLES, settings: app.settings, tg: app.tg, audit: app.audit, search: app.search, clock, log });
   app.sources = createSourcesService({ repo: repos.sources, tg: app.tg, ingest: app.ingest, catalog: app.catalog, alerts: app.alerts, audit: app.audit, clock, log, stats: app.stats });
   await app.settings.load();
   await bootstrap(app);

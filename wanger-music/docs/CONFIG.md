@@ -41,7 +41,11 @@ token. If a later provider needs an API key, it goes in the git-ignored
 | `LIMITS.captionTemplateMax` | 1000 | Caption template length (the rendered caption is cut to 1024) |
 | `SUGGESTED_DESTINATIONS` | @WangerBeat → en, @WangerFlow → fa | One-tap "add" buttons in 📢 Destination Channels |
 | `COMMANDS_VERSION` | 2 | Bump when command menus change; the owner's next update re-syncs them |
-| `CURRENT_PHASE` | 7 | Sections of later phases show an honest placeholder |
+| `CURRENT_PHASE` | 8 | Sections of later phases show an honest placeholder |
+| `LIMITS.floodWindowSeconds` / `floodMax` | 60 / 30 | Flood guard: more messages/presses per user per minute are ignored (staff exempt) |
+| `LIMITS.monitorErrorsPerHour` / `monitorPubFailuresPerDay` | 10 / 3 | Monitoring thresholds (owner alert, ≤ 1 per kind per `alertMonitorEverySeconds` = 3 h) |
+| `LIMITS.monitorTickStaleSeconds` / `monitorWebhookPending` / `monitorCooldownSeconds` | 7200 / 100 / 600 | Scheduled tick not seen, webhook queue, Telegram cooldown |
+| `LIMITS.maintenanceDeleteCap` | 5000 | Rows per prune statement (platform cap: 10 000 rows per statement) |
 
 ## Settings (`settings` table, ⚙️ Settings)
 
@@ -64,11 +68,14 @@ token. If a later provider needs an API key, it goes in the git-ignored
 | `time_zone` | `Asia/Tehran` | Asia/Tehran, UTC, Europe/Istanbul, Asia/Dubai, Europe/Berlin, Europe/London, America/New_York | Dates in the panel; schedules later |
 | `archive.chat_id` | empty | a channel where the bot can post | Every activated track is copied there (`#t<id>` caption) |
 | `import.bulk_summary` | `true` | on/off | A run of forwarded audios gets one summary message instead of a card each |
+| `backup.weekly` | `false` | on/off | A backup document is sent to the owner once a week from the tick (Phase 8) |
 
 Internal state keys (not editable): `system.bootstrapped`, `forcejoin.seeded`, `forcejoin.version`,
 `tick.last_at`, `tick.last`, `telegram.cooldown_until`, `commands.version`, `catalog.version`,
 `archive.rate`, `search.reindex_cursor`, `stats.aggregated_at` (last aggregation; the tick
-aggregates at most every 15 min), `stats.pruned_date` (retention runs once per local day).
+aggregates at most every 15 min), `stats.pruned_date` (retention runs once per local day),
+`backup.last` (last export: time, size, rows, file_id), `monitor.webhook` (the GitHub job's webhook
+report), `monitor.scheduled_at` (last scheduled tick).
 
 Analytics (Phase 7) has no editable settings. Fixed in `stats/service.js`: aggregation every 15 min,
 keep 400 days (per-track plays 90 days), periods today / 7 / 30 days. Days follow `time_zone`
@@ -80,7 +87,8 @@ keep 400 days (per-track plays 90 days), periods today / 7 / 30 days. Days follo
 |---|---|---|
 | `Music_BOT_TGCLOUD_TOKEN` | Environment of whoever runs the CLI | The **CLI access token** (`app<id>:<secret>`, BotFather → bot → Serverless → CLI Access). `scripts/tg.mjs` passes it to the CLI as `TGCLOUD_TOKEN`. |
 | `WANGER_MUSIC_TGCLOUD_TOKEN` | GitHub → repository secrets | The same CLI token, for `.github/workflows/wanger-music-tick.yml` |
-| `WANGER_STAGING_TGCLOUD_TOKEN` | Environment (optional) | A staging bot's CLI token, for `npm run smoke -- --staging` |
+| `WANGER_STAGING_TGCLOUD_TOKEN` (or `WANGER_STAGING_TOKEN_FILE`) | Environment | The staging bot's CLI token (`@Wangermusic_bot`), for `scripts/staging.mjs`, `smoke --staging`, `loadtest`, `backup --staging` |
+| `WANGER_STAGING_BOT_USERNAME` | Environment | `Wangermusic_bot` (patched into the staging mirror) |
 
 ## Channels (in the database, not in code)
 

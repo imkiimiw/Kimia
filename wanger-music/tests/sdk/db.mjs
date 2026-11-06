@@ -2,6 +2,7 @@
 // tables the way `tgcloud migrate` would) and raw db.run / db.all / db.get / db.values.
 // It mimics what the platform refused when measured (docs/PLATFORM_NOTES.md): transactions,
 // TEMP/virtual tables, PRAGMA, multi-statement strings and sqlite_version() throw here too.
+import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
 class Sql {
@@ -146,6 +147,9 @@ export function setupDatabase(schema) {
 }
 export const rawDatabase = () => database;
 
+export const MAX_PARAMS = 4096;
+/** measured on the platform (2026-11-06): a statement writing more rows fails, nothing is written */
+export const MAX_ROWS_WRITTEN = 10000;
 const REFUSED = /^\s*(BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE|PRAGMA|ATTACH|DETACH|VACUUM)\b|^\s*CREATE\s+(TEMP|TEMPORARY|VIRTUAL)\b/i;
 
 function prepare(query, params) {
@@ -165,9 +169,35 @@ function prepare(query, params) {
     if (v !== null && typeof v === 'object') throw new Error(`object SQL parameter ${k} in: ${text.replace(/\s+/g, ' ').slice(0, 200)}`);
     clean[k] = v;
   }
+  // measured on the platform (2026-11-06): more than 4096 bound parameters in one statement → "Run error"
+  if (Object.keys(clean).length > MAX_PARAMS) throw new Error('Run error');
   stats.queries += 1;
   stats.log.push(text.replace(/\s+/g, ' ').trim().slice(0, 120));
+  if (PLAN_DIR) recordPlan(text, clean);
   return { stmt: database.prepare(text), params: clean, text };
+}
+
+// ---- query-plan recording (scripts/query-review.mjs sets WANGER_QUERY_PLAN_DIR) ----
+// Every statement the tests run is explained once; full scans and temp sorts are written to a file
+// per test process, which the review script compares with its allowlist.
+const PLAN_DIR = process.env.WANGER_QUERY_PLAN_DIR || '';
+/** @type {Map<string, {query: string, plan: string[]}>} */
+const plans = new Map();
+function recordPlan(text, params) {
+  const query = text.replace(/\s+/g, ' ').trim();
+  if (plans.has(query) || /^\s*(CREATE|DROP|ALTER|EXPLAIN)\b/i.test(query)) return;
+  try {
+    const rows = database.prepare(`EXPLAIN QUERY PLAN ${text}`).all(params);
+    plans.set(query, { query, plan: rows.map((r) => String(r.detail)) });
+  } catch (e) {
+    plans.set(query, { query, plan: [`(explain failed: ${String(e.message).slice(0, 80)})`] });
+  }
+}
+if (PLAN_DIR) {
+  process.on('exit', () => {
+    fs.mkdirSync(PLAN_DIR, { recursive: true });
+    fs.writeFileSync(`${PLAN_DIR}/${process.pid}.json`, JSON.stringify([...plans.values()]));
+  });
 }
 
 function reader(text) {
@@ -180,14 +210,30 @@ const plain = (r) => {
   return o;
 };
 
+/** Runs a write inside a savepoint and undoes it when it wrote more rows than the platform allows. */
+function limited(fn) {
+  database.exec('SAVEPOINT stmt');
+  try {
+    const out = fn();
+    const n = Number(database.prepare('SELECT changes() AS n').get().n);
+    if (n > MAX_ROWS_WRITTEN) throw new Error('Sqlite query rows_written limit exceeded');
+    database.exec('RELEASE stmt');
+    return out;
+  } catch (e) {
+    database.exec('ROLLBACK TO stmt');
+    database.exec('RELEASE stmt');
+    throw e;
+  }
+}
+
 export const db = {
   async run(query, params) {
     const { stmt, params: p, text } = prepare(query, params);
     if (/\bRETURNING\b/i.test(text)) {
-      const rows = stmt.all(p).map(plain);
+      const rows = limited(() => stmt.all(p).map(plain));
       return { rowsAffected: rows.length, lastInsertRowid: 0, rows };
     }
-    const r = stmt.run(p);
+    const r = limited(() => stmt.run(p));
     return { rowsAffected: Number(r.changes), lastInsertRowid: Number(r.lastInsertRowid), rows: [] };
   },
   async all(query, params) {
