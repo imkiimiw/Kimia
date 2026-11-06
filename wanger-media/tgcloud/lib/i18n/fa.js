@@ -58,7 +58,7 @@ export default {
   'download.none': '⬇️ <b>دانلود</b>\n\nدانلود فعلاً خاموش است. لطفاً بعداً دوباره امتحان کنید.',
   'platforms.none': '— فعلاً هیچ\u200cکدام —',
   'platform.x': '• X (توییتر): عکس، ویدیو، گیف',
-  'platform.pinterest': '• Pinterest: عکس',
+  'platform.pinterest': '• Pinterest: عکس و ویدیو',
   'platform.snapchat': '• Snapchat: ویدیوهای عمومی Spotlight',
   'dl.processing': '⏳ در حال پردازش لینک…',
   'dl.done': '✅ انجام شد.',

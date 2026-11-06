@@ -74,3 +74,26 @@ One line each: the choice — the reason. Newest phase last.
 - Arrows are avoided on the history pager (🔼 Newer / 🔽 Older) — left/right arrows read backwards in right-to-left Persian.
 - About states what is stored about the user (id, name, username, language, settings, activity dates, download history) — honest privacy note; matches the schema.
 - Phase 2 platform check without database writes: fake ids in group-chat payloads (ignored → every module loads) plus a temporary read-only module that builds each screen from the real database — a fake user can't pass the real forced-join gate, so a fake private run would only add rows to clean up.
+
+## Phase 3 (2026-11-06)
+
+- The owner's "free third-party services" permission is a fourth method, `thirdparty` (FxTwitter for X), OFF by default with its own risk note — it is neither the platform's public data nor the owner's own `external` service.
+- X tries `public` first, then `thirdparty` only when public fails temporarily (5xx, network) — a "not found" from X is the answer, asking a third party again wouldn't change it.
+- Private chats handle the first link of a message only; groups (Phase 5) take up to 3 — one status message per request, and an invocation has ≈ 30 s wall time.
+- The status message is deleted on success (the media is the result) and replaced by the reason on failure — brief §8: one status message per request.
+- Quota and cooldown are claimed atomically before any fetch; a failed request gives the quota back but keeps the cooldown — failing links can't be hammered, and users aren't charged for platform errors.
+- Defaults: 30 downloads per user per Tehran day, 15 s cooldown, 50 MB max; staff and the owner are exempt — the owner can change them in Phase 4 (settings key `limits`).
+- Variant choice: auto = best that Telegram fetches by URL (≤ 20 MB, fast), else best uploadable; best = best uploadable; small = smallest; the owner's max applies to both paths (a test caught it missing on the URL path).
+- When the original is over the limit a smaller ready-made variant is sent with a note instead of asking — "offer a smaller variant" without an extra round trip; no transcoding.
+- Bytes above one fetch's 30 MB are downloaded in 25 MB Range chunks up to Telegram's 50 MB upload limit (as `x_downloader_bot` does); without Range support such a file is refused — the brief's 30 MB cap was set before this was measured.
+- A variant of unknown size goes by URL only (Telegram enforces its own limit) and is never downloaded by the bot — brief: check the size before downloading bytes.
+- Uploads aren't started after 15 s of an invocation — the wall limit is ≈ 30 s and an interrupted upload helps nobody.
+- Every redirect hop is checked against the platform's allowlist, also for size probes; a media URL that redirects off the allowlist is dropped entirely — Telegram would follow that redirect when fetching by URL.
+- HEAD is used only for CDNs measured safe (X, Pinterest); everything else is probed with a one-byte Range GET — a HEAD to Snapchat's CDN crashes the invocation (measured).
+- Pinterest video pins send their MP4 from the widget JSON's `video_list` (never the HLS playlist); Idea Pins send their cover with a note — measured in Phase 3, correcting Phase 0.
+- X posts flagged `possibly_sensitive` and X tombstones are refused as age-restricted — brief §6 forbids age-gated content.
+- Blocklist values: `url` = platform:id (catches every link form of a post), `account` = platform:name, `domain` = a host or any parent — checked before fetching and again with the author after resolving.
+- The file_id cache is keyed (platform:id, quality); a refused file_id drops the cache row and the media is fetched again; partial deliveries are never cached.
+- Captions: post text (decoded, t.co links removed, clipped), author, platform + source link on its own line, notes, then `@Wanger_mediabot`; ≤ 1024 characters.
+- The minimal owner panel is `/admin` with platforms only (owner id check on every command and button) — brief §11.3; roles come with the full panel in Phase 4.
+- Real responses recorded from Serverless are the test fixtures (`test/fixtures/`), captured hex-encoded through `tgcloud run` — tests never call real platforms and the parsers are checked against what the platforms really send.

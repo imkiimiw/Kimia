@@ -10,7 +10,9 @@ const PHOTO_POST = 'https://x.com/SpaceX/status/2112592291147747809';
 const GIF_POST = 'https://x.com/GIPHY/status/2090559778699489429';
 const TEXT_POST = 'https://x.com/jack/status/20';
 const MISSING_POST = 'https://x.com/i/status/1999999999999999999';
-const PIN = 'https://www.pinterest.com/pin/424605071146271645/';
+const PIN = 'https://www.pinterest.com/pin/424605071146269969/'; // an image pin
+const VIDEO_PIN = 'https://www.pinterest.com/pin/424605071146271645/';
+const IDEA_PIN = 'https://www.pinterest.com/pin/424605071146264256/';
 const SPOT_ID = 'W7_EDlXWTBiXAEEniNoMPwAAYYm1kc21qZXdyAaGq_FkdAaGq_Af0AAAAAA';
 const SPOT = `https://www.snapchat.com/spotlight/${SPOT_ID}`;
 
@@ -35,8 +37,11 @@ const routes = () => ({
   'https://api.fxtwitter.com/SpaceX/status/2115476295169814978': { json: fixture('fx_video.json') },
   'https://video.twimg.com/*': ({ url }) => ({ size: xVideoSize(url), type: 'video/mp4' }),
   'https://pbs.twimg.com/*': { size: 300000, type: 'image/jpeg' },
-  'https://widgets.pinterest.com/v3/pidgets/pins/info/?pin_ids=424605071146271645': { json: fixture('pin_info.json') },
+  'https://widgets.pinterest.com/v3/pidgets/pins/info/?pin_ids=424605071146269969': { json: fixture('pin_image.json') },
+  'https://widgets.pinterest.com/v3/pidgets/pins/info/?pin_ids=424605071146271645': { json: fixture('pin_video.json') },
+  'https://widgets.pinterest.com/v3/pidgets/pins/info/?pin_ids=424605071146264256': { json: fixture('pin_story.json') },
   'https://i.pinimg.com/*': { size: 37141, type: 'image/jpeg' },
+  'https://v1.pinimg.com/*': { size: 929567, type: 'video/mp4' },
   'https://pin.it/4X1y2Zq': { redirect: 'https://api.pinterest.com/url_shortener/4X1y2Zq/redirect/' },
   'https://api.pinterest.com/url_shortener/4X1y2Zq/redirect/': { redirect: 'https://www.pinterest.com/pin/424605071146271645/sent/?invite_code=abc' },
   [SPOT]: { html: fixture('snap_spotlight.html') },
@@ -267,7 +272,17 @@ describe('Pinterest and Snapchat', () => {
     const p = sent('sendPhoto')[0].params;
     expect(p.photo).toMatch(/^https:\/\/i\.pinimg\.com\/originals\//);
     expect(p.caption).toContain('👤 @pinterest');
-    expect(p.caption).toContain('🔗 Pinterest:\nhttps://www.pinterest.com/pin/424605071146271645/');
+    expect(p.caption).toContain('🔗 Pinterest:\nhttps://www.pinterest.com/pin/424605071146269969/');
+    expect(p.caption).not.toContain('ℹ️');
+  });
+
+  it('a video pin → its MP4 by URL; an Idea Pin → its cover image with a note', async () => {
+    enable('pinterest', ['public']);
+    expect((await h.send(ALICE, VIDEO_PIN)).download.status).toBe('ok');
+    expect(sent('sendVideo')[0].params.video).toMatch(/^https:\/\/v1\.pinimg\.com\/.+\.mp4$/);
+    later();
+    expect((await h.send(ALICE, IDEA_PIN)).download.status).toBe('ok');
+    expect(sent('sendPhoto')[0].params.caption).toContain('Only the pin’s image is available publicly');
   });
 
   it('a pin.it short link is expanded hop by hop without loading the pin page', async () => {
@@ -288,6 +303,14 @@ describe('Pinterest and Snapchat', () => {
     expect(calls).toHaveLength(2); // the refused URL attempt, then the upload
     expect(calls[0].params.photo).toMatch(/^https:\/\/i\.pinimg\.com\//);
     expect(calls[1].params.photo).toMatchObject({ __file: expect.stringMatching(/\.jpg$/), size: 37141 });
+  });
+
+  it('Snapchat sizes are probed with Range only — never HEAD (it crashes the platform)', async () => {
+    enable('snapchat', ['public']);
+    await h.send(ALICE, SPOT);
+    const cdn = web.requests('sc-cdn.net');
+    expect(cdn.length).toBeGreaterThan(0);
+    expect(cdn.every((l) => l.method === 'GET' && l.range === 'bytes=0-0')).toBe(true);
   });
 
   it('a Spotlight link → the video by URL, crediting the creator', async () => {
@@ -353,7 +376,7 @@ describe('owner panel', () => {
 
   it('the health check runs against the platform and reports the result', async () => {
     await h.press(OWNER, 'T:pinterest', { messageId: 71 });
-    expect(ownerScreen().text).toContain('🩺 Pinterest: working (1 image(s))');
+    expect(ownerScreen().text).toContain('🩺 Pinterest: working (video, 1 variant(s))');
     web.routes['https://widgets.pinterest.com/v3/pidgets/pins/info/?pin_ids=424605071146271645'] = { status: 500, body: 'x' };
     await h.press(OWNER, 'T:pinterest', { messageId: 72 });
     expect(ownerScreen().text).toContain('🩺 Pinterest: not working (unavailable)');
@@ -383,6 +406,6 @@ describe('history', () => {
     const text = h.lastScreen(ALICE.id).text;
     expect(text).toContain('✅');
     expect(text).toContain('Pinterest');
-    expect(text).toContain('https://www.pinterest.com/pin/424605071146271645/');
+    expect(text).toContain('https://www.pinterest.com/pin/424605071146269969/');
   });
 });

@@ -70,14 +70,14 @@ async function finishStatus(ctx, chatId, status, lang, result) {
  * URL is off the allowlist or redirects off it — Telegram would follow such a redirect when fetching
  * by URL, so they are never sent, by URL or otherwise.
  */
-async function probeAll(ctx, post, allow) {
+async function probeAll(ctx, post, allow, head) {
   let budget = MAX_PROBES;
   const jobs = [];
   for (const item of post.items) {
     item.variants = item.variants.filter((v) => isAllowedFetch(v.url, allow));
     for (const v of item.variants) {
       if (budget-- <= 0) break;
-      jobs.push(probe(ctx, v.url, allow)
+      jobs.push(probe(ctx, v.url, allow, { head })
         .then((p) => { v.bytes = p.bytes; v.ranges = p.ranges; if (p.type) v.mime = p.type.split(';')[0]; })
         .catch((err) => { if (err instanceof HttpError && err.kind === 'blocked_host') v.rejected = true; }));
     }
@@ -198,7 +198,7 @@ async function run(ctx, user, msg, link, day, onClaim) {
   if (post.sensitive) return denyOrFail('sensitive', base);
   if (post.account && (await downloadsDb.blockedBy({ account: post.account }))) return denyOrFail('blocked', base);
 
-  await probeAll(ctx, post, adapter.mediaHosts);
+  await probeAll(ctx, post, adapter.mediaHosts, adapter.headSafe === true);
   const maxBytes = limits.max_mb * 1048576;
   const choices = [];
   let firstError = null;

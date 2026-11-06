@@ -87,6 +87,7 @@ export default {
   id: 'snapchat',
   name: 'Snapchat',
   mediaHosts: MEDIA_HOSTS,
+  headSafe: false, // a HEAD to cf-st.sc-cdn.net crashes the invocation (HTTP 500, measured): Range only
   methodOrder: ['public'],
   identify,
   capabilities: () => ({

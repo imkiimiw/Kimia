@@ -57,7 +57,7 @@ export default {
   'download.none': '⬇️ <b>Download</b>\n\nDownloading is switched off at the moment. Please try again later.',
   'platforms.none': '— none right now —',
   'platform.x': '• X (Twitter): photos, videos, GIFs',
-  'platform.pinterest': '• Pinterest: images',
+  'platform.pinterest': '• Pinterest: images and videos',
   'platform.snapchat': '• Snapchat: public Spotlight videos',
   'dl.processing': '⏳ Processing your link…',
   'dl.done': '✅ Done.',

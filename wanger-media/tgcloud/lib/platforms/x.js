@@ -14,7 +14,7 @@
 //     media: { all: [{ type: 'photo'|'video'|'gif', url, width, height, duration, variants: [{ url, bitrate, content_type }] }] } } }
 //     missing → 404 { code: 404, message: 'NOT_FOUND' }; private → { code: 401 }
 import { hostMatches, segments } from '../url.js';
-import { asResolveError, getJson, HttpError, ResolveError } from './common.js';
+import { asResolveError, decodeEntities, getJson, HttpError, ResolveError } from './common.js';
 
 const LINK_HOSTS = [
   'x.com', 'www.x.com', 'mobile.x.com', 'twitter.com', 'www.twitter.com', 'mobile.twitter.com', 'm.twitter.com',
@@ -103,7 +103,7 @@ export function fromSyndication(j, ref) {
   if (!items.length) throw new ResolveError('no_media');
   const user = j.user || {};
   return post(ref, 'public', {
-    title: j.text || '', author: user.screen_name ? '@' + user.screen_name : null,
+    title: decodeEntities(j.text || ''), author: user.screen_name ? '@' + user.screen_name : null,
     account: user.screen_name ? 'x:' + String(user.screen_name).toLowerCase() : ref.account,
     sensitive: !!j.possibly_sensitive, items,
   });
@@ -158,6 +158,7 @@ export default {
   id: 'x',
   name: 'X (Twitter)',
   mediaHosts: MEDIA_HOSTS,
+  headSafe: true, // HEAD on pbs/video.twimg.com measured fine from Serverless
   methodOrder: ['public', 'thirdparty'],
   identify,
   capabilities: () => ({

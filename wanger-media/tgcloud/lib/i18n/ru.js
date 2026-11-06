@@ -57,7 +57,7 @@ export default {
   'download.none': '⬇️ <b>Скачать</b>\n\nСкачивание сейчас выключено. Попробуйте позже.',
   'platforms.none': '— пока ни одной —',
   'platform.x': '• X (Twitter): фото, видео, GIF',
-  'platform.pinterest': '• Pinterest: изображения',
+  'platform.pinterest': '• Pinterest: изображения и видео',
   'platform.snapchat': '• Snapchat: публичные видео Spotlight',
   'dl.processing': '⏳ Обрабатываю ссылку…',
   'dl.done': '✅ Готово.',

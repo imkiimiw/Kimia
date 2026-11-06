@@ -8,7 +8,7 @@ const source = (f) => readFileSync(new URL(f, root), 'utf8');
 const importsOf = (src) => [...src.matchAll(/^\s*(?:import|export)\s[^'"]*?from\s+['"]([^'"]+)['"]/gm)].map((m) => m[1]);
 
 /** Modules that must stay pure (no platform SDK), so their logic is testable and reusable. */
-const PURE = ['lib/config.js', 'lib/util.js', 'lib/roles.js', 'lib/codec.js', 'lib/ui.js', 'lib/i18n/index.js', 'lib/i18n/fa.js', 'lib/i18n/en.js', 'lib/i18n/ru.js'];
+const PURE = ['lib/config.js', 'lib/util.js', 'lib/roles.js', 'lib/codec.js', 'lib/ui.js', 'lib/url.js', 'lib/policy.js', 'lib/i18n/index.js', 'lib/i18n/fa.js', 'lib/i18n/en.js', 'lib/i18n/ru.js'];
 
 describe('module rules', () => {
   it('stays within the module budget (≤ 90; a 104-module deploy was refused)', () => {

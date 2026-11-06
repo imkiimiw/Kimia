@@ -108,19 +108,31 @@ describe('X responses (recorded from Serverless)', () => {
 });
 
 describe('Pinterest and Snapchat responses (recorded from Serverless)', () => {
-  it('a pin → its original image first, then 564x', () => {
-    const p = fromPinInfo(json('pin_info.json'), id('https://www.pinterest.com/pin/424605071146271645/').ref);
+  it('an image pin → its original image first, then 564x; the pinner from profile_url', () => {
+    const p = fromPinInfo(json('pin_image.json'), id('https://www.pinterest.com/pin/424605071146269969/').ref);
     expect(p.items).toHaveLength(1);
+    expect(p.items[0].type).toBe('photo');
     expect(p.items[0].variants[0].url).toMatch(/^https:\/\/i\.pinimg\.com\/originals\//);
     expect(p.items[0].variants[1].url).toMatch(/\/564x\//);
     expect(p.author).toBe('@pinterest');
+    expect(p.coverOnly).toBe(false);
+    expect(p.title).toContain('it’s perfect'); // &#8217; decoded
+    expect(p.title).not.toMatch(/&#\d+;|&amp;/);
     expect(() => fromPinInfo(json('pin_missing.json'), {})).toThrow(expect.objectContaining({ code: 'not_found' }));
   });
 
-  it('an Idea Pin or video pin is marked cover-only', () => {
-    const j = json('pin_info.json');
-    j.data[0].story_pin_data = { pages: [] };
-    expect(fromPinInfo(j, {}).coverOnly).toBe(true);
+  it('a video pin → its MP4 (never the HLS playlist)', () => {
+    const p = fromPinInfo(json('pin_video.json'), id('https://www.pinterest.com/pin/424605071146271645/').ref);
+    expect(p.items).toHaveLength(1);
+    expect(p.items[0]).toMatchObject({ type: 'video', width: 1280, height: 720, duration: 17 });
+    expect(p.items[0].variants.map((v) => v.url)).toEqual(['https://v1.pinimg.com/videos/iht/expMp4/15/c6/ec/15c6ec2bc79627100c13c3bdc51b1b3a_720w.mp4']);
+    expect(p.coverOnly).toBe(false);
+  });
+
+  it('an Idea Pin has no public video file: its cover image, marked cover-only', () => {
+    const p = fromPinInfo(json('pin_story.json'), id('https://www.pinterest.com/pin/424605071146264256/').ref);
+    expect(p.items[0].type).toBe('photo');
+    expect(p.coverOnly).toBe(true);
   });
 
   it('a Spotlight page → its og:video MP4 and the creator', () => {
@@ -161,7 +173,8 @@ describe('capabilities are truthful', () => {
 
   it('adapters only allow https media hosts of their own platform', () => {
     expect(registry.byId('x').mediaHosts).toEqual(['pbs.twimg.com', 'video.twimg.com']);
-    expect(registry.byId('pinterest').mediaHosts).toEqual(['i.pinimg.com']);
+    expect(registry.byId('pinterest').mediaHosts).toEqual(['i.pinimg.com', 'v1.pinimg.com']);
+    expect(registry.byId('snapchat').headSafe).toBe(false); // HEAD to its CDN crashes the invocation (measured)
     expect(registry.byId('snapchat').mediaHosts).toEqual(['*.sc-cdn.net']);
     expect(parseUrl('https://cf-st.sc-cdn.net/d/x')).not.toBeNull();
   });

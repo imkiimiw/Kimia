@@ -1,8 +1,9 @@
 # Platforms — research for Wanger Media
 
-Checked **2026-11-05** (Phase 0) for `@Wanger_mediabot` (app9080356648, CLI 0.2.0). **Nothing is
-implemented yet**: every "status" below is the status we *expect* once the adapter is built and
-tested. Until then the bot must treat every platform as `UNAVAILABLE`.
+Checked **2026-11-05** (Phase 0), updated **2026-11-06** (Phase 3) for `@Wanger_mediabot`
+(app9080356648, CLI 0.2.0). **Built so far (Phase 3): X/Twitter, Pinterest, Snapchat** — see §7 for
+what was measured with the real adapters. Every other platform is UNAVAILABLE until its adapter is
+built (Phase 7); the statuses given for them below are what we *expect*.
 
 Legend: **Official** = in the platform's own docs · **Measured** = observed today from Telegram
 Serverless with a temporary `tgcloud run` probe (read-only, never deployed, deleted afterwards;
@@ -43,9 +44,9 @@ sources or not testable yet. Measurements can change without notice: platforms c
 
 | Platform | Official API (for others' public posts) | `public` on Serverless (measured) | Expected status | ToS risk of `public` |
 |---|---|---|---|---|
-| **X / Twitter** | Paid pay-per-use (no free tier for new devs) | ✅ media (photos, complete MP4 videos/GIFs) | **SUPPORTED** | High |
-| **Pinterest** | Needs app review (Standard access) + OAuth | ✅ images; video ❓ | **LIMITED** (images SUPPORTED) | High |
-| **Snapchat** | Allowlisted partners only | ✅ Spotlight MP4 | **LIMITED** (Spotlight SUPPORTED) | High |
+| **X / Twitter** ✅ built | Paid pay-per-use (no free tier for new devs) | ✅ media (photos, complete MP4 videos/GIFs); FxTwitter as free third-party method | **SUPPORTED** | High |
+| **Pinterest** ✅ built | Needs app review (Standard access) + OAuth | ✅ image pins and video pins (MP4); Idea Pins: cover image only | **LIMITED** | High |
+| **Snapchat** ✅ built | Allowlisted partners only | ✅ Spotlight MP4 | **LIMITED** (Spotlight only) | High |
 | Discord | — | ✅ host reachable; links must still be signed | SUPPORTED (direct attachments) | Low |
 | Instagram | Own / business accounts, app review | ⚠️ embed page exposes media | LIMITED | Very high |
 | Facebook | Own pages only | metadata (oEmbed html, og:image) | METADATA_ONLY | High |
@@ -75,7 +76,8 @@ sources or not testable yet. Measurements can change without notice: platforms c
   be age-gated). If X starts rejecting the endpoint → TEMPORARILY_DISABLED, no workaround.
 - **Terms:** X's Terms: "crawling or scraping the Services in any form, for any purpose without our
   prior written consent is expressly prohibited" (since Sept 2023). Copyright: the poster's.
-- **Expected:** `public` SUPPORTED (photo, album ≤ 4, video, GIF); `official` needs paid credentials.
+- **Built (Phase 3):** `public` and `thirdparty` (FxTwitter, allowed by the owner) — SUPPORTED
+  (photo, album ≤ 4, video, GIF); `official` needs paid credentials (not built).
 
 ### Pinterest — proposed for Phase 3
 - **Official:** API v5 — Trial access is sandbox-only; Standard (production) needs a review with a
@@ -84,12 +86,15 @@ sources or not testable yet. Measurements can change without notice: platforms c
 - **Public (Measured):** the JSON behind Pinterest's official embed widget,
   `widgets.pinterest.com/v3/pidgets/pins/info/?pin_ids=<id>` → images (236x, 564x), description,
   pinner, board, `is_video`. `i.pinimg.com/originals/<same path>` → 200 with `Content-Length` and
-  Range. `pinterest.com/oembed.json` → thumbnail; pin pages carry `og:image`. **No video URL** was
-  found in the widget JSON or a sampled pin page (Unverified for video pins). `pin.it` short links:
-  Unverified.
+  Range. `pinterest.com/oembed.json` → thumbnail; pin pages carry `og:image`. **Correction (Phase
+  3):** for a video pin the same pin-info JSON has `videos.video_list` with a complete MP4
+  (`V_720P`, `v1.pinimg.com`) next to an HLS playlist — Phase 0 had only looked at users' pin lists,
+  which lack it. Idea Pins (`story_pin_data`) carry no video file. `pin.it` short links redirect via
+  `api.pinterest.com` to `/pin/<id>/` (tested against a simulated chain; no real short link checked).
 - **Terms:** scraping / automated collection without Pinterest's prior permission is forbidden.
   Pins are often re-posts: the caption credits the source.
-- **Expected:** `public` SUPPORTED for image pins → platform LIMITED until video pins are verified.
+- **Built (Phase 3):** `public` — image pins (original, else 564x) and video pins (MP4); Idea Pins
+  send their cover image with a note → platform LIMITED.
 
 ### Snapchat — proposed for Phase 3
 - **Official:** Public Profile API (metadata/stats) requires an OAuth app plus allowlisting by a Snap
@@ -99,7 +104,8 @@ sources or not testable yet. Measurements can change without notice: platforms c
   (sample 540×960, 1.56 MB, Range 206) and `og:image`, title with the creator. Stories, profiles and
   `t.snapchat.com` short links: Unverified.
 - **Terms:** robots, spiders, crawlers and scrapers are forbidden.
-- **Expected:** `public` SUPPORTED for Spotlight links → platform LIMITED (other link types UNAVAILABLE).
+- **Built (Phase 3):** `public` for Spotlight links (also `snapchat.com/t/…` short links) → platform
+  LIMITED (stories and other link types answer "this kind of link isn't supported").
 
 ### Discord
 - **Public:** only direct attachment links (`cdn.discordapp.com` / `media.discordapp.net`). Since
@@ -226,3 +232,17 @@ LinkedIn: [Posts API](https://learn.microsoft.com/en-us/linkedin/marketing/integ
 Discord: [signed CDN links](https://github.com/useapi/discord-cdn-proxy/blob/main/README.md),
 [BleepingComputer](https://www.bleepingcomputer.com/news/security/discord-will-switch-to-temporary-file-links-to-block-malware-delivery).
 YouTube: [API Services terms](https://developers.google.com/youtube/terms).
+
+## 7. Phase 3 measurements (2026-11-06, real adapters run with `tgcloud run`, no messages sent)
+
+| Check | Result |
+|---|---|
+| sdk `fetch` redirects | `redirect: 'manual'` works (3xx with `Location`); `'error'` throws. The adapters follow redirects themselves and check every hop against the allowlist. |
+| **HEAD to Snapchat's CDN** | A `HEAD` to `cf-st.sc-cdn.net` **kills the whole invocation** with an HTTP 500 from the platform — not an exception the code can catch (seen in Phase 0 and again now). A one-byte Range GET works (206, `bytes 0-0/1558733`). → Snapchat sizes are probed with Range only; HEAD is used only where measured safe (X, Pinterest). |
+| X `public` (syndication) | Video post: 5 + 4 MP4 variants, 136 / 39 / 9.9 / 3 / 1 MB and 18.1 / 5.2 / 1.5 / 0.4 MB → auto picks 9.9 MB and 18.1 MB (by URL). Photos 1.8–2.9 MB originals. GIF and a NASA video fine. 0.4–2.7 s per post. |
+| X `thirdparty` (FxTwitter) | Same variants as syndication (URLs carry `?tag=…`), 0.56 s. |
+| Pinterest | Image pin: the `originals/` URL gave no size for one pin (missing original) → the 564x variant was used. Video pin: 0.9 MB MP4. Idea Pin: cover image. |
+| Snapchat | Spotlight → 1.5 MB MP4 by Range probe; 0.46 s. |
+| Health checks | X, Pinterest, Snapchat: all working. |
+| Transient failures | Range/HEAD to `i.pinimg.com` / `v1.pinimg.com` failed once with `fetch: request failed` after ≈ 5 s, then worked three times in a row (20–1800 ms). The pipeline treats an unknown size as "by URL only". |
+| Text | Pinterest descriptions and X text contain HTML entities (`&#8217;`, `&amp;`): decoded before captions are built. |

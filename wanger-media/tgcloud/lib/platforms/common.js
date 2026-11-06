@@ -92,16 +92,20 @@ export async function getText(ctx, url, opts) {
 }
 
 /**
- * The size of a file in bytes, or null when the server won't say: HEAD first, then a one-byte
- * Range request ("bytes 0-0/<total>"). Also returns the content type and whether Range works.
+ * The size of a file in bytes, or null when the server won't say: HEAD first (only when `head` —
+ * a HEAD to Snapchat's CDN kills the whole invocation with an uncatchable HTTP 500, measured
+ * 2026-11-06), then a one-byte Range request ("bytes 0-0/<total>"). Also returns the content type
+ * and whether Range works.
  */
-export async function probe(ctx, url, allow) {
-  try {
-    const res = await request(ctx, url, { allow, method: 'HEAD' });
-    const len = Number(header(res, 'content-length'));
-    if (res.ok && len > 0) return { bytes: len, type: header(res, 'content-type'), ranges: /bytes/i.test(header(res, 'accept-ranges') || '') };
-  } catch (err) {
-    if (err instanceof HttpError && err.kind === 'blocked_host') throw err;
+export async function probe(ctx, url, allow, { head = false } = {}) {
+  if (head) {
+    try {
+      const res = await request(ctx, url, { allow, method: 'HEAD' });
+      const len = Number(header(res, 'content-length'));
+      if (res.ok && len > 0) return { bytes: len, type: header(res, 'content-type'), ranges: /bytes/i.test(header(res, 'accept-ranges') || '') };
+    } catch (err) {
+      if (err instanceof HttpError && err.kind === 'blocked_host') throw err;
+    }
   }
   try {
     const res = await request(ctx, url, { allow, headers: { Range: 'bytes=0-0' } });

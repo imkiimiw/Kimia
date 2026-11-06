@@ -1,9 +1,43 @@
 # Progress
 
-**Current state: Phase 2 (User dashboard) done and deployed (cloud revision 2, 2026-11-06). Next:
-Phase 3 (Download core: X, Pinterest, Snapchat), only when the owner names it.**
+**Current state: Phase 3 (Download core) built and tested — waiting for the owner's OK to migrate and
+push.** Live: Phases 1–2 (cloud revision 2).
 
-## Phase 2 — User dashboard (2026-11-06) ✅ deployed
+## Phase 3 — Download core (2026-11-06) ✅ code · ⏳ deploy · ⏳ owner's test in Telegram
+
+Done:
+- Registry + 3 adapters behind one interface (`identify`, `capabilities`, `expand`, `resolve`,
+  `healthCheck`, risk notes in fa/en/ru): **X** (`public` = X's embed JSON, `thirdparty` =
+  FxTwitter), **Pinterest** (image and video pins; Idea Pins → cover image), **Snapchat** (Spotlight).
+  The other 11 platforms are recognised and answered "not supported yet".
+- Strict URL parsing (`lib/url.js`), policy engine in the brief's order, deny by default
+  (`lib/policy.js`), quota + cooldown claimed atomically, blocklist (URL / account / domain).
+- Delivery (`lib/delivery.js`): by URL ≤ 20 MB, else download (Range chunks) and upload ≤ 50 MB;
+  albums via sendMediaGroup; upload fallback when Telegram can't fetch a URL; captions with platform
+  and source link; file_id cache with stale-id recovery; history rows and counters per platform.
+- Pipeline (`lib/download.js`): one status message per link, specific localized errors.
+- Owner panel `/admin` (owner only): platforms, methods on/off with the risk note first, pause,
+  health check; audit-logged. Everything starts OFF.
+- Menu: ⬇️ Download (lists what is switched on); Help lists the platforms; About without the
+  "Telegram Serverless" wording (owner's request); version 0.3.0.
+- Schema: `users.dl_day / dl_count / last_dl_at`, table `blocklist` (dry run: 4 additive changes).
+- Tests: **164 passing**, including recorded real responses as fixtures, the whole pipeline end to
+  end, security (allowlists, redirects off the allowlist, malicious URLs), size limits, quota and
+  cooldown, cache, fallbacks, one platform failing without breaking the others, owner-only panel,
+  query plans.
+- Live on Serverless (no messages, no database writes): all three adapters resolved real posts,
+  probed sizes and picked variants; all three health checks pass.
+- Found and fixed along the way: a HEAD to Snapchat's CDN crashes the invocation (now Range only);
+  Pinterest video pins do expose an MP4; the owner's max size wasn't applied to by-URL sends; the
+  Pinterest pinner name lives in `profile_url`; HTML entities in post texts.
+
+Remaining for Phase 3:
+1. Owner's OK → `npm run tg -- migrate --local --safe` (4 additive changes) → `npm run tg -- push`.
+2. The owner switches methods on in `/admin` and sends one public link from each platform — Phase 3
+   is done when the media arrives (brief §11.3).
+
+
+## Phase 2 — User dashboard (2026-11-06) ✅ deployed (revision 2)
 
 Done:
 - Flow: language (first run) → forced join → **disclaimer** (first use, versioned; owner exempt) →
@@ -85,11 +119,13 @@ Folder and CLI wrapper set up; Serverless limits measured on this bot; 14 platfo
 
 ## Remaining phases
 
-3 Download core (X, Pinterest, Snapchat) · 4 Admin panel · 5 Groups · 6 Launch ·
+4 Admin panel · 5 Groups · 6 Launch ·
 7 Remaining platforms (one per session) · 8 `external` service (only on request).
 
 ## What I need from the owner
 
-1. **Try the menu in Telegram:** `/start` → settings, quality, language, help, about, my downloads.
-2. Later, not now: privacy mode is ON. For groups (Phase 5), either turn it off in BotFather
+1. **OK to migrate (4 additive changes) and push Phase 3.**
+2. Then in Telegram: `/admin` → each platform → switch its methods on (read the risk note), and send
+   one public link from X, Pinterest and Snapchat Spotlight.
+3. Later, not now: privacy mode is ON. For groups (Phase 5), either turn it off in BotFather
    (`/setprivacy` → Disable, then remove and re-add the bot) or make the bot admin in each group.

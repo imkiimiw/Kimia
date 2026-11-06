@@ -1,19 +1,21 @@
-// Pinterest (docs/PLATFORMS.md §4) — images only. Method:
-//   public — the JSON behind Pinterest's official embed widget (widgets.pinterest.com/v3/pidgets/pins/info),
-//            plus the original image on i.pinimg.com. Verified from Serverless on 2026-11-06.
-// Video pins and Idea Pins: the widget JSON offers no video file (is_video and videos are never set
-// there, also not for Idea Pins — measured), so only the pin's image is sent and the caption says so.
+// Pinterest (docs/PLATFORMS.md §4) — image pins and video pins. Method:
+//   public — the JSON behind Pinterest's official embed widget (widgets.pinterest.com/v3/pidgets/pins/info):
+//            the original image on i.pinimg.com, or for a video pin its MP4 from videos.video_list on
+//            v1.pinimg.com (HLS playlists are never used). Verified from Serverless on 2026-11-06.
+// Idea Pins (story_pin_data) carry no video file in that JSON: only the cover image is sent and the
+// caption says so.
 // pin.it short links are expanded by following their redirects (each hop allowlisted) without
 // fetching the 1.5 MB pin page.
 //
-// Format (test/fixtures/pin_info.json): { status: 'success', data: [{ id, description, images: { '236x', '564x':
-//   { url, width, height } }, pinner: { profile_url, full_name }, story_pin_data, is_video, videos }] };
+// Format (test/fixtures/pin_info.json, a video pin): { status: 'success', data: [{ id, description, images:
+//   { '236x', '564x': { url, width, height } }, pinner: { profile_url, full_name }, story_pin_data, is_video,
+//   videos: { video_list: { V_720P: { url: '…mp4', width, height, duration (ms) }, V_HLSV4: { url: '…m3u8' } } } }] };
 //   an unknown pin → data: [{ error, id }].
 import { parseUrl, segments } from '../url.js';
-import { asResolveError, getJson, request, ResolveError } from './common.js';
+import { asResolveError, decodeEntities, getJson, request, ResolveError } from './common.js';
 
 const HOST_RE = /^(?:[a-z0-9-]+\.)?pinterest\.(?:com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$/;
-const MEDIA_HOSTS = ['i.pinimg.com'];
+const MEDIA_HOSTS = ['i.pinimg.com', 'v1.pinimg.com'];
 const API_HOSTS = ['widgets.pinterest.com'];
 const SHORT_HOSTS = ['pin.it', 'api.pinterest.com', 'www.pinterest.com', 'pinterest.com'];
 const HEALTH_PIN = '424605071146271645';
@@ -59,18 +61,31 @@ export function pinnerUsername(p) {
   return name && /^[A-Za-z0-9_.-]{1,60}$/.test(name) ? name : null;
 }
 
+/** MP4 variants of a video pin (v1.pinimg.com), largest first; HLS playlists are skipped. */
+export function videoVariants(videos) {
+  const list = videos && videos.video_list && typeof videos.video_list === 'object' ? Object.values(videos.video_list) : [];
+  return list
+    .filter((v) => v && typeof v.url === 'string' && /^https:\/\/v1\.pinimg\.com\/[^?#]+\.mp4(?:[?#]|$)/.test(v.url))
+    .map((v) => ({ url: v.url, width: Number(v.width) || undefined, height: Number(v.height) || undefined, duration: v.duration ? Math.round(v.duration / 1000) : undefined }))
+    .sort((a, b) => (b.width || 0) * (b.height || 0) - (a.width || 0) * (a.height || 0));
+}
+
 export function fromPinInfo(j, ref) {
   const d = j && Array.isArray(j.data) ? j.data[0] : null;
   if (!d || d.error) throw new ResolveError('not_found', d && d.error);
+  const video = videoVariants(d.videos);
   const variants = imageVariants(d.images);
-  if (!variants.length) throw new ResolveError('no_media');
+  if (!video.length && !variants.length) throw new ResolveError('no_media');
   const username = pinnerUsername(d.pinner);
   return {
     platform: 'pinterest', method: 'public', key: ref.key, url: ref.url,
-    title: String(d.description || '').trim(), author: username ? '@' + username : null,
+    title: decodeEntities(String(d.description || '')).trim(), author: username ? '@' + username : null,
     account: username ? 'pinterest:' + username.toLowerCase() : null,
-    sensitive: false, coverOnly: !!(d.is_video || d.videos || d.story_pin_data),
-    items: [{ type: 'photo', variants }],
+    sensitive: false,
+    coverOnly: !video.length && !!(d.is_video || d.story_pin_data),
+    items: video.length
+      ? [{ type: 'video', width: video[0].width, height: video[0].height, duration: video[0].duration, variants: video }]
+      : [{ type: 'photo', variants }],
   };
 }
 
@@ -102,12 +117,13 @@ export default {
   id: 'pinterest',
   name: 'Pinterest',
   mediaHosts: MEDIA_HOSTS,
+  headSafe: true, // HEAD on i.pinimg.com / v1.pinimg.com measured fine from Serverless
   methodOrder: ['public'],
   identify,
   capabilities: () => ({
     status: 'LIMITED',
-    kinds: ['photo'],
-    note: 'images only; video pins send their cover image',
+    kinds: ['photo', 'video'],
+    note: 'image and video pins; Idea Pins send their cover image',
     methods: { public: 'LIMITED', official: 'REQUIRES_APPROVAL' },
   }),
   expand,
@@ -118,7 +134,7 @@ export default {
   async healthCheck(ctx) {
     try {
       const p = await resolvePublic(ctx, pinRef(HEALTH_PIN));
-      return { ok: true, detail: `${p.items.length} image(s)` };
+      return { ok: true, detail: `${p.items[0].type}, ${p.items[0].variants.length} variant(s)` };
     } catch (err) {
       return { ok: false, detail: err.code || err.message };
     }
