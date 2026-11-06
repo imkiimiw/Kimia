@@ -99,6 +99,8 @@ export function createDestinationsService({ repo, tg, settings, alerts, audit, c
     toggleEnabled: async (actor, id) => change(actor, id, { enabled: (await mustGet(id)).enabled ? 0 : 1 }, 'destination.enabled'),
     toggleAuto: async (actor, id) => change(actor, id, { auto_publish: (await mustGet(id)).auto_publish ? 0 : 1 }, 'destination.auto_publish'),
     toggleApproval: async (actor, id) => change(actor, id, { approval_required: (await mustGet(id)).approval_required ? 0 : 1 }, 'destination.approval'),
+    /** The 🆔 @channel line at the end of every caption (on by default). */
+    toggleSignature: async (actor, id) => change(actor, id, { signature: (await mustGet(id)).signature === 0 ? 1 : 0 }, 'destination.signature'),
     async cycleFormat(actor, id) {
       const d = await mustGet(id);
       return change(actor, id, { post_format: d.post_format === 'audio' ? 'cover_then_audio' : 'audio' }, 'destination.format');

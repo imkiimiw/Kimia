@@ -43,3 +43,16 @@ test('local midnight and hour in a time zone', () => {
   assert.equal(captionLanguage({ rules: '{"languages":["en"]}' }), 'en');
   assert.equal(captionLanguage({ rules: '{"languages":["fa","en"]}' }), 'fa');
 });
+
+test('channel signature: the last line, kept whole within 1024; {channel} in a template replaces it; private channels and the switch', async () => {
+  const { renderCaption, channelSignature, channelHandle, CAPTION_MAX } = await import('../../tgcloud/lib/publishing/captions.js');
+  const ch = { username: 'WangerFlow', signature: 1 };
+  const values = { title: 'T'.repeat(2000), artist: 'A', album: '', duration: '3:00', channel: channelHandle(ch) };
+  const out = renderCaption('🎵 {title}\n👤 {artist}', values, CAPTION_MAX, channelSignature(ch));
+  assert.ok(out.length <= CAPTION_MAX, `${out.length}`);
+  assert.ok(out.endsWith('\n\n🆔 @WangerFlow'), 'the signature survives the cut');
+  assert.equal(renderCaption('🎵 {title}\n📢 {channel}', { ...values, title: 'Song' }, CAPTION_MAX, channelSignature(ch)), '🎵 Song\n📢 @WangerFlow', 'placed by the template: no second line');
+  assert.equal(channelSignature({ username: null, signature: 1 }), '', 'a private channel has no public link');
+  assert.equal(channelSignature({ username: 'X', signature: 0 }), '', 'switched off');
+  assert.equal(renderCaption('🎵 {title}', { title: '<b>' }, CAPTION_MAX, '🆔 @a_b'), '🎵 &lt;b&gt;\n\n🆔 @a_b');
+});

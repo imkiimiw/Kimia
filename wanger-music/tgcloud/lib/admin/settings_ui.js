@@ -20,6 +20,7 @@ function valueText(lang, key, v) {
   if (d.type === 'bool') return tp(lang, v ? 'common.on' : 'common.off');
   if (key === 'ui.default_language') return v === 'en' ? 'English' : 'فارسی';
   if (key === 'forcejoin.failure_mode') return tp(lang, `fjm.mode.${v}`);
+  if (key === 'music.language_auto') return tp(lang, `lauto.${v}`);
   if (d.type === 'int') return digits(v, lang);
   if (d.type === 'chat') return v ? String(v) : tp(lang, 'common.empty');
   if (d.type === 'text') return v ? truncate(String(v).replace(/\s+/g, ' '), 24) : tp(lang, 'common.empty');

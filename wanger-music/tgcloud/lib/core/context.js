@@ -86,7 +86,7 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
   app.catalog = createCatalogService({
     repo: repos.tracks, tg: app.tg, settings: app.settings, audit: app.audit, alerts: app.alerts, clock, log,
     index: { add: (t) => app.search.indexTrack(t), remove: (id) => app.search.unindex(id) },
-    publishing: { routeTrack: (t) => app.publisher.routeTrack(t), cancelForTrack: (id) => app.publisher.cancelForTrack(id), deleteForTrack: (id) => app.publisher.deleteForTrack(id) },
+    publishing: { routeTrack: (t) => app.publisher.routeTrack(t), cancelForTrack: (id) => app.publisher.cancelForTrack(id), deleteForTrack: (id) => app.publisher.deleteForTrack(id), reroute: (t) => app.publisher.reroute(t) },
   });
   app.ingest = createIngestService({ repo: repos.tracks, catalog: app.catalog, audit: app.audit, clock, log });
   app.provider = createCatalogProvider({ repo: repos.tracks, key });

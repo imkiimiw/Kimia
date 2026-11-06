@@ -48,8 +48,8 @@ test('forwarding 10 audios creates 10 tracks with correct metadata: one card, th
   assert.ok(rows.every((r) => r.status === 'draft' && r.source_type === 'manual' && r.added_by === OWNER && /^[A-Za-z0-9]{9}$/.test(r.public_id)));
   const byTitle = Object.fromEntries(rows.map((r) => [r.title, r]));
   assert.deepEqual(['The Weeknd', 200, 'audio/mpeg', 4_200_000, SRC, 500], [byTitle['Blinding Lights'].artist, byTitle['Blinding Lights'].duration, byTitle['Blinding Lights'].mime_type, byTitle['Blinding Lights'].file_size, byTitle['Blinding Lights'].origin_chat_id, byTitle['Blinding Lights'].origin_message_id]);
-  assert.equal(byTitle['Blinding Lights'].language, 'en');
-  assert.equal(byTitle['Blinding Lights'].language_confidence, 'low', 'Latin only → low');
+  assert.equal(byTitle['Blinding Lights'].language, 'unknown', 'Latin only: English or Persian in Latin letters? left for a human (music.language_auto = confident)');
+  assert.equal(byTitle['Blinding Lights'].language_confidence, 'low');
   assert.equal(byTitle['دلم تنگه'].language, 'fa');
   assert.equal(byTitle['دلم تنگه'].language_confidence, 'medium');
   assert.deepEqual([byTitle.Song.artist, byTitle.Song.featured_artists], ['Artist', 'Guest'], 'noise and feat. handled');
@@ -150,8 +150,8 @@ test('editing title, artist, album, language, genre and cover; activation rules'
   assert.match(h.lastText(OWNER), /بین ۱ تا ۲۰۰ کاراکتر/);
   await h.send(OWNER, '/cancel');
 
-  await h.tap(OWNER, `trk:lang:${id}`);
-  await h.tap(OWNER, `trk:setl:${id}:en`);
+  await h.tap(OWNER, `trk:setl:${id}:en`); // one tap on the card
+  assert.ok(h.lastButtons(OWNER).some((b) => b.text === '✓ 🌐 انگلیسی'), 'the chosen language is marked');
   await h.tap(OWNER, `trk:genre:${id}`);
   await h.tap(OWNER, `trk:setg:${id}:rock`);
   await h.tap(OWNER, `trk:cover:${id}`);

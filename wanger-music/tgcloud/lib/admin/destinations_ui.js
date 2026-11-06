@@ -10,7 +10,7 @@ import { screen, homeButton, promptView } from './panel.js';
 import { UserError, parseIntInRange } from '../core/util.js';
 import { normalizeRules, parseHours, hoursOf, matches, RULE_LANGUAGES } from '../publishing/rules.js';
 import { storedRights } from '../publishing/destinations.js';
-import { renderCaption, captionValues, unknownVariables, DEFAULT_TEMPLATE, CAPTION_VARS } from '../publishing/captions.js';
+import { renderCaption, captionValues, unknownVariables, DEFAULT_TEMPLATE, CAPTION_VARS, CAPTION_MAX, channelHandle, channelSignature } from '../publishing/captions.js';
 import { classify } from '../telegram/errors.js';
 
 const PERM = 'destinations.manage';
@@ -56,6 +56,7 @@ async function cardView(app, d) {
       [btn(tp(lang, 'dst.btn_approval', { v: tp(lang, d.approval_required ? 'common.on' : 'common.off') }), 'dst', 'appr', id), btn(tp(lang, 'dst.btn_conf', { v: tp(lang, `conf.${normalizeRules(d.rules).min_language_confidence}`) }), 'dst', 'conf', id)],
       [btn(tp(lang, 'dst.btn_langs'), 'dst', 'langs', id), btn(tp(lang, 'dst.btn_genres'), 'dst', 'gen', id, 'inc'), btn(tp(lang, 'dst.btn_exclude'), 'dst', 'gen', id, 'exc')],
       [btn(tp(lang, 'dst.btn_caption'), 'dst', 'cap', id), btn(tp(lang, 'dst.btn_preview'), 'dst', 'prev', id), btn(tp(lang, 'dst.btn_format'), 'dst', 'fmt', id)],
+      [btn(tp(lang, 'dst.btn_signature', { v: tp(lang, d.signature !== 0 ? 'common.on' : 'common.off') }), 'dst', 'sig', id)],
       [btn(tp(lang, 'dst.btn_interval'), 'dst', 'int', id), btn(tp(lang, 'dst.btn_hours'), 'dst', 'hours', id), btn(tp(lang, 'dst.btn_daily'), 'dst', 'daily', id)],
       [btn(tp(lang, 'dst.btn_tz', { tz: d.time_zone }), 'dst', 'tz', id), btn(tp(lang, 'dst.btn_check'), 'dst', 'check', id)],
       [btn(tp(lang, 'dst.btn_history'), 'pub', 'ch', id, 0), btn(tp(lang, 'dst.btn_backfill'), 'pub', 'bf', id)],
@@ -111,7 +112,7 @@ async function valuesFor(app, tr) {
  */
 async function sendPreview(app, user, d, template) {
   const tr = await sampleTrack(app, d);
-  const caption = renderCaption(template || DEFAULT_TEMPLATE, await valuesFor(app, tr));
+  const caption = renderCaption(template || DEFAULT_TEMPLATE, { ...(await valuesFor(app, tr)), channel: channelHandle(d) }, CAPTION_MAX, channelSignature(d));
   const chat = user.telegram_id;
   try {
     if (tr) {
@@ -195,6 +196,7 @@ export const routes = [
   cardAction('tog', (app, user, id) => app.destinations.toggleEnabled(user, id)),
   cardAction('auto', (app, user, id) => app.destinations.toggleAuto(user, id)),
   cardAction('appr', (app, user, id) => app.destinations.toggleApproval(user, id)),
+  cardAction('sig', (app, user, id) => app.destinations.toggleSignature(user, id)),
   cardAction('conf', (app, user, id) => app.destinations.cycleConfidence(user, id)),
   cardAction('fmt', (app, user, id) => app.destinations.cycleFormat(user, id)),
   cardAction('tz', (app, user, id) => app.destinations.cycleTimeZone(user, id)),

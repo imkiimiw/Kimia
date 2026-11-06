@@ -21,7 +21,7 @@ export const archiveCaption = (tr) => `#t${tr.public_id}\n🎵 ${esc(tr.title ||
 const ACTIVATE_MANY_MAX = 300;
 
 /**
- * @param {{repo: any, tg: any, settings: any, audit: any, alerts: any, clock: any, log: any, index?: {add: (t: any) => Promise<any>, remove: (id: number) => Promise<any>}, publishing?: {routeTrack: (t: any) => Promise<any>, cancelForTrack: (id: number) => Promise<any>, deleteForTrack: (id: number) => Promise<any>}}} deps
+ * @param {{repo: any, tg: any, settings: any, audit: any, alerts: any, clock: any, log: any, index?: {add: (t: any) => Promise<any>, remove: (id: number) => Promise<any>}, publishing?: {routeTrack: (t: any) => Promise<any>, cancelForTrack: (id: number) => Promise<any>, deleteForTrack: (id: number) => Promise<any>, reroute?: (t: any) => Promise<any>}}} deps
  *   index: the search index (Phase 3) — a track is indexed while it is active
  *   publishing: routing on activation, cancellation on hide/remove, cleanup on purge (Phase 6)
  */
@@ -41,13 +41,14 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
     return hit || null;
   }
 
-  /** Language: keep a manual/source choice; otherwise artist hint, then the script heuristic. */
+  /** Language: keep a manual/source choice; otherwise artist hint, then the script heuristic (setting music.language_auto). */
   async function languageFor(fields, current = null) {
     if (current && (current.language_source === 'manual' || current.language_source === 'source')) {
       return { language: current.language, language_confidence: current.language_confidence, language_source: current.language_source };
     }
     const artistHint = fields.normalized_artist ? await repo.artistLanguage(fields.normalized_artist) : null;
-    const c = classifyLanguage({ artistHint, text: [fields.title, fields.artist, fields.album].filter(Boolean).join(' ') });
+    const heuristic = /** @type {'confident'|'all'|'off'} */ (String((await settings.get('music.language_auto')) || 'confident'));
+    const c = classifyLanguage({ artistHint, heuristic, text: [fields.title, fields.artist, fields.album].filter(Boolean).join(' ') });
     return { language: c.language, language_confidence: c.confidence, language_source: c.source };
   }
 
@@ -240,6 +241,7 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
       const tr = await mustGet(id);
       const row = await repo.update(id, { language, language_confidence: 'high', language_source: 'manual' }, clock.now());
       await audit.record(actor, 'catalog.language', 'track', tr.public_id, { language });
+      if (row && row.status === 'active' && publishing.reroute) await publishing.reroute(row); // wrong channel queued? cancelled; right one routed
       return row;
     },
 
@@ -250,6 +252,7 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
       const tr = await mustGet(id);
       const row = await repo.update(id, { genre }, clock.now());
       await audit.record(actor, 'catalog.genre', 'track', tr.public_id, { genre });
+      if (row && row.status === 'active' && publishing.reroute) await publishing.reroute(row);
       return row;
     },
 

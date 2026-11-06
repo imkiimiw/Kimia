@@ -68,6 +68,7 @@ token. If a later provider needs an API key, it goes in the git-ignored
 | `time_zone` | `Asia/Tehran` | Asia/Tehran, UTC, Europe/Istanbul, Asia/Dubai, Europe/Berlin, Europe/London, America/New_York | Dates in the panel; schedules later |
 | `archive.chat_id` | empty | a channel where the bot can post | Every activated track is copied there (`#t<id>` caption) |
 | `import.bulk_summary` | `true` | on/off | A run of forwarded audios gets one summary message instead of a card each |
+| `music.language_auto` | `confident` | `confident` (only Persian script → Persian; Latin letters stay unknown: they may be Persian written in Latin), `all` (also Latin → English, low confidence — the old behaviour), `off` (never guess) | Language of new tracks when no person, source default or known artist decided it |
 | `import.auto_activate` | `false` | on/off | Audio the owner/admins send or forward is activated right away when it has a title and an artist (otherwise it stays a draft) |
 | `backup.weekly` | `false` | on/off | A backup document is sent to the owner once a week from the tick (Phase 8) |
 
@@ -101,6 +102,8 @@ Destination channels (Phase 5) live in the `destination_channels` table, never i
 enabled (default off), auto-publish (default off), approval (default on), rules, caption template
 (default `🎵 {title} / 👤 {artist} / 💿 {album} / ⏱ {duration}`), post format, minimum interval
 (default 10 min), active hours (default all day), daily limit (default 50), time zone (default the
-`time_zone` setting). The owner named **@WangerBeat** (`-1004370326177`) for English music and
+`time_zone` setting), and «🆔 channel link at the end of captions» (`signature`, default on: the
+last line is `🆔 @username`; private channels have no public link, so no line; a template that uses
+`{channel}` places it itself). The owner named **@WangerBeat** (`-1004370326177`) for English music and
 **@WangerFlow** (`-1004391543350`) for Persian music (one-tap add buttons). Publishing starts only in
 Phase 6, and only for channels the owner enables with auto-publish on.

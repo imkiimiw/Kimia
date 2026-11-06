@@ -39,6 +39,24 @@ export function createPublisher({ repo, channels, tg, users, settings, alerts, a
       return n;
     },
 
+    /**
+     * The language or genre of an active track was corrected: its waiting publications (approval or
+     * queue) for channels it no longer matches are cancelled, and channels it now matches get theirs
+     * (same no-backfill rule as routeTrack). Published posts are not touched.
+     */
+    async reroute(track) {
+      let cancelled = 0;
+      for (const p of await repo.forTrack(track.id)) {
+        if (p.status !== 'pending_approval' && p.status !== 'queued') continue;
+        const ch = await channels.get(p.channel_id);
+        if (ch && matches(track, ch).match) continue;
+        if (await repo.transition(p.id, ['pending_approval', 'queued'], 'cancelled', 0, clock.now(), { error: 'track no longer matches the channel' })) cancelled += 1;
+      }
+      const routed = await svc.routeTrack(track);
+      if (cancelled || routed) log.info('track_rerouted', { track_id: track.id, count: routed, status: `cancelled ${cancelled}` });
+      return { cancelled, routed };
+    },
+
     cancelForTrack: (trackId) => repo.cancelForTrack(trackId, clock.now()),
     cancelForChannel: (channelId) => repo.cancelForChannel(channelId, clock.now()),
 

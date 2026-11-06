@@ -40,15 +40,21 @@ export function heuristicLanguage(text) {
 export const hasPersianLetters = (text) => PERSIAN_ONLY.test(String(text || ''));
 
 /**
- * @param {{manual?: string|null, sourceDefault?: string|null, artistHint?: string|null, text?: string}} input
+ * @param {{manual?: string|null, sourceDefault?: string|null, artistHint?: string|null, text?: string, heuristic?: 'confident'|'all'|'off'}} input
+ *   heuristic: 'all' = any script guess; 'confident' = only a guess of medium confidence or better
+ *   (Latin-only text stays unknown: it may be Persian written in Latin letters); 'off' = never guess
  * @returns {{language: string, confidence: 'high'|'medium'|'low', source: 'manual'|'source'|'artist'|'heuristic'}}
  */
-export function classifyLanguage({ manual = null, sourceDefault = null, artistHint = null, text = '' }) {
+export function classifyLanguage({ manual = null, sourceDefault = null, artistHint = null, text = '', heuristic = 'all' }) {
   const known = (l) => l === 'fa' || l === 'en' || l === 'other';
   if (known(manual)) return { language: /** @type {string} */ (manual), confidence: 'high', source: 'manual' };
   if (known(sourceDefault)) return { language: /** @type {string} */ (sourceDefault), confidence: 'high', source: 'source' };
   if (known(artistHint)) return { language: /** @type {string} */ (artistHint), confidence: 'high', source: 'artist' };
-  return { ...heuristicLanguage(text), source: 'heuristic' };
+  const unknown = { language: 'unknown', confidence: /** @type {'low'} */ ('low'), source: /** @type {'heuristic'} */ ('heuristic') };
+  if (heuristic === 'off') return unknown;
+  const guess = heuristicLanguage(text);
+  if (heuristic === 'confident' && guess.confidence === 'low') return unknown;
+  return { ...guess, source: 'heuristic' };
 }
 
 /** The classifier as a replaceable object. */

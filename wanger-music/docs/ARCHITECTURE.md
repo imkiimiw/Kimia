@@ -151,6 +151,13 @@ drafts of that batch (created between the batch start and the next batch); «✅
 title/artist or with a pending duplicate stay). Setting `import.auto_activate`: staff imports are
 activated right away when they're ready.
 
+**Language corrections** (after Phase 8): new tracks get a script guess only when it is reliable
+(setting `music.language_auto`, default `confident`: Persian script → fa; Latin letters → unknown,
+since many Persian songs are titled in Latin letters). The track card sets the language in one tap.
+When the language or genre of an ACTIVE track changes, `publisher.reroute` cancels its waiting
+publications (approval / queue) for channels it no longer matches and routes it to the channels it
+now matches (same no-backfill rule); published posts are not touched.
+
 ## Destination channels (Phase 5)
 
 `publishing/destinations.js` + `admin/destinations_ui.js`. Adding (one-tap buttons for the
@@ -282,7 +289,7 @@ indexes status+next_attempt, channel+status, channel+published_at) and
 `destination_channels.publishing_since`.
 Phase 7: `stats_daily` (see Analytics) and `users` index `created_at`.
 Phase 8: `users.flood_at`, `users.flood_n`; publications index `(channel_id, id)`.
-After Phase 8: `sources.chat_type` (groups as sources).
+After Phase 8: `sources.chat_type` (groups as sources), `destination_channels.signature` (🆔 channel link in captions).
 No foreign keys (the platform forbids them); enums and booleans are CHECK-constrained; 8 indexes
 back every lookup (`users.last_seen_at`, `lower(username)`, admins partial index, …).
 

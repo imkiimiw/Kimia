@@ -130,7 +130,7 @@ test('preview with a real matching track: cover first (cover_then_audio), then t
   const audio = h.tg.callsOf('sendAudio', OWNER).at(-1);
   assert.equal(photo.params.photo, 'COVER');
   assert.equal(audio.params.audio, 'FILE_FA');
-  assert.equal(audio.params.caption, '🎵 دلم تنگه &lt;3\n👤 شادمهر عقیلی\n⏱ 4:05', 'default template, escaped, album line dropped');
+  assert.equal(audio.params.caption, '🎵 دلم تنگه &lt;3\n👤 شادمهر عقیلی\n⏱ 4:05\n\n🆔 @WangerFlow', 'default template, escaped, album line dropped, the channel\'s link last');
   assert.match(h.lastText(OWNER), /چیزی توی کانال ارسال نشد/);
   assert.deepEqual(channelPosts(h), [], 'the preview never goes to the channel');
 });

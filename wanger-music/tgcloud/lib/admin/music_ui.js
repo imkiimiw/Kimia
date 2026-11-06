@@ -52,7 +52,9 @@ function cardKeyboard(lang, viewer, tr) {
   const id = tr.id;
   const edits = [
     [btn(tp(lang, 'trk.btn.title'), 'trk', 'ed', id, 'title'), btn(tp(lang, 'trk.btn.artist'), 'trk', 'ed', id, 'artist'), btn(tp(lang, 'trk.btn.album'), 'trk', 'ed', id, 'album')],
-    [btn(tp(lang, 'trk.btn.language'), 'trk', 'lang', id), btn(tp(lang, 'trk.btn.genre'), 'trk', 'genre', id), btn(tp(lang, 'trk.btn.cover'), 'trk', 'cover', id)],
+    // one tap: the language (✓ = set by a person); a correction re-routes waiting channel posts
+    ['fa', 'en', 'other'].map((l) => btn(`${tr.language === l && tr.language_source === 'manual' ? '✓ ' : ''}🌐 ${tp(lang, `tlang.${l}`)}`, 'trk', 'setl', id, l)),
+    [btn(tp(lang, 'trk.btn.genre'), 'trk', 'genre', id), btn(tp(lang, 'trk.btn.cover'), 'trk', 'cover', id)],
     tr.artist ? [btn(tp(lang, 'trk.btn.artist_card'), 'art', 'byt', id)] : [],
   ];
   const back = [btn(tp(lang, 'pub.btn_track'), 'pub', 'trk', tr.id), btn(tp(lang, 'mus.back'), 'mus', 'home')];

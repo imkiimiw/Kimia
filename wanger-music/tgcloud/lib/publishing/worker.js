@@ -5,7 +5,7 @@
 import { BOT_USERNAME, LIMITS } from '../config/static.js';
 import { SYSTEM_ACTOR } from '../permissions/policy.js';
 import { channelReady, dayStart, normalizeRules } from './rules.js';
-import { renderCaption, captionValues, DEFAULT_TEMPLATE } from './captions.js';
+import { renderCaption, captionValues, DEFAULT_TEMPLATE, CAPTION_MAX, channelHandle, channelSignature } from './captions.js';
 import { publishAction, classify } from '../telegram/errors.js';
 import { backoffSeconds, cooldownAfter429, cooldownActive } from '../telegram/limiter.js';
 import { t, tp } from '../i18n/index.js';
@@ -25,7 +25,8 @@ export async function captionFor(track, ch, sources) {
     languageName: (l) => tp(lang, `tlang.${l}`),
     genreName: (g) => tp(lang, `genre.${g}`),
     sourceName: src ? src.title || '' : '',
-  }));
+    channel: channelHandle(ch),
+  }), CAPTION_MAX, channelSignature(ch));
 }
 
 /**

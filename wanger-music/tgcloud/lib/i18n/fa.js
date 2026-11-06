@@ -621,4 +621,9 @@ export default {
   'act.review': ' {n} پیش\u200cنویس بررسی لازم دارد (اسم یا خواننده ندارد، یا تکراری است).',
   'act.none': 'پیش\u200cنویس آماده\u200cای برای فعال\u200cسازی نیست.',
   'set.key.import.auto_activate': 'فعال\u200cسازی مستقیم آهنگ\u200cهایی که ادمین\u200cها می\u200cفرستند',
+  'set.key.music.language_auto': 'تشخیص خودکار زبان',
+  'lauto.confident': 'فقط وقتی مطمئن است',
+  'lauto.all': 'همیشه حدس بزن',
+  'lauto.off': 'خاموش (همه دستی)',
+  'dst.btn_signature': '🆔 لینک کانال آخر کپشن: {v}',
 };

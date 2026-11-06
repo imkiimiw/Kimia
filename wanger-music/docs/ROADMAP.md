@@ -29,6 +29,7 @@ code with a synthetic catalog (5000 tracks, ~2000 users) for load and restore te
 | Date | Change | Status |
 |---|---|---|
 | 2026-11-06 | Groups as sources (`sources.chat_type`), «✅ فعال‌سازی همه» on batch summaries and on 🎵 Music drafts, setting `import.auto_activate` | **Deployed** |
+| 2026-11-06 | Language: guess only when reliable (setting `music.language_auto`), one-tap language on the track card, corrections re-route waiting posts; 🆔 channel link as the last caption line (per channel, default on; `{channel}` variable) | **Deployed** |
 | 2026-11-06 | Refused: Spotify / SoundCloud / YouTube Music / Amazon Music / Deezer as audio sources, and reading channels where the bot isn't admin (copyright, the services' terms, spec "never build" list). Offered instead: "listen on" links + metadata, Jamendo / downloadable-by-artist SoundCloud, artists' permission | — |
 
 ## Interfaces already in place for later phases

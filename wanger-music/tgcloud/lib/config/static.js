@@ -89,6 +89,9 @@ export const SETTINGS = Object.freeze({
   'archive.chat_id': { type: 'chat', default: null },
   'import.bulk_summary': { type: 'bool', default: true },
   'import.auto_activate': { type: 'bool', default: false },
+  // language guess from the script: confident = only Persian script → fa (Latin letters may be
+  // Persian written in Latin, so they stay unknown for a human); all = old behaviour; off = never guess
+  'music.language_auto': { type: 'enum', values: ['confident', 'all', 'off'], default: 'confident' },
   'backup.weekly': { type: 'bool', default: false },
   // internal state (not editable)
   'system.bootstrapped': { type: 'int', default: 0, internal: true },

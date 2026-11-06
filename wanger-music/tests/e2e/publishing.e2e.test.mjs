@@ -47,7 +47,7 @@ test('done when: a newly activated matching track is posted exactly once', async
   const sent = posts(h, FLOW);
   assert.equal(sent.length, 1, 'posted exactly once');
   assert.equal(sent[0].params.audio, tr.audio_file_id);
-  assert.match(sent[0].params.caption, /^🎵 دلم تنگه\n👤 شادمهر عقیلی\n⏱ \d+:\d\d$/, 'default caption, empty album line dropped');
+  assert.match(sent[0].params.caption, /^🎵 دلم تنگه\n👤 شادمهر عقیلی\n⏱ \d+:\d\d\n\n🆔 @WangerFlow$/, 'default caption, empty album line dropped, the channel link last');
   assert.equal(sent[0].params.parse_mode, 'HTML');
   const p = pubs(h)[0];
   assert.deepEqual([p.status, p.telegram_message_id, p.attempt_count], ['published', sent[0].result.message_id, 1]);
@@ -116,6 +116,7 @@ test('approval on: the track waits; a digest goes to reviewers; approve → post
 
 test('language confidence below the channel minimum → approval even when approval is off', async () => {
   const h = setup();
+  h.db().prepare("INSERT INTO settings (key, value, updated_at, updated_by) VALUES ('music.language_auto', '\"all\"', 0, 0)").run(); // the old guessing
   await channel(h, BEAT); // English, approval off, min confidence medium
   await track(h, 'Hello', 'Adele'); // Latin only → en, LOW confidence
   assert.deepEqual(pubs(h).map((p) => p.status), ['pending_approval']);
@@ -332,4 +333,56 @@ test('a claimed publication whose track left the catalog meanwhile is cancelled,
   await tick(h, 700);
   assert.deepEqual([pubs(h)[0].status, pubs(h)[0].last_error], ['cancelled', 'track no longer active']);
   assert.deepEqual(posts(h, FLOW), []);
+});
+
+const setSetting = (h, key, value) => h.db().prepare('INSERT INTO settings (key, value, updated_at, updated_by) VALUES (?, ?, 0, 0) ON CONFLICT (key) DO UPDATE SET value = excluded.value').run(key, JSON.stringify(value));
+
+test('language correction: a Persian song in Latin letters queued for the English channel → marked Persian → that post cancelled, the Persian channel gets it', async () => {
+  const h = setup();
+  setSetting(h, 'music.language_auto', 'all'); // what production did before: Latin → English (low)
+  const beat = await channel(h, BEAT);
+  const flow = await channel(h, FLOW);
+  h.db().prepare("UPDATE destination_channels SET rules = json_set(rules, '$.min_language_confidence', 'low') WHERE id = ?").run(beat);
+  const tr = await track(h, 'Az Man Bekesh Biron', 'SamiLone');
+  assert.equal(tr.language, 'en');
+  assert.deepEqual(pubs(h).map((p) => [p.channel_id, p.status]), [[beat, 'queued']], 'wrongly queued for the English channel');
+  await h.press(OWNER, `trk:setl:${tr.id}:fa`, 1);
+  assert.deepEqual(pubs(h).map((p) => [p.channel_id, p.status]).sort(), [[beat, 'cancelled'], [flow, 'queued']].sort());
+  for (let i = 0; i < 3; i++) await tick(h, 700);
+  assert.equal(posts(h, BEAT).length, 0, 'nothing reached the English channel');
+  assert.equal(posts(h, FLOW).length, 1);
+});
+
+test('language detection modes: confident (default) leaves Latin-only titles unknown → no channel until a person decides; off never guesses', async () => {
+  const h = setup();
+  const beat = await channel(h, BEAT);
+  const tr = await track(h, 'Hello', 'Adele');
+  assert.deepEqual([tr.language, tr.language_source], ['unknown', 'heuristic']);
+  assert.deepEqual(pubs(h), [], 'unknown language: no channel');
+  const fa = await track(h, 'دلم تنگه', 'شادمهر');
+  assert.equal(fa.language, 'fa', 'Persian script is still recognised');
+  await h.press(OWNER, `trk:setl:${tr.id}:en`, 1);
+  assert.deepEqual(pubs(h).map((p) => [p.track_id, p.channel_id, p.status]), [[tr.id, beat, 'queued']], 'decided by a person → routed');
+  setSetting(h, 'music.language_auto', 'off');
+  const off = await track(h, 'بی تو', 'ابی');
+  assert.equal(off.language, 'unknown', 'off: not even Persian script is guessed');
+  await h.send(OWNER, '/admin');
+  await h.tap(OWNER, 'set:home');
+  assert.ok(h.lastButtons(OWNER).some((b) => /تشخیص خودکار زبان: خاموش \(همه دستی\)/.test(b.text)));
+});
+
+test('🆔 channel link at the end of captions: on by default, switchable per channel', async () => {
+  const h = setup();
+  const id = await channel(h, FLOW);
+  await track(h, 'دلم تنگه', 'شادمهر');
+  await tick(h, 700);
+  assert.match(posts(h, FLOW)[0].params.caption, /\n\n🆔 @WangerFlow$/);
+  await h.send(OWNER, '/admin');
+  await h.tap(OWNER, 'dst:home');
+  await h.tap(OWNER, `dst:v:${id}`);
+  await h.tap(OWNER, `dst:sig:${id}`);
+  assert.ok(h.lastButtons(OWNER).some((b) => b.text === '🆔 لینک کانال آخر کپشن: خاموش'));
+  await track(h, 'بی تو', 'ابی');
+  await tick(h, 700);
+  assert.doesNotMatch(posts(h, FLOW)[1].params.caption, /🆔/);
 });

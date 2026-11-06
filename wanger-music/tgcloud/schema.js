@@ -278,6 +278,8 @@ export const destinationChannels = table('destination_channels', {
   lastPublishedAt: integer('last_published_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  // added later (owner's request): end every caption with the channel's link (🆔 @username)
+  signature: integer('signature').notNull().default(1),
 }, (t) => ({
   formatChk: check('dest_post_format_chk', sql`${t.postFormat} IN ('audio', 'cover_then_audio')`),
   flagsChk: check('dest_flags_chk', sql`${t.enabled} IN (0, 1) AND ${t.autoPublish} IN (0, 1) AND ${t.approvalRequired} IN (0, 1) AND ${t.botRightsOk} IN (0, 1)`),

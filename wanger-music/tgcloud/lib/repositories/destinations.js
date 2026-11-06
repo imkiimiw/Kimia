@@ -5,7 +5,7 @@ import { sql } from 'sdk/db';
 const first = (r) => r.rows[0] || null;
 /** Columns an update may touch (identifiers only from this list); objects are stored as JSON. */
 const EDITABLE = ['username', 'title', 'enabled', 'auto_publish', 'approval_required', 'rules', 'caption_template', 'post_format',
-  'min_interval_seconds', 'active_hours', 'daily_limit', 'time_zone', 'bot_rights_ok', 'bot_rights', 'publishing_since'];
+  'min_interval_seconds', 'active_hours', 'daily_limit', 'time_zone', 'bot_rights_ok', 'bot_rights', 'publishing_since', 'signature'];
 const JSON_COLS = ['rules', 'active_hours', 'bot_rights'];
 /** @param {any[]} parts */
 const commaJoin = (parts) => parts.reduce((acc, p, i) => (i ? sql`${acc}, ${p}` : p), sql``);

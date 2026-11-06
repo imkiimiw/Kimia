@@ -620,4 +620,9 @@ export default {
   'act.review': ' {n} drafts need a review (no title or artist, or a duplicate).',
   'act.none': 'No draft is ready to activate.',
   'set.key.import.auto_activate': 'Activate tracks admins send right away',
+  'set.key.music.language_auto': 'Automatic language detection',
+  'lauto.confident': 'only when sure',
+  'lauto.all': 'always guess',
+  'lauto.off': 'off (all by hand)',
+  'dst.btn_signature': '🆔 Channel link at the end of captions: {v}',
 };

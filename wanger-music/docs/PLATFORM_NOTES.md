@@ -149,6 +149,13 @@ deployed yet) · **Unknown** = neither documented nor measurable without deployi
 | Cost | Group chatter arrives as `message` updates; messages without audio skip the dedupe row and the piggyback tick (measured on staging: `unregistered`, `tick: null`). |
 | Bot history | As with channels, only messages sent after the bot became admin arrive; older songs: forward them (and «✅ فعال‌سازی همه»). |
 
+## After Phase 8: language detection (owner's report, 2026-11-06)
+
+| Item | Finding / decision |
+|---|---|
+| Production data | All 9 tracks were Persian songs titled in Latin letters ("Az Man Bekesh Biron", "Tame Gilas"…), detected as English (low): script can't tell English from Persian written in Latin. One was queued for @WangerBeat. |
+| Decision | Guess only when reliable (`music.language_auto = confident`); Latin-only → unknown for a person to set (one tap on the card). A correction re-routes waiting posts. A source's default language (📡) still decides for everything from that source. |
+
 ## Design consequences
 
 - **State**: everything important is in the database; no module-level caches are relied on.

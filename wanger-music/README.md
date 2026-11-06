@@ -78,6 +78,8 @@ owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 | Groups as sources: a group where the bot is admin imports the songs members send (draft or straight into search) | 📡 Sources, or make the bot admin of the group |
 | «✅ فعال‌سازی همه» (activate all) on a forwarded batch, and for all ready drafts | batch summary, 🎵 Music → drafts |
 | Setting: tracks the owner/admins send go live at once | ⚙️ Settings |
+| Language: guessed only when reliable (Persian script); Latin-letter titles wait for a one-tap choice on the track card; a correction re-routes waiting posts | 🎵 Music, ⚙️ Settings |
+| 🆔 The channel's link as the last line of every post's caption (per channel, on by default) | 📢 Destination Channels |
 
 ## Run it
 
