@@ -1,9 +1,9 @@
 # Progress
 
-**Current state: Phase 2 (User dashboard) built and tested — waiting for the owner's OK to push.**
-Live: Phase 1 (cloud revision 1). No schema change in Phase 2, so no migration.
+**Current state: Phase 2 (User dashboard) done and deployed (cloud revision 2, 2026-11-06). Next:
+Phase 3 (Download core: X, Pinterest, Snapchat), only when the owner names it.**
 
-## Phase 2 — User dashboard (2026-11-06) ✅ code · ⏳ push
+## Phase 2 — User dashboard (2026-11-06) ✅ deployed
 
 Done:
 - Flow: language (first run) → forced join → **disclaimer** (first use, versioned; owner exempt) →
@@ -25,8 +25,9 @@ Done:
 - Platform (no writes): group-chat payloads with fake ids → ignored, all modules load; a temporary
   read-only module built all six screens from the real database.
 
-Remaining for Phase 2 (after the owner's OK): `npm run tg -- push` (8 changed/new modules), then the
-owner tries the menu in Telegram.
+Deployed with the owner's OK: `push` → 10 modules (8 changed, 2 new), revision 2; no schema change
+(`migrate --local --dry-run` in sync); webhook in sync, queue empty. Read-only check afterwards: no
+errors in `error_log`, counters consistent with the users table.
 
 ## Phase 1 — Foundation (2026-11-06) ✅ deployed
 
@@ -89,6 +90,6 @@ Folder and CLI wrapper set up; Serverless limits measured on this bot; 14 platfo
 
 ## What I need from the owner
 
-1. **OK to push Phase 2** (code only; no database change).
+1. **Try the menu in Telegram:** `/start` → settings, quality, language, help, about, my downloads.
 2. Later, not now: privacy mode is ON. For groups (Phase 5), either turn it off in BotFather
    (`/setprivacy` → Disable, then remove and re-add the bot) or make the bot admin in each group.

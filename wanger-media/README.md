@@ -3,7 +3,7 @@
 A multilingual (فارسی / English / Русский) Telegram bot that returns media for links from supported
 platforms, running only on [Telegram Serverless](https://core.telegram.org/bots/serverless).
 
-**Status: Phase 1 (foundation) deployed; Phase 2 (dashboard: menu, history, settings, help, about) built and tested.**
+**Status: Phases 1–2 deployed (foundation; dashboard: menu, history, settings, help, about).**
 See [docs/PROGRESS.md](docs/PROGRESS.md). Tests: `npm test`.
 The full setup walkthrough (Windows, BotFather, CLI login, push/migrate, groups, admin panel) is
 written in Phase 6.
