@@ -340,14 +340,16 @@ describe('owner panel', () => {
 
   it('lists built platforms (all off), shows the risk note before switching a method on, and audit-logs changes', async () => {
     expect((await h.send(OWNER, '/admin')).view).toBe('admin');
+    expect(datas()).toEqual(['A:o', 'A:u', 'A:c', 'A:p', 'A:s', 'A:t', 'A:b', 'A:a:0', 'A:x', 'h']); // the owner sees every section
+    await h.press(OWNER, 'A:p', { messageId: 69 });
     expect(ownerScreen().text).toContain('Not built yet: TikTok');
-    expect(datas()).toEqual(['P:x', 'P:pinterest', 'P:snapchat', 'h']);
+    expect(datas()).toEqual(['P:x', 'P:pinterest', 'P:snapchat', 'A:pb', 'A:pc', 'A', 'h']);
     expect(buttonsOf(ownerScreen())[0].text).toContain('⚪');
 
     await h.press(OWNER, 'P:x', { messageId: 70 });
     expect(ownerScreen().text).toContain('Capability: supported');
     expect(ownerScreen().text).toContain('Official API: requires approval');
-    expect(datas()).toEqual(['M:x:public:1', 'M:x:thirdparty:1', 'E:x:1', 'T:x', 'A', 'h']);
+    expect(datas()).toEqual(['M:x:public:1', 'M:x:thirdparty:1', 'E:x:1', 'T:x', 'A:pe:x', 'A:p', 'h']);
 
     await h.press(OWNER, 'M:x:public:1', { messageId: 70 });
     expect(ownerScreen().text).toContain('forbid crawling or scraping');
@@ -382,14 +384,16 @@ describe('owner panel', () => {
     expect(ownerScreen().text).toContain('🩺 Pinterest: not working (unavailable)');
   });
 
-  it('nobody but the owner can open it or press its buttons', async () => {
+  it('only staff with “manage platforms” can switch methods (Phase 4: no longer owner-only)', async () => {
     expect((await h.send(ALICE, '/admin')).view).toBe('home');
-    const r = await h.press(ALICE, 'C:x:public', { messageId: 73 });
-    expect(r.ignored).toBe('not_owner');
-    h.row("INSERT INTO roles (user_id, role) VALUES (?, 'super_admin') RETURNING user_id", BORIS.id);
+    expect((await h.press(ALICE, 'C:x:public', { messageId: 73 })).ignored).toBe('not_allowed');
+    h.row("INSERT INTO roles (user_id, role) VALUES (?, 'moderator') RETURNING user_id", BORIS.id);
     await h.onboard(BORIS, 'ru');
-    expect((await h.press(BORIS, 'M:x:public:1', { messageId: 74 })).ignored).toBe('not_owner');
+    expect((await h.press(BORIS, 'M:x:public:1', { messageId: 74 })).ignored).toBe('not_allowed');
     expect(h.row("SELECT value FROM settings WHERE key = 'platform:x'")).toBeUndefined();
+    h.row("UPDATE roles SET role = 'admin' WHERE user_id = ? RETURNING user_id", BORIS.id);
+    expect((await h.press(BORIS, 'C:x:public', { messageId: 75 })).view).toBe('admin_platform');
+    expect(JSON.parse(h.row("SELECT value FROM settings WHERE key = 'platform:x'").value).methods.public).toBe(true);
   });
 
   it('a method the adapter doesn’t offer can’t be switched on', async () => {

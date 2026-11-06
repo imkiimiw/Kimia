@@ -24,14 +24,15 @@
 //   owner panel: A list · P:<pid> platform · M:<pid>:<method>:<0|1> method off/on (on → risk note)
 //                C:<pid>:<method> confirm after the risk note · E:<pid>:<1|0> pause/resume · T:<pid> health
 // ":s" = opened from Settings, so the picker returns there.
-import * as admin from './admin.js';
+import * as admin from './admin/index.js';
+import { ACTIVE_KEY, piggyback } from './broadcast.js';
 import { alertOwner } from './alerts.js';
 import { CB, decode } from './codec.js';
 import { BOT_USERNAME, DISCLAIMER_VERSION_AT, DOUBLE_TAP_MS, ERROR_ALERT_EVERY_S, HOUSEKEEP_EVERY_S } from './config.js';
 import * as groups from './db/groups.js';
 import * as system from './db/system.js';
 import * as users from './db/users.js';
-import { detectLang, LANG_NAMES, normLang, tp } from './i18n/index.js';
+import { detectLang, LANG_NAMES, normLang, t, tp } from './i18n/index.js';
 import * as join from './join.js';
 import * as menu from './menu.js';
 import { handleLink } from './download.js';
@@ -41,7 +42,16 @@ import * as tg from './tg.js';
 import { disclaimer, formatTime, joinGate, languagePicker, plain } from './ui.js';
 import { clip, displayName, errorText, nowSec, tehranDay } from './util.js';
 
-const SETTING_KEYS = ['seed.channels', 'switch.maintenance', 'switch.forced_join', 'hk'];
+const SETTING_KEYS = [
+  'seed.channels', 'switch.maintenance', 'switch.forced_join', 'hk', ACTIVE_KEY,
+  ...['welcome', 'join'].flatMap((k) => ['fa', 'en', 'ru'].map((l) => `text.${k}.${l}`)),
+];
+
+/** A staff-edited text (welcome / join) for a language, or null. */
+const customText = (ctx, key, lang) => {
+  const v = ctx.settings[`text.${key}.${lang}`];
+  return v && typeof v.value === 'string' && v.value.trim() ? v.value : null;
+};
 
 function newCtx(sdkCtx) {
   const update = sdkCtx && sdkCtx.update;
@@ -92,7 +102,9 @@ async function boundary(source, sdkCtx, fn) {
     return { ok: false, error: errorText(err), trace: ctx.trace };
   }
   const housekeeping = ctx.settingsLoaded ? await maybeHousekeep(ctx) : null;
-  return { ok: true, ...result, ...(housekeeping ? { housekeeping } : {}), trace: ctx.trace };
+  // A few messages of a running broadcast on the side of this update (there is no scheduler).
+  const broadcast = ctx.settingsLoaded && ctx.settings[ACTIVE_KEY] && !ctx.broadcastRan ? await piggyback(ctx, ctx.settings[ACTIVE_KEY]) : null;
+  return { ok: true, ...result, ...(housekeeping ? { housekeeping } : {}), ...(broadcast ? { broadcast } : {}), trace: ctx.trace };
 }
 
 /** false if this update_id was handled before. Updates without an id (manual runs) always pass. */
@@ -124,9 +136,14 @@ async function prepareUser(ctx, from) {
     row = await users.load(from.id);
   } else if (row.seen_day !== day) {
     if (await users.markSeenToday(from, ctx.now, day)) incs.push(['users_active', day, 1]);
-  } else if (row.blocked || row.username !== (from.username || null) || row.first_name !== (from.first_name || null)
+  } else if (row.username !== (from.username || null) || row.first_name !== (from.first_name || null)
     || row.tg_lang !== (from.language_code || null)) {
     await users.updateProfile(from, ctx.now);
+  }
+  // Writing to the bot means it is not blocked (any more); counted only by the call that changed it.
+  if (row && row.blocked && (await users.setBlocked(from.id, false))) {
+    incs.push(['users_blocked', '', -1]);
+    row.blocked = 0;
   }
   if (incs.length) await system.count(incs);
   const actor = actorOf(from.id, row && row.role ? { role: row.role, perms: row.role_perms } : null);
@@ -156,7 +173,10 @@ async function reply(ctx, user, view, screen) {
   try {
     await tg.send(ctx, view, user.id, screen);
   } catch (err) {
-    if (err && err.kind === 'blocked') return users.setBlocked(user.id, true);
+    if (err && err.kind === 'blocked') {
+      if (await users.setBlocked(user.id, true)) await system.count([['users_blocked', '', 1]]);
+      return null;
+    }
     if (err && err.kind === 'chat_not_found') return null; // e.g. a manual run with a fake id
     throw err;
   }
@@ -189,7 +209,7 @@ async function gateway(ctx, user, message) {
   const r = await join.check(ctx, user);
   const summary = joinSummary(r);
   if (!r.pass) {
-    await show(ctx, user, message, 'join', joinGate(user.lang, r));
+    await show(ctx, user, message, 'join', joinGate(user.lang, r, customText(ctx, 'join', user.lang)));
     return { held: { view: 'join', join: summary }, join: summary };
   }
   if (needsDisclaimer(user)) {
@@ -203,7 +223,7 @@ async function gateway(ctx, user, message) {
 async function open(ctx, user, message, target, arg) {
   const g = await gateway(ctx, user, message);
   if (g.held) return g.held;
-  const { view, screen } = await menu.build(user, target, arg);
+  const { view, screen } = await menu.build(user, target, arg, { welcome: customText(ctx, 'welcome', user.lang) });
   await show(ctx, user, message, view, screen);
   return { view, join: g.join };
 }
@@ -224,10 +244,28 @@ export const onMessage = (msg, sdkCtx) => boundary('message', sdkCtx, async (ctx
     await reply(ctx, user, 'language', languagePicker({ current: user.lang, preselected: user.preselected }));
     return { view: 'language' };
   }
-  if (cmd === 'admin' && admin.canUsePanel(user)) {
-    const r = await admin.listScreen(user);
-    await reply(ctx, user, r.view, r.screen);
-    return { view: r.view };
+  if (admin.canOpen(user)) {
+    if (cmd === 'cancel') {
+      await admin.clearInput(user);
+      const r = admin.homeScreen(user, t(user.lang, 'adm.input_cancelled'));
+      await reply(ctx, user, r.view, r.screen);
+      return { view: r.view };
+    }
+    if (cmd === 'admin') {
+      const r = admin.homeScreen(user);
+      await reply(ctx, user, r.view, r.screen);
+      return { view: r.view };
+    }
+    const pending = cmd ? null : await admin.pendingInput(ctx, user);
+    if (pending) {
+      const r = await admin.onInput(ctx, user, pending, msg);
+      if (r.error) {
+        await reply(ctx, user, 'admin_input_error', { text: r.error });
+        return { view: 'admin_input_error' };
+      }
+      await reply(ctx, user, r.view, r.screen);
+      return { view: r.view };
+    }
   }
   const links = cmd ? [] : extractLinks(msg);
   if (links.length) {
@@ -322,22 +360,15 @@ export const onCallback = (cq, sdkCtx) => boundary('callback_query', sdkCtx, asy
   return open(ctx, user, msg, targets[d.code] || 'home', d.code === CB.HISTORY ? Number(d.args[0]) : 0);
 });
 
-/** The owner panel's buttons: owner only, checked again on every press; others get a silent answer. */
+/** Admin panel buttons: permissions are checked again on every press (lib/admin/index.js). */
 async function ownerPanel(ctx, user, cq, msg, d) {
-  if (!admin.canUsePanel(user)) {
+  const r = await admin.onButton(ctx, user, d, msg);
+  if (r.denied) {
     await tg.answer(ctx, cq.id);
-    return { ignored: 'not_owner' };
+    return { ignored: 'not_allowed' };
   }
-  const [pid, a1, a2] = d.args;
-  let r;
-  if (d.code === CB.ADMIN) r = await admin.listScreen(user);
-  else if (d.code === CB.PLATFORM) r = await admin.platformScreen(user, pid);
-  else if (d.code === CB.METHOD) r = await admin.setMethod(ctx, user, pid, a1, a2 === '1', false);
-  else if (d.code === CB.CONFIRM) r = await admin.setMethod(ctx, user, pid, a1, true, true);
-  else if (d.code === CB.PAUSE) r = await admin.setPaused(ctx, user, pid, a1 === '1');
-  else r = await admin.health(ctx, user, pid);
-  await tg.answer(ctx, cq.id, r.toast ? r.toast.replace(/<[^>]+>/g, '') : undefined);
-  await tg.edit(ctx, r.view, msg, r.screen);
+  await tg.answer(ctx, cq.id, r.toast ? r.toast.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : undefined, !!r.alert);
+  if (r.screen) await tg.edit(ctx, r.view, msg, r.screen);
   return { view: r.view };
 }
 
@@ -348,7 +379,7 @@ export const onMyChatMember = (upd, sdkCtx) => boundary('my_chat_member', sdkCtx
   const status = upd.new_chat_member.status;
   if (chat.type === 'private') {
     const blocked = status === 'kicked';
-    await users.setBlocked(chat.id, blocked);
+    if (await users.setBlocked(chat.id, blocked)) await system.count([['users_blocked', '', blocked ? 1 : -1]]);
     return { view: blocked ? 'user_blocked' : 'user_unblocked' };
   }
   if (chat.type === 'group' || chat.type === 'supergroup') {

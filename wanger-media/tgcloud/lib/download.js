@@ -139,7 +139,8 @@ async function run(ctx, user, msg, link, day, onClaim) {
   const base = { platform: adapter.id, url: ref.url };
 
   const s = await system.loadSettings(settingKeys(adapter.id));
-  const limits = limitsFrom(s.limits && s.limits.value);
+  const global = limitsFrom(s.limits && s.limits.value);
+  const limits = user.row.quota_override != null ? { ...global, quota_per_day: user.row.quota_override } : global;
   const state = platformState(s['platform:' + adapter.id] && s['platform:' + adapter.id].value);
   const host = parseUrl(link).host;
   const hit = await downloadsDb.blockedBy({ urlKey: ref.key, account: ref.account, domains: domainCandidates(host) });

@@ -1,7 +1,38 @@
 # Progress
 
-**Current state: Phase 3 deployed (cloud revision 3, 2026-11-06) — waiting for the owner's test in
-Telegram. Phase 4 (Admin panel) started right away at the owner's request.**
+**Current state: Phase 4 (Admin panel) built and tested — waiting for the owner's OK to migrate and
+push. Live: Phase 3 (cloud revision 3); its Telegram test by the owner is still open.**
+
+## Phase 4 — Admin panel (2026-11-06) ✅ code · ⏳ deploy
+
+Done:
+- `/admin` (and a 🛠 button in the menu) for every staff role; sections by permission, every button
+  and input re-checked (`lib/admin/index.js`).
+- 📊 Overview from counters (users total / active today / new today and 7 days / blocked, groups,
+  downloads today and per platform today / all time).
+- 👥 Users: search by id or @username; profile with quota use, downloads, last 5, note; ban 1/7/30
+  days or forever, unban, personal quota (used by the download policy), note; history pages; role.
+- 📢 Channels (owner): add by @username / t.me link / numeric id / forwarded post (bot must be
+  admin), switch on/off, re-check, remove with confirmation, max 10.
+- 🧩 Platforms (MANAGE_PLATFORMS): Phase 3 switches plus blocklist (post / account / domain), cache
+  purge by link, recent failures per platform.
+- ⚙️ Switches and limits: maintenance, downloads, forced join (owner), daily quota, cooldown, max MB.
+- ✏️ Texts: welcome and forced-join texts per language (plain text, {name}), reset to default.
+- 📣 Broadcast: any message → draft → start → 25-message batches by button + 5 piggybacked on any
+  update; lease, per-message cursor, 429 pause, blocked users marked and counted; cancel.
+- 📜 Audit log pages; 👮 Staff: appoint by id/@username, roles by rank (SUPER_ADMIN only by the
+  owner), per-person flags that only narrow, remove.
+- Schema (dry run): `users.quota_override`, `users.note`, table `broadcasts`, index
+  `idx_downloads_platform_status` — 4 additive changes.
+- Tests: **184 passing** — every panel button refused for ordinary users with nothing changed,
+  sections per role, ranks (moderator vs admin, owner immune), inputs and their expiry, channels,
+  switches, texts, broadcast (batches, blocked users, 429 + piggyback, one at a time), staff and
+  flags, blocklist/purge/failures, audit pages, query plans.
+- Platform (no writes): modules load; all admin screens built from the real database.
+
+Remaining for Phase 4 (after the owner's OK): `migrate --local --safe` (4 additive changes) → `push`
+→ the owner opens `/admin` in Telegram.
+
 
 ## Phase 3 — Download core (2026-11-06) ✅ deployed (revision 3) · ⏳ owner's test in Telegram
 
@@ -120,12 +151,13 @@ Folder and CLI wrapper set up; Serverless limits measured on this bot; 14 platfo
 
 ## Remaining phases
 
-4 Admin panel · 5 Groups · 6 Launch ·
+5 Groups · 6 Launch ·
 7 Remaining platforms (one per session) · 8 `external` service (only on request).
 
 ## What I need from the owner
 
-1. In Telegram: `/admin` → each platform → switch its methods on (read the risk note), and send
-   one public link from X, Pinterest and Snapchat Spotlight.
-2. Later, not now: privacy mode is ON. For groups (Phase 5), either turn it off in BotFather
+1. **OK to migrate (4 additive changes) and push Phase 4.**
+2. Phase 3 test (still open): `/admin` → 🧩 Platforms → switch methods on → send one public link
+   each from X, Pinterest and Snapchat Spotlight.
+3. Later, not now: privacy mode is ON. For groups (Phase 5), either turn it off in BotFather
    (`/setprivacy` → Disable, then remove and re-add the bot) or make the bot admin in each group.

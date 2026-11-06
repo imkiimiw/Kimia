@@ -19,7 +19,7 @@ export async function insert(from, now, day) {
 
 /** First activity of the day: true only for the call that moved seen_day (for "active users"). */
 export async function markSeenToday(from, now, day) {
-  const r = await db.run(sql`UPDATE users SET seen_day = ${day}, last_seen_at = ${now}, blocked = 0,
+  const r = await db.run(sql`UPDATE users SET seen_day = ${day}, last_seen_at = ${now},
       username = ${from.username || null}, first_name = ${from.first_name || null}, tg_lang = ${from.language_code || null}
     WHERE id = ${from.id} AND seen_day IS NOT ${day}`);
   return r.rowsAffected === 1;
@@ -27,7 +27,7 @@ export async function markSeenToday(from, now, day) {
 
 export async function updateProfile(from, now) {
   await db.run(sql`UPDATE users SET username = ${from.username || null}, first_name = ${from.first_name || null},
-      tg_lang = ${from.language_code || null}, last_seen_at = ${now}, blocked = 0
+      tg_lang = ${from.language_code || null}, last_seen_at = ${now}
     WHERE id = ${from.id}`);
 }
 
@@ -39,8 +39,11 @@ export async function setJoinPass(id, until) {
   await db.run(sql`UPDATE users SET join_ok_until = ${until} WHERE id = ${id}`);
 }
 
+/** Sets the blocked flag; true if it changed (keeps the "users_blocked" counter exact). */
 export async function setBlocked(id, blocked) {
-  await db.run(sql`UPDATE users SET blocked = ${blocked ? 1 : 0} WHERE id = ${id}`);
+  const v = blocked ? 1 : 0;
+  const r = await db.run(sql`UPDATE users SET blocked = ${v} WHERE id = ${id} AND blocked != ${v}`);
+  return r.rowsAffected === 1;
 }
 
 /**

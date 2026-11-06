@@ -78,3 +78,25 @@ export async function housekeep(now) {
      ORDER BY id LIMIT ${HOUSEKEEP_BATCH})`);
   return { updates: a.rowsAffected, errors: b.rowsAffected };
 }
+
+export async function deleteSetting(key) {
+  await db.run(sql`DELETE FROM settings WHERE key = ${key}`);
+}
+
+/** Counter values for [[name, day], …] → { 'name|day': value } (missing = 0). One PK lookup each, one statement. */
+export async function counterValues(pairs) {
+  if (!pairs.length) return {};
+  const cond = pairs.reduce((acc, [n, d], i) => {
+    const one = sql`(name = ${n} AND day = ${d || ''})`;
+    return i ? sql`${acc} OR ${one}` : one;
+  }, null);
+  const rows = await db.all(sql`SELECT name, day, value FROM counters WHERE ${cond}`);
+  const out = {};
+  for (const r of rows) out[`${r.name}|${r.day}`] = r.value;
+  return out;
+}
+
+/** One page of the audit log, newest first. */
+export async function auditPage(offset, limit) {
+  return db.all(sql`SELECT id, at, actor_id, action, target, details FROM audit_log ORDER BY id DESC LIMIT ${limit} OFFSET ${offset}`);
+}

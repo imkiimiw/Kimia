@@ -81,7 +81,7 @@ async function reportProblem(ctx, ch, problem, detail) {
 }
 
 /** The bot's own standing in a channel, from getChatMember(bot): 'ok' | 'not_admin' | 'error'. */
-async function botStanding(ctx, ref) {
+export async function botStanding(ctx, ref) {
   try {
     const m = await tg.call(ctx, 'channel_check', 'getChatMember', { chat_id: ref, user_id: BOT_ID });
     return m && (m.status === 'administrator' || m.status === 'creator') ? { status: 'ok' } : { status: 'not_admin', detail: m && m.status };

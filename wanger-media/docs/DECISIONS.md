@@ -97,3 +97,23 @@ One line each: the choice — the reason. Newest phase last.
 - Captions: post text (decoded, t.co links removed, clipped), author, platform + source link on its own line, notes, then `@Wanger_mediabot`; ≤ 1024 characters.
 - The minimal owner panel is `/admin` with platforms only (owner id check on every command and button) — brief §11.3; roles come with the full panel in Phase 4.
 - Real responses recorded from Serverless are the test fixtures (`test/fixtures/`), captured hex-encoded through `tgcloud run` — tests never call real platforms and the parsers are checked against what the platforms really send.
+
+## Phase 4 (2026-11-06)
+
+- The owner asked to start Phase 4 right after the Phase 3 deploy without waiting — brief §2's "never start the next phase on your own" is overridden by that instruction; deploys still wait for the owner's OK.
+- `/admin` opens for every staff role; each section appears only with its permission, and every button and every text input is checked again in `lib/admin/index.js` — buttons are never trusted on their own.
+- Section → permission: overview VIEW_STATS · users VIEW_USERS (ban/unban/quota/note also need MANAGE_USERS and a higher rank) · channels and the forced-join switch: owner only · platforms, blocklist, cache purge MANAGE_PLATFORMS · switches, limits, texts MANAGE_SETTINGS · broadcast BROADCAST · audit VIEW_AUDIT · staff MANAGE_ADMINS — brief §4 and §8; "owner tools" of §6 are treated as platform moderation tools, so admins can use them in an emergency.
+- Platform switches moved from owner-only (Phase 3) to MANAGE_PLATFORMS — brief §8 lists platforms under the role-based panel.
+- Text input (search, quota, note, channel, blocklist value, purge link, limits, texts, broadcast message, new staff) is a pending state in `settings` ('input:<id>', 10 minutes, /cancel) — no schema change, and only staff messages pay the extra lookup.
+- Users are found by numeric id or exact @username (index on lower(username)); there is no full user list — a list would have to scan the table.
+- Bans: 1, 7, 30 days or permanent; the owner is immune and nobody acts on an equal or higher rank (lib/roles.js).
+- A per-user quota (`users.quota_override`) replaces the global daily quota in the download policy; staff remain exempt.
+- Staff notes are stored on the user row and never shown to users; the audit log records only their length — brief §9: never log full messages.
+- Channel changes reach users within 5 minutes (when their cached membership pass ends) instead of resetting every pass — resetting would write every user row and could hit the rows-read limit.
+- A channel can be added only if the bot is admin there (checked with getChatMember) — brief §5: membership checks only work then; private channels keep their invite link for the join button.
+- Custom welcome / join texts are plain text (escaped; {name} filled in) per language in `settings` — staff can't inject HTML into what users see.
+- Overview numbers come only from counters; a new counter `users_blocked` is kept exact by conditional updates wherever the blocked flag changes (block/unblock updates, a 403 on send, broadcast) — brief §8: no invented numbers.
+- Broadcast copies the staff member's message with copyMessage (any type, no "forwarded" header) to every user in id order: 25 per button press, 5 piggybacked on any update; a lease stops parallel batches, the cursor advances after every message (nobody gets it twice), a 429 pauses until retry_after, a 403 marks the user blocked. One broadcast at a time.
+- Broadcast batches read users by id range including blocked ones (skipped in code) — filtering on `blocked` in SQL could read far more than 25 rows when many users have blocked the bot.
+- Staff permission flags can only narrow a role's defaults; going back to the defaults stores NULL.
+- Credentials screens are not built: no built adapter has an official method that needs a key yet — brief §2: no buttons for unbuilt features.

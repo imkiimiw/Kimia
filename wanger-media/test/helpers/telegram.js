@@ -21,6 +21,7 @@ export function createTelegram({ channels = CHANNELS } = {}) {
     failNext: new Map(), // method → BotApiError (thrown once)
     nextMessageId: 500,
     refuseUrls: false, // Telegram can't fetch media URLs (forces the upload fallback)
+    rateLimitAt: 0, // the n-th copyMessage answers 429 (once)
   };
 
   const channelOf = (ref) => {
@@ -47,6 +48,14 @@ export function createTelegram({ channels = CHANNELS } = {}) {
       case 'answerCallbackQuery':
       case 'deleteMessage':
         return true;
+      case 'copyMessage': {
+        if (state.rateLimitAt && state.calls.filter((c) => c.method === 'copyMessage').length === state.rateLimitAt) {
+          state.rateLimitAt = 0;
+          throw err(429, 'Too Many Requests: retry after 7', { retry_after: 7 });
+        }
+        if (state.unreachable.has(Number(params.chat_id))) throw state.unreachable.get(Number(params.chat_id));
+        return { message_id: ++state.nextMessageId };
+      }
       case 'sendPhoto':
       case 'sendVideo':
       case 'sendAnimation': {

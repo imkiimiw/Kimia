@@ -4,10 +4,11 @@ import { HISTORY_MAX, HISTORY_PAGE } from './config.js';
 import * as downloads from './db/downloads.js';
 import * as users from './db/users.js';
 import { enabledPlatforms } from './download.js';
+import { isStaff } from './roles.js';
 import * as ui from './ui.js';
 
 /** → { view, screen } for target 'home' | 'download' | 'downloads' | 'settings' | 'quality' | 'help' | 'about'. */
-export async function build(user, target, arg = 0) {
+export async function build(user, target, arg = 0, custom = {}) {
   const lang = user.lang;
   switch (target) {
     case 'downloads': {
@@ -30,7 +31,7 @@ export async function build(user, target, arg = 0) {
     case 'about':
       return { view: 'about', screen: ui.about(lang) };
     default:
-      return { view: 'home', screen: ui.home(lang, user.name) };
+      return { view: 'home', screen: ui.home(lang, user.name, { staff: isStaff(user.actor), custom: custom.welcome || null }) };
   }
 }
 

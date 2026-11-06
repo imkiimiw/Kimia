@@ -174,7 +174,10 @@ state in [docs/PROGRESS.md](docs/PROGRESS.md) — read PROGRESS first.
   choice) → `lib/delivery.js` (Telegram). All outbound HTTP goes through `lib/platforms/common.js`:
   allowlist on every hop, manual redirects, honest User-Agent, no cookies, sizes before bytes.
   **Never HEAD a CDN not marked `headSafe`** (a HEAD to Snapchat's CDN crashes the invocation).
-- **Owner panel:** `/admin` (`lib/admin.js`), platforms only until Phase 4; methods start OFF.
+- **Admin panel:** `/admin` → `lib/admin/index.js` (permission check for every button and input, then
+  `users`, `channels`, `platforms`, `system` (overview/switches/texts/audit), `staff`, `broadcast`).
+  Pending text input lives in `settings` ('input:<id>'). Broadcast engine: `lib/broadcast.js`
+  (lease + per-message cursor; piggybacked on updates). Platform methods start OFF.
 - **Owner = numeric id `5557901897`** (`lib/config.js`): immune to bans and demotion; only the owner
   manages forced-join channels and SUPER_ADMIN.
 - **Measured on this bot (2026-11-05):** CPU ≈ 3 s per invocation; a query fails above ≈ 50 000

@@ -8,7 +8,9 @@ import { ALICE, BORIS, OWNER, setup } from '../helpers/harness.js';
 import { createWeb, fixture } from '../helpers/web.js';
 
 // forced_channels: ≤ 10 rows. error_log: the trim reads at most ERROR_LOG_KEEP + 1 rows by rowid.
-const SMALL = new Set(['forced_channels', 'error_log']);
+// roles: staff only (a few dozen). audit_log / blocklist / broadcasts: read newest-first by rowid
+// with LIMIT (and OFFSET ≤ 100), so a scan stops after a bounded number of rows.
+const SMALL = new Set(['forced_channels', 'error_log', 'roles', 'audit_log', 'blocklist', 'broadcasts']);
 
 afterEach(() => { vi.useRealTimers(); });
 
@@ -54,12 +56,28 @@ describe('query plans', () => {
     await h.send(ALICE, 'https://x.com/SpaceX/status/2112592291147747809'); capture(); // cooldown
     await h.send(ALICE, 'https://www.tiktok.com/@a/video/1'); capture();
     await h.press(ALICE, 'd', { messageId: 6 }); capture();
+    // Phase 4: the admin panel and broadcast
+    h.advance(20);
+    for (const data of ['A', 'A:o', 'A:u', 'A:c', 'A:c:1', 'A:ct:1', 'A:ct:1', 'A:cr:1', 'A:p', 'A:pb', 'A:pe:x', 'A:s', 'A:sm', 'A:sm', 'A:t', 'A:a:0', 'A:x', 'A:b',
+      `A:u:${ALICE.id}`, `A:uh:${ALICE.id}:0`, `A:ub:${ALICE.id}:1`, `A:uu:${ALICE.id}`, `A:x:${BORIS.id}`, `A:xr:${BORIS.id}:support`, `A:xf:${BORIS.id}:0`]) {
+      await h.press(OWNER, data, { messageId: 92 }); capture();
+    }
+    await h.press(OWNER, 'A:u', { messageId: 93 }); capture();
+    await h.send(OWNER, '@alice'); capture();
+    await h.press(OWNER, 'A:pba:domain', { messageId: 93 }); capture();
+    await h.send(OWNER, 'bad.example.org'); capture();
+    await h.press(OWNER, 'A:pc', { messageId: 93 }); capture();
+    await h.send(OWNER, 'https://x.com/a/status/1'); capture();
+    await h.press(OWNER, 'A:bn', { messageId: 93 }); capture();
+    await h.send(OWNER, 'hello everyone'); capture();
+    await h.press(OWNER, 'A:bs:1', { messageId: 94 }); capture();
+    await h.send(ALICE, '/start'); capture();
     h.advance(3 * 86400);
     await h.send(ALICE, 'housekeeping'); capture();
 
     const seen = new Map();
     for (const q of log) if (!seen.has(q.text)) seen.set(q.text, q.params);
-    expect(seen.size).toBeGreaterThan(35);
+    expect(seen.size).toBeGreaterThan(60);
     const offenders = [];
     for (const [text, params] of seen) {
       const plan = rawDatabase().prepare('EXPLAIN QUERY PLAN ' + text).all(params);

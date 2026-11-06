@@ -6,12 +6,12 @@ import { BOT_USERNAME, CAPTION_MAX, CHANNEL_USERNAME, HISTORY_MAX, LANGS, PLATFO
 import { LANG_NAMES, t, tp } from './i18n/index.js';
 import { clip, esc } from './util.js';
 
-const button = (text, data) => ({ text, callback_data: data });
-const urlButton = (text, url) => ({ text, url });
-const markup = (rows) => ({ inline_keyboard: rows.filter((r) => r.length) });
+export const button = (text, data) => ({ text, callback_data: data });
+export const urlButton = (text, url) => ({ text, url });
+export const markup = (rows) => ({ inline_keyboard: rows.filter((r) => r.length) });
 
 /** The Back + Home row; `back` is the parent screen's callback_data. */
-const navRow = (lang, back = encode(CB.HOME)) => [button(tp(lang, 'btn.back'), back), button(tp(lang, 'btn.home'), encode(CB.HOME))];
+export const navRow = (lang, back = encode(CB.HOME)) => [button(tp(lang, 'btn.back'), back), button(tp(lang, 'btn.home'), encode(CB.HOME))];
 
 /**
  * Language picker. On first run (no language yet) the prompt is shown in all three languages and
@@ -35,8 +35,8 @@ export function channelUrl(ch) {
 }
 
 /** Forced-join gate: one button per channel still to join (or not checkable), then "check again". */
-export function joinGate(lang, { missing, unknown }) {
-  const lines = [t(lang, 'join.text')];
+export function joinGate(lang, { missing, unknown }, custom = null) {
+  const lines = [custom ? customText(custom, '') : t(lang, 'join.text')];
   if (unknown.length) lines.push('', t(lang, 'join.unknown', { n: unknown.length }));
   const rows = [...missing, ...unknown]
     .map((ch) => {
@@ -52,14 +52,18 @@ export function disclaimer(lang) {
   return { text: t(lang, 'disclaimer.text'), reply_markup: markup([[button(tp(lang, 'btn.accept'), encode(CB.ACCEPT))]]) };
 }
 
-/** Main menu. */
-export function home(lang, name) {
+/** An owner-edited text (plain, escaped here) with {name} filled in. */
+export const customText = (text, name) => esc(text).replace(/\{name\}/g, esc(name || ''));
+
+/** Main menu. `custom` = the staff-edited welcome text for this language (Phase 4), if any. */
+export function home(lang, name, { staff = false, custom = null } = {}) {
   return {
-    text: t(lang, 'welcome.text', { name }),
+    text: custom ? customText(custom, name) : t(lang, 'welcome.text', { name }),
     reply_markup: markup([
       [button(tp(lang, 'btn.download'), encode(CB.DOWNLOAD))],
       [button(tp(lang, 'btn.downloads'), encode(CB.HISTORY, 0)), button(tp(lang, 'btn.settings'), encode(CB.SETTINGS))],
       [button(tp(lang, 'btn.help'), encode(CB.HELP)), button(tp(lang, 'btn.about'), encode(CB.ABOUT))],
+      staff ? [button(tp(lang, 'btn.admin'), encode(CB.ADMIN))] : [],
     ]),
   };
 }
@@ -154,7 +158,8 @@ export function adminPlatforms(lang, rows, notBuilt) {
     text: lines.join('\n'),
     reply_markup: markup([
       ...rows.map(({ adapter, state }) => [button(`${tp(lang, 'admin.state.' + platformStateKey(adapter, state))} · ${adapter.name}`, encode(CB.PLATFORM, adapter.id))]),
-      [button(tp(lang, 'btn.home'), encode(CB.HOME))],
+      [button(tp(lang, 'adm.btn.blocklist'), encode(CB.ADMIN, 'pb')), button(tp(lang, 'adm.btn.purge'), encode(CB.ADMIN, 'pc'))],
+      navRow(lang, encode(CB.ADMIN)),
     ]),
   };
 }
@@ -179,7 +184,8 @@ export function adminPlatform(lang, adapter, state, healthLine = null) {
     button(tp(lang, state.paused ? 'admin.btn.resume' : 'admin.btn.pause'), encode(CB.PAUSE, adapter.id, state.paused ? '0' : '1')),
     button(tp(lang, 'admin.btn.health'), encode(CB.HEALTH, adapter.id)),
   ]);
-  rows.push(navRow(lang, encode(CB.ADMIN)));
+  rows.push([button(tp(lang, 'adm.btn.failures'), encode(CB.ADMIN, 'pe', adapter.id))]);
+  rows.push(navRow(lang, encode(CB.ADMIN, 'p')));
   return { text: lines.join('\n'), reply_markup: markup(rows) };
 }
 

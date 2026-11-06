@@ -19,6 +19,8 @@ export const users = table('users', {
   dlDay: text('dl_day'), // Tehran date of dl_count (daily download quota)
   dlCount: integer('dl_count').notNull().default(0),
   lastDlAt: integer('last_dl_at').notNull().default(0), // cooldown between downloads
+  quotaOverride: integer('quota_override'), // per-user daily quota set by staff; null = the global limit
+  note: text('note'), // staff note (never shown to the user)
   createdAt: integer('created_at').notNull(),
   lastSeenAt: integer('last_seen_at').notNull(),
 }, (t) => ({
@@ -107,6 +109,7 @@ export const downloads = table('downloads', {
   createdAt: integer('created_at').notNull(),
 }, (t) => ({
   byUser: index('idx_downloads_user').on(t.userId, t.id),
+  byPlatformStatus: index('idx_downloads_platform_status').on(t.platform, t.status, t.id),
 }));
 
 /** (normalized URL, variant) → Telegram file_ids, so a repeated link is re-sent without fetching. */
@@ -144,6 +147,29 @@ export const blocklist = table('blocklist', {
 }, (t) => ({
   byValue: uniqueIndex('uidx_blocklist_kind_value').on(t.kind, t.value),
 }));
+
+/**
+ * Broadcasts (Phase 4): one copy of the staff member's message per user, sent in small resumable
+ * batches (button presses + piggybacked on updates). cursor = the last user id handled.
+ */
+export const broadcasts = table('broadcasts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  createdBy: integer('created_by').notNull(),
+  sourceChat: integer('source_chat').notNull(),
+  sourceMessage: integer('source_message').notNull(),
+  status: text('status').notNull().default('draft'), // draft | running | done | cancelled
+  cursor: integer('cursor').notNull().default(0),
+  sent: integer('sent').notNull().default(0),
+  failed: integer('failed').notNull().default(0),
+  blocked: integer('blocked').notNull().default(0),
+  leaseUntil: integer('lease_until').notNull().default(0),
+  resumeAt: integer('resume_at').notNull().default(0),
+  progressChat: integer('progress_chat'),
+  progressMessage: integer('progress_message'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull().default(0),
+  finishedAt: integer('finished_at').notNull().default(0),
+});
 
 /** Banned users (until = 0 means permanent). */
 export const bans = table('bans', {
