@@ -20,19 +20,21 @@ export async function overviewScreen(ctx, user) {
   const week = Array.from({ length: 7 }, (_, i) => tehranDay(ctx.now - i * 86400));
   const pairs = [
     ['users', ''], ['users_blocked', ''], ['groups_active', ''],
-    ['users_active', today], ['dl_ok', today], ['dl_failed', today], ['dl_denied', today], ['dl_cached', today],
+    ['users_active', today], ['dl_ok', today], ['dl_meta', today], ['dl_failed', today], ['dl_denied', today], ['dl_cached', today],
     ...week.map((d) => ['users_new', d]),
-    ...BUILT_PLATFORMS.flatMap((p) => [[`dl_ok:${p}`, today], [`dl_ok:${p}`, ''], [`dl_failed:${p}`, today], [`dl_failed:${p}`, '']]),
+    ...BUILT_PLATFORMS.flatMap((p) => ['ok', 'meta', 'failed'].flatMap((k) => [[`dl_${k}:${p}`, today], [`dl_${k}:${p}`, '']])),
   ];
   const v = await system.counterValues(pairs);
   const c = (n, d = '') => v[`${n}|${d}`] || 0;
   const lines = [t(lang, 'adm.ov.users', {
     total: c('users'), active: c('users_active', today), today: c('users_new', today),
     week: week.reduce((a, d) => a + c('users_new', d), 0), blocked: Math.max(0, c('users_blocked')), groups: Math.max(0, c('groups_active')),
-  }), '', t(lang, 'adm.ov.downloads', { ok: c('dl_ok', today), failed: c('dl_failed', today), denied: c('dl_denied', today), cached: c('dl_cached', today) })];
+  }), '', t(lang, 'adm.ov.downloads', { ok: c('dl_ok', today), meta: c('dl_meta', today), failed: c('dl_failed', today), denied: c('dl_denied', today), cached: c('dl_cached', today) })];
+  // Per platform: files and information cards both count as answered.
   for (const p of BUILT_PLATFORMS) {
     lines.push(t(lang, 'adm.ov.platform', {
-      platform: PLATFORM_NAMES[p], ok: c(`dl_ok:${p}`, today), failed: c(`dl_failed:${p}`, today), okAll: c(`dl_ok:${p}`), failedAll: c(`dl_failed:${p}`),
+      platform: PLATFORM_NAMES[p], ok: c(`dl_ok:${p}`, today) + c(`dl_meta:${p}`, today), failed: c(`dl_failed:${p}`, today),
+      okAll: c(`dl_ok:${p}`) + c(`dl_meta:${p}`), failedAll: c(`dl_failed:${p}`),
     }));
   }
   return { view: 'admin_overview', screen: { text: lines.join('\n'), reply_markup: ui.markup([ui.navRow(lang, 'A')]) } };

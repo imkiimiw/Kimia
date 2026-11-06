@@ -5,7 +5,7 @@ the media back, in private chats or in groups. Forced channel membership, a user
 admin panel are built in. It runs entirely on [Telegram Serverless](https://core.telegram.org/bots/serverless)
 — no server, VPS or paid service.
 
-**Status:** Phases 0–6 done and deployed. What each platform can do, honestly: [docs/PLATFORMS.md](docs/PLATFORMS.md).
+**Status:** Phases 0–7 done and deployed (version 1.1.0). What each platform can do, honestly: [docs/PLATFORMS.md](docs/PLATFORMS.md).
 Progress: [docs/PROGRESS.md](docs/PROGRESS.md) · decisions: [docs/DECISIONS.md](docs/DECISIONS.md) ·
 the original brief: [docs/BRIEF.md](docs/BRIEF.md).
 
@@ -17,9 +17,12 @@ the original brief: [docs/BRIEF.md](docs/BRIEF.md).
 | Groups | Links of switched-on platforms are answered with the media (up to 3 per message); everything else is ignored silently. `/settings` (group admins), `/status` (settings, usage, what the bot can see), `/platforms`, `/help`. |
 | Admin panel | `/admin` for staff: overview, users (ban, quota, note), forced-join channels, platforms (methods, health check, blocklist, cache purge), switches and limits, texts, broadcast, audit log, staff. |
 
-Platforms with a built adapter: **X/Twitter** (photos, videos, GIFs), **Pinterest** (images, video pins),
-**Snapchat** (public Spotlight videos). Every download method starts **off**; the owner switches each one
-on in `/admin` → 🧩 Platforms after reading its risk note.
+Platforms that send files: **X/Twitter** (photos, videos, GIFs), **Instagram** (public photos, videos,
+carousels), **Pinterest** (images, video pins), **Snapchat** (public Spotlight videos), **Discord** (direct
+attachment links). Platforms that send an **information card** (title, author, cover, link — their files
+can't be fetched honestly): TikTok, Facebook, Threads, YouTube, Reddit, Twitch, Spotify, SoundCloud.
+LinkedIn is refused with the reason. Every method starts **off**; the owner switches each one on in
+`/admin` → 🧩 Platforms (after reading its risk note for public methods).
 
 ## Setup on Windows (one time)
 
@@ -88,7 +91,8 @@ the command menus and the bot description in fa, en and ru.
      add it again** (Telegram applies the change only on re-adding).
 3. `/status` in the group always tells you which case applies.
 4. Group admins tune the bot with `/settings`: auto-download, admins only, silent mode, links per message,
-   max file size, cooldowns, language and allowed platforms.
+   max file size, cooldowns, language and allowed platforms. By default only the platforms that send files
+   are on in groups; information-card platforms (YouTube, Spotify, …) are switched on there.
 
 ## Using the admin panel
 

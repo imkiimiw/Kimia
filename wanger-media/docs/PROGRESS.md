@@ -1,8 +1,32 @@
 # Progress
 
-**Current state: Phase 6 deployed (cloud revision 6, version 1.0.0, 2026-11-06). Working through
-Phases 7–8 under the owner's standing approval (CLAUDE.md). The owner's Telegram test of Phase 3 is
-still open.**
+**Current state: Phase 7 deployed (cloud revision 7, version 1.1.0, 2026-11-06). Phase 8 (the
+`external` download service and an uploader) is next under the owner's standing approval
+(CLAUDE.md). Still open with the owner: switching methods on in /admin → 🧩 Platforms (all are off —
+none was switched on yet) and the Telegram test of Phase 3.**
+
+## Phase 7 — Remaining platforms (2026-11-06) ✅ deployed (revision 7)
+
+Done:
+- Ten new adapters, each with recorded fixtures, unit tests, an end-to-end path and a live check from
+  Serverless (docs/PLATFORMS.md §8): **Instagram** (LIMITED: embed page — photos, carousels, videos it
+  includes; copyright-blocked reels → cover + note), **Discord** (LIMITED: attachment links; images,
+  GIFs, MP4 only, extension and Content-Type both checked), and information cards for **TikTok,
+  Facebook, Threads, YouTube, Reddit, Twitch, Spotify, SoundCloud** (METADATA_ONLY). **LinkedIn** is
+  refused with the reason.
+- Pipeline: result status `meta` (cover by URL after the allowlist/redirect probe, else a text card;
+  cached; quota given back, cooldown kept; counters `dl_meta`, `dl_meta:<platform>`, `g_meta:<chat>`;
+  history ℹ️; overview counts cards). Hints after refusals (Discord message/expired links, Twitch clips).
+- Groups: default allowed platforms = the ones that send files; card platforms are switched on by
+  group admins (13 toggles, 3 per row). Admin › Platforms lists 13 platforms, 2 per row.
+- No schema change. Health checks: all 13 adapters OK from Serverless.
+- Tests: **234 passing** (33 new: link forms incl. look-alike hosts, every recorded response, cards,
+  cache, quota refund, cover refused / redirected off the allowlist, Instagram album / cover / missing,
+  Discord file types and expired links, cards in groups, overview).
+- Deployed under the owner's standing approval: `migrate --local --safe` (no changes) → `push`
+  (revision 7); webhook in sync; read-only check afterwards: modules load, no errors logged.
+- Not verifiable live: a valid signed Discord attachment link (none available; the expired path and
+  the CDN were checked).
 
 ## Phase 6 — Launch (2026-11-06) ✅ deployed (revision 6)
 

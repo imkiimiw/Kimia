@@ -45,7 +45,7 @@ export async function profileScreen(ctx, user, targetId, notice = null) {
     : t(lang, 'adm.users.not_banned'));
   lines.push(t(lang, row.quota_override != null ? 'adm.users.quota_custom' : 'adm.users.quota', { used, quota }));
   lines.push(t(lang, 'adm.users.downloads', { n: total > 100 ? '100+' : total }));
-  for (const d of recent) lines.push(`  ${d.status === 'ok' ? '✅' : d.status === 'failed' ? '❌' : '⛔'} ${ui.formatTime(d.created_at)} · ${PLATFORM_NAMES[d.platform] || d.platform || '?'}`);
+  for (const d of recent) lines.push(`  ${ui.STATUS_ICON[d.status] || '•'} ${ui.formatTime(d.created_at)} · ${PLATFORM_NAMES[d.platform] || d.platform || '?'}`);
   if (row.note) lines.push('', t(lang, 'adm.users.note', { note: row.note }));
 
   const kb = [];
@@ -131,7 +131,7 @@ export async function historyScreen(user, targetId, page) {
   const items = total ? await downloads.page(targetId, p * HISTORY_PAGE, Math.min(HISTORY_PAGE, total - p * HISTORY_PAGE)) : [];
   const lines = [t(lang, 'adm.users.history', { id: targetId, page: p + 1, pages }), ''];
   for (const d of items) {
-    lines.push(`${d.status === 'ok' ? '✅' : d.status === 'failed' ? '❌' : '⛔'} ${ui.formatTime(d.created_at)} · ${PLATFORM_NAMES[d.platform] || d.platform || '?'}`);
+    lines.push(`${ui.STATUS_ICON[d.status] || '•'} ${ui.formatTime(d.created_at)} · ${PLATFORM_NAMES[d.platform] || d.platform || '?'}`);
     lines.push(ui.customText(clip(d.url || '', 80), ''));
   }
   const pager = [];

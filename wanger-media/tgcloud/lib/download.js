@@ -5,13 +5,16 @@
 //   temporary failure falls through to the next method) → sensitive / account blocklist → probe
 //   sizes → choose variants → deliver → cache file_ids → history row + counters → status message
 //   deleted (success) or replaced by the reason (failure/denial).
-// A failure that isn't the user's doing gives the quota back (the cooldown stays).
+// Platforms that only give information (status METADATA_ONLY) answer with a card instead of files:
+// title, author, cover by URL (checked like media), link and why there is no file — result status
+// 'meta'. A failure that isn't the user's doing and an information card give the quota back (the
+// cooldown stays).
 import { alertOwner } from './alerts.js';
-import { BUILT_PLATFORMS, PLATFORM_NAMES } from './config.js';
+import { BUILT_PLATFORMS, PLATFORM_NAMES, TG_URL_PHOTO_MAX } from './config.js';
 import * as downloadsDb from './db/downloads.js';
 import * as system from './db/system.js';
 import * as users from './db/users.js';
-import { deliver, DeliveryError, sendCached } from './delivery.js';
+import { deliver, DeliveryError, sendCard, sendCached } from './delivery.js';
 import { HttpError, probe, ResolveError } from './platforms/common.js';
 import * as registry from './platforms/index.js';
 import { choose, domainCandidates, limitsFrom, platformState, precheck } from './policy.js';
@@ -27,12 +30,16 @@ const UPLOAD_DEADLINE_MS = 15000;
 
 /** Reason → { status, refund } for the history row and the quota. */
 const OUTCOME = {
-  invalid_link: 'denied', telegram_link: 'denied', unknown_site: 'denied', not_built: 'denied', unsupported_kind: 'denied',
+  invalid_link: 'denied', telegram_link: 'denied', unknown_site: 'denied', not_built: 'denied', unsupported_kind: 'denied', unavailable_platform: 'denied',
   downloads_off: 'denied', quota: 'denied', cooldown: 'denied', platform_off: 'denied', platform_paused: 'denied',
   blocked: 'denied', sensitive: 'denied', restricted: 'denied', private: 'denied',
   not_found: 'failed', no_media: 'failed', too_big: 'failed', size_unknown: 'failed', unavailable: 'failed',
-  unsupported: 'failed', delivery: 'failed', slow: 'failed',
+  unsupported: 'failed', delivery: 'failed', slow: 'failed', file_type: 'failed', login_wall: 'failed',
 };
+
+/** Extra advice after some refusals, per platform (i18n 'dl.hint.<platform>'). */
+const HINTS = { discord: ['unsupported_kind', 'not_found'], twitch: ['unsupported_kind'] };
+const STATUS_COUNTER = { ok: 'dl_ok', meta: 'dl_meta', failed: 'dl_failed', denied: 'dl_denied' };
 
 export const settingKeys = (platformId) => ['switch.downloads', 'limits', 'platform:' + platformId];
 
@@ -48,18 +55,19 @@ async function sendStatus(ctx, chatId, replyTo, lang) {
 
 async function finishStatus(ctx, chatId, status, lang, result) {
   if (!status) return;
-  if (result.status === 'ok') {
+  if (result.status === 'ok' || result.status === 'meta') {
     try {
       await tg.call(ctx, 'dl_status', 'deleteMessage', { chat_id: chatId, message_id: status.message_id });
       return;
     } catch { /* fall through: say it's done instead */ }
   }
-  const screen = result.status === 'ok' ? plain(lang, 'dl.done') : plain(lang, 'dl.err.' + result.reason, {
+  const screen = result.status === 'ok' || result.status === 'meta' ? plain(lang, 'dl.done') : plain(lang, 'dl.err.' + result.reason, {
     platform: PLATFORM_NAMES[result.platform] || result.platform || '',
     quota: result.quota, wait: result.wait,
     size: result.bytes ? (result.bytes / 1048576).toFixed(1) : '?',
     max: result.max ? Math.round(result.max / 1048576) : '?',
   });
+  if (HINTS[result.platform] && HINTS[result.platform].includes(result.reason)) screen.text += '\n\n' + plain(lang, 'dl.hint.' + result.platform).text;
   try {
     await tg.edit(ctx, 'dl_status', { chat: { id: chatId }, message_id: status.message_id }, screen);
   } catch { /* the user may have deleted it */ }
@@ -76,6 +84,7 @@ async function probeAll(ctx, post, allow, head) {
   for (const item of post.items) {
     item.variants = item.variants.filter((v) => isAllowedFetch(v.url, allow));
     for (const v of item.variants) {
+      if (Number.isFinite(v.bytes) && v.bytes > 0) continue; // the adapter already checked it (every hop allowlisted)
       if (budget-- <= 0) break;
       jobs.push(probe(ctx, v.url, allow, { head })
         .then((p) => { v.bytes = p.bytes; v.ranges = p.ranges; if (p.type) v.mime = p.type.split(';')[0]; })
@@ -111,7 +120,7 @@ export async function handleLink(ctx, user, msg, link, scope = { kind: 'private'
     await system.logError(ctx.now, 'download', errorText(err), err && err.stack ? String(err.stack).slice(0, 1500) : null).catch(() => {});
     await alertOwner(ctx, 'error:download', 'alert.error', { source: 'download', message: errorText(err) }, 1800).catch(() => {});
   }
-  if (claimed && result.status === 'failed') await users.refundDownload(user.id, day).catch(() => {});
+  if (claimed && (result.status === 'failed' || result.status === 'meta')) await users.refundDownload(user.id, day).catch(() => {});
 
   await downloadsDb.record({
     userId: user.id, chatId, platform: result.platform || null, method: result.method || null,
@@ -119,7 +128,7 @@ export async function handleLink(ctx, user, msg, link, scope = { kind: 'private'
     bytes: result.bytes || 0, items: result.items || 0,
   }, ctx.now);
   const p = result.platform && BUILT_PLATFORMS.includes(result.platform) ? result.platform : null;
-  const incs = [[result.status === 'ok' ? 'dl_ok' : result.status === 'failed' ? 'dl_failed' : 'dl_denied', day, 1]];
+  const incs = [[STATUS_COUNTER[result.status] || 'dl_failed', day, 1]];
   if (p && result.status !== 'denied') incs.push([`dl_${result.status}:${p}`, day, 1], [`dl_${result.status}:${p}`, '', 1]);
   if (result.cached) incs.push(['dl_cached', day, 1]);
   if (group && result.status !== 'denied') incs.push([`g_${result.status}:${chatId}`, day, 1]);
@@ -136,6 +145,7 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
   if (id.kind === 'telegram') return denyOrFail('telegram_link');
   if (id.kind === 'unknown') return denyOrFail('unknown_site');
   if (id.kind === 'not_built') return denyOrFail('not_built', { platform: id.platform });
+  if (id.kind === 'unavailable') return denyOrFail('unavailable_platform', { platform: id.platform });
   if (id.kind === 'unsupported_kind') return denyOrFail('unsupported_kind', { platform: id.adapter.id });
   const { adapter } = id;
   let { ref } = id;
@@ -180,10 +190,10 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
     try {
       await sendCached(ctx, {
         chatId: msg.chat.id, replyTo: msg.message_id, items: cached.items,
-        caption: buildCaption(user.lang, { platform: adapter.id, url: ref.url, title: meta.title, author: meta.author }, meta.notes || []),
+        caption: buildCaption(user.lang, { platform: adapter.id, url: ref.url, title: meta.title, author: meta.author, details: meta.details }, meta.notes || []),
       });
       await downloadsDb.cacheHit(ref.key, quality, ctx.now);
-      return { status: 'ok', ...base, method: 'cache', cached: true, bytes: cached.bytes, items: cached.items.length };
+      return { status: meta.meta ? 'meta' : 'ok', ...base, method: 'cache', cached: true, bytes: cached.bytes, items: cached.items.length };
     } catch (err) {
       if (!(err instanceof DeliveryError)) throw err;
       await downloadsDb.cacheDrop(ref.key); // stale file_ids: fetch again below
@@ -205,6 +215,7 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
   base.method = post.method;
   if (post.sensitive) return denyOrFail('sensitive', base);
   if (post.account && (await downloadsDb.blockedBy({ account: post.account }))) return denyOrFail('blocked', base);
+  if (post.meta) return infoCard(ctx, user, msg, adapter, ref, post, quality, base);
 
   await probeAll(ctx, post, adapter.mediaHosts, adapter.headSafe === true);
   const maxBytes = limits.max_mb * 1048576;
@@ -242,6 +253,27 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
     await downloadsDb.cachePut(ref.key, quality, adapter.id, sent.items, JSON.stringify({ title: post.title, author: post.author, notes }), sent.bytes, ctx.now);
   }
   return { status: 'ok', ...base, bytes: sent.bytes, items: sent.items.length };
+}
+
+/**
+ * The information card of a METADATA_ONLY platform: the cover goes by URL only (never downloaded by
+ * the bot), after the same allowlist-and-redirect check as media; without a usable cover, text.
+ */
+async function infoCard(ctx, user, msg, adapter, ref, post, quality, base) {
+  let cover = null;
+  const allow = adapter.coverHosts || adapter.mediaHosts;
+  if (post.cover && isAllowedFetch(post.cover, allow)) {
+    try {
+      const p = await probe(ctx, post.cover, allow, { head: adapter.headSafe === true });
+      if (!(p.bytes > TG_URL_PHOTO_MAX)) cover = post.cover;
+    } catch { /* redirected off the allowlist: no cover */ }
+  }
+  const notes = ['meta_' + adapter.id];
+  const sent = await sendCard(ctx, { chatId: msg.chat.id, replyTo: msg.message_id, cover, caption: buildCaption(user.lang, post, notes) });
+  if (sent.items.length && sent.items.every((i) => i.file_id)) {
+    await downloadsDb.cachePut(ref.key, quality, adapter.id, sent.items, JSON.stringify({ title: post.title, author: post.author, details: post.details || null, notes, meta: true }), 0, ctx.now);
+  }
+  return { status: 'meta', ...base, items: sent.items.length };
 }
 
 function parseMeta(text) {

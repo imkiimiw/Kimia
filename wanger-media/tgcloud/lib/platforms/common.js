@@ -5,6 +5,7 @@
 import { fetch } from 'sdk';
 import { BOT_USERNAME, VERSION } from '../config.js';
 import { isAllowedFetch, parseUrl } from '../url.js';
+import { clip } from '../util.js';
 
 export const USER_AGENT = `WangerMediaBot/${VERSION} (+https://t.me/${BOT_USERNAME})`;
 export const MAX_REDIRECTS = 5;
@@ -160,7 +161,7 @@ export async function download(ctx, url, allow, { bytes, ranges, max }) {
   return out;
 }
 
-const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", '#39': "'", '#x27': "'", '#x2F': '/', '#47': '/' };
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0', '#39': "'", '#x27': "'", '#x2F': '/', '#47': '/' };
 export function decodeEntities(s) {
   return String(s).replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) => {
     const k = e.toLowerCase();
@@ -187,13 +188,38 @@ export function metaTags(html) {
   return out;
 }
 
+/** Text for a caption from HTML-ish metadata: tags dropped, entities decoded, spaces collapsed. */
+export function cleanText(s) {
+  return decodeEntities(String(s || '').replace(/<[^>]*>/g, ' ')).replace(/[ \t\u00a0]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim();
+}
+
 /** Errors an adapter's resolve() throws, mapped to what the user is told. */
 export class ResolveError extends Error {
-  /** code: not_found | private | restricted | no_media | unsupported | unavailable */
+  /** code: not_found | private | restricted | login_wall | no_media | file_type | unsupported | unavailable */
   constructor(code, message) {
     super(message || code);
     this.name = 'ResolveError';
     this.code = code;
+  }
+}
+
+/** oEmbed HTTP errors → ResolveError: 401 private, 403 restricted (embedding off), 400/404/410 not found. */
+export function oembedError(err) {
+  if (err instanceof HttpError && err.kind === 'status') {
+    if (err.status === 401) return new ResolveError('private', err.message);
+    if (err.status === 403) return new ResolveError('restricted', err.message);
+    if (err.status === 400 || err.status === 404 || err.status === 410) return new ResolveError('not_found', err.message);
+  }
+  return asResolveError(err);
+}
+
+/** A health check that resolves a known public post: { ok, detail }. */
+export async function healthOf(run) {
+  try {
+    const p = await run();
+    return { ok: true, detail: clip(p.title || p.details || `${p.items.length} items`, 60) };
+  } catch (err) {
+    return { ok: false, detail: (err && (err.code || err.message)) || 'error' };
   }
 }
 
@@ -202,4 +228,35 @@ export function asResolveError(err) {
   if (err instanceof ResolveError) return err;
   if (err instanceof HttpError && err.kind === 'status' && (err.status === 404 || err.status === 410)) return new ResolveError('not_found', err.message);
   return new ResolveError('unavailable', (err && err.message) || 'unavailable');
+}
+
+/**
+ * Expands a short link by following its redirects (every hop on `allow`) until `toRef(url)` returns
+ * a ref for the post it leads to; the post page itself is not requested here.
+ */
+export async function expandShort(ctx, url, allow, toRef) {
+  let res;
+  try {
+    res = await request(ctx, url, { allow, stopAt: (u) => !!toRef(u) });
+  } catch (err) {
+    throw asResolveError(err);
+  }
+  if (!res.stoppedAt) throw new ResolveError('unsupported', 'short link did not lead to a post');
+  return toRef(res.stoppedAt);
+}
+
+/** A ref from a URL string through an adapter's identify(), or null (short links don't count). */
+export function refFromUrl(identify, url) {
+  const u = parseUrl(url);
+  const r = u ? identify(u) : null;
+  return r && !r.unsupported && !r.short ? r : null;
+}
+
+/** Fields shared by every information card (METADATA_ONLY): no files, a cover by URL at most. */
+export function card(platform, method, ref, { title = '', details = null, author = null, account = null, cover = null } = {}) {
+  return {
+    platform, method, key: ref.key, url: ref.url, meta: true, sensitive: false, items: [],
+    title: cleanText(title), details: details ? cleanText(details) : null, author: author || null,
+    account: account || ref.account || null, cover: cover && /^https:\/\//i.test(cover) ? cover : null,
+  };
 }

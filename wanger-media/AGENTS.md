@@ -169,8 +169,9 @@ state in [docs/PROGRESS.md](docs/PROGRESS.md) — read PROGRESS first.
   `lib/alerts.js` → `lib/db/*.js` (all SQL, raw `sql` tag) → `sdk`. Bot API calls only through
   `lib/tg.js`; permissions only in `lib/roles.js`; texts only in `lib/i18n/{fa,en,ru}.js` (same keys;
   `t()` escapes, `tp()` plain).
-- **Downloads:** `lib/download.js` (pipeline) → `lib/platforms/index.js` (registry; one adapter per
-  platform; unbuilt platforms are STUBS) → `lib/policy.js` (pure checks in the brief's order, variant
+- **Downloads:** `lib/download.js` (pipeline; METADATA_ONLY platforms answer with an information
+  card, status `meta`) → `lib/platforms/index.js` (registry; one adapter per platform, 13 built;
+  LinkedIn is a refused stub) → `lib/policy.js` (pure checks in the brief's order, variant
   choice) → `lib/delivery.js` (Telegram). All outbound HTTP goes through `lib/platforms/common.js`:
   allowlist on every hop, manual redirects, honest User-Agent, no cookies, sizes before bytes.
   **Never HEAD a CDN not marked `headSafe`** (a HEAD to Snapchat's CDN crashes the invocation).

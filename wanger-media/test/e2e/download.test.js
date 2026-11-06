@@ -1,7 +1,7 @@
 // The download core end to end: real handlers, the local SDK, a fake Telegram, and a fake web
 // that serves the responses recorded from Serverless (test/fixtures). Tests never call real platforms.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MB } from '../../tgcloud/lib/config.js';
+import { BUILT_PLATFORMS, MB } from '../../tgcloud/lib/config.js';
 import { ALICE, BORIS, buttonsOf, OWNER, setup } from '../helpers/harness.js';
 import { createWeb, fixture } from '../helpers/web.js';
 
@@ -85,7 +85,9 @@ describe('policy before any fetch', () => {
   it('links to unknown sites, unbuilt platforms, Telegram and refused URLs get specific answers', async () => {
     const cases = [
       ['https://example.org/video', 'unknown_site', 'This website isn’t supported'],
-      ['https://www.tiktok.com/@a/video/1', 'not_built', 'TikTok isn’t supported yet'],
+      ['https://www.linkedin.com/posts/someone_activity-1', 'unavailable_platform', 'LinkedIn can’t be supported'],
+      ['https://www.tiktok.com/@a', 'unsupported_kind', 'This kind of TikTok link'],
+      ['https://discord.com/channels/1/2/3', 'unsupported_kind', 'Send a direct file link'],
       ['https://t.me/wangerBots/5', 'telegram_link', 'Telegram links aren’t supported'],
       ['http://127.0.0.1/a', 'invalid_link', 'doesn’t look like a link'],
       ['https://x.com/SpaceX', 'unsupported_kind', 'This kind of X (Twitter) link'],
@@ -282,7 +284,7 @@ describe('Pinterest and Snapchat', () => {
     expect(sent('sendVideo')[0].params.video).toMatch(/^https:\/\/v1\.pinimg\.com\/.+\.mp4$/);
     later();
     expect((await h.send(ALICE, IDEA_PIN)).download.status).toBe('ok');
-    expect(sent('sendPhoto')[0].params.caption).toContain('Only the pin’s image is available publicly');
+    expect(sent('sendPhoto')[0].params.caption).toContain('Only the cover image is available publicly');
   });
 
   it('a pin.it short link is expanded hop by hop without loading the pin page', async () => {
@@ -342,8 +344,8 @@ describe('owner panel', () => {
     expect((await h.send(OWNER, '/admin')).view).toBe('admin');
     expect(datas()).toEqual(['A:o', 'A:u', 'A:c', 'A:p', 'A:s', 'A:t', 'A:b', 'A:a:0', 'A:x', 'h']); // the owner sees every section
     await h.press(OWNER, 'A:p', { messageId: 69 });
-    expect(ownerScreen().text).toContain('Not built yet: TikTok');
-    expect(datas()).toEqual(['P:x', 'P:pinterest', 'P:snapchat', 'A:pb', 'A:pc', 'A', 'h']);
+    expect(ownerScreen().text).toContain('Not supported (no public access): LinkedIn');
+    expect(datas()).toEqual([...BUILT_PLATFORMS.map((p) => 'P:' + p), 'A:pb', 'A:pc', 'A', 'h']);
     expect(buttonsOf(ownerScreen())[0].text).toContain('⚪');
 
     await h.press(OWNER, 'P:x', { messageId: 70 });

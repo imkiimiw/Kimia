@@ -2,6 +2,7 @@
 // methods on/off (the adapter's risk note first for public / third-party / external), pause a
 // platform instantly, health check, recent failures, and the owner tools of brief §6 — blocklist
 // (URL / account / domain) and purging cached file_ids for a URL. Every change is audit-logged.
+import { BUILT_PLATFORMS } from '../config.js';
 import * as admin from '../db/admin.js';
 import * as downloadsDb from '../db/downloads.js';
 import * as system from '../db/system.js';
@@ -13,6 +14,7 @@ import { isPublicHostname, parseUrl } from '../url.js';
 import { clip } from '../util.js';
 
 export const NEEDS_RISK_NOTE = ['public', 'thirdparty', 'external'];
+const ACCOUNT_RE = new RegExp(`^(${BUILT_PLATFORMS.join('|')}):@?([A-Za-z0-9_.-]{1,60})$`);
 
 const key = (id) => 'platform:' + id;
 
@@ -105,7 +107,7 @@ export async function blocklistScreen(user, notice = null) {
 export function blockValue(kind, text) {
   const s = String(text || '').trim();
   if (kind === 'url' || kind === 'account') {
-    const m = /^(x|pinterest|snapchat):@?([A-Za-z0-9_.-]{1,60})$/.exec(s);
+    const m = ACCOUNT_RE.exec(s);
     if (kind === 'account' && m) return `${m[1]}:${m[2].toLowerCase()}`;
     const id = registry.identify(/^https?:\/\//i.test(s) ? s : 'https://' + s);
     if (id.kind !== 'post') return null;

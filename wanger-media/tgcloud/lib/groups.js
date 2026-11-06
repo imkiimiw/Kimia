@@ -9,7 +9,7 @@
 // silent. Forced membership in groups is off unless the owner switches it on ('switch.group_join');
 // then a non-member gets one join prompt per GROUP_PROMPT_EVERY_S instead of the download.
 // Channels never auto-download (channel posts and automatic forwards are ignored).
-import { BOT_USERNAME, BUILT_PLATFORMS, JOIN_PASS_S, LANGS, PLATFORM_NAMES } from './config.js';
+import { BOT_USERNAME, BUILT_PLATFORMS, JOIN_PASS_S, LANGS, MEDIA_PLATFORMS, PLATFORM_NAMES } from './config.js';
 import * as channelsDb from './db/channels.js';
 import * as groupsDb from './db/groups.js';
 import * as system from './db/system.js';
@@ -74,13 +74,17 @@ async function usablePlatforms(gs) {
   }).map((a) => a.id);
 }
 
-/** The group's allowed platform list (null in the database = every built platform). */
+/**
+ * The group's allowed platform list. null in the database = the platforms that send files
+ * (MEDIA_PLATFORMS): information cards for every YouTube or Spotify link would flood a group, so
+ * group admins switch those on themselves.
+ */
 export function allowedList(gs) {
   try {
     const v = gs.platforms ? JSON.parse(gs.platforms) : null;
-    return Array.isArray(v) ? v.filter((p) => BUILT_PLATFORMS.includes(p)) : [...BUILT_PLATFORMS];
+    return Array.isArray(v) ? v.filter((p) => BUILT_PLATFORMS.includes(p)) : [...MEDIA_PLATFORMS];
   } catch {
-    return [...BUILT_PLATFORMS];
+    return [...MEDIA_PLATFORMS];
   }
 }
 
@@ -110,6 +114,7 @@ export function settingsScreen(lang, chat, gs) {
     lang: LANG_NAMES[normLang(gs.lang) || 'en'],
     platforms: BUILT_PLATFORMS.map((p) => `${allowed.includes(p) ? '✅' : '⬜'} ${PLATFORM_NAMES[p]}`).join(' · '),
   });
+  const platformButtons = BUILT_PLATFORMS.map((p) => ui.button(`${allowed.includes(p) ? '✅' : '⬜'} ${PLATFORM_NAMES[p]}`, 'G:p:' + p));
   const pick = (code, values, current, fmt = (v) => String(v)) => values.map((v) => ui.button((String(v) === String(current) ? '✓ ' : '') + fmt(v), `G:${code}:${v}`));
   const rows = [
     [ui.button(tp(lang, 'g.btn.auto', { v: onOff(lang, gs.auto_download) }), 'G:a'), ui.button(tp(lang, 'g.btn.admin', { v: onOff(lang, gs.admin_only) }), 'G:o')],
@@ -119,7 +124,7 @@ export function settingsScreen(lang, chat, gs) {
     [ui.button(tp(lang, 'g.btn.user_cd'), 'G'), ...pick('u', [0, 10, 30, 60], gs.user_cooldown_s)],
     [ui.button(tp(lang, 'g.btn.group_cd'), 'G'), ...pick('g', [0, 5, 15, 30], gs.group_cooldown_s)],
     LANGS.map((l) => ui.button((l === (normLang(gs.lang) || 'en') ? '✓ ' : '') + LANG_NAMES[l], 'G:L:' + l)),
-    BUILT_PLATFORMS.map((p) => ui.button(`${allowed.includes(p) ? '✅' : '⬜'} ${PLATFORM_NAMES[p]}`, 'G:p:' + p)),
+    ...ui.pairs(platformButtons, 3),
     [ui.button(tp(lang, 'g.btn.close'), 'G:x')],
   ];
   return { text, reply_markup: ui.markup(rows) };
@@ -137,13 +142,13 @@ export async function visibilityLine(ctx, lang, g) {
 
 async function statusText(ctx, lang, chat, g, gs) {
   const day = tehranDay(ctx.now);
-  const v = await system.counterValues([[`g_ok:${chat.id}`, day], [`g_failed:${chat.id}`, day]]);
+  const v = await system.counterValues([[`g_ok:${chat.id}`, day], [`g_meta:${chat.id}`, day], [`g_failed:${chat.id}`, day]]);
   const usable = await usablePlatforms(gs);
   return [
     t(lang, 'g.status', {
       title: chat.title || '', auto: onOff(lang, gs.auto_download), admin: onOff(lang, gs.admin_only), silent: onOff(lang, gs.silent),
       links: gs.max_links, mb: gs.max_mb, user: gs.user_cooldown_s, group: gs.group_cooldown_s,
-      ok: v[`g_ok:${chat.id}|${day}`] || 0, failed: v[`g_failed:${chat.id}|${day}`] || 0,
+      ok: (v[`g_ok:${chat.id}|${day}`] || 0) + (v[`g_meta:${chat.id}|${day}`] || 0), failed: v[`g_failed:${chat.id}|${day}`] || 0,
     }),
     '', usable.length ? ui.platformLines(lang, usable) : t(lang, 'platforms.none'),
     '', await visibilityLine(ctx, lang, g),

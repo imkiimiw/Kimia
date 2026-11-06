@@ -142,3 +142,32 @@ One line each: the choice — the reason. Newest phase last.
 - The profile (commands + description + short description) is applied by the owner from Admin › Switches, and was applied once at launch via `tgcloud run` (14 calls, read back with getMyCommands) — idempotent, so it can be re-applied after any text change.
 - The description names X, Pinterest and Snapchat "and more" rather than a fixed list — platforms are switched on and off by the owner, and Phase 7 adds more.
 - Version 1.0.0 at launch (Phase 6); README is in English (brief §2: docs in English) and covers Windows setup, BotFather/Serverless, the CLI token, migrate → push, channels, groups/privacy mode and the admin panel.
+
+## Phase 7 (2026-11-06)
+
+- All ten remaining platforms were built in one pass under the owner's standing approval (brief §7
+  says "one per session"; the owner asked for every phase to the end). Each adapter has its own
+  recorded fixtures, unit tests, an end-to-end path and a live check from Serverless.
+- **Information cards** for METADATA_ONLY platforms (TikTok, Facebook, Threads, YouTube, Reddit,
+  Twitch, Spotify, SoundCloud): cover photo by URL + title, author, details, link and a per-platform
+  reason why there is no file; a text card when there is no usable cover. The cover is probed like
+  media (allowlist on every hop, ≤ 5 MB) but never downloaded by the bot. Result status `meta`
+  (history ℹ️, counter `dl_meta`), cached like files.
+- Cards give the quota back (they are information, not downloads); the cooldown still applies so
+  they can't be used to hammer the platforms.
+- Groups: the default allowed list is now the platforms that send files (X, Instagram, Pinterest,
+  Snapchat, Discord); cards would flood a group, so its admins switch those platforms on. Groups that
+  had saved a list keep it.
+- Method ids: oEmbed endpoints the platforms document (YouTube, SoundCloud, Reddit) are `official`
+  (no risk note: public, documented, metadata only); page tags and embed pages are `public` with a
+  risk note. Every method still starts OFF.
+- Instagram is LIMITED, not SUPPORTED: only what the embed page includes; videos Instagram leaves
+  out (copyright-blocked reels) are sent as their cover with a note rather than worked around.
+- Discord is LIMITED (attachments only, links expire) and stricter than other platforms on file
+  types: extension and Content-Type must both be image/GIF/MP4 (its CDN has carried malware).
+- Twitch: only VOD links; clip pages expose nothing publicly, channels are profiles.
+- Reddit links without a community are asked through oEmbed as `/r/all/…` (Reddit resolves by id,
+  measured) — the documented endpoint, no block worked around.
+- LinkedIn stays a stub refused with its reason (posts only for logged-in members, 403).
+- `dl.note.cover_only` became generic ("only the cover image") since Instagram uses it too.
+- Version 1.1.0.

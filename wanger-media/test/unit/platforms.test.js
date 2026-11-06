@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { LANGS } from '../../tgcloud/lib/config.js';
+import { BUILT_PLATFORMS, LANGS, MEDIA_PLATFORMS, METHODS, PLATFORM_NAMES, UNAVAILABLE_PLATFORMS } from '../../tgcloud/lib/config.js';
+import { NEEDS_RISK_NOTE } from '../../tgcloud/lib/admin/platforms.js';
 import { metaTags, resolveLocation } from '../../tgcloud/lib/platforms/common.js';
 import * as registry from '../../tgcloud/lib/platforms/index.js';
 import { fromPinInfo, pinIdFromPath } from '../../tgcloud/lib/platforms/pinterest.js';
@@ -45,10 +46,9 @@ describe('identifying links', () => {
     }
   });
 
-  it('platforms not built yet, Telegram links, unknown sites, and refused URLs', () => {
-    expect(id('https://vm.tiktok.com/ZMabc/')).toEqual({ kind: 'not_built', platform: 'tiktok' });
-    expect(id('https://youtu.be/dQw4w9WgXcQ')).toEqual({ kind: 'not_built', platform: 'youtube' });
-    expect(id('https://www.instagram.com/p/abc/')).toEqual({ kind: 'not_built', platform: 'instagram' });
+  it('LinkedIn (refused for good), Telegram links, unknown sites, and refused URLs', () => {
+    expect(id('https://www.linkedin.com/posts/a_b-1')).toEqual({ kind: 'unavailable', platform: 'linkedin' });
+    expect(id('https://lnkd.in/abc')).toEqual({ kind: 'unavailable', platform: 'linkedin' });
     expect(id('https://t.me/wangerBots/12').kind).toBe('telegram');
     expect(id('https://example.org/a').kind).toBe('unknown');
     expect(id('http://127.0.0.1/x.com/a/status/1').kind).toBe('invalid');
@@ -154,18 +154,34 @@ describe('Pinterest and Snapchat responses (recorded from Serverless)', () => {
 });
 
 describe('capabilities are truthful', () => {
-  it('built adapters: X supported, Pinterest and Snapchat limited, official APIs need approval; others unavailable', () => {
-    expect(registry.statusOf('x')).toBe('SUPPORTED');
-    expect(registry.statusOf('pinterest')).toBe('LIMITED');
-    expect(registry.statusOf('snapchat')).toBe('LIMITED');
-    for (const a of registry.ADAPTERS) expect(a.capabilities().methods.official).toBe('REQUIRES_APPROVAL');
-    for (const s of registry.STUBS) expect(registry.statusOf(s.id)).toBe('UNAVAILABLE');
+  it('every platform has the status docs/PLATFORMS.md gives it; LinkedIn is unavailable', () => {
+    const expected = {
+      x: 'SUPPORTED', instagram: 'LIMITED', pinterest: 'LIMITED', snapchat: 'LIMITED', discord: 'LIMITED',
+      tiktok: 'METADATA_ONLY', facebook: 'METADATA_ONLY', threads: 'METADATA_ONLY', youtube: 'METADATA_ONLY',
+      reddit: 'METADATA_ONLY', twitch: 'METADATA_ONLY', spotify: 'METADATA_ONLY', soundcloud: 'METADATA_ONLY', linkedin: 'UNAVAILABLE',
+    };
+    for (const [p, st] of Object.entries(expected)) expect(registry.statusOf(p), p).toBe(st);
+    expect(registry.ADAPTERS.map((a) => a.id)).toEqual(BUILT_PLATFORMS);
     expect(registry.ADAPTERS.length + registry.STUBS.length).toBe(14);
+    expect(Object.keys(PLATFORM_NAMES).sort()).toEqual([...BUILT_PLATFORMS, ...UNAVAILABLE_PLATFORMS].sort());
+    for (const s of registry.STUBS) expect(registry.statusOf(s.id)).toBe('UNAVAILABLE');
+    // media platforms send files; the others send information cards and have no media hosts at all
+    for (const a of registry.ADAPTERS) {
+      const st = a.capabilities().status;
+      expect(MEDIA_PLATFORMS.includes(a.id), a.id).toBe(st === 'SUPPORTED' || st === 'LIMITED');
+      if (st === 'METADATA_ONLY') expect(a.mediaHosts, a.id).toEqual([]);
+      for (const m of a.methodOrder) expect(a.capabilities().methods[m], `${a.id} ${m}`).toBe(st === 'METADATA_ONLY' ? 'METADATA_ONLY' : a.capabilities().methods[m]);
+    }
+    // no official API that downloads media is built anywhere (they need approval, OAuth or money)
+    for (const id of ['x', 'instagram', 'pinterest', 'snapchat', 'tiktok', 'facebook']) expect(registry.byId(id).capabilities().methods.official).toBe('REQUIRES_APPROVAL');
   });
 
-  it('every method an adapter offers has a risk note in fa, en and ru', () => {
+  it('every public / third-party method has a risk note in fa, en and ru; methods are known ids', () => {
     for (const a of registry.ADAPTERS) {
+      expect(a.methodOrder.length, a.id).toBeGreaterThan(0);
       for (const m of a.methodOrder) {
+        expect(METHODS, `${a.id} ${m}`).toContain(m);
+        if (!NEEDS_RISK_NOTE.includes(m)) continue;
         for (const l of LANGS) expect(String(a.riskNotes[m][l]).length, `${a.id} ${m} ${l}`).toBeGreaterThan(60);
       }
     }

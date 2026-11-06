@@ -92,13 +92,14 @@ export function caption(lang, post, notes = []) {
   tail.push('@' + BOT_USERNAME);
   const rest = tail.join('\n');
   const text = String(post.title || '').replace(/https?:\/\/t\.co\/\S+/g, '').trim();
-  const room = CAPTION_MAX - rest.length - 2;
-  const head = text && room > 20 ? esc(clip(text, Math.min(room, 600))) : '';
+  const details = post.details ? clip(String(post.details).trim(), 200) : '';
+  const room = CAPTION_MAX - rest.length - 2 - (details ? details.length + 1 : 0);
+  const head = [text && room > 20 ? esc(clip(text, Math.min(room, 600))) : '', esc(details)].filter(Boolean).join('\n');
   const out = head ? `${head}\n\n${rest}` : rest;
   return out.length <= CAPTION_MAX ? out : out.slice(0, CAPTION_MAX);
 }
 
-const STATUS_ICON = { ok: '✅', failed: '❌', denied: '⛔' };
+export const STATUS_ICON = { ok: '✅', meta: 'ℹ️', failed: '❌', denied: '⛔' };
 
 /** "My downloads": one page of the latest HISTORY_MAX entries (items newest first). */
 export function history(lang, { items, page, pages, total }) {
@@ -150,6 +151,13 @@ export const help = (lang, ids = []) => ({
 const METHOD_ICON = { true: '🟢', false: '⚪' };
 export const platformStateKey = (adapter, state) => (state.paused ? 'paused' : adapter.methodOrder.some((m) => state.methods[m] === true) ? 'on' : 'off');
 
+/** Buttons two per row. */
+export function pairs(buttons, n = 2) {
+  const out = [];
+  for (let i = 0; i < buttons.length; i += n) out.push(buttons.slice(i, i + n));
+  return out;
+}
+
 /** The list of built platforms with their state; unbuilt ones are named, without buttons. */
 export function adminPlatforms(lang, rows, notBuilt) {
   const lines = [t(lang, 'admin.title')];
@@ -157,7 +165,7 @@ export function adminPlatforms(lang, rows, notBuilt) {
   return {
     text: lines.join('\n'),
     reply_markup: markup([
-      ...rows.map(({ adapter, state }) => [button(`${tp(lang, 'admin.state.' + platformStateKey(adapter, state))} · ${adapter.name}`, encode(CB.PLATFORM, adapter.id))]),
+      ...pairs(rows.map(({ adapter, state }) => button(`${tp(lang, 'admin.state.' + platformStateKey(adapter, state))} · ${adapter.name}`, encode(CB.PLATFORM, adapter.id)))),
       [button(tp(lang, 'adm.btn.blocklist'), encode(CB.ADMIN, 'pb')), button(tp(lang, 'adm.btn.purge'), encode(CB.ADMIN, 'pc'))],
       navRow(lang, encode(CB.ADMIN)),
     ]),

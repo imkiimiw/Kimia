@@ -8,8 +8,8 @@ export const OWNER_ID = 5557901897;
 export const BOT_ID = 9080356648;
 export const BOT_USERNAME = 'Wanger_mediabot';
 
-export const VERSION = '1.0.0';
-export const PHASE = 6;
+export const VERSION = '1.1.0';
+export const PHASE = 7;
 
 /** The bot's own channel, shown in About. */
 export const CHANNEL_USERNAME = 'wangerBots';
@@ -63,8 +63,15 @@ export const PLATFORM_NAMES = {
   threads: 'Threads', discord: 'Discord', spotify: 'Spotify', soundcloud: 'SoundCloud',
 };
 
-/** Platforms with a built adapter (lib/platforms/), and the method ids an adapter may offer. */
-export const BUILT_PLATFORMS = ['x', 'pinterest', 'snapchat'];
+/**
+ * Platforms with a built adapter (lib/platforms/), in the order screens list them, and the method
+ * ids an adapter may offer. MEDIA_PLATFORMS send files; the others send an information card (title,
+ * author, cover, link — status METADATA_ONLY). Groups answer only MEDIA_PLATFORMS unless their admins
+ * switch the others on. UNAVAILABLE_PLATFORMS are recognised and refused with the reason.
+ */
+export const BUILT_PLATFORMS = ['x', 'instagram', 'tiktok', 'pinterest', 'snapchat', 'facebook', 'threads', 'youtube', 'reddit', 'twitch', 'discord', 'spotify', 'soundcloud'];
+export const MEDIA_PLATFORMS = ['x', 'instagram', 'pinterest', 'snapchat', 'discord'];
+export const UNAVAILABLE_PLATFORMS = ['linkedin'];
 export const METHODS = ['official', 'public', 'thirdparty', 'external'];
 
 /** Telegram's own limits (Bot API): by URL Telegram fetches the file itself; uploads go through us. */

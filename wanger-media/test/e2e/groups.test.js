@@ -142,7 +142,7 @@ describe('group commands', () => {
     expect((await h.sendGroup(ALICE, G, PHOTOS)).ignored).toBe('auto_off');
     await h.pressGroup(BORIS, G, 'G:a', { messageId: 952 });
     await h.pressGroup(BORIS, G, 'G:p:x', { messageId: 953 });
-    expect(JSON.parse(gs().platforms)).toEqual(['pinterest', 'snapchat']);
+    expect(JSON.parse(gs().platforms)).toEqual(['instagram', 'pinterest', 'snapchat', 'discord']); // the default: platforms that send files
     expect((await h.sendGroup(ALICE, G, PHOTOS)).ignored).toBe('no_usable_link');
     await h.pressGroup(BORIS, G, 'G:l:1', { messageId: 954 });
     await h.pressGroup(BORIS, G, 'G:L:ru', { messageId: 955 });

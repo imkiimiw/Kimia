@@ -1,9 +1,9 @@
 # Platforms — research for Wanger Media
 
-Checked **2026-11-05** (Phase 0), updated **2026-11-06** (Phase 3) for `@Wanger_mediabot`
-(app9080356648, CLI 0.2.0). **Built so far (Phase 3): X/Twitter, Pinterest, Snapchat** — see §7 for
-what was measured with the real adapters. Every other platform is UNAVAILABLE until its adapter is
-built (Phase 7); the statuses given for them below are what we *expect*.
+Checked **2026-11-05** (Phase 0), updated **2026-11-06** (Phase 3 and Phase 7) for `@Wanger_mediabot`
+(app9080356648, CLI 0.2.0). **Built: all 13 platforms** — X, Pinterest, Snapchat (Phase 3, measured
+in §7) and the other ten (Phase 7, measured in §8). LinkedIn is recognised and refused
+(UNAVAILABLE). The status column of §3 is what the adapters report (`capabilities()`, tested).
 
 Legend: **Official** = in the platform's own docs · **Measured** = observed today from Telegram
 Serverless with a temporary `tgcloud run` probe (read-only, never deployed, deleted afterwards;
@@ -42,22 +42,28 @@ sources or not testable yet. Measurements can change without notice: platforms c
 
 ## 3. Summary
 
-| Platform | Official API (for others' public posts) | `public` on Serverless (measured) | Expected status | ToS risk of `public` |
+| Platform | Official API (for others' public posts) | Built method on Serverless (measured) | Status | ToS risk |
 |---|---|---|---|---|
-| **X / Twitter** ✅ built | Paid pay-per-use (no free tier for new devs) | ✅ media (photos, complete MP4 videos/GIFs); FxTwitter as free third-party method | **SUPPORTED** | High |
-| **Pinterest** ✅ built | Needs app review (Standard access) + OAuth | ✅ image pins and video pins (MP4); Idea Pins: cover image only | **LIMITED** | High |
-| **Snapchat** ✅ built | Allowlisted partners only | ✅ Spotlight MP4 | **LIMITED** (Spotlight only) | High |
-| Discord | — | ✅ host reachable; links must still be signed | SUPPORTED (direct attachments) | Low |
-| Instagram | Own / business accounts, app review | ⚠️ embed page exposes media | LIMITED | Very high |
-| Facebook | Own pages only | metadata (oEmbed html, og:image) | METADATA_ONLY | High |
-| Threads | Own account only | oEmbed reachable ❓ | METADATA_ONLY | High |
-| TikTok | No download API | metadata; video file 403 without cookies | METADATA_ONLY | High |
-| YouTube | Data API: metadata only | metadata (oEmbed) | METADATA_ONLY | (no download) |
-| Reddit | Approval only; new requests closing | JSON 403; oEmbed metadata | METADATA_ONLY | Medium |
-| LinkedIn | Approved orgs, own content | 403 | UNAVAILABLE | High |
-| Spotify | (not needed) | metadata (oEmbed + Open Graph) | METADATA_ONLY (DRM) | Low |
-| SoundCloud | Needs paid Artist Pro to register | metadata (oEmbed) | METADATA_ONLY | Low |
-| Twitch | Free app; clip download only for channel editors | metadata (Open Graph); API needs OAuth token | METADATA_ONLY | Low |
+| **X / Twitter** ✅ | Paid pay-per-use (no free tier for new devs) | `public` embed JSON + `thirdparty` FxTwitter: photos, complete MP4 videos/GIFs | **SUPPORTED** | High |
+| **Pinterest** ✅ | Needs app review (Standard access) + OAuth | `public` pin JSON: image pins, video pins (MP4); Idea Pins: cover image | **LIMITED** | High |
+| **Snapchat** ✅ | Allowlisted partners only | `public` Open Graph: Spotlight MP4 | **LIMITED** (Spotlight only) | High |
+| **Instagram** ✅ | Own / business accounts, app review | `public` embed page: photos, carousels, videos it includes; others → cover + note | **LIMITED** | Very high |
+| **Discord** ✅ | — | `public`: direct attachment links (images, GIFs, MP4), one HEAD first | **LIMITED** (attachments only; links expire) | Low |
+| **TikTok** ✅ | No download API | `public` page JSON: description, author, cover — the video needs cookies (403) | **METADATA_ONLY** | High |
+| **Facebook** ✅ | Own pages only | `public` Open Graph: post text, preview image | **METADATA_ONLY** | High |
+| **Threads** ✅ | Own account only | `public` Open Graph: text, author, preview image | **METADATA_ONLY** | High |
+| **YouTube** ✅ | Data API: metadata only | `official` oEmbed: title, channel, thumbnail | **METADATA_ONLY** | (no download) |
+| **Reddit** ✅ | Approval only; new requests closing | `official` oEmbed: title, author, community (no image) | **METADATA_ONLY** | Medium |
+| **Twitch** ✅ | Free app; clip download only for channel editors | `public` Open Graph of video (VOD) pages: title, channel, thumbnail | **METADATA_ONLY** | Low |
+| **Spotify** ✅ | (not needed) | `public` Open Graph: title, artists, cover — never audio (DRM) | **METADATA_ONLY** | Low |
+| **SoundCloud** ✅ | Needs paid Artist Pro to register | `official` oEmbed: title, artist, artwork | **METADATA_ONLY** | Low |
+| LinkedIn | Approved orgs, own content | 403 to Serverless | **UNAVAILABLE** (refused with the reason) | High |
+
+METADATA_ONLY platforms answer with an **information card**: the cover by URL (after the same
+allowlist and redirect check as media; never downloaded by the bot), title, author, details, the
+source link and a one-line reason why there is no file. Cards don't use the daily quota (the
+cooldown applies), are cached like files, count as `dl_meta`, and are off in groups until the
+group's admins switch the platform on.
 
 ## 4. Per platform
 
@@ -114,6 +120,11 @@ sources or not testable yet. Measurements can change without notice: platforms c
   UNAVAILABLE. Discord's CDN has been used for malware: deliver media types only (checked by
   Content-Type), never executables or archives.
 - **Expected:** SUPPORTED for valid attachment links. Low ToS risk (the user hands over a file link).
+- **Built (Phase 7):** `public` — `cdn.discordapp.com` / `media.discordapp.net` `/attachments/…`
+  links with their signature kept; the name's extension and the served Content-Type must both be
+  an image, GIF or MP4 (else "file type not supported", checked before any download); expired links
+  → "not found" + a hint. Reported **LIMITED** (attachments only). A valid signed link could not be
+  tested live (none available): the expired-link path, HEAD on both hosts and the CDN were.
 
 ### Instagram
 - **Official:** the Instagram API reads the logged-in professional account's own media; Business
@@ -126,17 +137,30 @@ sources or not testable yet. Measurements can change without notice: platforms c
 - **Terms:** Instagram forbids collecting information "in an automated way without our express
   permission"; Meta's Automated Data Collection Terms apply. Highest risk of the list.
 - **Expected:** LIMITED (public posts only, if the owner accepts the risk).
+- **Built (Phase 7):** `public` — the embed page's `contextJSON` (a JSON string inside a script):
+  photos (display_url, up to 3 sizes), carousels (`edge_sidecar_to_children`, ≤ 20 items) and
+  `video_url` MP4s. Reels Instagram marks `copyright_blocked` carry no `video_url` → their cover image
+  with a note. Missing / private / age-restricted posts have `contextJSON: null` → "not found".
+  Its CDN is probed with Range only (HEAD not measured).
 
 ### Facebook
 - **Official:** Graph API only for pages the owner manages. oEmbed Post/Video tokenless → html only
   (Measured). **Public (Measured):** page HTML → `og:image`; public video `og:video`: Unverified.
 - **Terms:** Meta Automated Data Collection Terms. **Expected:** METADATA_ONLY (LIMITED if public
   video files prove reachable).
+- **Built (Phase 7):** `public` — Open Graph of video / reel / watch / post / photo pages (and
+  fb.watch, /share/ short links): `og:description` = the post text, `og:image` = preview; the
+  localised view counts in `og:title` are dropped. **Measured:** the page has no `playable_url` /
+  `browser_native_*_url` for visitors who aren't logged in → METADATA_ONLY. A login page → "only for
+  logged-in users".
 
 ### Threads
 - **Official:** Threads API = the user's own account (OAuth). oEmbed is tokenless since 2026 (Meta;
   sources disagree on `graph.threads.net` vs `.com`). Measured: `graph.threads.net/v1.0/oembed`
   reachable; our test URL was not a real post (400) → Unverified. **Expected:** METADATA_ONLY.
+- **Built (Phase 7):** `public` — Open Graph of the post page (threads.net redirects to threads.com):
+  `og:description` = text, `og:title` = "Name (@user) on Threads", `og:image` = preview. **Measured:**
+  oEmbed for a real post returns HTML only; the page has no `image_versions2` / `video_versions`.
 
 ### TikTok
 - **Official:** Display API (OAuth, the user's own videos), Research API (academic approval), no API
@@ -146,11 +170,17 @@ sources or not testable yet. Measurements can change without notice: platforms c
   fetching `playAddr` **without cookies → 403**. We never use cookies → no video.
 - **Terms:** automated scraping/extraction forbidden without written approval (Unverified wording).
 - **Expected:** METADATA_ONLY (title, author, cover from the page JSON; cover fetch Unverified).
+- **Built (Phase 7):** `public` — `__UNIVERSAL_DATA_FOR_REHYDRATION__` → `webapp.video-detail`:
+  `desc`, `author.uniqueId`, `video.cover`. **Measured:** the signed cover on `*.tiktokcdn-eu.com`
+  answers a Range request without cookies (206); `statusCode` 10204 = missing; `/@/video/<id>` works
+  when the user is unknown; vm.tiktok.com short links redirect (302). `playAddr` is never used.
 
 ### YouTube
 - **Official:** Data API v3 (free API key) = metadata only. Terms: no downloading unless YouTube shows
   a download link; most qualities are separate audio/video streams anyway.
 - **Measured:** oEmbed → title, author, thumbnail. **Expected:** METADATA_ONLY.
+- **Built (Phase 7):** `official` (oEmbed, no key) — watch, youtu.be, shorts, live, embed links;
+  401 → private, 403 → restricted, 400/404 → not found. Thumbnail `i.ytimg.com` (HEAD fine).
 
 ### Reddit
 - **Official:** self-service API keys ended Nov 2025 (Responsible Builder Policy); access needs
@@ -159,23 +189,33 @@ sources or not testable yet. Measurements can change without notice: platforms c
   Serverless). `reddit.com/oembed` → title, author, html. Hosted video (`v.redd.it`) is separate
   audio/video streams. Direct `i.redd.it` image links: Unverified.
 - **Expected:** METADATA_ONLY.
+- **Built (Phase 7):** `official` (oEmbed) — title, `u/author`, `r/community`; no image → a text card.
+  **Measured:** oEmbed needs a `/r/<community>/` link (a bare `/comments/<id>/` → 400) but finds the
+  post by id whatever community is named, so such links are asked as `/r/all/` and the real community
+  is read from the answer; redd.it/<id> redirects (301) to `/comments/<id>`; share links redirect.
 
 ### LinkedIn
 - **Official:** reading members' posts is a restricted private permission; Community Management API
   only for registered organisations, own content → REQUIRES_APPROVAL.
 - **Measured:** 403 to Serverless. **Expected:** UNAVAILABLE.
+- **Phase 7:** recognised (linkedin.com, lnkd.in) and refused with the reason; no adapter.
 
 ### Spotify
 - DRM → metadata only (brief §7). **Measured:** oEmbed → title + cover (no artist); the track page's
   Open Graph → title, "Artist · Album · Song · Year", 640 px cover. Its `og:audio` 30-s preview is
   **not** used (brief: metadata only). No credentials needed (the Web API's dev mode now needs the
   owner's Premium — not required). **Expected:** METADATA_ONLY.
+- **Built (Phase 7):** `public` — Open Graph of track / album / playlist / artist / episode / show
+  pages: title ("Listen to … | Spotify" trimmed), `og:description` as details, 640 px cover.
+  `og:audio` is in the page and deliberately ignored (tested).
 
 ### SoundCloud
 - **Official:** registering an API app needs a paid **Artist Pro** subscription (SoundCloud docs);
   client credentials cover public search/playback/resolve. Streams are HLS segments (no merging), and
   downloads exist only where the uploader enabled them (Unverified). Money decision, not needed now.
 - **Measured:** oEmbed → title, description, author, 500 px artwork. **Expected:** METADATA_ONLY.
+- **Built (Phase 7):** `official` (oEmbed) — tracks and sets; secret `s-…` links refused;
+  on.soundcloud.com expanded. The artwork answers without a Content-Length: sent by URL.
 
 ### Twitch
 - **Official:** Helix with a free app (client credentials; the owner's Twitch account needs 2FA) →
@@ -184,6 +224,9 @@ sources or not testable yet. Measurements can change without notice: platforms c
   can't be downloaded. VODs are HLS.
 - **Measured:** Helix without a token → 401; channel pages have Open Graph title/image.
   **Expected:** METADATA_ONLY.
+- **Built (Phase 7):** `public` — Open Graph of video (VOD) pages: "<title> - <channel> on Twitch",
+  description, thumbnail. **Measured:** clip pages carry only generic "Twitch" tags → clip links are
+  refused with a hint; channels are profiles, not posts.
 
 ## 5. Proposal: the first 3 platforms
 
@@ -246,3 +289,20 @@ YouTube: [API Services terms](https://developers.google.com/youtube/terms).
 | Health checks | X, Pinterest, Snapchat: all working. |
 | Transient failures | Range/HEAD to `i.pinimg.com` / `v1.pinimg.com` failed once with `fetch: request failed` after ≈ 5 s, then worked three times in a row (20–1800 ms). The pipeline treats an unknown size as "by URL only". |
 | Text | Pinterest descriptions and X text contain HTML entities (`&#8217;`, `&amp;`): decoded before captions are built. |
+
+## 8. Phase 7 measurements (2026-11-06, real adapters run with `tgcloud run`, no messages sent)
+
+| Platform | Result (from Serverless) |
+|---|---|
+| YouTube | watch + shorts links → title, channel, `@handle`; thumbnail 21 KB by HEAD; 50–100 ms. |
+| SoundCloud | track → "Flickermood" by Forss; artwork has no Content-Length (HEAD and GET) → by URL only. |
+| Reddit | full link → card in 0.5–0.9 s; bare `/comments/<id>/` → 400 until asked as `/r/all/`; redd.it → 301 → card (one stall of 5 s: `fetch: request failed`). |
+| Spotify | track and album pages → title, "artist · …", 46 KB cover; one HEAD to `i.scdn.co` took 1.7 s. |
+| Twitch | VOD page → title, channel, thumbnail 29 KB; the page takes ≈ 1–3.5 s. |
+| Facebook | video page (and `/watch/?v=` → 302) → post text, 72 KB preview on `*.xx.fbcdn.net`; no video URL in the page. |
+| Threads | post page → text, author, 27 KB preview; one page fetch took 8 s (the page is ≈ 600 KB). |
+| TikTok | video page → description, author, cover 80 KB (Range 206, no cookies); `/embed/v2/<id>` and `/@/video/<id>` work. |
+| Instagram | video post → 1.5 MB MP4; carousel → 3 MP4s (40 KB – 2.5 MB); copyright-blocked reel → 210 KB cover; Range 206 on `scontent-*.cdninstagram.com`. |
+| Discord | HEAD to `cdn.discordapp.com` and `media.discordapp.net` fine; unsigned/expired attachment → 404. |
+| LinkedIn | refused before any request. |
+| Health checks | all 13 adapters OK (30 ms – 8 s). |

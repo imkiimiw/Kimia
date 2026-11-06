@@ -123,6 +123,26 @@ export async function deliver(ctx, { chatId, replyTo, choices, caption, allow, m
   };
 }
 
+/**
+ * An information card (METADATA_ONLY platforms): the cover photo by URL with the caption, or — no
+ * cover, or Telegram can't fetch it — the caption as a text message. Nothing is downloaded.
+ * → { items: [{ type: 'photo', file_id }] | [], bytes: 0 }
+ */
+export async function sendCard(ctx, { chatId, replyTo, cover, caption }) {
+  if (cover) {
+    try {
+      const msg = await single(ctx, chatId, replyTo, { type: 'photo' }, cover, caption);
+      return { items: [{ type: 'photo', file_id: fileIdOf(msg, 'photo') }], bytes: 0 };
+    } catch (err) {
+      if (!(err && err.code === 400)) throw err; // the cover was refused: the text alone still helps
+    }
+  }
+  await tg.call(ctx, 'dl_card', 'sendMessage', {
+    chat_id: chatId, text: caption, parse_mode: 'HTML', link_preview_options: { is_disabled: true }, ...replyParams(replyTo),
+  });
+  return { items: [], bytes: 0 };
+}
+
 /** Re-sends cached file_ids (no fetching). Throws DeliveryError('file_id_refused') if Telegram refuses them. */
 export async function sendCached(ctx, { chatId, replyTo, items, caption }) {
   const entries = items.map((it) => ({ item: { type: it.type }, media: it.file_id }));
