@@ -158,6 +158,15 @@ When the language or genre of an ACTIVE track changes, `publisher.reroute` cance
 publications (approval / queue) for channels it no longer matches and routes it to the channels it
 now matches (same no-backfill rule); published posts are not touched.
 
+**Undecided languages** (fix, 2026-11-07): a track whose language nobody decided (`language_source =
+heuristic` and unknown or low — partial index `idx_tracks_undecided_language`) matches no channel. So:
+the owner is asked once per source without a default language (on import, and from the tick processor
+`languages`, ≤ 1 per source per 12 h): Persian / English / other / mixed. The answer becomes the
+source's default and is applied to its undecided tracks (`catalog.applySourceLanguage`, batches of
+200), which are re-routed. A person's choice on one track spreads to the same artist's undecided
+tracks (`language_source = artist`). Decisions (manual / source / artist) are never overwritten.
+The monitor warns (System Status + owner alert) while active tracks are undecided.
+
 ## Destination channels (Phase 5)
 
 `publishing/destinations.js` + `admin/destinations_ui.js`. Adding (one-tap buttons for the

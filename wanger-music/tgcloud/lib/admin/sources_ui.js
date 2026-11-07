@@ -87,6 +87,37 @@ export async function promptBotAdded(app, chat, from) {
   }
 }
 
+/**
+ * Asks the owner the language of a source whose tracks the script couldn't classify (Latin-letter
+ * titles), at most every 12 h per source. One tap answers for the source's present and future tracks.
+ * @param {{id: number, title?: string, username?: string, n?: number}} src
+ */
+export async function askSourceLanguage(app, src) {
+  if (!(await app.alerts.claim(`srclang:${src.id}`, 12 * 3600))) return false;
+  const owner = await app.users.get(OWNER_ID);
+  const lang = await app.users.languageOf(owner);
+  try {
+    await app.tg.send(OWNER_ID, {
+      text: t(lang, 'srclang.ask', { title: src.title || (src.username ? '@' + src.username : String(src.id)), count: src.n ? raw(t(lang, 'srclang.count', { n: src.n })) : '' }),
+      keyboard: markup([
+        [btn(tp(lang, 'srclang.fa'), 'src', 'dl', src.id, 'fa'), btn(tp(lang, 'srclang.en'), 'src', 'dl', src.id, 'en'), btn(tp(lang, 'srclang.other'), 'src', 'dl', src.id, 'other')],
+        [btn(tp(lang, 'srclang.mix'), 'src', 'dl', src.id, 'mix')],
+      ]),
+    }, 'source_language_prompt');
+    return true;
+  } catch (e) {
+    app.log.warn('source_language_prompt_failed', { error: String(e && (e.description || e.message)).slice(0, 120) });
+    return false;
+  }
+}
+
+/** Tick processor: sources without a default language whose tracks wait for one → ask (throttled). */
+export async function askMissingLanguages(app) {
+  let asked = 0;
+  for (const src of await app.catalog.sourcesNeedingLanguage(5)) if (await askSourceLanguage(app, src)) asked += 1;
+  return { asked };
+}
+
 /** Replaces the prompt with what happened. */
 const resolvePrompt = (app, user, cq, text) => screen(app, user, cq, { text }, 'bot_added_done');
 
@@ -96,6 +127,27 @@ export const routes = [
   cardAction('tog', (app, user, id) => app.sources.toggle(user, id)),
   cardAction('mode', (app, user, id) => app.sources.cycleMode(user, id)),
   cardAction('lang', (app, user, id) => app.sources.cycleLanguage(user, id)),
+  {
+    // the owner's answer to «what language are this source's songs?»
+    ns: 'src', action: 'dl', args: ['uint', 'word'], perm: PERM,
+    async run(app, user, [id, choice], cq) {
+      const lang = app.lang;
+      const src = await app.sources.get(id);
+      if (!src) return { toast: tp(lang, 'src.err.gone'), alert: true };
+      const title = src.title || (src.username ? '@' + src.username : String(src.chat_id));
+      if (choice === 'mix') {
+        await screen(app, user, cq, { text: t(lang, 'srclang.mixed', { title }) }, 'source_language_done');
+        return {};
+      }
+      if (!['fa', 'en', 'other'].includes(choice)) return { toast: tp(lang, 'common.expired'), alert: true };
+      const r = await app.sources.setDefaultLanguage(user, id, choice);
+      await screen(app, user, cq, {
+        text: t(lang, 'srclang.done', { title, language: tp(lang, `tlang.${choice}`), updated: r.updated, routed: r.routed }) + (r.more ? '\n' + t(lang, 'srclang.more') : ''),
+        keyboard: r.more ? markup([[btn(tp(lang, `srclang.${choice}`), 'src', 'dl', id, choice)]]) : undefined,
+      }, 'source_language_done');
+      return {};
+    },
+  },
   {
     ns: 'src', action: 'add', args: [], perm: PERM,
     async run(app, user) {

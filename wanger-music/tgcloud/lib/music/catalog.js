@@ -17,11 +17,13 @@ const PERM = 'catalog.manage';
 /** Caption of an archived copy (HTML). */
 export const archiveCaption = (tr) => `#t${tr.public_id}\n🎵 ${esc(tr.title || '')}\n👤 ${esc(tr.artist || '')}${tr.album ? `\n💿 ${esc(tr.album)}` : ''}`;
 
+/** Tracks updated per statement when a language spreads to a source's / artist's undecided tracks. */
+const LANGUAGE_BATCH = 200;
 /** Tracks one «✅ Activate all» press activates at most (the rest: press again). */
 const ACTIVATE_MANY_MAX = 300;
 
 /**
- * @param {{repo: any, tg: any, settings: any, audit: any, alerts: any, clock: any, log: any, index?: {add: (t: any) => Promise<any>, remove: (id: number) => Promise<any>}, publishing?: {routeTrack: (t: any) => Promise<any>, cancelForTrack: (id: number) => Promise<any>, deleteForTrack: (id: number) => Promise<any>, reroute?: (t: any) => Promise<any>}}} deps
+ * @param {{repo: any, tg: any, settings: any, audit: any, alerts: any, clock: any, log: any, index?: {add: (t: any) => Promise<any>, remove: (id: number) => Promise<any>}, publishing?: {routeTrack: (t: any) => Promise<any>, cancelForTrack: (id: number) => Promise<any>, deleteForTrack: (id: number) => Promise<any>, reroute?: (t: any) => Promise<{cancelled: number, routed: number}>}}} deps
  *   index: the search index (Phase 3) — a track is indexed while it is active
  *   publishing: routing on activation, cancellation on hide/remove, cleanup on purge (Phase 6)
  */
@@ -242,8 +244,33 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
       const row = await repo.update(id, { language, language_confidence: 'high', language_source: 'manual' }, clock.now());
       await audit.record(actor, 'catalog.language', 'track', tr.public_id, { language });
       if (row && row.status === 'active' && publishing.reroute) await publishing.reroute(row); // wrong channel queued? cancelled; right one routed
+      // the same artist's undecided tracks learn it too (and go to their channel)
+      const others = row && row.normalized_artist ? await repo.applyArtistLanguage(row.normalized_artist, language, clock.now(), LANGUAGE_BATCH) : [];
+      for (const o of others) if (o.status === 'active' && publishing.reroute) await publishing.reroute(o);
+      if (row) row.alsoSet = others.length;
       return row;
     },
+
+    /**
+     * A source got a default language: its undecided tracks take it (drafts and active ones) and the
+     * active ones are routed to the channels they now match. Batches until done or the deadline.
+     * @returns {Promise<{updated: number, routed: number, more: boolean}>}
+     */
+    async applySourceLanguage(actor, sourceId, language, deadlineMs) {
+      assertCan(actor, 'sources.manage');
+      if (!['fa', 'en', 'other'].includes(language)) return { updated: 0, routed: 0, more: false };
+      let updated = 0;
+      let routed = 0;
+      for (;;) {
+        const rows = await repo.applySourceLanguage(sourceId, language, clock.now(), LANGUAGE_BATCH);
+        updated += rows.length;
+        for (const r of rows) if (r.status === 'active' && publishing.reroute) routed += (await publishing.reroute(r)).routed;
+        if (rows.length < LANGUAGE_BATCH) return { updated, routed, more: false };
+        if (clock.ms() >= deadlineMs) return { updated, routed, more: true };
+      }
+    },
+    countUndecidedActive: () => repo.countUndecidedActive(),
+    sourcesNeedingLanguage: (limit = 5) => repo.sourcesNeedingLanguage(limit),
 
     /** @param {string|null} genre one of GENRES, or null to clear */
     async setGenre(actor, id, genre) {

@@ -27,9 +27,9 @@ export function botBecameAdmin(upd) {
 }
 
 /**
- * @param {{repo: any, tg: any, ingest: any, catalog: any, alerts: any, audit: any, clock: any, log: any, stats?: any}} deps
+ * @param {{repo: any, tg: any, ingest: any, catalog: any, alerts: any, audit: any, clock: any, log: any, stats?: any, askLanguage?: (src: any) => Promise<boolean>}} deps
  */
-export function createSourcesService({ repo, tg, ingest, catalog, alerts, audit, clock, log, stats = NOOP_STATS }) {
+export function createSourcesService({ repo, tg, ingest, catalog, alerts, audit, clock, log, stats = NOOP_STATS, askLanguage = async (_src) => false }) {
   async function mustGet(id) {
     const s = await repo.get(id);
     if (!s) throw new UserError('src.err.gone');
@@ -73,7 +73,20 @@ export function createSourcesService({ repo, tg, ingest, catalog, alerts, audit,
     },
     async cycleLanguage(actor, id) {
       const s = await mustGet(id);
-      return change(actor, id, { default_language: SOURCE_LANGUAGES[(SOURCE_LANGUAGES.indexOf(s.default_language) + 1) % SOURCE_LANGUAGES.length] }, 'source.language');
+      const next = SOURCE_LANGUAGES[(SOURCE_LANGUAGES.indexOf(s.default_language) + 1) % SOURCE_LANGUAGES.length];
+      const row = await change(actor, id, { default_language: next }, 'source.language');
+      if (next) await catalog.applySourceLanguage(actor, id, next, clock.ms() + 10000);
+      return row;
+    },
+    /**
+     * The owner's answer to "what language are this source's songs?": becomes the source's default and
+     * is given to the tracks it already imported whose language nobody decided.
+     * @returns {Promise<{source: any, updated: number, routed: number, more: boolean}>}
+     */
+    async setDefaultLanguage(actor, id, language) {
+      if (!['fa', 'en', 'other'].includes(language)) throw new UserError('src.err.gone');
+      const source = await change(actor, id, { default_language: language }, 'source.language');
+      return { source, ...(await catalog.applySourceLanguage(actor, id, language, clock.ms() + 15000)) };
     },
 
     /** Removes the source; its tracks stay (they keep source_id and their origin post). */
@@ -113,6 +126,8 @@ export function createSourcesService({ repo, tg, ingest, catalog, alerts, audit,
         await repo.update(src.id, { title: String(post.chat.title || src.title || '').slice(0, 128), username: post.chat.username || null }, now);
       }
       if (r.kind !== 'created') return 'duplicate';
+      // no default language and the script couldn't tell: ask the owner once for the whole source
+      if (!src.default_language && r.track.language_source === 'heuristic' && (r.track.language === 'unknown' || r.track.language_confidence === 'low')) await askLanguage(src);
       if (src.auto_import === 'active') {
         try {
           await catalog.activate(SYSTEM_ACTOR, r.track.id);

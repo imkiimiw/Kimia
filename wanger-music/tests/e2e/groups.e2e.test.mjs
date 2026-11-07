@@ -123,7 +123,7 @@ test('setting «activate tracks admins send right away»: off by default; on →
   advance(120);
   await h.send(OWNER, null, audio('Live Song', 'Band'));
   assert.equal(h.one('SELECT status FROM tracks ORDER BY id DESC LIMIT 1').status, 'active');
-  assert.match(h.lastText(OWNER), /آهنگ جدید وارد و فعال شد/);
+  assert.ok(h.tg.callsOf('sendMessage', OWNER).some((c) => /آهنگ جدید وارد و فعال شد/.test(c.params.text)), 'the import card says active');
   advance(120);
   seq += 1;
   await h.send(OWNER, null, { audio: { file_id: `G${seq}`, file_unique_id: `GU${seq}`, duration: 77, file_name: 'track02.mp3' } });

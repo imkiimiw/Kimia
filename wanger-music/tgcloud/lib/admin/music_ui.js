@@ -220,8 +220,8 @@ export const routes = [
   {
     ns: 'trk', action: 'setl', args: ['uint', 'tlang'], perm: PERM,
     async run(app, user, [id, l], cq) {
-      await app.catalog.setLanguage(user, id, l);
-      return showCard(app, user, cq, id, tp(app.lang, 'trk.saved'));
+      const row = await app.catalog.setLanguage(user, id, l);
+      return showCard(app, user, cq, id, row && row.alsoSet ? tp(app.lang, 'trk.saved_artist', { n: row.alsoSet }) : tp(app.lang, 'trk.saved'));
     },
   },
   {

@@ -14,6 +14,8 @@ const inList = (list) => commaJoin(list.map((v) => sql`${v}`));
 const EDITABLE = ['title', 'artist', 'featured_artists', 'album', 'version', 'genre', 'language', 'language_confidence', 'language_source',
   'cover_file_id', 'normalized_title', 'normalized_artist', 'dup_key', 'duplicate_of', 'audio_file_id'];
 
+/** Language nobody decided: unknown, or a low-confidence script guess (same text as idx_tracks_undecided_language). */
+const UNDECIDED = sql`language_source = 'heuristic' AND (language = 'unknown' OR language_confidence = 'low')`;
 /** What catalog.activate() accepts (it also checks these). */
 const READY = sql`(coalesce(title, '') != '' AND coalesce(artist, '') != '' AND duplicate_of IS NULL)`;
 /** @param {{addedBy?: number|null, from?: number, to?: number}} f */
@@ -90,6 +92,24 @@ export function createTracksRepo() {
 
     /** Deletes a removed track for good (owner's purge). */
     purge: (id) => db.run(sql`DELETE FROM tracks WHERE id = ${id} AND status = 'removed'`).then((r) => r.rowsAffected),
+
+    /** Gives undecided tracks of a source its default language (≤ limit per statement). @returns {Promise<any[]>} changed rows */
+    applySourceLanguage: (sourceId, language, now, limit) => db.run(sql`
+      UPDATE tracks SET language = ${language}, language_confidence = 'high', language_source = 'source', updated_at = ${now}
+      WHERE id IN (SELECT id FROM tracks WHERE source_id = ${sourceId} AND status IN ('draft', 'active') AND ${UNDECIDED} LIMIT ${limit})
+      RETURNING *`).then((r) => r.rows),
+    /** Gives undecided tracks of an artist the language a person chose for one of them. @returns {Promise<any[]>} changed rows */
+    applyArtistLanguage: (normArtist, language, now, limit) => db.run(sql`
+      UPDATE tracks SET language = ${language}, language_confidence = 'high', language_source = 'artist', updated_at = ${now}
+      WHERE id IN (SELECT id FROM tracks WHERE normalized_artist = ${normArtist} AND normalized_artist != '' AND status IN ('draft', 'active') AND ${UNDECIDED} LIMIT ${limit})
+      RETURNING *`).then((r) => r.rows),
+    /** Active tracks no channel can take because nobody decided their language. */
+    countUndecidedActive: () => db.get(sql`SELECT count(*) AS n FROM tracks WHERE status = 'active' AND ${UNDECIDED}`).then((r) => (r ? Number(r.n) : 0)),
+    /** Sources without a default language that have undecided tracks (for the owner's one-tap question). */
+    sourcesNeedingLanguage: (limit) => db.all(sql`
+      SELECT s.id, s.title, s.username, x.n FROM (
+        SELECT source_id, count(*) AS n FROM tracks WHERE source_id IS NOT NULL AND status IN ('draft', 'active') AND ${UNDECIDED} GROUP BY source_id
+      ) x JOIN sources s ON s.id = x.source_id WHERE s.default_language IS NULL ORDER BY x.n DESC LIMIT ${limit}`),
 
     /** Drafts activate() accepts (title + artist, no pending duplicate), oldest first; optionally one admin's import batch. */
     readyDrafts: (f, limit) => db.all(sql`SELECT * FROM tracks WHERE status = 'draft' AND ${READY} ${batchOf(f)} ORDER BY id LIMIT ${limit}`),

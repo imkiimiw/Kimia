@@ -625,4 +625,16 @@ export default {
   'lauto.all': 'always guess',
   'lauto.off': 'off (all by hand)',
   'dst.btn_signature': '🆔 Channel link at the end of captions: {v}',
+  // tracks whose language nobody decided
+  'srclang.ask': '🌐 <b>Language of the source «{title}»</b>\n{count}These titles are in Latin letters, so the bot can’t tell their language, and they go to no destination channel.\n\nWhat language are this source’s songs? Your choice applies to its present and future tracks, and they go to the right channel.',
+  'srclang.count': '{n} tracks from this source have no language. ',
+  'srclang.fa': '🇮🇷 Persian',
+  'srclang.en': '🇬🇧 English',
+  'srclang.other': '🌍 Other',
+  'srclang.mix': '🔀 Mixed (I’ll set each track)',
+  'srclang.done': '✅ Language of «{title}»: {language}\n{updated} tracks updated, {routed} posts queued for the channels.',
+  'srclang.more': 'More tracks are left; tap the button again.',
+  'srclang.mixed': '🔀 OK, «{title}» has no default language.\nSet each track’s language with one tap on its card (🎵 Music → ❔ unknown language). When you set one track, the same artist’s other tracks learn it.',
+  'trk.saved_artist': '✅ Saved · {n} more tracks by the same artist were set too',
+  'mon.no_language': '{n} active tracks have no language and go to no channel: set the sources’ language in 📡 Sources, or tap «🌐» on each track’s card',
 };

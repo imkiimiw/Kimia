@@ -6,7 +6,7 @@ import { LIMITS } from '../config/static.js';
 import { t } from '../i18n/index.js';
 
 /** Warning kinds that also alert the owner (the rest are shown on System Status only). */
-const ALERTED = new Set(['errors', 'pub_failed', 'schedule_stopped', 'cooldown', 'webhook_sync', 'webhook_pending', 'webhook_error']);
+const ALERTED = new Set(['errors', 'pub_failed', 'no_language', 'schedule_stopped', 'cooldown', 'webhook_sync', 'webhook_pending', 'webhook_error']);
 const int = (v) => (Number.isSafeInteger(Number(v)) && Number(v) >= 0 ? Number(v) : 0);
 
 /**
@@ -33,17 +33,19 @@ export async function recordWebhookCheck(app, w) {
  */
 export async function healthWarnings(app) {
   const now = app.clock.now();
-  const [errors, pubBroken, scheduledAt, cooldownUntil, webhook] = await Promise.all([
+  const [errors, pubBroken, scheduledAt, cooldownUntil, webhook, undecided] = await Promise.all([
     app.repos.system.errorsSince(now - 3600, 500),
     app.repos.publications.brokenSince(now - 86400),
     app.settings.get('monitor.scheduled_at'),
     app.settings.get('telegram.cooldown_until'),
     app.settings.get('monitor.webhook'),
+    app.catalog.countUndecidedActive(),
   ]);
   /** @type {{key: string, vars: Record<string, any>}[]} */
   const out = [];
   if (errors >= LIMITS.monitorErrorsPerHour) out.push({ key: 'errors', vars: { n: errors } });
   if (pubBroken >= LIMITS.monitorPubFailuresPerDay) out.push({ key: 'pub_failed', vars: { n: pubBroken } });
+  if (undecided > 0) out.push({ key: 'no_language', vars: { n: undecided } });
   const sched = Number(scheduledAt) || 0;
   if (!sched) out.push({ key: 'no_schedule', vars: {} });
   else if (now - sched > LIMITS.monitorTickStaleSeconds) out.push({ key: 'schedule_stopped', vars: { h: Math.floor((now - sched) / 3600) } });

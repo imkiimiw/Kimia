@@ -180,6 +180,8 @@ export const tracks = table('tracks', {
   archiveIdx: index('idx_tracks_archive_backlog').on(t.id).where(sql`${t.status} = 'active' AND ${t.archiveMessageId} IS NULL`),
   // Phase 3: empty inline query → popular, then newest
   popularIdx: index('idx_tracks_popular').on(t.status, t.playCount, t.activatedAt),
+  // added later: tracks whose language nobody decided (unknown, or a low-confidence script guess)
+  undecidedIdx: index('idx_tracks_undecided_language').on(t.sourceId, t.status).where(sql`${t.languageSource} = 'heuristic' AND (${t.language} = 'unknown' OR ${t.languageConfidence} = 'low')`),
 }));
 
 /** Addition to the spec: counts one admin's run of forwarded audios for the bulk summary (atomic upserts). */

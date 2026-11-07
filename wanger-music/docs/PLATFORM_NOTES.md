@@ -155,6 +155,7 @@ deployed yet) · **Unknown** = neither documented nor measurable without deployi
 |---|---|
 | Production data | All 9 tracks were Persian songs titled in Latin letters ("Az Man Bekesh Biron", "Tame Gilas"…), detected as English (low): script can't tell English from Persian written in Latin. One was queued for @WangerBeat. |
 | Decision | Guess only when reliable (`music.language_auto = confident`); Latin-only → unknown for a person to set (one tap on the card). A correction re-routes waiting posts. A source's default language (📡) still decides for everything from that source. |
+| 2026-11-07: "publishing broke again" | No error: 7 new tracks ("Lucky Boyz", "Before You Gone"… — Persian songs, Latin titles) were unknown, so no channel matched, and nothing told the owner; none of the 6 sources had a default language. Fix: the bot asks per source (one tap, applied to existing tracks and re-routed), learns per artist, and warns while tracks are stuck. |
 
 ## Design consequences
 
