@@ -49,3 +49,19 @@ jobs:
       - run: npm test
       # Phase 8: every full scan of a growing table must be on the reviewed list
       - run: npm run query-review
+
+  wanger_converter:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bots/converter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bots/converter/package-lock.json
+      - run: npm ci
+      # unit + e2e (SDK emulation on node:sqlite, fake Telegram), incl. the query-plan and module guards
+      - run: npm test

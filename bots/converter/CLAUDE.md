@@ -17,4 +17,5 @@ comments, commits and docs in English.
   `tgcloud run` and removes it). Never push while a spike runs.
 - pdf-lib on Serverless: `load(…, { parseSpeed: Infinity })`, `save({ objectsPerTick: Infinity,
   useObjectStreams: false })` — always. WebAssembly: synchronous APIs only.
+- Tests: `npm test` must stay green (165 at the end of C1), including the query-plan and module guards.
 - Never read or edit `.tgcloud/` (credentials).

@@ -23,3 +23,36 @@ One line each: the choice — the reason. Newest phase last.
 - No secret store exists on the platform, so bot secrets go into a `secrets` table as the spec says — official docs list none.
 - Image tools stay in the worker for now; in-bot WASM codecs are recorded as a candidate, not promised — sync WebAssembly works, but no real codec was tested (spec: nothing is offered before it's tested).
 - The bot token was not requested in C0 — it's a credential; the outside-send test is more meaningful after the first push sets the webhook, and the script for it is ready.
+
+## Phase C1 (2026-11-07)
+
+- The gate is a **local provider** (`lib/gate.js`) behind one `check()` until the Wanger Hub exists — no hub, Mother Bot or `wanger-client` exists; the owner asked to keep forced join in mind and said "start" after the C0 proposal.
+- Forced-join rules follow the other Wanger bots: the three seed channels once, "member not found" = not a member, a positive result trusted 5 min — one ecosystem, one behaviour.
+- A channel that can't be checked (bot not admin, chat gone, network) is **skipped (fail-open)**, the owner is alerted ≤ every 3 h, the pass is not cached, and a known-bad channel isn't asked again for 10 min — spec: "hub down → fail open"; today the bot is admin in none of the three, and locking everyone out would be worse.
+- Until a Mother Bot exists, `/panel` also holds bans, maintenance, admins (`staff` table), forced-join channels and a minimal broadcast — C0 proposal #2; the spec puts these in the Mother Bot, which doesn't exist.
+- Owner-only: maintenance, keys, admins, broadcast, channel changes; admins get the overview, failed/active jobs with retry, bans and the channel list (read-only) — the spec gives `/panel` to admins; ecosystem switches stay with the owner.
+- `/secret` is owner-only (the spec says owner/admins) — the keys are the owner's credentials; `/connect` isn't built — there is no hub to connect to.
+- Persian-first: the default language is fa whatever Telegram's language; the first `/start` offers «🌐 English» — spec §4 "Persian-first".
+- Settings in C1: language and Persian digits. "Default output" and "OCR engine" stay hidden (columns exist) until a tool uses them — no settings that do nothing.
+- Main menu: «🗂 ابزار فایل» (not in the spec's list) holds Detect & Fix and rename, and «📜 تاریخچه» opens /history; conversion categories stay hidden until they have an operation — renaming is not a conversion (spec §1.5), so it can't sit under «📁 تبدیل فایل».
+- Album batching, batch rename and numbering move to C2 with "batches" (the spec's C2) — in C1 every file of an album gets its own card (limited by RATE_INTAKE_PER_MIN).
+- RATE_INTAKE_PER_MIN = 10 added next to the spec's job limits — every received file is downloaded for detection.
+- Rate limits use fixed clock windows (minute, hour) and one conditional upsert each — atomic without transactions; a refused hour slot gives the minute slot back.
+- Detection downloads the whole file (≤ 20 MB) and keeps its result compactly in `files.type` (`id`, `!zip` polyglot, `#enc`) — a card can be re-rendered without the bytes.
+- Executables, scripts (incl. text files named `.js/.sh/.bat/…`), macro documents and polyglots get no actions at all — spec §6: report only, never help disguise a file.
+- A ZIP hidden behind another type (polyglot) counts as dangerous — the classic disguise; the ZIP reader finds directories shifted by prepended data.
+- Without an extension, Telegram still treats the text after the last dot as one and cuts it to 16 characters, so the sanitizer turns such dots into `_` — measured behaviour; names arrive exactly as shown.
+- A status message only for inputs ≥ 8 MB, a chat action otherwise — spec: none under ~2 s; 19 MB took 3 s in C0.
+- Result cache: key = user + input file_unique_id + operation + output-name hash, 24 h, deleted with the user's data — a rename re-sent by file_id costs no download.
+- Jobs keep the input file_id and the output name (params) so staff can retry; names leave with the job (30 days or /deletemydata) — spec §10 allows names "if needed".
+- No timers: in-bot jobs are bounded by input size, and a job still "running" 120 s later is shown and stored as EXPIRED (`INTERRUPTED`).
+- Statistics come from running counters per Tehran day (`counters`); "users" counts first starts — no full-table counts (50 000-rows-read limit).
+- Housekeeping runs when update_id % 100 = 0 (~1 %) and whenever /panel opens — spec §10; bounded deletes (LIMIT 500/1000).
+- Every update writes its update_id first (de-duplication); a double tap = same message + same data within 1.5 s — Telegram may redeliver; one conditional UPDATE decides.
+- Errors: boundary → `errors` table (sanitized) + owner alert ≤ every 30 min per source + a friendly line — there is no production log viewer.
+- Broadcast: copyMessage in batches of 25 behind a 25-s lease, a 429 stops the batch at the last delivered user, the sender is skipped, blocked users are marked — the to-do bot's tested design.
+- Limits can be overridden through the `limits` setting (JSON, numbers only); no UI yet — the spec puts it in the Mother Bot.
+- Groups and channels are ignored without any database write — the bot is for private chats (privacy mode is on).
+- Owner alerts are always Persian — the owner's language.
+- Tests: node:test + the SDK emulator adapted from wanger-music (no dependencies); the test clock starts at a fixed instant — clock windows made a test flaky once.
+- Raw SQL with the `sql` tag only, all of it in `lib/db/` (guard test) — one place to audit indexes; a query-plan test fails on any full scan of a growing table.

@@ -164,10 +164,25 @@ state in [docs/PROGRESS.md](docs/PROGRESS.md) — read PROGRESS first.
 - **This folder is its own tgcloud project** inside a repository with other bots. Run the CLI only as
   `npm run tg -- <command>` from `bots/converter/`: it passes the CLI token from
   `Converter_BOT_TGCLOUD_TOKEN` and can't reach another bot. Never bare `npx tgcloud`.
-- **Owner = numeric id `5557901897`.**
+- **Owner = numeric id `5557901897`** (`lib/config.js`); admins in the `staff` table; permissions in
+  `lib/panel.js#canUse` (owner-only: maintenance, keys, admins, broadcast, channel changes).
+- **Code map:** `handlers/*` (thin) → `lib/router.js` (error boundary, de-duplication, the order of
+  checks and the `callback_data` table) → `lib/files.js` (intake, file card, Detect & Fix, rename) →
+  `lib/jobs.js` (rate limits, result cache, the in-bot job runner) · `lib/gate.js` (forced join, local
+  provider until the Wanger Hub exists) · `lib/panel.js` + `lib/broadcast.js` + `lib/secrets.js` ·
+  `lib/detect/` (type detection from bytes, ZIP central directory) · `lib/names.js` (sanitizer,
+  renames) · `lib/ui.js` (screens) · `lib/i18n/{fa,en}.js` (same keys; `t()` escapes, `tp()` plain) ·
+  `lib/db/*.js` (all SQL, raw `sql` tag) · `lib/tg.js` (the only Bot API caller; trace + error kinds).
 - **Measured here (C0):** ≈ 3 s CPU per invocation (cumulative across awaits), ≈ 30 s wall,
   ≈ 7.9 GB memory, ≤ 1 MiB per module; `Date.now()` is frozen during synchronous work; no timers,
-  `URL`, `atob`, `Buffer`, `AbortController`; WebAssembly only through its synchronous APIs.
-- **pdf-lib** (vendored @cantoo/pdf-lib): `load(…, { parseSpeed: Infinity })` and
+  `URL`, `atob`, `Buffer`, `AbortController`; WebAssembly only through its synchronous APIs; a query
+  fails above ≈ 50 000 rows read (other Wanger bots) → every query is index-backed and `LIMIT`ed.
+- **No transactions:** every state change is one statement (conditional UPDATE, upsert, RETURNING).
+- **Telegram keeps ≤ 64 characters of a file name (+ ≤ 16 of the extension) and drops emoji** —
+  `lib/names.js` applies the same rules.
+- **pdf-lib** (vendored @cantoo/pdf-lib, C2): `load(…, { parseSpeed: Infinity })` and
   `save({ objectsPerTick: Infinity, useObjectStreams: false })`, always.
+- Handlers return `{ ok, view, trace }`; `trace` lists every Bot API call with its view name.
+- Tests: `npm test` (node:test; `tests/sdk/` emulates the SDK on node:sqlite, `tests/helpers/` fakes
+  Telegram; guards for module rules and query plans). Invisible characters only as `\u200c` escapes.
 - Probes: `spikes/` (never deployed), run with `npm run spike -- …`; never `push` while one runs.
