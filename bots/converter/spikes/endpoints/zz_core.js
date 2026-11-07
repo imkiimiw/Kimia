@@ -42,6 +42,26 @@ const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart
 const errInfo = (e) => ({ name: e?.name, code: e?.code, message: String(e?.description || e?.message || e).slice(0, 200) });
 
 const cases = {
+  // read-only: the tables and indexes the migration created
+  async schema() {
+    const rows = await db.all(sql`SELECT type, name, tbl_name FROM sqlite_master WHERE type IN ('table', 'index') AND name NOT LIKE 'sqlite_%' ORDER BY tbl_name, type, name`);
+    return { tables: rows.filter((r) => r.type === 'table').map((r) => r.name), indexes: rows.filter((r) => r.type === 'index').map((r) => r.name) };
+  },
+
+  // read-only: what the deployed bot has done (no user data beyond counts)
+  async health() {
+    const one = async (q) => (await db.get(q)) || {};
+    return {
+      users: (await one(sql`SELECT count(*) AS n FROM users`)).n,
+      jobs: await db.all(sql`SELECT status, count(*) AS n FROM jobs GROUP BY status`),
+      channels: await db.all(sql`SELECT username, chat_id, enabled, bot_status FROM channels ORDER BY id`),
+      counters: await db.all(sql`SELECT day, key, n FROM counters ORDER BY day DESC, key LIMIT 40`),
+      errors: await db.all(sql`SELECT at, source, code, detail, job_code FROM errors ORDER BY id DESC LIMIT 10`),
+      settings: await db.all(sql`SELECT key, value FROM settings WHERE key NOT LIKE 'alert:%' ORDER BY key`),
+      updates: (await one(sql`SELECT count(*) AS n FROM processed_updates`)).n,
+    };
+  },
+
   async clock() {
     const t0 = Date.now();
     spin(2e8);

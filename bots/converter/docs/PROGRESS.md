@@ -1,9 +1,9 @@
 # Progress
 
-**Current state: Phase C1 (foundation) done — 2026-11-07. Tests 165/165. NOT deployed yet (cloud
-revision 0): waiting for the owner's OK to migrate + push, then the command for C2.**
+**Current state: Phase C1 done and DEPLOYED (2026-11-07, cloud revision 1). Owner's standing
+instruction: continue through C8, deploy each phase, full report per phase (docs/reports/).**
 
-## Phase C1 — Foundation ✅ (not deployed)
+## Phase C1 — Foundation ✅ deployed (revision 1)
 
 Done:
 - **Handlers** `message`, `callback_query`, `my_chat_member` (thin) → `lib/router.js`: error boundary,
@@ -55,13 +55,15 @@ OCR (C3); the worker (C4+). `/connect` waits for the hub.
 
 ## What I need from the owner
 
-1. **OK to deploy C1**: `npm run tg -- migrate --local --safe` (creates the 15 tables) and then
-   `npm run tg -- push`. 9 updates are waiting at Telegram; they arrive (or are dropped by the
-   platform) once the webhook is set.
-2. **Make `@Wanger_Converterbot` an admin** in @HIDE_i_SEEK, @Nepenthw_ir, @wangerBots — until then
+Deployed under the owner's standing approval: `migrate --local --safe` → 15 tables + 12 indexes
+(verified in sqlite_master) → `push` (31 modules) → webhook in sync (message, callback_query,
+my_chat_member); the 9 waiting updates were handled: 1 user, 1 file card, 0 errors; the three
+channels seeded with their real chat ids, status `not_admin`.
+
+1. **Make `@Wanger_Converterbot` an admin** in @HIDE_i_SEEK, @Nepenthw_ir, @wangerBots — until then
    forced join is skipped for those channels (fail-open) and you get an alert every 3 h.
-3. **`docs/WANGER_ECOSYSTEM.md`** — still missing; the local gate stays until the hub exists.
-4. Bot token (optional, for the outside-send test after the push): as the environment secret
+2. **`docs/WANGER_ECOSYSTEM.md`** — still missing; the local gate stays until the hub exists.
+3. Bot token (optional, for the outside-send test after the push): as the environment secret
    `Converter_BOT_TOKEN`, never in chat or git.
 
 ## Phase C0 — Recon & feasibility ✅ (2026-11-07)
