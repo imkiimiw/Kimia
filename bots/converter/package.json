@@ -1,0 +1,15 @@
+{
+  "name": "wanger-converter",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Wanger Converter — Persian-first file conversion bot on Telegram Serverless (+ optional Python worker).",
+  "scripts": {
+    "tg": "node scripts/tg.mjs",
+    "status": "node scripts/tg.mjs status",
+    "spike": "node scripts/spike.mjs"
+  },
+  "devDependencies": {
+    "@tgcloud/cli": "^0.2.0"
+  }
+}
