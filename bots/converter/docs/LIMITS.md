@@ -128,6 +128,7 @@ object count can be read cheaply before parsing (trailer / xref-stream `/Size`),
 | **JS heap vs. typed arrays** | A 14 MB image's base64 built by small string concatenations → `Terminated: Memory limit exceeded`; 5 MB was fine (175 ms). Flat strings up to 128 MB and joins of 1-MB parts work. → Never build big data out of many small strings; use typed arrays. |
 | Byte-built request body | 14 MB image → 19.5 MB JSON body in 21–23 ms; uploaded to Google in 0.7 s. |
 | Migration | 1 additive column. No-op update after C3: 34 ms (44 modules). |
+| **Real OCR** (2026-11-08, after the owner's key) | The key works with the Gemini API (`models.list` → 200; `gemini-3.6-flash` listed). `geminiOcr` on Serverless read a 700×220 PNG with «سلام دنیا، آزمایش ۱۴۰۵» + an English line **exactly**, in 3.15 s. |
 
 ## 6d. Measured in C4 (Serverless, 2026-11-08)
 

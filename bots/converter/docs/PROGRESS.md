@@ -5,6 +5,12 @@ tests 149/149 (also inside the Docker image). Worker tools stay hidden until the
 and stores WORKER_URL + WORKER_SECRET (docs/HOSTING.md). Owner's standing instruction: continue through
 C8, deploy each phase, full report per phase (docs/reports/). Next: C5 (Tesseract OCR + advanced PDF).**
 
+**Update 2026-11-08 (after the C4 report):** the owner's Gemini key is stored (tested against Google
+first; never in code/git/logs) and a real OCR ran on Serverless with an exact result — «📝 استخراج متن»
+is live. The bot is admin in all three forced-join channels (re-checked: all `ok`). The owner asked me
+to write the ecosystem document: `docs/WANGER_ECOSYSTEM.md` at the repository root (local rules now,
+Hub / Mother Bot / wanger-client contract for later).
+
 ## Phase C4 — Worker foundation, image tools, text → image ✅ deployed (revision 4)
 
 Done (details in docs/reports/C4.md, choices in DECISIONS.md):
