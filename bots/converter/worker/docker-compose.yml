@@ -1,0 +1,39 @@
+# docker compose up -d   (needs a .env next to this file — copy .env.example)
+# The worker listens on 127.0.0.1:8080 only; put a TLS reverse proxy (Caddy below) in front of it so the
+# bot reaches it over HTTPS. See docs/HOSTING.md for a full walkthrough.
+services:
+  worker:
+    build: .
+    image: wanger-converter-worker:latest
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - worker-data:/data
+    tmpfs:
+      - /tmp/wanger:size=2g,mode=1777
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 3g
+    cpus: 2
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    profiles: ["tls"]          # docker compose --profile tls up -d
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      WORKER_DOMAIN: ${WORKER_DOMAIN:?set WORKER_DOMAIN in .env}
+    command: caddy reverse-proxy --from ${WORKER_DOMAIN} --to worker:8080
+    volumes:
+      - caddy-data:/data
+
+volumes:
+  worker-data:
+  caddy-data:

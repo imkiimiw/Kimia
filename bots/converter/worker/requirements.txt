@@ -1,0 +1,9 @@
+# Runtime dependencies (pinned; CI runs pip-audit on this file).
+fastapi==0.162.2
+starlette==1.7.0
+uvicorn==0.54.0
+pydantic==2.13.5
+httpx==0.28.1
+pillow==13.0.0
+pillow-heif==1.8.1
+structlog==26.1.0
