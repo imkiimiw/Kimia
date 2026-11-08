@@ -110,6 +110,8 @@ export default {
   lobby_leave: 'Quitter',
   lobby_spectating: 'La salle est pleine — vous regardez.',
   lobby_team: 'Équipe {n}',
+  lobby_invite_sent: 'Invitation envoyée !',
+  share_text: '🎮 Viens jouer au {game} avec moi !',
   lobby_not_here: 'Pas encore arrivé',
   lobby_waiting_for: 'En attente de {name}…',
   invite_ping: '🎮 <b>{name}</b> vous attend au <b>{game}</b> !',

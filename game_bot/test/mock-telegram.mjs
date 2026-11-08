@@ -179,6 +179,18 @@ export function createMockTelegram({ botId, botUsername = 'game_test_bot' }) {
       state.inlineAnswers.set(p.inline_query_id, p);
       return ok(true);
     },
+    savePreparedInlineMessage: (p) => {
+      if (!Number.isInteger(p.user_id)) return err(400, 'Bad Request: user_id is required');
+      if (!p.allow_user_chats && !p.allow_bot_chats && !p.allow_group_chats && !p.allow_channel_chats) return err(400, 'Bad Request: no chat types allowed');
+      const r = p.result;
+      if (!r || r.type !== 'article' || !r.id || !r.title || !r.input_message_content || !r.input_message_content.message_text) return err(400, 'Bad Request: bad result');
+      if (r.input_message_content.parse_mode === 'HTML' && parseHtml(r.input_message_content.message_text).error) return err(400, 'Bad Request: bad HTML');
+      const m = checkMarkup(r.reply_markup, { inline: true });
+      if (m) return err(400, `Bad Request: ${m}`);
+      const id = `prep${(state.prepared = state.prepared || []).length + 1}`;
+      state.prepared.push({ id, user: p.user_id, result: r });
+      return ok({ id, expiration_date: 0 });
+    },
     getChatMember: (p) => {
       const ch = channel(p.chat_id);
       if (!ch) return err(400, 'Bad Request: chat not found');

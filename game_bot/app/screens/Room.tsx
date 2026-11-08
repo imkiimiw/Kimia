@@ -4,8 +4,8 @@ import type { ComponentType } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { seatName, useApp } from '../ctx';
 import { n, rtl, t } from '../i18n';
-import { haptic, shareInline } from '../tg';
-import { Avatar, Button, GameArt, Icon, Overlay, Segmented, Spinner, TimerRing } from '../ui';
+import { call, haptic, openLink, shareMessage, switchInline } from '../tg';
+import { Avatar, Button, GameArt, Icon, Overlay, Segmented, Spinner, TimerRing, toast } from '../ui';
 import { myTurn, type RoomView, useRoom } from '../useRoom';
 
 export type BoardProps = { room: RoomView; busy: boolean; move: (a: Record<string, unknown>) => Promise<boolean> };
@@ -58,9 +58,37 @@ function Lobby({ room, act, busy }: { room: RoomView; act: (i: Record<string, un
     return () => window.clearInterval(id);
   }, [room.ver, room.botsIn]);
 
-  const invite = () => {
+  /*
+   * Three ways to send the invitation, best first: Telegram's share dialog with the bot's card,
+   * the inline-mode chat picker, Telegram's plain share sheet with the link.
+   */
+  const invite = async () => {
     haptic.medium();
-    shareInline(`room ${room.id}`);
+    let link = '';
+    let text = '';
+    try {
+      const r = await call('prepareInvite', { room: room.id });
+      link = r.link;
+      text = r.text;
+      if (r.id) {
+        try {
+          if (await shareMessage(r.id)) toast(t('lobby_invite_sent'), 'good');
+          return;
+        } catch {
+          /* not available here: next way */
+        }
+      }
+    } catch {
+      /* next way */
+    }
+    try {
+      switchInline(`room ${room.id}`);
+      return;
+    } catch {
+      /* next way */
+    }
+    if (link) openLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
+    else toast(t('error_generic'), 'bad');
   };
   const sit = (i: number) => act({ action: 'seat', seat: i });
 

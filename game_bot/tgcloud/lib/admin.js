@@ -52,7 +52,7 @@ function progressScreen(lang, row) {
   const rows = [];
   if (p.status === 'running') {
     rows.push([btn(t(lang, 'admin_bc_next'), `bc:nx:${p.id}`)]);
-    if (APP_URL) rows.push([appBtn(t(lang, 'admin_bc_live'), `${APP_URL}#broadcast`)]);
+    if (APP_URL) rows.push([appBtn(t(lang, 'admin_bc_live'), `${APP_URL}?page=broadcast`)]);
     rows.push([btn(t(lang, 'admin_bc_refresh'), `bc:r:${p.id}`), btn(t(lang, 'admin_bc_stop'), `bc:x:${p.id}`)]);
   } else {
     rows.push(back(lang));

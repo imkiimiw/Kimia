@@ -117,6 +117,8 @@ export default {
   lobby_leave: 'Leave',
   lobby_spectating: 'The room is full — you\'re watching.',
   lobby_team: 'Team {n}',
+  lobby_invite_sent: 'Invitation sent!',
+  share_text: '🎮 Join me in {game}!',
   lobby_not_here: 'Hasn\'t opened it yet',
   lobby_waiting_for: 'Waiting for {name} to open the game…',
   invite_ping: '🎮 <b>{name}</b> is waiting for you in <b>{game}</b>!',

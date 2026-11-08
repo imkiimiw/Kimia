@@ -7,9 +7,10 @@ import { ROOM_GAMES } from './config.js';
 import { fail } from './endpoint.js';
 import { t } from './i18n/index.js';
 import { updateInvite } from './invite.js';
+import { article } from './inline.js';
 import { appLink, botUsername, payloadFor } from './links.js';
 import { getUser } from './store.js';
-import { esc, send } from './tg.js';
+import { esc, send, tryCall } from './tg.js';
 import { actionChange, ensureRoom, joinChange, loadRoom, moveChange, mutate, newRoomId, tickChange, validRoomId, view } from './rooms.js';
 
 async function after(env, res) {
@@ -43,6 +44,23 @@ export async function joinRoom(input, env) {
   await after(env, res);
   if (res.changed && out.ping) await pingAbsent(env, res.room, out);
   return view(res.room, env.user.user_id, env.now);
+}
+
+/*
+ * The lobby's "Invite friends": the invitation card (the same one inline mode sends) prepared for
+ * this user with savePreparedInlineMessage, for the Mini App's shareMessage dialog. Also gives the
+ * plain link, for clients where that dialog isn't available.
+ */
+export async function prepareInvite(input, env) {
+  const room = await loadRoom(input.room);
+  if (!room) throw fail('NO_ROOM');
+  const username = await botUsername(env.tg);
+  const link = appLink(username, payloadFor(room.game, room.id));
+  const result = article(env.user.lang, username, room.game, room.id, env.from);
+  const prepared = await tryCall(env.tg, 'savePreparedInlineMessage', {
+    user_id: env.user.user_id, result, allow_user_chats: true, allow_group_chats: true, allow_bot_chats: false, allow_channel_chats: false,
+  }, 'prepare-invite');
+  return { id: prepared ? prepared.id : null, link, text: t(env.user.lang, 'share_text', { game: t(env.user.lang, `game_${room.game}`) }) };
 }
 
 export async function getState(input, env) {

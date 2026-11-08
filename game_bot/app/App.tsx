@@ -20,7 +20,8 @@ type Boot = { me: Me; join: { ok: boolean; missing?: { title: string; url: strin
 
 function firstRoute(me: Me): Route[] {
   const base: Route[] = [{ name: 'tabs', tab: 'home' }];
-  if (me.owner && location.hash === '#broadcast') return base.concat([{ name: 'broadcast' }]);
+  /* ?page=broadcast (the query string: Telegram puts its launch parameters in the hash) */
+  if (me.owner && new URLSearchParams(location.search).get('page') === 'broadcast') return base.concat([{ name: 'broadcast' }]);
   const p = parsePayload(startParam());
   if (!p) return base;
   if (p.room) return base.concat([{ name: 'room', game: p.game, room: p.room }]);

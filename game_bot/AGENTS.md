@@ -170,16 +170,21 @@ merge puzzle) — not recreations of existing commercial games.
   `rooms.ver`. There is **no scheduler**: `advance()` runs on each request (bots, turn timeouts →
   auto move, `MAX_TIMEOUTS` → forfeit, the end of the game). `getState(room, since)` is the polling
   endpoint (`{ same: true }` when unchanged). Stats are recorded only by the save that finished a game.
-- **Inline mode** is the entry point: results carry URL buttons to `t.me/<bot>/<APP_SHORT_NAME>?
-  startapp=<letter>_<roomId>` (payloads in `lib/payload.js`); `chosen_inline_result` (needs inline
-  feedback ON in BotFather) stores `inline_message_id`, and `lib/invite.js` edits that message when a
-  game starts / ends.
+- **Inline mode** is the entry point: results carry URL buttons to the Main Mini App,
+  `t.me/<bot>?startapp=<letter>_<roomId>` (`lib/links.js`, payloads in `lib/payload.js`), and reserve
+  the rooms with the inviter seated (`here: false` until they open it; joiners trigger a private
+  "… is waiting for you"). The lobby's Invite uses `prepareInvite` → `shareMessage`, then
+  `switchInlineQuery` (chat types: users / bots / groups / channels only), then `t.me/share/url`.
+  `chosen_inline_result` (inline feedback ON in BotFather) stores `inline_message_id`, and
+  `lib/invite.js` edits that message when a game starts / ends.
+- `npm run test:ui` runs Telegram's **real** `telegram-web-app.js` (downloaded to `test/output/`), so its
+  argument checks apply in tests too; never replace it with a permissive stub.
 - **Forced join** (`lib/join.js`) guards the bot, every endpoint (`lib/endpoint.js` → `NOT_JOINED`)
   and inline mode; passes are cached per user for `JOIN_CACHE_SEC` and per channel-list revision.
   Broken channels are skipped and the owner warned. The owner (`OWNER_ID` in `lib/config.js`) is exempt.
 - **Owner panel** (`lib/admin.js`, `/admin` in private, owner only, silent for others): stats,
   channels (max 10, bot must be admin), broadcasts (`lib/broadcast.js`: copyMessage in locked
-  batches with a cursor, resumed by the "next batch" button or by the Mini App's `#broadcast` page
+  batches with a cursor, resumed by the "next batch" button or by the Mini App's `?page=broadcast` page
   calling `broadcastTick` every second while open).
 - **Codeword answers never reach the client** before the game ends; **Fusion scores are replayed**
   from the submitted moves and the server's seed (`lib/solo.js`).

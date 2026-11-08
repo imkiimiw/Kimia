@@ -34,7 +34,7 @@ for (const name of ['TextEncoder', 'TextDecoder', 'URL', 'URLSearchParams', 'Blo
 const H = {};
 for (const h of ['message', 'callback_query', 'inline_query', 'chosen_inline_result', 'my_chat_member']) H[h] = (await import(`../tgcloud/handlers/${h}.js`)).default;
 const E = {};
-for (const e of ['boot', 'setLanguage', 'checkJoin', 'createRoom', 'joinRoom', 'getState', 'move', 'roomAction', 'leaderboard', 'profile', 'codeword', 'fusion', 'broadcastTick']) {
+for (const e of ['boot', 'setLanguage', 'checkJoin', 'createRoom', 'joinRoom', 'getState', 'move', 'roomAction', 'leaderboard', 'profile', 'codeword', 'fusion', 'broadcastTick', 'prepareInvite']) {
   E[e] = (await import(`../tgcloud/endpoints/${e}.js`)).default;
 }
 
@@ -137,7 +137,7 @@ await scenario('"I\'ve joined": still missing → alert; joined → welcome with
   const welcome = mock.get(U.bea.id, s.result.result.message_id);
   assert.match(welcome.plain, /Bienvenue/);
   const kb = welcome.markup.inline_keyboard.flat();
-  assert.ok(APP_URL ? kb.some((b) => b.web_app && b.web_app.url === APP_URL) : kb.some((b) => b.url === 'https://t.me/game_test_bot/play'), 'Play opens the Mini App');
+  assert.ok(APP_URL ? kb.some((b) => b.web_app && b.web_app.url === APP_URL) : kb.some((b) => b.url === 'https://t.me/game_test_bot?startapp'), 'Play opens the Mini App');
   assert.ok(kb.some((b) => b.switch_inline_query === ''));
   const checks = (await dm(U.bea, '/start')).filter((c) => c.method === 'getChatMember');
   assert.equal(checks.length, 0, 'membership is cached');
@@ -187,10 +187,10 @@ await scenario('inline: not joined → no games, a button to the bot; joined →
   assert.match(yes.params.results[0].title, /دوز/);
   if (APP_URL) assert.equal(yes.params.results[1].thumbnail_url, `${APP_URL}thumbs/bg.png`);
   const url = yes.params.results[0].reply_markup.inline_keyboard[0][0].url;
-  const m = /^https:\/\/t\.me\/game_test_bot\/play\?startapp=t_([A-Za-z0-9]{12})$/.exec(url);
+  const m = /^https:\/\/t\.me\/game_test_bot\?startapp=t_([A-Za-z0-9]{12})$/.exec(url);
   assert.ok(m, url);
   tttRoom = m[1];
-  assert.equal(yes.params.results[3].reply_markup.inline_keyboard[0][0].url, 'https://t.me/game_test_bot/play?startapp=c');
+  assert.equal(yes.params.results[3].reply_markup.inline_keyboard[0][0].url, 'https://t.me/game_test_bot?startapp=c');
   inlineTtt = mock.chooseInline('q2', `ttt.${tttRoom}`);
   await run(H.chosen_inline_result, { result_id: `ttt.${tttRoom}`, from: U.ali, query: '', inline_message_id: inlineTtt });
   const r = row('SELECT * FROM rooms WHERE id = ?', tttRoom);
@@ -279,6 +279,19 @@ await scenario('invitation, the way people use it: the inviter only sends it, th
   assert.equal(g.status, 'playing');
   assert.equal(g.you, 0);
   assert.equal(ok(await api('getState', U.ivan, { room })).status, 'playing');
+});
+
+await scenario('"Invite friends" in the lobby: the invitation card is prepared for Telegram\'s share dialog, with the room\'s link', async () => {
+  const r = ok(await api('createRoom', U.dan, { game: 'bg' }));
+  const p = ok(await api('prepareInvite', U.dan, { room: r.id }));
+  assert.match(p.id, /^prep\d+$/);
+  assert.equal(p.link, `https://t.me/game_test_bot?startapp=b_${r.id}`);
+  assert.match(p.text, /Backgammon/);
+  const prepared = mock.state.prepared.find((x) => x.id === p.id);
+  assert.equal(prepared.user, U.dan.id);
+  assert.equal(prepared.result.reply_markup.inline_keyboard[0][0].url, p.link);
+  assert.match(prepared.result.input_message_content.message_text, /Dan &lt;b&gt;/, 'the name is escaped in the card');
+  assert.equal((await api('prepareInvite', U.dan, { room: 'NoSuchRoom12' })).code, 'NO_ROOM');
 });
 
 await scenario('a reservation nobody opens is released after 3 minutes; lobby actions pass to the player who is there', async () => {

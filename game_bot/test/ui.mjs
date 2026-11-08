@@ -3,8 +3,10 @@
 // browser pages are several Telegram accounts, so multiplayer is played for real, through the UI.
 // Screenshots go to test/output/. Run: npm run test:ui (builds first).
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
 import fs from 'node:fs';
 import http from 'node:http';
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -70,50 +72,64 @@ const THEMES = {
 };
 
 /** Opens the Mini App as `user` (optionally with a startapp payload and a chat). */
-async function open(user, { start = '', chat = 'chat-1', scheme = 'light', hash = '' } = {}) {
+// Telegram's real telegram-web-app.js, so its own checks run in the tests: a method called with a
+// wrong argument throws here exactly as it does inside Telegram (a stand-in once hid such a bug).
+const TG_JS_FILE = path.join(OUT, 'telegram-web-app.js');
+if (!fs.existsSync(TG_JS_FILE)) execFileSync('curl', ['-sS', '--max-time', '60', '-o', TG_JS_FILE, 'https://telegram.org/js/telegram-web-app.js']);
+const TG_JS = fs.readFileSync(TG_JS_FILE, 'utf8');
+assert.ok(TG_JS.includes('Serverless') && TG_JS.includes('switchInlineQuery'), 'telegram-web-app.js downloaded');
+
+/**
+ * Opens the Mini App as `user`, the way Telegram does: launch parameters in the URL hash (tgWebAppData
+ * with the init data, version, theme), the real telegram-web-app.js, and a TelegramWebviewProxy that
+ * records what the app asks of the client (page.events). Endpoint calls arrive as Telegram's script
+ * sends them (POST /api/<name>, "Authorization: TMA <base64 init data>") and are answered with the
+ * platform's envelope. `version` / `inline` mimic older clients and launches without inline mode.
+ */
+async function open(user, { start = '', chat = 'chat-1', scheme = 'light', page: pageParam = '', version = '9.1', inline = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
-  await ctx.route('https://telegram.org/**', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: '' }));
+  await ctx.route('https://telegram.org/**', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: TG_JS }));
+  await ctx.route('**/api/*', async (route) => {
+    const req = route.request();
+    const name = new URL(req.url()).pathname.slice('/api/'.length);
+    const reply = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    const auth = req.headers().authorization || '';
+    if (!auth.startsWith('TMA ')) return reply(401, { ok: false, error_code: 401, error_type: 'UNAUTHORIZED', description: 'Unauthorized' });
+    const q = new URLSearchParams(Buffer.from(auth.slice(4), 'base64').toString('utf8'));
+    const initData = { user: JSON.parse(q.get('user')), auth_date: Number(q.get('auth_date')) };
+    for (const k of ['chat_instance', 'chat_type', 'start_param']) if (q.get(k)) initData[k] = q.get(k);
+    if (!E[name]) return reply(404, { ok: false, error_code: 404, error_type: 'NOT_FOUND', description: 'Not found' });
+    try {
+      const result = await E[name](JSON.parse(req.postData() || '{}'), { initData });
+      return reply(200, { ok: true, result: result ?? null });
+    } catch (e) {
+      if (e && e.parameters) return reply(400, { ok: false, error_code: 400, error_type: 'ENDPOINT_ERROR', description: e.description, parameters: e.parameters });
+      origError(e);
+      return reply(500, { ok: false, error_code: 500, error_type: 'INTERNAL', description: 'Internal error' });
+    }
+  });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => pageErrors.push(`${user.first_name}: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(`${user.first_name} console: ${m.text()}`); });
-  const shared = [];
-  await page.exposeFunction('__call', async (name, input) => {
-    try {
-      const result = await E[name](input || {}, { initData: { user, chat_instance: chat, chat_type: 'group', start_param: start, auth_date: 1 } });
-      return { result: JSON.parse(JSON.stringify(result ?? null)) };
-    } catch (e) {
-      if (e && e.parameters) return { error: { type: 'ENDPOINT_ERROR', message: e.description || e.message, parameters: e.parameters, status: 400 } };
-      origError(e);
-      return { error: { type: 'INTERNAL', message: 'internal', status: 500 } };
-    }
+  const events = [];
+  await page.exposeFunction('__event', (type, data) => events.push({ type, data: data ? JSON.parse(data) : null }));
+  await page.addInitScript(() => {
+    window.TelegramWebviewProxy = { postEvent: (type, data) => window.__event(type, data) };
   });
-  await page.exposeFunction('__shared', (q) => shared.push(q));
-  const theme = THEMES[scheme];
-  await page.addInitScript(({ user, start, theme, scheme }) => {
-    window.__TEST__ = true;
-    const paint = () => {
-      const root = document.documentElement;
-      for (const [k, v] of Object.entries(theme)) root.style.setProperty(`--tg-theme-${k.replace(/_/g, '-')}`, v);
-      root.style.setProperty('--tg-viewport-stable-height', '844px');
-    };
-    if (document.documentElement) paint();
-    else document.addEventListener('readystatechange', paint, { once: true });
-    const noop = () => {};
-    window.Telegram = {
-      WebApp: {
-        initData: 'test', initDataUnsafe: { user, start_param: start }, colorScheme: scheme, themeParams: theme, version: '9.1',
-        ready: noop, expand: noop, isVersionAtLeast: () => true, onEvent: noop, offEvent: noop,
-        setHeaderColor: noop, setBackgroundColor: noop, setBottomBarColor: noop, enableVerticalSwipes: noop, disableVerticalSwipes: noop,
-        BackButton: { show: noop, hide: noop, onClick: noop }, HapticFeedback: { impactOccurred: noop, notificationOccurred: noop, selectionChanged: noop },
-        openTelegramLink: noop, openLink: noop, switchInlineQuery: (q) => window.__shared(q),
-        Serverless: { call: (name, input, cb) => { window.__call(name, input).then((r) => (r.error ? cb(Object.assign(new Error(r.error.message), r.error), null) : cb(null, r.result))); } },
-      },
-    };
-  }, { user, start, theme, scheme });
-  await page.goto(BASE + (hash ? `#${hash}` : ''));
-  page.shared = shared;
+  const init = new URLSearchParams({ user: JSON.stringify(user), chat_instance: chat, chat_type: 'group', auth_date: '1700000000', hash: 'test' });
+  if (start) init.set('start_param', start);
+  const launch = new URLSearchParams({ tgWebAppData: init.toString(), tgWebAppVersion: version, tgWebAppPlatform: 'android', tgWebAppThemeParams: JSON.stringify(THEMES[scheme]) });
+  if (inline) launch.set('tgWebAppBotInline', '1');
+  const search = new URLSearchParams();
+  if (start) search.set('tgWebAppStartParam', start);
+  if (pageParam) search.set('page', pageParam);
+  await page.goto(`${BASE}${search.toString() ? `?${search}` : ''}#${launch}`);
+  page.events = events;
   return page;
 }
+
+/** The client answering an event, e.g. the share dialog reporting that the message was sent. */
+const clientSays = (page, type, data = {}) => page.evaluate(([t, d]) => window.Telegram.WebView.receiveEvent(t, d), [type, data]);
 
 const shot = (page, name) => page.screenshot({ path: path.join(OUT, `${name}.png`) });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -164,7 +180,14 @@ await scenario('tic-tac-toe: two accounts play through the UI; the winner sees t
   const a = await open(users.sam, { start: `t_${id}` });
   await a.waitForSelector('.lobby');
   await a.click('.lobby .btn.primary');
-  assert.deepEqual(a.shared, [`room ${id}`], 'invite opens the inline chat picker with this room');
+  await a.waitForFunction(() => true);
+  for (let i = 0; i < 20 && !a.events.some((e) => e.type === 'web_app_send_prepared_message'); i += 1) await wait(100);
+  const share = a.events.find((e) => e.type === 'web_app_send_prepared_message');
+  assert.ok(share, `Invite opens Telegram's share dialog (events: ${a.events.map((e) => e.type).join(', ')})`);
+  const card = mock.state.prepared.find((x) => x.id === share.data.id);
+  assert.equal(card.result.reply_markup.inline_keyboard[0][0].url, `https://t.me/game_test_bot?startapp=t_${id}`);
+  await clientSays(a, 'prepared_message_sent');
+  await a.waitForSelector('.toast.good');
   await shot(a, '04-ttt-lobby');
   const b = await open(users.nina, { start: `t_${id}` });
   await b.waitForSelector('.ttt-board');
@@ -210,6 +233,25 @@ await scenario('invitation as people send it: the inviter only sends it; the fri
   await friend.waitForSelector('.ttt-board', { timeout: 6000 });
   await friend.context().close();
   await inviter.context().close();
+});
+
+await scenario('Invite on older clients: the inline chat picker (with valid chat types), else Telegram\'s share sheet', async () => {
+  const id = 'TttRoomOld001';
+  const inl = await open(users.sam, { start: `t_${id.slice(0, 12)}`, version: '7.0', inline: true });
+  await inl.waitForSelector('.lobby');
+  await inl.click('.lobby .btn.primary');
+  for (let i = 0; i < 20 && !inl.events.some((e) => e.type === 'web_app_switch_inline_query'); i += 1) await wait(100);
+  const sw = inl.events.find((e) => e.type === 'web_app_switch_inline_query');
+  assert.deepEqual(sw && sw.data, { query: `room ${id.slice(0, 12)}`, chat_types: ['users', 'groups'] });
+  await inl.context().close();
+  const old = await open(users.sam, { start: `t_${id.slice(0, 12)}`, version: '7.0' });
+  await old.waitForSelector('.lobby');
+  await old.click('.lobby .btn.primary');
+  for (let i = 0; i < 20 && !old.events.some((e) => e.type === 'web_app_open_tg_link'); i += 1) await wait(100);
+  const link = old.events.find((e) => e.type === 'web_app_open_tg_link');
+  assert.ok(link, 'falls back to the share sheet');
+  assert.match(decodeURIComponent(link.data.path_full), new RegExp(`^/share/url\\?url=https://t\\.me/game_test_bot\\?startapp=t_${id.slice(0, 12)}`));
+  await old.context().close();
 });
 
 await scenario('backgammon: the board, dice and a turn played through the UI', async () => {
@@ -367,7 +409,9 @@ await scenario('ranks, profile and settings (switching to Persian turns the app 
 });
 
 await scenario('no page errors, no server errors', async () => {
-  assert.deepEqual(pageErrors, []);
+  // Telegram's script logs this when the fallback test tries the inline chat picker on a launch without inline mode.
+  const expected = /Inline mode is disabled for this bot/;
+  assert.deepEqual(pageErrors.filter((e) => !expected.test(e)), []);
   assert.deepEqual(errors, []);
 });
 

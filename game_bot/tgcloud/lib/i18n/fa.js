@@ -110,6 +110,8 @@ export default {
   lobby_leave: 'خروج',
   lobby_spectating: 'اتاق پر است — تماشاچی هستی.',
   lobby_team: 'تیم {n}',
+  lobby_invite_sent: 'دعوت فرستاده شد!',
+  share_text: '🎮 بیا با هم {game} بازی کنیم!',
   lobby_not_here: 'هنوز باز نکرده',
   lobby_waiting_for: 'منتظر {name} که بازی را باز کند…',
   invite_ping: '🎮 <b>{name}</b> در <b>{game}</b> منتظر توست!',

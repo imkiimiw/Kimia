@@ -110,6 +110,8 @@ export default {
   lobby_leave: 'Выйти',
   lobby_spectating: 'Комната заполнена — вы зритель.',
   lobby_team: 'Команда {n}',
+  lobby_invite_sent: 'Приглашение отправлено!',
+  share_text: '🎮 Давай сыграем: {game}!',
   lobby_not_here: 'Ещё не открыл игру',
   lobby_waiting_for: 'Ждём, пока {name} откроет игру…',
   invite_ping: '🎮 <b>{name}</b> ждёт вас в игре «<b>{game}</b>»!',

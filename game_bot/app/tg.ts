@@ -118,15 +118,32 @@ export function openLink(url: string) {
   else W.openLink(url);
 }
 
-/* Opens the chat picker with "@bot <query>" typed in: the inline results are the invitations. */
-export function shareInline(query: string) {
-  if (!W || !supports('6.7')) return false;
-  try {
-    W.switchInlineQuery(query, ['users', 'groups', 'supergroups']);
-    return true;
-  } catch {
-    return false;
-  }
+/*
+ * Telegram's share dialog for a message the bot prepared with savePreparedInlineMessage (Bot API
+ * 8.0+). Resolves with whether it was sent; rejects where the method isn't available.
+ */
+export function shareMessage(id: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    if (!W || !supports('8.0')) {
+      reject(new Error('unsupported'));
+      return;
+    }
+    try {
+      W.shareMessage(id, (sent: boolean) => resolve(!!sent));
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+/*
+ * The chat picker with "@bot <query>" typed in (the inline results are the invitations). Throws
+ * where it isn't available: old clients, or a launch without inline mode. Chat types may only be
+ * users, bots, groups and channels — anything else makes telegram-web-app.js throw.
+ */
+export function switchInline(query: string) {
+  if (!W || !supports('6.7')) throw new Error('unsupported');
+  W.switchInlineQuery(query, ['users', 'groups']);
 }
 
 export function onActiveChange(cb: (active: boolean) => void) {

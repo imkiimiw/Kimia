@@ -1,6 +1,7 @@
 /*
- * The bot's username (cached in settings) and the Direct Link Mini App links built from it:
- * https://t.me/<bot>/<APP_SHORT_NAME>?startapp=<payload> (payloads: payload.js).
+ * The bot's username (cached in settings) and the links that open the Mini App with a payload:
+ * https://t.me/<bot>?startapp=<payload> (the Main Mini App), or https://t.me/<bot>/<APP_SHORT_NAME>?…
+ * when config names a /newapp app (payloads: payload.js).
  */
 import { APP_SHORT_NAME } from './config.js';
 import * as store from './store.js';
@@ -21,6 +22,10 @@ export async function botUsername(ctx) {
   return cached;
 }
 
-export const appLink = (username, payload) => `https://t.me/${username}/${APP_SHORT_NAME}${payload ? `?startapp=${payload}` : ''}`;
+export function appLink(username, payload) {
+  const base = APP_SHORT_NAME ? `https://t.me/${username}/${APP_SHORT_NAME}` : `https://t.me/${username}`;
+  if (payload) return `${base}?startapp=${payload}`;
+  return APP_SHORT_NAME ? base : `${base}?startapp`;
+}
 
 export { parsePayload, payloadFor } from './payload.js';

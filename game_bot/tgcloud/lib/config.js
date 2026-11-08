@@ -1,11 +1,13 @@
 /*
  * Settings of this bot. OWNER_ID is checked by numeric id only (never by username).
- * APP_SHORT_NAME is the Mini App's short name from BotFather /newapp: inline invitations link to
- * https://t.me/<bot>/<APP_SHORT_NAME>?startapp=<payload>. APP_URL is the address `npx tgcloud push`
+ * Invitation links open the bot's Main Mini App (BotFather → Bot Settings → Configure Mini App):
+ * https://t.me/<bot>?startapp=<payload>. Set APP_SHORT_NAME only if a separate Mini App was created
+ * with /newapp under that short name: links then become https://t.me/<bot>/<APP_SHORT_NAME>?startapp=….
+ * APP_URL is the address `npx tgcloud push`
  * prints (https://app<id>.tgcloud.ai/): it hosts the inline thumbnails and is the menu button's URL.
  */
 export const OWNER_ID = 5557901897;
-export const APP_SHORT_NAME = 'play';
+export const APP_SHORT_NAME = '';
 export const APP_URL = 'https://app8740157051.tgcloud.ai/';
 
 export const DEFAULT_CHANNELS = ['HIDE_i_SEEK', 'Nepenthw_ir', 'wangerBots'];

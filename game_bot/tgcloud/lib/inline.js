@@ -20,7 +20,7 @@ import { call, createCtx, esc, short } from './tg.js';
 const ORDER = ['ttt', 'bg', 'hokm', 'codeword', 'fusion'];
 const SEATS = { ttt: 2, bg: 2, hokm: 4 };
 
-function article(lang, username, game, roomId, from) {
+export function article(lang, username, game, roomId, from) {
   const room = ROOM_GAMES.includes(game);
   const name = esc(short(from.first_name || 'A friend'));
   const vars = { icon: GAME_ICONS[game], game: t(lang, `game_${game}`), name };
