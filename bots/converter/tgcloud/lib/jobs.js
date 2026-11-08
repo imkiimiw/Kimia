@@ -159,13 +159,16 @@ export async function runJob(ctx, { op, inputs, params = {}, chatId, retry = fal
     await setStatus('UPLOADING');
     const refs = [];
     const sent = [];
+    let groupText = null;
     const noteText = notes.length ? notes.slice(0, 15).map((n) => t(ctx.lang, n.key, n.vars)).join('\n') : '';
     if (def.delivery === 'group' && outputs.length > 1) {
       for (const chunk of tg.albumChunks(outputs)) {
         const msgs = await tg.sendGroup(ctx, 'job_result', chatId, chunk, (o) => (TYPES[o.type] || TYPES.unknown).mime);
         msgs.forEach((m, k) => sent.push({ doc: m && m.document, out: chunk[k] }));
       }
-      await tg.send(ctx, 'job_done', chatId, { text: [ui.groupDone(ctx, job, outputs.length), noteText].filter(Boolean).join('\n') });
+      // the status message (always there for several inputs) becomes the summary; else a new one
+      groupText = [ui.groupDone(ctx, job, outputs.length), noteText].filter(Boolean).join('\n');
+      if (!statusMsg) await tg.send(ctx, 'job_done', chatId, { text: groupText });
     } else {
       for (let i = 0; i < outputs.length; i++) {
         const o = outputs[i];
@@ -191,7 +194,7 @@ export async function runJob(ctx, { op, inputs, params = {}, chatId, retry = fal
     if (key && one) await store.putCached({ key, userId: job.userId, fileId: one.doc.file_id, name: one.out.name, outputType: one.out.type, outputSize: one.doc.file_size, expiresAt: ctx.now + CACHE_TTL_S });
     const outType = one ? (TYPES[one.out.type] || TYPES.unknown).label : `${sent.length} files`;
     await finish(ctx, job, 'COMPLETED', { outputType: outType, outputSize: outSize, outputFileId: one ? one.doc.file_id : null });
-    if (statusMsg) await tg.edit(ctx, 'job_status', statusMsg, { text: ui.progress(ctx, job, 'COMPLETED') });
+    if (statusMsg) await tg.edit(ctx, 'job_status', statusMsg, { text: groupText || ui.progress(ctx, job, 'COMPLETED') });
     log.info('job.done', { ...logBase, status: 'COMPLETED', output_type: outType, output_size: outSize, duration_ms: Date.now() - t0 });
     return { ok: true, job, refs };
   } catch (err) {

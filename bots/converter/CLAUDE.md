@@ -22,11 +22,12 @@ owner's accounts or credentials (list those in the report instead).
 - This folder is its own tgcloud project (`@Wanger_Converterbot`, app9216103899). Run the CLI only as
   `npm run tg -- <command>` from `bots/converter/` (token from `Converter_BOT_TGCLOUD_TOKEN`); never
   bare `npx tgcloud`. The repository root and the other folders are other bots: never touch them.
-- Ask the owner before `push`, before `migrate --safe`, and before anything that messages real users.
+- Ask the owner before `push`, `migrate --safe` and anything that messages real users — except under the standing instruction above (until C8).
   Never `push --force`, never destructive migrations.
 - Platform spikes: `npm run spike -- <core|lib|size> …` (stages `spikes/` into `tgcloud/` for one
   `tgcloud run` and removes it). Never push while a spike runs.
 - pdf-lib on Serverless: `load(…, { parseSpeed: Infinity })`, `save({ objectsPerTick: Infinity,
   useObjectStreams: false })` — always. WebAssembly: synchronous APIs only.
-- Tests: `npm test` must stay green (165 at the end of C1), including the query-plan and module guards.
+- Tests: `npm test` must stay green (203 at the end of C2), including the query-plan and module guards.
+- Literal invisible characters creep in through tool edits: run `python3 scripts/fix-invisible.py` before testing.
 - Never read or edit `.tgcloud/` (credentials).

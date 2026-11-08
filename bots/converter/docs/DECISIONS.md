@@ -56,3 +56,25 @@ One line each: the choice — the reason. Newest phase last.
 - Owner alerts are always Persian — the owner's language.
 - Tests: node:test + the SDK emulator adapted from wanger-music (no dependencies); the test clock starts at a fixed instant — clock windows made a test flaky once.
 - Raw SQL with the `sql` tag only, all of it in `lib/db/` (guard test) — one place to audit indexes; a query-plan test fails on any full scan of a growing table.
+
+## Phase C2 (2026-11-08)
+
+- fflate 0.8.3 and @cantoo/pdf-lib 2.11.1 are vendored unmodified in `tgcloud/lib/vendor/` with their MIT text as a header comment — only `.js` files are deployed, and the license must travel with the copy.
+- Archive safety follows spec §7.7 with one refinement: the ratio rule applies to entries ≥ 1 MB — small, very compressible files (100 KB of zeros) are not bombs; a lying size header can't inflate past it either (streaming inflate in 16-KB steps, abort on the declared size).
+- ZIP entries are CRC-checked after extraction; TAR headers are checksum-checked; GZIP members are CRC-checked — a damaged archive is reported, never half-sent.
+- `.tar.gz` / `.tgz` open the TAR; a plain `.gz` gives its one file (name from the gzip header) — the common cases; bz2/xz/zstd/7z/rar say plainly they can't be opened in the bot.
+- Archives are indexed and checked at intake (meta: count, size, names) — the card shows "۱۲ فایل، ۳۴ MB" or the refusal before the user taps anything.
+- > 10 files: a paginated list (8 per page, one file per tap, re-extracted from the archive) or "all as store-only ZIP parts ≤ 50 MB" — spec §7.7; storing (not deflating) keeps CPU inside the 3-s budget.
+- Every PDF is parsed at intake when its trailer says ≤ PDF_MAX_OBJECTS (200 000) objects — page count on the card, encrypted/damaged reported up front; page ranges are validated against it before a job starts.
+- Reorder = the typed order first, then every page not mentioned in its original order — "3,1,2" on a 10-page file shouldn't drop pages 4–10.
+- Split offers every 1/2/5/10 pages (only options giving 2..100 parts) or typed ranges; > 5 parts arrive as one store-only ZIP — spec §7.3's "≤ 5 separate, more as one ZIP".
+- JPG/PNG → PDF: one A4 page per image (portrait or landscape by its shape), fitted and centered; JPEG EXIF orientation (all 8 values) applied with a transformation matrix, the JPEG bytes embedded untouched; PNG ≤ 12 MP per job (≈ 1.5 s measured).
+- Batches: one open batch per user (partial unique index); an album opens it, any file sent while it's open (10 quiet minutes) joins it, «📚 چند فایل با هم» on a card starts one; slots are reserved atomically; one status message (the first to claim it wins, a racing duplicate is deleted).
+- Batch actions: ZIP, one PDF (PDFs + JPG/PNG in order), rename (prefix / suffix / numbering / tidy-up) and fix extensions; dangerous and empty files are always left out; total ≤ BATCH_TOTAL_MB (50) — one invocation must download, process and upload within ~30 s.
+- Batch renames arrive as document albums (sendMediaGroup, chunks of 2–10; verified on Serverless) with the status message turned into the summary.
+- RATE_INTAKE_PER_MIN raised from 10 to 20 = BATCH_MAX_FILES — two albums of ten must fit.
+- Album items get one notice per album (maintenance, rate, "batch full") via a once-claim — ten files mustn't produce ten replies.
+- Forced join with an album: every file is queued with one atomic JSON append (`json_insert … '$.files[#]'`, verified on Serverless) and the join screen is shown once; after «✅ عضو شدم» the album is resumed as one batch.
+- Results and files from before C2 are inspected lazily when their card is opened (one download, meta stored) — PDFs extracted from an archive get PDF tools too, without parsing every output during the job.
+- A job is generic now (`runJob`: inputs, params, outputs) with the operations as pure functions in `lib/ops.js`; staff retry rebuilds any job from its stored inputs and params.
+- Loading pdf-lib with every update costs ≈ 27 ms (a no-op went from 8 to 35 ms, measured) — accepted; dynamic `import()` doesn't exist here.

@@ -109,7 +109,7 @@ export async function intake(ctx, message, file) {
   const name = file.name ? sanitizeName(file.name, { fallback }) : fallback;
   const nameExt = extOf(name);
   const d = { ...d0, nameExt, extOk: extMatches(d0.id, nameExt) };
-  const meta = await analyze(ctx, bytes, d, name);
+  const meta = (await analyze(ctx, bytes, d, name)) || {};
   const row = { ref: fileRef(), userId: ctx.user.id, fileId: file.fileId, fileUniqueId: file.uniqueId, kind: file.kind, name, size: bytes.length, type: storedType(d), createdAt: ctx.now, meta, batchId: b ? b.id : null, seq };
   await store.putFile(row);
   await count(ctx.day, 'intake');
@@ -125,6 +125,27 @@ export async function loadFile(ctx, ref) {
   return { file: { ...f, fileId: f.file_id }, d: describe(f.type, f.name) };
 }
 
+const INSPECTED = new Set(['pdf', 'zip', 'tar', 'gzip', 'jpeg', 'png']);
+const NEEDS_META = new Set(['f', 'fm', 'fn', 'ax', 'al', 'ae', 'pd', 'pr', 'ps', 'pi']);
+
+/**
+ * Files that were never looked inside (results of jobs, files from before C2) are inspected once,
+ * when their card is opened: one download, then the meta is stored.
+ */
+async function ensureMeta(ctx, file, d) {
+  if (file.meta || d.dangerous || !INSPECTED.has(d.id)) return file.meta || {};
+  let meta = {};
+  try {
+    const bytes = await tg.download(ctx, 'inspect_download', file.file_id);
+    meta = (await analyze(ctx, bytes, d, file.name)) || {};
+  } catch (err) {
+    if (!isToolError(err)) log.warn('inspect_failed', { update_id: ctx.updateId, user_id: ctx.user.id, kind: err && err.kind });
+    return {};
+  }
+  await store.setFileMeta(file.ref, ctx.user.id, meta);
+  return meta;
+}
+
 export const expired = (ctx) => ui.plain(t(ctx.lang, 'card.expired'), [ui.homeBtn(ctx)]);
 const inputOf = (file, d) => ({ fileId: file.file_id, uniqueId: file.file_unique_id, size: file.size, type: d.id, name: file.name, ref: file.ref });
 const usable = (d) => !d.dangerous && d.id !== 'empty';
@@ -135,6 +156,7 @@ export async function onCallback(ctx, code, args, message) {
   const loaded = await loadFile(ctx, ref);
   if (!loaded) return tg.edit(ctx, 'card_expired', message, expired(ctx));
   const { file, d } = loaded;
+  if (NEEDS_META.has(code)) file.meta = await ensureMeta(ctx, file, d);
   const show = (view, s) => tg.edit(ctx, view, message, s);
   const back = () => show('card', cards.card(ctx, file, d));
   const meta = file.meta || {};

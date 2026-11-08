@@ -66,7 +66,7 @@ export function home(ctx, { greet = false } = {}) {
 export const tools = (ctx) => screen(L(ctx, 'tools.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB) }), [homeBtn(ctx)]);
 export const pdfTools = (ctx) => screen(L(ctx, 'pdf.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB), n: num(ctx, ctx.limits.BATCH_MAX_FILES) }), [homeBtn(ctx)]);
 export const zipTools = (ctx) => screen(L(ctx, 'zip.text', { mb: num(ctx, ctx.limits.ARCHIVE_MAX_UNPACKED_MB), n: num(ctx, ctx.limits.ARCHIVE_MAX_ENTRIES), total: num(ctx, ctx.limits.BATCH_TOTAL_MB) }), [homeBtn(ctx)]);
-export const help = (ctx) => screen(L(ctx, 'help.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB) }), [btn(P(ctx, 'btn.privacy'), 'm', 'privacy'), homeBtn(ctx)]);
+export const help = (ctx) => screen(L(ctx, 'help.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB), n: num(ctx, ctx.limits.BATCH_MAX_FILES), total: num(ctx, ctx.limits.BATCH_TOTAL_MB) }), [btn(P(ctx, 'btn.privacy'), 'm', 'privacy'), homeBtn(ctx)]);
 export const privacy = (ctx) => screen(L(ctx, 'privacy.text', { days: num(ctx, ctx.limits.JOB_HISTORY_DAYS) }), [btn(P(ctx, 'btn.delete_data'), 'dd'), homeBtn(ctx)]);
 export const deleteConfirm = (ctx) => screen(L(ctx, 'delete.confirm'), [btn(P(ctx, 'btn.delete_yes'), 'dd', 'y'), btn(P(ctx, 'btn.no'), 'h')]);
 export const deleted = (ctx) => screen(L(ctx, 'delete.done'));

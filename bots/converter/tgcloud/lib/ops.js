@@ -22,7 +22,7 @@ export function withSuffix(name, suffix, ext) {
 const pad = (n, width) => String(n).padStart(width, '0');
 const pdfOut = (bytes, name, pages) => {
   if (!looksLikePdf(bytes)) throw new ToolError('OUTPUT_INVALID');
-  return { bytes, name, type: 'pdf', meta: pages ? { pages } : null };
+  return { bytes, name, type: 'pdf', meta: pages ? { pdf: { pages, problem: null } } : null };
 };
 
 function needRanges(params, pageCount) {

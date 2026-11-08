@@ -5,10 +5,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setup, OWNER, advance } from '../helpers/harness.mjs';
 import { SAMPLES } from '../helpers/fixtures.mjs';
+import { zipOf, pdfOf, jpegOf } from '../helpers/c2fixtures.mjs';
 import { queryPlans } from '../sdk/db.mjs';
 
 const U = 100000001;
-const GROWING = ['users', 'user_settings', 'files', 'jobs', 'pending_actions', 'rate_counters', 'result_cache', 'errors', 'processed_updates', 'counters'];
+const GROWING = ['users', 'user_settings', 'files', 'jobs', 'pending_actions', 'rate_counters', 'result_cache', 'errors', 'processed_updates', 'counters', 'batches'];
 // small by construction (≤ 10 channels, a few admins/keys/settings, one row per broadcast)
 const SMALL = ['channels', 'staff', 'settings', 'secrets', 'broadcasts'];
 
@@ -21,6 +22,19 @@ test('no statement scans a growing table', async () => {
   await h.tapText(U, 'تغییر نام');
   await h.tapText(U, 'نام جدید');
   await h.send(U, 'new');
+  // C2: album → batch → actions; archive and PDF tools; a never-inspected card
+  for (const [bytes, name] of [[await pdfOf(2), 'a.pdf'], [jpegOf(), 'b.jpg']]) await h.send(U, null, { document: h.tg.putFile(bytes, { name }), media_group_id: 'Q' });
+  await h.tapText(U, 'تمام شد');
+  advance(61);
+  await h.tapText(U, 'ساخت یک PDF');
+  await h.tapText(U, 'کار دیگری');
+  await h.press(U, `bl:${h.one('SELECT id FROM batches').id}`, 1);
+  advance(61);
+  await h.sendFile(U, zipOf({ 'x.txt': 'x' }), 'z.zip');
+  await h.tapText(U, 'استخراج');
+  await h.sendFile(U, await pdfOf(3), 'p.pdf');
+  await h.tapText(U, 'جدا کردن');
+  await h.send(U, '1-2');
   await h.send(U, '/history');
   await h.send(U, '/status');
   await h.send(U, '/settings');

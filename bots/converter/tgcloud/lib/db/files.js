@@ -27,6 +27,9 @@ export async function batchFiles(batchId) {
   return (await db.all(sql`SELECT ${FILE_COLS} FROM files WHERE batch_id = ${batchId} ORDER BY seq LIMIT 50`)).map(parsed);
 }
 
+/** Stores what a later look inside found ({} = nothing to know). */
+export const setFileMeta = (ref, userId, meta) => db.run(sql`UPDATE files SET meta = ${JSON.stringify(meta || {})} WHERE ref = ${ref} AND user_id = ${userId}`);
+
 /** Moves a received file into a batch (the «📚 چند فایل با هم» button). */
 export const setFileBatch = (ref, userId, batchId, seq) => db.run(sql`UPDATE files SET batch_id = ${batchId}, seq = ${seq} WHERE ref = ${ref} AND user_id = ${userId}`);
 

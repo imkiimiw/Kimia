@@ -1,7 +1,25 @@
 # Progress
 
-**Current state: Phase C1 done and DEPLOYED (2026-11-07, cloud revision 1). Owner's standing
-instruction: continue through C8, deploy each phase, full report per phase (docs/reports/).**
+**Current state: Phase C2 done and DEPLOYED (2026-11-08, cloud revision 2). Tests 203/203.
+Owner's standing instruction: continue through C8, deploy each phase, full report per phase
+(docs/reports/). Next: C3 (Gemini OCR).**
+
+## Phase C2 — Archives, PDF page tools, batches ✅ deployed (revision 2)
+
+Done (details in docs/reports/C2.md, choices in DECISIONS.md):
+- Vendored fflate + @cantoo/pdf-lib (`lib/vendor/`); pure modules `archive.js`, `pdf.js`, `images.js`,
+  `ops.js` (operation registry), `errors.js`; screens in `cards.js`; batches in `batch.js`.
+- Archives: ZIP / TAR / TAR.GZ / GZ indexed and checked at intake (entries, unpacked size, ratio,
+  paths, links, devices, encryption, methods), extraction with bounded inflation and CRC checks;
+  ≤ 10 files sent, more → paginated list or store-only ZIP parts ≤ 50 MB; ZIP of one file or a batch.
+- PDF: page count at intake; extract / remove / reorder / rotate (all or typed pages) / split (every
+  N or typed ranges; > 5 parts → one ZIP); JPG/PNG → PDF with EXIF orientation; batch → one PDF.
+- Batches: albums and files sent while a batch is open → one status message, «✅ تمام شد، ادامه»,
+  batch menu (ZIP, one PDF, rename incl. numbering, fix extensions, list); forced-join resume of
+  whole albums; one notice per album.
+- Generic job runner (multiple inputs/outputs, document albums, ZIP bundling, lazy inspection of
+  result files, staff retry of any job).
+- Platform: JSON append and document albums verified on Serverless; migration 5 additive steps.
 
 ## Phase C1 — Foundation ✅ deployed (revision 1)
 
@@ -50,8 +68,7 @@ Done:
   Serverless.
 - CI: a `wanger_converter` job in `.github/workflows/ci.yml` (npm ci + npm test).
 
-Not in C1 (by plan): album batching, batch rename, numbering (C2 "batches"); ZIP/PDF tools (C2);
-OCR (C3); the worker (C4+). `/connect` waits for the hub.
+Not in C1 (by plan): batches, ZIP/PDF tools (→ C2, done); OCR (C3); the worker (C4+). `/connect` waits for the hub.
 
 ## What I need from the owner
 
@@ -60,8 +77,8 @@ Deployed under the owner's standing approval: `migrate --local --safe` → 15 ta
 my_chat_member); the 9 waiting updates were handled: 1 user, 1 file card, 0 errors; the three
 channels seeded with their real chat ids, status `not_admin`.
 
-1. **Make `@Wanger_Converterbot` an admin** in @HIDE_i_SEEK, @Nepenthw_ir, @wangerBots — until then
-   forced join is skipped for those channels (fail-open) and you get an alert every 3 h.
+1. **Make `@Wanger_Converterbot` an admin** in @HIDE_i_SEEK and @wangerBots (done for @Nepenthw_ir) —
+   until then forced join is skipped for those two (fail-open) and you get an alert every 3 h.
 2. **`docs/WANGER_ECOSYSTEM.md`** — still missing; the local gate stays until the hub exists.
 3. Bot token (optional, for the outside-send test after the push): as the environment secret
    `Converter_BOT_TOKEN`, never in chat or git.
@@ -74,5 +91,5 @@ WebAssembly sync only, Telegram name limits); matrix updated; nothing moved to t
 
 ## Remaining phases
 
-C2 Archives, PDF page tools, batches · C3 Gemini OCR · C4 Worker + images + text → image ·
+C3 Gemini OCR · C4 Worker + images + text → image ·
 C5 Tesseract + advanced PDF · C6 Documents · C7 Audio/video + 7Z · C8 Hardening.

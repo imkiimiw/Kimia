@@ -69,21 +69,21 @@ Rates for planning: parsing ≈ **5.7 µs per object** on Serverless; JPEG pages
 copies JPEG bytes without decoding); PNG → PDF ≈ **0.12 s per megapixel** (decode + re-deflate). The
 object count can be read cheaply before parsing (trailer / xref-stream `/Size`), so a guard is possible.
 
-## 4. Feature matrix after C0 (replaces spec §5's "Where")
+## 4. Feature matrix after C0 (replaces spec §5's "Where") — status after C2 in the last column
 
-| Feature | Where | Condition measured in C0 |
-|---|---|---|
-| Type detection (magic bytes, ZIP central directory) | **Bot** (C1) | Download the whole file: a head-only read of a cold file saves nothing (2.24 s for the first 80 KB of 19 MB; the full file right after: 0.56 s). |
-| 🔧 Detect & Fix, safe rename, batch rename | **Bot** (C1) | Download + re-upload ≈ 3 s per 19 MB file. Names: Telegram keeps ≤ 64 chars of the base and ≤ 16 of the extension (§5 #2). Batches: ≤ 4 downloads in parallel. |
-| ZIP create (from a batch) | **Bot** (C2) | ≤ 50 MB output; store already-compressed types (JPEG, MP4, ZIP…), deflate the rest (≈ 28 ms/MB → ≤ 50 MB ≈ 1.4 s CPU). |
-| ZIP / TAR / TAR.GZ extract with protections | **Bot** (C2) | Index check first (ms); inflate ≈ 5 ms/MB, so `ARCHIVE_MAX_UNPACKED_MB` 200 ≈ 1 s CPU; TAR needs no library. |
-| PDF page tools (merge, split, extract/remove/reorder/rotate) | **Bot** (C2) | The three options of §3; guard on the **object count** (≈ 200 000 objects per job ≈ 1.2 s), not on MB; larger → worker (or a clear refusal while there is none). Encrypted PDFs: reported (worker opens them with a password). |
-| JPG → PDF | **Bot** (C2) | Trivial (ms). |
-| PNG → PDF | **Bot** (C2) | ≤ ≈ 12 MP per job (≈ 1.5 s); larger → worker. |
-| OCR via Gemini | **Bot** (C3) | `fetch` works, 30 MB response cap, ≈ 30 s wall per invocation; check the request-size limit for inline images in C3. |
-| Image convert / ops | Worker (C4) — **candidate for the bot** | Not moved yet. Synchronous WebAssembly works and memory is ample, so WASM image codecs could run in-bot for small images (≤ 1 MiB per module; CPU is the limit). Needs a spike with a real codec and a license check before anything is promised. |
-| Text → Image | Worker (C4) | Correct Persian shaping needs HarfBuzz/RAQM — not in pure JS here. |
-| Tesseract OCR, advanced PDF, documents, audio/video, 7Z | Worker (C5–C7) | Native binaries; unchanged. |
+| Feature | Where | Condition measured in C0 | Status |
+|---|---|---|---|
+| Type detection (magic bytes, ZIP central directory) | **Bot** (C1) | Download the whole file: a head-only read of a cold file saves nothing (2.24 s for the first 80 KB of 19 MB; the full file right after: 0.56 s). | ✅ C1 |
+| 🔧 Detect & Fix, safe rename, batch rename | **Bot** (C1) | Download + re-upload ≈ 3 s per 19 MB file. Names: Telegram keeps ≤ 64 chars of the base and ≤ 16 of the extension (§5 #2). Batches: ≤ 4 downloads in parallel. | ✅ C1, batch rename C2 |
+| ZIP create (from a batch) | **Bot** (C2) | ≤ 50 MB output; store already-compressed types (JPEG, MP4, ZIP…), deflate the rest (≈ 28 ms/MB → ≤ 50 MB ≈ 1.4 s CPU). | ✅ C2 |
+| ZIP / TAR / TAR.GZ extract with protections | **Bot** (C2) | Index check first (ms); inflate ≈ 5 ms/MB, so `ARCHIVE_MAX_UNPACKED_MB` 200 ≈ 1 s CPU; TAR needs no library. | ✅ C2 |
+| PDF page tools (merge, split, extract/remove/reorder/rotate) | **Bot** (C2) | The three options of §3; guard on the **object count** (≈ 200 000 objects per job ≈ 1.2 s), not on MB; larger → worker (or a clear refusal while there is none). Encrypted PDFs: reported (worker opens them with a password). | ✅ C2 |
+| JPG → PDF | **Bot** (C2) | Trivial (ms). | ✅ C2 |
+| PNG → PDF | **Bot** (C2) | ≤ ≈ 12 MP per job (≈ 1.5 s); larger → worker. | ✅ C2 |
+| OCR via Gemini | **Bot** (C3) | `fetch` works, 30 MB response cap, ≈ 30 s wall per invocation; check the request-size limit for inline images in C3. | C3 |
+| Image convert / ops | Worker (C4) — **candidate for the bot** | Not moved yet. Synchronous WebAssembly works and memory is ample, so WASM image codecs could run in-bot for small images (≤ 1 MiB per module; CPU is the limit). Needs a spike with a real codec and a license check before anything is promised. | C4 |
+| Text → Image | Worker (C4) | Correct Persian shaping needs HarfBuzz/RAQM — not in pure JS here. | C4 |
+| Tesseract OCR, advanced PDF, documents, audio/video, 7Z | Worker (C5–C7) | Native binaries; unchanged. | C5–C7 |
 
 ## 5. Conflicts between the spec and what was found (the measurement wins)
 
@@ -110,6 +110,15 @@ object count can be read cheaply before parsing (trailer / xref-stream `/Size`),
 | Bot | `@Wanger_Converterbot`: `can_join_groups: true`, privacy mode on (`can_read_all_group_messages: false`), inline off, no main Mini App. `getWebhookInfo` → `403 Method getWebhookInfo is restricted`. |
 | Forced-join channels | `getChatMember` in @HIDE_i_SEEK, @Nepenthw_ir, @wangerBots → `400 Bad Request: member list is inaccessible` in all three: **the bot is not an admin there yet**, so it can't check membership. |
 | Owner's chat | Reachable (the owner has started the bot). The file spikes used it with `disable_notification` and deleted every test message (verified: `message to delete not found` afterwards). |
+
+## 6b. Measured in C2 (Serverless, 2026-11-08)
+
+| Check | Result |
+|---|---|
+| `json_insert(…, '$.files[#]', …)`, `json_array_length` | Work (the album resume queue relies on them). |
+| `sendMediaGroup` with two `InputFile` documents | Works, 102 ms; names kept. Test messages deleted. |
+| Loading the C2 module graph (41 modules, 696 KB of vendored code) | A no-op update: 34–36 ms (was 8 ms in C1) — the cost of evaluating pdf-lib. |
+| Migration | 5 additive steps (new table, three columns, an index); all indexes present afterwards. |
 
 ## 7. Still unknown
 

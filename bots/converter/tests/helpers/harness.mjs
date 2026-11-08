@@ -87,9 +87,13 @@ export function setup({ botAdminIn = SEED, members = [] } = {}) {
     },
     /** Finds a button by (part of) its text on the latest message and presses it. */
     async tapText(fromId, part) {
-      const b = h.lastButtons(fromId).find((x) => x.text.includes(part));
-      if (!b) throw new Error(`no button "${part}"; have: ${h.lastButtons(fromId).map((x) => x.text).join(' | ')}`);
-      return h.tap(fromId, b.callback_data);
+      // the newest message that has such a button (a result document sits above its final status edit)
+      const msgs = tg.calls.filter((c) => c.result && ['sendMessage', 'editMessageText', 'sendDocument'].includes(c.method) && c.params.chat_id === fromId);
+      for (let i = msgs.length - 1; i >= Math.max(0, msgs.length - 4); i--) {
+        const b = buttons(msgs[i].params).find((x) => x.text.includes(part) && x.callback_data);
+        if (b) return h.tap(fromId, b.callback_data);
+      }
+      throw new Error(`no button "${part}"; have: ${h.lastButtons(fromId).map((x) => x.text).join(' | ')}`);
     },
     async myChatMember(chat, newStatus, oldStatus = 'member', fromId = OWNER) {
       const upd = { chat, from: person(fromId), date: 0, old_chat_member: { status: oldStatus, user: { id: 9216103899 } }, new_chat_member: { status: newStatus, user: { id: 9216103899 } } };

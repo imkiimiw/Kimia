@@ -62,6 +62,25 @@ const cases = {
     };
   },
 
+  // read-only: SQLite features C2 relies on
+  async sqlfeat() {
+    const out = {};
+    try { out.json_insert = (await db.get(sql`SELECT json_insert('{"files":[1]}', '$.files[#]', json('{"a":2}')) AS v`)).v; } catch (e) { out.json_insert = errInfo(e); }
+    try { out.json_len = (await db.get(sql`SELECT json_array_length('{"files":[1,2]}', '$.files') AS v`)).v; } catch (e) { out.json_len = errInfo(e); }
+    return out;
+  },
+
+  // C2: a document album (sendMediaGroup with InputFile) to the owner, silently, then deleted
+  async album() {
+    const media = ['c2-a.txt', 'c2-b.txt'].map((name) => ({ type: 'document', media: new InputFile(new TextEncoder().encode(`C2 spike ${name}`), name, { type: 'text/plain' }) }));
+    const t = await now();
+    const msgs = await api.sendMediaGroup({ chat_id: OWNER_ID, media, disable_notification: true });
+    const out = { ms: (await now()) - t, names: msgs.map((m) => m.document && m.document.file_name) };
+    for (const m of msgs) { try { await api.deleteMessage({ chat_id: OWNER_ID, message_id: m.message_id }); } catch { /* reported by names */ } }
+    out.deleted = msgs.length;
+    return out;
+  },
+
   async clock() {
     const t0 = Date.now();
     spin(2e8);

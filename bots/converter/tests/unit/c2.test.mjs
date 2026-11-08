@@ -163,7 +163,7 @@ test('extract / remove / reorder / rotate pages', async () => {
   const ex = (await OPS.pdf_extract.run(f, { ranges: '4,2' }, L)).outputs[0];
   assert.equal(ex.name, 'گزارش_pages.pdf');
   assert.equal(await pagesOf(ex.bytes), 2);
-  assert.equal(ex.meta.pages, 2);
+  assert.equal(ex.meta.pdf.pages, 2);
   assert.equal(await pagesOf((await OPS.pdf_remove.run(f, { ranges: '1-2' }, L)).outputs[0].bytes), 3);
   await code(() => OPS.pdf_remove.run(f, { ranges: '1-5' }, L), 'PDF_NOTHING_LEFT');
   await code(() => OPS.pdf_extract.run(f, { ranges: '9' }, L), 'PDF_BAD_RANGE');
@@ -180,9 +180,9 @@ test('extract / remove / reorder / rotate pages', async () => {
 test('split: every N, by ranges, limits', async () => {
   const f = [{ bytes: await pdfOf(5), name: 'a.pdf', type: 'pdf' }];
   const each = await OPS.pdf_split.run(f, { mode: 'n', n: 2 }, L);
-  assert.deepEqual(each.outputs.map((o) => [o.name, o.meta.pages]), [['a_part01.pdf', 2], ['a_part02.pdf', 2], ['a_part03.pdf', 1]]);
+  assert.deepEqual(each.outputs.map((o) => [o.name, o.meta.pdf.pages]), [['a_part01.pdf', 2], ['a_part02.pdf', 2], ['a_part03.pdf', 1]]);
   const byRanges = await OPS.pdf_split.run(f, { mode: 'ranges', ranges: '1-3,4-5' }, L);
-  assert.deepEqual(byRanges.outputs.map((o) => o.meta.pages), [3, 2]);
+  assert.deepEqual(byRanges.outputs.map((o) => o.meta.pdf.pages), [3, 2]);
   await code(() => OPS.pdf_split.run(f, { mode: 'n', n: 1 }, { ...L, PDF_MAX_PARTS: 3 }), 'PDF_TOO_MANY_PARTS');
   await code(() => OPS.pdf_split.run(f, { mode: 'n', n: 10 }, L), 'PDF_ONE_PART');
 });
