@@ -88,6 +88,8 @@ export const SETTINGS = Object.freeze({
   // the owner asked (2026-11-08): no automatic sending — the queue goes out when they press «📤 ارسال صف»;
   // on = the tick also sends (one post per channel per tick, interval / hours / daily limit apply)
   'publishing.auto_send': { type: 'bool', default: false },
+  // a message to the owner and admins as soon as a source brings a new song (with action buttons)
+  'notify.new_tracks': { type: 'bool', default: true },
   time_zone: { type: 'tz', default: 'Asia/Tehran' },
   'archive.chat_id': { type: 'chat', default: null },
   'import.bulk_summary': { type: 'bool', default: true },
@@ -112,6 +114,7 @@ export const SETTINGS = Object.freeze({
   'backup.last': { type: 'json', default: null, internal: true },
   'monitor.webhook': { type: 'json', default: null, internal: true },
   'monitor.scheduled_at': { type: 'int', default: 0, internal: true },
+  'notify.window': { type: 'json', default: null, internal: true },
 });
 
 /** Time zones offered in ⚙️ Settings; the fixed offset is the fallback when Intl is missing. */

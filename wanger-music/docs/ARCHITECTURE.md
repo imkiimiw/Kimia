@@ -206,6 +206,11 @@ restores the row (disabled) with its settings. **Nothing is posted to any channe
   won't send as a photo ("can't use file of type Thumbnail as Photo", production 2026-11-08): the
   worker downloads it once, uploads it as a photo and keeps that photo's file_id; any other cover
   error skips the cover — the audio is the post (only channel / transient errors stop the post).
+- **New-song message** (`approvals_ui.notifyNewTrack`, from `sources.handlePost`): the owner and every admin
+  get the song, its language, status and channels, with the next action as buttons (`nt:*`: language,
+  activate, approve / reject, send now — each by permission — and play); every button re-renders
+  the message. More than 5 songs in 15 minutes → one summary with links instead (setting
+  `notify.new_tracks`). It replaced the hourly owner-only "new drafts" note.
 - **Manual sending** (default, the owner's choice): the tick sends nothing while `publishing.auto_send` is
   off; «📤 ارسال صف انتشار» (`worker.sendQueue`: round-robin over channels, ≤ 8 posts per press,
   stops at a 429; pause and daily limits apply) sends the queue; tick processor `queue_notice`

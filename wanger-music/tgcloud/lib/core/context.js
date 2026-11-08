@@ -28,6 +28,7 @@ import { createForceJoinService } from '../forcejoin/service.js';
 import { createBroadcastService } from '../broadcast/service.js';
 import { notifyProgress } from '../admin/broadcast_ui.js';
 import { askSourceLanguage } from '../admin/sources_ui.js';
+import { notifyNewTrack } from '../admin/approvals_ui.js';
 import { createCatalogService } from '../music/catalog.js';
 import { createIngestService } from '../music/ingest.js';
 import { createCatalogProvider } from '../music/providers/catalog.js';
@@ -95,7 +96,7 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
   app.publisher = createPublisher({ repo: repos.publications, channels: repos.destinations, tg: app.tg, users: app.users, settings: app.settings, alerts: app.alerts, audit: app.audit, clock, log });
   app.worker = createWorker({ pubs: repos.publications, channels: repos.destinations, catalog: app.catalog, sources: { get: (id) => repos.sources.get(id) }, settings: app.settings, tg: app.tg, alerts: app.alerts, clock, log });
   app.backup = createBackupService({ repo: repos.backup, tables: BACKUP_TABLES, settings: app.settings, tg: app.tg, audit: app.audit, search: app.search, clock, log });
-  app.sources = createSourcesService({ repo: repos.sources, tg: app.tg, ingest: app.ingest, catalog: app.catalog, alerts: app.alerts, audit: app.audit, clock, log, stats: app.stats, askLanguage: (src) => askSourceLanguage(app, src) });
+  app.sources = createSourcesService({ repo: repos.sources, tg: app.tg, ingest: app.ingest, catalog: app.catalog, alerts: app.alerts, audit: app.audit, clock, log, stats: app.stats, askLanguage: (src) => askSourceLanguage(app, src), notifyReviewers: (src, trackId) => notifyNewTrack(app, src, trackId) });
   await app.settings.load();
   await bootstrap(app);
   return app;

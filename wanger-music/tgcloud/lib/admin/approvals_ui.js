@@ -22,6 +22,90 @@ const ICON = { pending_approval: '🗳', queued: '⏳', sending: '📤', publish
 const trackLabel = (lang, p) => truncate(`${p.track_title || tp(lang, 'trk.untitled')} — ${p.track_artist || '?'}`, 50);
 const channelLabel = (p) => p.channel_title || (p.channel_username ? '@' + p.channel_username : String(p.channel_id));
 
+// ---------------------------------------------------------------- new songs from sources
+// A message to the owner and every admin as soon as a source brings a song: what it is, where it
+// stands, and the next action as buttons (language, activate, approve / reject, send now, play).
+// Every button re-renders the same message. More than NEW_TRACK_BURST songs in NEW_TRACK_WINDOW
+// seconds: one summary instead, so a source posting 50 songs doesn't flood anyone.
+const NEW_TRACK_BURST = 5;
+const NEW_TRACK_WINDOW = 15 * 60;
+const UNDECIDED = (tr) => tr.language_source === 'heuristic' && (tr.language === 'unknown' || tr.language_confidence === 'low');
+const chName = (p) => (p.channel_username ? '@' + p.channel_username : p.channel_title || '?');
+
+/** The new-song message for one viewer (buttons only for what they may do). */
+export async function newTrackView(app, viewer, tr, lang) {
+  const src = tr.source_id ? await app.sources.get(tr.source_id) : null;
+  const pubsOf = (await app.publisher.forTrack(tr.id)).filter((p) => ['pending_approval', 'queued', 'sending', 'published', 'failed', 'uncertain'].includes(p.status));
+  const lines = [
+    t(lang, 'nt.head', { source: src ? src.title || (src.username ? '@' + src.username : '') : '—' }),
+    t(lang, 'nt.track', { title: tr.title || tp(lang, 'trk.untitled'), artist: tr.artist || '?' }),
+    UNDECIDED(tr) ? t(lang, 'nt.lang_unknown') : t(lang, 'nt.lang', { language: tp(lang, `tlang.${tr.language}`) }),
+    t(lang, 'nt.status', { status: tp(lang, `trk.status.${tr.status}`) }),
+  ];
+  for (const p of pubsOf) lines.push(t(lang, 'nt.pub', { channel: chName(p), state: tp(lang, `nt.pub_state.${p.status}`) }));
+  if (tr.status === 'active' && !pubsOf.length && !UNDECIDED(tr)) lines.push(t(lang, 'nt.no_channel'));
+  const rows = [];
+  if (UNDECIDED(tr) && can(viewer, 'catalog.manage')) rows.push(['fa', 'en', 'other'].map((l) => btn(tp(lang, `srclang.${l}`), 'nt', 'lang', tr.id, l)));
+  if (tr.status === 'draft' && can(viewer, 'catalog.manage')) rows.push([btn(tp(lang, 'nt.btn_activate'), 'nt', 'act', tr.id)]);
+  for (const p of pubsOf) {
+    if (p.status === 'pending_approval' && can(viewer, 'approvals.review')) rows.push([btn(tp(lang, 'nt.btn_ok', { channel: chName(p) }), 'nt', 'ok', p.id), btn(tp(lang, 'nt.btn_no'), 'nt', 'no', p.id)]);
+    if (p.status === 'queued' && can(viewer, 'destinations.manage')) rows.push([btn(tp(lang, 'nt.btn_send', { channel: chName(p) }), 'nt', 'send', p.id)]);
+  }
+  if (can(viewer, 'catalog.manage')) rows.push([btn(tp(lang, 'trk.btn.play'), 'trk', 'play', tr.id), btn(tp(lang, 'nt.btn_card'), 'trk', 'v', tr.id)]);
+  return { text: lines.join('\n'), keyboard: markup(rows) };
+}
+
+/** Sends the new-song message to the owner and the admins. @returns {Promise<number>} messages sent */
+export async function notifyNewTrack(app, src, trackId) {
+  if (!(await app.settings.get('notify.new_tracks'))) return 0;
+  const now = app.clock.now();
+  const w = /** @type {any} */ (await app.settings.get('notify.window')) || {};
+  const win = w.start && now - w.start < NEW_TRACK_WINDOW ? { start: w.start, n: Number(w.n) || 0 } : { start: now, n: 0 };
+  win.n += 1;
+  await app.settings.setInternal('notify.window', win);
+  const reviewers = [OWNER_ID, ...(await app.users.adminIds())];
+  const tr = await app.catalog.get(trackId);
+  if (!tr) return 0;
+  let sent = 0;
+  if (win.n > NEW_TRACK_BURST) {
+    if (!(await app.alerts.claim('newtrk_more', NEW_TRACK_WINDOW))) return 0;
+    for (const id of reviewers) {
+      const u = await app.users.get(id);
+      const lang = await app.users.languageOf(u);
+      const viewer = u || { telegram_id: id, role: 'user' };
+      const rows = [[btn(tp(lang, 'nt.btn_drafts'), 'mus', 'ls', 'draft', 0), btn(tp(lang, 'nt.btn_unknown'), 'mus', 'ls', 'unknown', 0)]];
+      if (can(viewer, 'approvals.review')) rows.push([btn(tp(lang, 'nt.btn_review'), 'apr', 'home')]);
+      if (can(viewer, 'destinations.manage')) rows.push([btn(tp(lang, 'nt.btn_sendq'), 'pub', 'sendq')]);
+      try {
+        await app.tg.send(id, { text: t(lang, 'nt.more', { source: src.title || '' }), keyboard: markup(rows) }, 'new_tracks_summary');
+        sent += 1;
+      } catch (e) {
+        app.log.warn('new_track_notice_failed', { user_id: id, error: String(e && (e.description || e.message)).slice(0, 120) });
+      }
+    }
+    return sent;
+  }
+  for (const id of reviewers) {
+    const u = await app.users.get(id);
+    const lang = await app.users.languageOf(u);
+    try {
+      await app.tg.send(id, await newTrackView(app, u || { telegram_id: id, role: 'user' }, tr, lang), 'new_track');
+      sent += 1;
+    } catch (e) {
+      app.log.warn('new_track_notice_failed', { user_id: id, error: String(e && (e.description || e.message)).slice(0, 120) });
+    }
+  }
+  return sent;
+}
+
+/** Re-renders the new-song message in place after a button. */
+async function refreshNew(app, user, cq, trackId, toast) {
+  const tr = await app.catalog.get(trackId);
+  if (!tr) return { toast: tp(app.lang, 'trk.err.gone'), alert: true };
+  await screen(app, user, cq, await newTrackView(app, user, tr, app.lang), 'new_track');
+  return toast ? { toast, alert: false } : {};
+}
+
 /** One press of «📤 ارسال صف»: a batch now; the result screen offers the next batch. */
 export async function sendQueueView(app, channelId = null) {
   const lang = app.lang;
@@ -145,6 +229,41 @@ export const routes = [
   { ns: 'apr', action: 'ok', args: ['uint'], perm: REVIEW, run: (app, user, [id], cq) => decide(app, user, id, true, cq) },
   { ns: 'apr', action: 'no', args: ['uint'], perm: REVIEW, run: (app, user, [id], cq) => decide(app, user, id, false, cq) },
 
+  // ---- the new-song message's buttons
+  { ns: 'nt', action: 'v', args: ['uint'], perm: 'catalog.manage', run: (app, user, [id], cq) => refreshNew(app, user, cq, id, null) },
+  {
+    ns: 'nt', action: 'lang', args: ['uint', 'tlang'], perm: 'catalog.manage',
+    async run(app, user, [id, l], cq) {
+      const row = await app.catalog.setLanguage(user, id, l);
+      return refreshNew(app, user, cq, id, row && row.alsoSet ? tp(app.lang, 'trk.saved_artist', { n: row.alsoSet }) : tp(app.lang, 'trk.saved'));
+    },
+  },
+  {
+    ns: 'nt', action: 'act', args: ['uint'], perm: 'catalog.manage',
+    async run(app, user, [id], cq) {
+      await app.catalog.activate(user, id); // UserError (no title…) → a toast from the router
+      return refreshNew(app, user, cq, id, tp(app.lang, 'trk.activated'));
+    },
+  },
+  ...[['ok', true], ['no', false]].map(([action, approve]) => ({
+    ns: 'nt', action: String(action), args: ['uint'], perm: REVIEW,
+    async run(app, user, [id], cq) {
+      const r = await app.publisher.decide(user, id, Boolean(approve));
+      const p = r.row || (await app.publisher.get(id));
+      if (!p) return { toast: tp(app.lang, 'common.expired'), alert: true };
+      return refreshNew(app, user, cq, p.track_id, r.ok ? tp(app.lang, approve ? 'nt.approved' : 'nt.rejected') : tp(app.lang, 'nt.decided_already'));
+    },
+  })),
+  {
+    ns: 'nt', action: 'send', args: ['uint'], perm: 'destinations.manage',
+    async run(app, user, [id], cq) {
+      const p = await app.publisher.get(id);
+      if (!p) return { toast: tp(app.lang, 'common.expired'), alert: true };
+      const outcome = await app.worker.sendPublicationNow(id);
+      const res = await refreshNew(app, user, cq, p.track_id, null);
+      return { ...res, toast: tp(app.lang, `dst.now.${outcome}`), alert: outcome !== 'sent' };
+    },
+  },
   {
     // «📤 ارسال صف انتشار»: the owner sends the queue by hand
     ns: 'pub', action: 'sendq', args: [], perm: 'destinations.manage',

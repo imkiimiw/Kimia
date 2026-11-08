@@ -27,9 +27,9 @@ export function botBecameAdmin(upd) {
 }
 
 /**
- * @param {{repo: any, tg: any, ingest: any, catalog: any, alerts: any, audit: any, clock: any, log: any, stats?: any, askLanguage?: (src: any) => Promise<boolean>}} deps
+ * @param {{repo: any, tg: any, ingest: any, catalog: any, alerts: any, audit: any, clock: any, log: any, stats?: any, askLanguage?: (src: any) => Promise<boolean>, notifyReviewers?: (src: any, trackId: number) => Promise<number>}} deps
  */
-export function createSourcesService({ repo, tg, ingest, catalog, alerts, audit, clock, log, stats = NOOP_STATS, askLanguage = async (_src) => false }) {
+export function createSourcesService({ repo, tg, ingest, catalog, alerts, audit, clock, log, stats = NOOP_STATS, askLanguage = async (_src) => false, notifyReviewers = async (_src, _trackId) => 0 }) {
   async function mustGet(id) {
     const s = await repo.get(id);
     if (!s) throw new UserError('src.err.gone');
@@ -128,17 +128,19 @@ export function createSourcesService({ repo, tg, ingest, catalog, alerts, audit,
       if (r.kind !== 'created') return 'duplicate';
       // no default language and the script couldn't tell: ask the owner once for the whole source
       if (!src.default_language && r.track.language_source === 'heuristic' && (r.track.language === 'unknown' || r.track.language_confidence === 'low')) await askLanguage(src);
+      let outcome = 'draft';
       if (src.auto_import === 'active') {
         try {
           await catalog.activate(SYSTEM_ACTOR, r.track.id);
-          return 'active';
+          outcome = 'active';
         } catch (e) {
           if (!(e instanceof UserError)) throw e;
           log.info('source_track_left_draft', { track_id: r.track.id, error: e.key });
         }
       }
-      await alerts.owner(`src:${src.id}`, (lang) => t(lang, 'alert.src_drafts', { title: src.title || String(src.chat_id) }), LIMITS.alertSourceEverySeconds);
-      return 'draft';
+      // the owner and admins hear about it at once, with buttons (no need to keep checking the bot)
+      await notifyReviewers(src, r.track.id);
+      return outcome;
     },
 
     /** my_chat_member in a source channel or group: warns the owner when the bot is no longer an admin. */

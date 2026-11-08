@@ -1,6 +1,7 @@
 // Import of audio sent or forwarded by an admin (no command needed, outside other flows).
 // One audio → the import card. A run of forwards (≤ 60 s apart) → the first gets a card, the rest
 // are counted in ONE summary message (setting import.bulk_summary), so 50 forwards don't flood the chat.
+import { LIMITS } from '../config/static.js';
 import { t, tp } from '../i18n/index.js';
 import { btn, markup } from '../bot/keyboards.js';
 import { can } from '../permissions/policy.js';
@@ -80,8 +81,11 @@ export const routes = [
     ns: 'imp', action: 'act', args: ['uint'], perm: PERM,
     async run(app, user, [startedAt], cq) {
       const s = await app.ingest.getSession(user.telegram_id);
-      const to = s && s.started_at > startedAt ? s.started_at - 1 : app.clock.now(); // a later batch is not this one
-      const r = await app.catalog.activateMany(user, { addedBy: user.telegram_id, from: Number(startedAt), to }, app.clock.ms() + ACTIVATE_BUDGET_MS);
+      // a track's created_at and its batch's start are read separately, so they may differ by a
+      // second; batches are ≥ importBulkWindowSeconds apart, so half that window is a safe margin
+      const margin = Math.floor(LIMITS.importBulkWindowSeconds / 2);
+      const to = s && s.started_at > startedAt ? s.started_at - margin : app.clock.now(); // a later batch is not this one
+      const r = await app.catalog.activateMany(user, { addedBy: user.telegram_id, from: Number(startedAt) - margin, to }, app.clock.ms() + ACTIVATE_BUDGET_MS);
       if (s && s.started_at === startedAt && cq.message) await app.tg.edit(user.telegram_id, cq.message.message_id, summaryView(app.lang, s), 'import_summary');
       return { toast: activationText(app.lang, r), alert: true };
     },

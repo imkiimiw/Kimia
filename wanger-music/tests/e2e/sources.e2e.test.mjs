@@ -54,7 +54,7 @@ test('adding a source: forward / @username / id; the bot must be an admin; a gro
   assert.ok(h.q('SELECT action FROM audit_log').some((r) => r.action === 'source.add'));
 });
 
-test('draft mode: an audio post becomes a draft from the source; the owner is told once an hour', async () => {
+test('draft mode: an audio post becomes a draft from the source; the owner gets a new-song message with buttons', async () => {
   const h = setup();
   const s = await addSource(h);
   const r = await h.channelPost(chat, audio('Blinding Lights', 'The Weeknd'), { messageId: 77 });
@@ -64,10 +64,11 @@ test('draft mode: an audio post becomes a draft from the source; the owner is to
   const src = h.one('SELECT * FROM sources WHERE id = ?', s.id);
   assert.equal(src.imported_count, 1);
   assert.ok(src.last_post_at > 0);
-  const notes = () => h.tg.callsOf('sendMessage', OWNER).filter((c) => /به‌صورت پیش‌نویس وارد شدن/.test(c.params.text));
+  const notes = () => h.tg.callsOf('sendMessage', OWNER).filter((c) => /آهنگ جدید از «Persian Hits»/.test(c.params.text));
   assert.equal(notes().length, 1);
+  assert.ok(buttons(notes()[0].params).some((b) => b.callback_data === `nt:act:${tr.id}`), 'with «✅ فعال کن»');
   await h.channelPost(chat, audio('Save Your Tears', 'The Weeknd'));
-  assert.equal(notes().length, 1, 'throttled');
+  assert.equal(notes().length, 2, 'one message per new song');
   assert.equal(tracks(h).length, 2);
   assert.equal(h.tg.callsOf('sendAudio').length + h.tg.callsOf('copyMessage').length, 0, 'nothing is published');
   assert.ok(h.q("SELECT actor_id FROM audit_log WHERE action = 'catalog.import'").every((r) => r.actor_id === 0), 'imports are audited as the system');

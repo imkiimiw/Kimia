@@ -30,6 +30,7 @@ code with a synthetic catalog (5000 tracks, ~2000 users) for load and restore te
 |---|---|---|
 | 2026-11-06 | Groups as sources (`sources.chat_type`), «✅ فعال‌سازی همه» on batch summaries and on 🎵 Music drafts, setting `import.auto_activate` | **Deployed** |
 | 2026-11-06 | Language: guess only when reliable (setting `music.language_auto`), one-tap language on the track card, corrections re-route waiting posts; 🆔 channel link as the last caption line (per channel, default on; `{channel}` variable) | **Deployed** |
+| 2026-11-08 | New-song message to the owner and admins at once, with buttons (language, activate, approve / reject, send now, play); burst limit; fix: a batch's «activate all» window could take in the next batch's first song (second boundary) | **Deployed** |
 | 2026-11-08 | Manual publishing (owner's request): automatic sending off by default; «📤 ارسال صف انتشار» first on /admin, in 🗳 and on each channel card; a message when posts wait | **Deployed** |
 | 2026-11-08 | Fix: cover_then_audio posts failed with the audio's thumbnail as cover (now uploaded as a photo, or skipped); queue + next post time + «▶️ send the next post now» on the destination card; current values on its buttons; ⚙️ Settings shortcuts to 📡 / 📢; group chatter runs the piggyback tick again | **Deployed** |
 | 2026-11-07 | Fix: Latin-titled tracks from sources without a language were silently never published — one-tap source language question (applied to existing tracks + re-routed), per-artist learning, «no language» warning | **Deployed** |

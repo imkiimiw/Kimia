@@ -151,6 +151,20 @@ export function createWorker({ pubs, channels, catalog, sources, settings, tg, a
       return sendOne(pub, ch);
     },
 
+    /** One specific queued post, now (pause, cooldown, channel state and daily limit apply). */
+    async sendPublicationNow(pubId) {
+      if (await settings.get('publishing.paused')) return 'paused';
+      const now = clock.now();
+      if (cooldownActive(now, Number(await settings.get('telegram.cooldown_until')))) return 'cooldown';
+      const p = await pubs.get(pubId);
+      const ch = p ? await channels.get(p.channel_id) : null;
+      if (!ch || !ch.enabled || !ch.bot_rights_ok) return 'off';
+      if (ch.daily_limit && (await pubs.publishedSince(ch.id, dayStart(now, ch.time_zone))) >= ch.daily_limit) return 'daily_limit';
+      const pub = await pubs.claimById(pubId, now, now + LEASE_SECONDS);
+      if (!pub) return 'empty';
+      return sendOne(pub, ch);
+    },
+
     /**
      * The owner's «📤 ارسال صف»: queued posts go out now, round-robin over the channels (or one
      * channel's queue), without waiting for the interval, the hours or a retry time. At most `max`

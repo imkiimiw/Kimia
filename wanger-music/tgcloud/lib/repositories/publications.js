@@ -34,6 +34,11 @@ export function createPublicationsRepo() {
       WHERE id IN (SELECT id FROM publications WHERE channel_id = ${channelId} AND status = 'queued' AND next_attempt_at <= ${anyTime ? Number.MAX_SAFE_INTEGER : now} ORDER BY id LIMIT 1)
         AND status = 'queued' RETURNING *`).then(first),
 
+    /** Claims one specific queued publication (the reviewer's «📤 send now» on a new-song message). */
+    claimById: (id, now, leaseUntil) => db.run(sql`
+      UPDATE publications SET status = 'sending', locked_until = ${leaseUntil}, attempt_count = attempt_count + 1, updated_at = ${now}
+      WHERE id = ${id} AND status = 'queued' RETURNING *`).then(first),
+
     /** Leases that ran out: the send may have reached Telegram → uncertain (never re-sent automatically). */
     expireLeases: (now) => db.run(sql`
       UPDATE publications SET status = 'uncertain', locked_until = NULL, last_error = 'lease expired', updated_at = ${now}
