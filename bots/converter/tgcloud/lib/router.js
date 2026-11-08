@@ -20,7 +20,9 @@
 //   bn:<ref>         start a batch with this file
 //   b:<id> done collecting → menu · bm:<id> menu · bx:<id> cancel · bz zip · bp one PDF · bf fix · bl list
 //   br:<id>[:p|s|n|z] batch rename
-//   oc:<ref> OCR (consent first) · oy:<ref> consent given → OCR · od:<code> DOCX of the OCR text in this message
+//   oc:<ref> OCR (engine per settings; consent first for Gemini) · oy:<ref> consent given → OCR · ox:<ref> offline OCR
+//   od:<code> DOCX of the OCR text in this message (also on the worker's OCR results)
+//   s:dg | s:oe (OCR engine) | s:ol[:<lang>] (offline OCR language)
 //   wi:<ref>[:<cat>]  image tools (worker, C4) · wo:<ref>:<preset> run a preset (lib/wtools.js#PRESETS)
 //   wt[:t:<theme>|:g:<theme>:<size>|:b]  text → image · wf:<code> a worker result → its card · wx:<code> cancel a worker job
 //   p[:<action>[:<arg>]]  panel (lib/panel.js)
@@ -143,7 +145,7 @@ export async function handleMessage(message, update) {
     if (pending && pending.kind === 'broadcast') { await panel.onInput(ctx, message, pending); return 'panel_input'; }
     if (pending && message.text) {
       if (['rename', 'pdf', 'pdfrot'].includes(pending.kind)) await files.onInput(ctx, message, pending);
-      else if (['wtext', 'wpos', 'tti', 'ttio'].includes(pending.kind)) await wflow.onInput(ctx, message, pending);
+      else if (['wtext', 'wpos', 'tti', 'ttio', 'wpw'].includes(pending.kind)) await wflow.onInput(ctx, message, pending);
       else if (pending.kind === 'brename') await batch.onInput(ctx, message, pending);
       else await panel.onInput(ctx, message, pending);
       return 'input';
@@ -166,7 +168,7 @@ async function command(ctx, message, cmd) {
     case 'privacy': await send(ctx, 'privacy', ui.privacy(ctx)); return 'privacy';
     case 'deletemydata': await send(ctx, 'delete', ui.deleteConfirm(ctx)); return 'delete';
     case 'language': await send(ctx, 'language', ui.language(ctx, 'h')); return 'language';
-    case 'settings': await send(ctx, 'settings', ui.settings(ctx)); return 'settings';
+    case 'settings': await files.loadServices(ctx); await send(ctx, 'settings', ui.settings(ctx)); return 'settings';
     case 'history': await send(ctx, 'history', await historyScreen(ctx, 0)); return 'history';
     case 'status': {
       const code = cmd.args[0] ? cmd.args[0].toUpperCase() : null;
@@ -272,9 +274,23 @@ async function route(ctx, cq, msg) {
       return 'language';
     }
     case 's': {
-      if (args[0] !== 'dg') return 'noop';
-      ctx.digits = !ctx.digits;
-      await users.setSetting(ctx.user.id, 'digits', ctx.digits ? 1 : 0, ctx.now);
+      await files.loadServices(ctx);
+      if (args[0] === 'dg') {
+        ctx.digits = !ctx.digits;
+        await users.setSetting(ctx.user.id, 'digits', ctx.digits ? 1 : 0, ctx.now);
+      } else if (args[0] === 'oe') {
+        // OCR engine: auto → ai → offline → auto
+        const cur = ui.OCR_ENGINES.includes(ctx.user.s_ocr) ? ctx.user.s_ocr : 'auto';
+        ctx.user.s_ocr = ui.OCR_ENGINES[(ui.OCR_ENGINES.indexOf(cur) + 1) % ui.OCR_ENGINES.length];
+        await users.setSetting(ctx.user.id, 'ocr', ctx.user.s_ocr, ctx.now);
+      } else if (args[0] === 'ol') {
+        const langs = ['auto', ...((ctx.worker && ctx.worker.ocrLangs) || [])];
+        if (!args[1]) { await tg.edit(ctx, 'settings', msg, ui.ocrLangs(ctx)); return 'settings'; }
+        if (langs.includes(args[1])) {
+          ctx.user.s_ocr_lang = args[1];
+          await users.setSetting(ctx.user.id, 'ocrLang', args[1], ctx.now);
+        }
+      } else return 'noop';
       await tg.edit(ctx, 'settings', msg, ui.settings(ctx));
       return 'settings';
     }
@@ -288,7 +304,7 @@ async function route(ctx, cq, msg) {
     case 'ax': case 'al': case 'ae': case 'pz': case 'pi': case 'pd': case 'pr': case 'ps': case 'bn':
       await files.onCallback(ctx, code, args, msg);
       return `file_${code}`;
-    case 'oc': case 'oy':
+    case 'oc': case 'oy': case 'ox':
       await files.onCallback(ctx, code, args, msg);
       return `file_${code}`;
     case 'od':

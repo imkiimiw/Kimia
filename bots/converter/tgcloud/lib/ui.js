@@ -49,7 +49,7 @@ const cancelBtn = (ctx) => btn(P(ctx, 'btn.cancel'), 'x');
 export function home(ctx, { greet = false } = {}) {
   const text = (greet ? `${L(ctx, 'home.hello', { name: (ctx.from && ctx.from.first_name) || '' })}\n\n` : '') + L(ctx, 'home.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB) });
   const items = [
-    ctx.gemini && ctx.gemini.available ? btn(P(ctx, 'menu.ocr'), 'm', 'ocr') : null,
+    (ctx.gemini && ctx.gemini.available) || offlineOcr(ctx) ? btn(P(ctx, 'menu.ocr'), 'm', 'ocr') : null,
     ctx.worker && ctx.worker.available ? btn(P(ctx, 'menu.image'), 'm', 'image') : null,
     btn(P(ctx, 'menu.pdf'), 'm', 'pdf'),
     btn(P(ctx, 'menu.zip'), 'm', 'zip'),
@@ -66,7 +66,10 @@ export function home(ctx, { greet = false } = {}) {
 }
 
 export const tools = (ctx) => screen(L(ctx, 'tools.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB) }), [homeBtn(ctx)]);
-export const ocrTools = (ctx) => screen(L(ctx, 'ocr.text', { pages: num(ctx, ctx.limits.GEMINI_PDF_MAX_PAGES), n: num(ctx, ctx.limits.GEMINI_USER_DAILY) }), [homeBtn(ctx)]);
+export const ocrTools = (ctx) => screen([
+  ctx.gemini && ctx.gemini.available ? L(ctx, 'ocr.text', { pages: num(ctx, ctx.limits.GEMINI_PDF_MAX_PAGES), n: num(ctx, ctx.limits.GEMINI_USER_DAILY) }) : L(ctx, 'ocr.text_head'),
+  offlineOcr(ctx) ? L(ctx, 'ocr.text_offline', { pages: num(ctx, (ctx.worker && ctx.worker.ocrMaxPages) || 20) }) : null,
+].filter(Boolean).join('\n\n'), [homeBtn(ctx)]);
 export const pdfTools = (ctx) => screen(L(ctx, 'pdf.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB), n: num(ctx, ctx.limits.BATCH_MAX_FILES) }), [homeBtn(ctx)]);
 export const zipTools = (ctx) => screen(L(ctx, 'zip.text', { mb: num(ctx, ctx.limits.ARCHIVE_MAX_UNPACKED_MB), n: num(ctx, ctx.limits.ARCHIVE_MAX_ENTRIES), total: num(ctx, ctx.limits.BATCH_TOTAL_MB) }), [homeBtn(ctx)]);
 export const help = (ctx) => screen(L(ctx, 'help.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB), n: num(ctx, ctx.limits.BATCH_MAX_FILES), total: num(ctx, ctx.limits.BATCH_TOTAL_MB) }), [btn(P(ctx, 'btn.privacy'), 'm', 'privacy'), homeBtn(ctx)]);
@@ -79,13 +82,32 @@ export function bots(ctx) {
   return screen(L(ctx, 'bots.text'), ...rows, [homeBtn(ctx)]);
 }
 
+/** The worker's Tesseract is there (C5). */
+export const offlineOcr = (ctx) => !!(ctx.worker && ctx.worker.available && ctx.worker.ops.has('ocr'));
+export const OCR_ENGINES = ['auto', 'ai', 'offline'];
+
 export function settings(ctx) {
   const lang = P(ctx, `lang.${ctx.lang}`);
   const digits = P(ctx, ctx.digits ? 'set.on' : 'set.off');
+  const ai = !!(ctx.gemini && ctx.gemini.available);
+  const off = offlineOcr(ctx);
+  const engine = OCR_ENGINES.includes(ctx.user && ctx.user.s_ocr) ? ctx.user.s_ocr : 'auto';
+  const ocrLang = (ctx.user && ctx.user.s_ocr_lang) || 'auto';
   return screen(L(ctx, 'set.text'),
     [btn(P(ctx, 'set.lang', { value: lang }), 'm', 'lang')],
     [btn(P(ctx, 'set.digits', { value: digits }), 's', 'dg')],
+    ai && off ? [btn(P(ctx, 'set.ocr_engine', { value: P(ctx, `set.engine_${engine}`) }), 's', 'oe')] : null,
+    off ? [btn(P(ctx, 'set.ocr_lang', { value: P(ctx, `ocrlang.${ocrLang}`) }), 's', 'ol')] : null,
     [homeBtn(ctx)]);
+}
+
+/** Offline OCR language: auto (script detection → Persian first) or one of the worker's languages. */
+export function ocrLangs(ctx) {
+  const cur = (ctx.user && ctx.user.s_ocr_lang) || 'auto';
+  const langs = ['auto', ...((ctx.worker && ctx.worker.ocrLangs) || []).filter((l) => l !== 'osd')];
+  return screen(L(ctx, 'set.ocr_lang_pick'),
+    ...grid(langs.map((l) => btn(`${l === cur ? '✓ ' : ''}${P(ctx, `ocrlang.${l}`)}`, 's', 'ol', l))),
+    [backBtn(ctx, 'm', 'set')]);
 }
 
 export function language(ctx, back = 'set') {

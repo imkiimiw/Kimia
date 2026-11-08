@@ -1,0 +1,148 @@
+{
+ "gemini-3.6-flash": {
+  "fa1_screen.png": {
+   "acc": 1.0,
+   "s": 2.51,
+   "text": "کتاب‌خانه‌ی ملی ایران در سال ۱۳۱۶ تأسیس شد و امروز بیش از ده میلیون منبع دارد.\nپژوهشگران می‌توانند نسخه‌های خطی را در تالار مطالعه ببینند.",
+   "error": null
+  },
+  "fa1_small.png": {
+   "acc": 1.0,
+   "s": 3.17,
+   "text": "کتاب‌خانه‌ی ملی ایران در سال ۱۳۱۶ تأسیس شد و امروز بیش از ده میلیون منبع دارد.\nپژوهشگران می‌توانند نسخه‌های خطی را در تالار مطالعه ببینند.",
+   "error": null
+  },
+  "fa1_photo.jpg": {
+   "acc": 1.0,
+   "s": 2.7,
+   "text": "کتاب‌خانه‌ی ملی ایران در سال ۱۳۱۶ تأسیس شد و امروز بیش از ده میلیون منبع دارد.\nپژوهشگران می‌توانند نسخه‌های خطی را در تالار مطالعه ببینند.",
+   "error": null
+  },
+  "fa2_screen.png": {
+   "acc": 1.0,
+   "s": 3.65,
+   "text": "هوا امروز ابری است و احتمال بارش باران در نیمه‌ی دوم روز وجود دارد.\nدمای هوا بین ۸ تا ۱۴ درجه‌ی سانتی‌گراد خواهد بود.",
+   "error": null
+  },
+  "fa2_small.png": {
+   "acc": 1.0,
+   "s": 3.57,
+   "text": "هوا امروز ابری است و احتمال بارش باران در نیمه‌ی دوم روز وجود دارد.\nدمای هوا بین ۸ تا ۱۴ درجه‌ی سانتی‌گراد خواهد بود.",
+   "error": null
+  },
+  "fa2_photo.jpg": {
+   "acc": 1.0,
+   "s": 2.18,
+   "text": "هوا امروز ابری است و احتمال بارش باران در نیمه‌ی دوم روز وجود دارد.\nدمای هوا بین ۸ تا ۱۴ درجه‌ی سانتی‌گراد خواهد بود.",
+   "error": null
+  },
+  "fa3_screen.png": {
+   "acc": 0.0,
+   "s": 0.0,
+   "text": null,
+   "error": "GEMINI_QUOTA"
+  },
+  "fa3_small.png": {
+   "acc": 1.0,
+   "s": 2.78,
+   "text": "برای ثبت‌نام در دوره، فرم را تکمیل کنید و رسید پرداخت را بفرستید.\nمهلت ثبت‌نام تا پایان آبان است.",
+   "error": null
+  },
+  "fa3_photo.jpg": {
+   "acc": 1.0,
+   "s": 3.25,
+   "text": "برای ثبت‌نام در دوره، فرم را تکمیل کنید و رسید پرداخت را بفرستید.\nمهلت ثبت‌نام تا پایان آبان است.",
+   "error": null
+  },
+  "fa4_screen.png": {
+   "acc": 1.0,
+   "s": 8.88,
+   "text": "شعر فارسی از دیرباز جایگاه ویژه‌ای در فرهنگ ایرانیان داشته است.\nحافظ و سعدی هنوز در خانه‌های بسیاری خوانده می‌شوند.",
+   "error": null
+  },
+  "fa4_small.png": {
+   "acc": 0.0,
+   "s": 0.0,
+   "text": null,
+   "error": "GEMINI_FAILED"
+  },
+  "fa4_photo.jpg": {
+   "acc": 1.0,
+   "s": 2.69,
+   "text": "شعر فارسی از دیرباز جایگاه ویژه‌ای در فرهنگ ایرانیان داشته است.\nحافظ و سعدی هنوز در خانه‌های بسیاری خوانده می‌شوند.",
+   "error": null
+  },
+  "en1_screen.png": {
+   "acc": 1.0,
+   "s": 4.83,
+   "text": "The quick brown fox jumps over the lazy dog.\nInvoice number 4821, due on 15 March 2026.",
+   "error": null
+  },
+  "en1_small.png": {
+   "acc": 1.0,
+   "s": 2.01,
+   "text": "The quick brown fox jumps over the lazy dog.\nInvoice number 4821, due on 15 March 2026.",
+   "error": null
+  },
+  "en1_photo.jpg": {
+   "acc": 1.0,
+   "s": 1.84,
+   "text": "The quick brown fox jumps over the lazy dog.\nInvoice number 4821, due on 15 March 2026.",
+   "error": null
+  },
+  "en2_screen.png": {
+   "acc": 1.0,
+   "s": 2.14,
+   "text": "Please keep this receipt for your records.\nTotal amount: 1,250.00 USD including tax.",
+   "error": null
+  },
+  "en2_small.png": {
+   "acc": 1.0,
+   "s": 1.63,
+   "text": "Please keep this receipt for your records.\nTotal amount: 1,250.00 USD including tax.",
+   "error": null
+  },
+  "en2_photo.jpg": {
+   "acc": 1.0,
+   "s": 2.38,
+   "text": "Please keep this receipt for your records.\nTotal amount: 1,250.00 USD including tax.",
+   "error": null
+  },
+  "mx1_screen.png": {
+   "acc": 1.0,
+   "s": 3.86,
+   "text": "نسخه‌ی جدید Wanger Converter از فرمت PDF و DOCX پشتیبانی می‌کند.\nکد پیگیری: WC-7K3P9Q",
+   "error": null
+  },
+  "mx1_small.png": {
+   "acc": 0.0,
+   "s": 0.0,
+   "text": null,
+   "error": "GEMINI_QUOTA"
+  },
+  "mx1_photo.jpg": {
+   "acc": 1.0,
+   "s": 3.66,
+   "text": "نسخه‌ی جدید Wanger Converter از فرمت PDF و DOCX پشتیبانی می‌کند.\nکد پیگیری: WC-7K3P9Q",
+   "error": null
+  },
+  "mx2_screen.png": {
+   "acc": 1.0,
+   "s": 6.45,
+   "text": "جلسه‌ی بعدی روز دوشنبه ساعت ۱۰:۳۰ در اتاق 204 برگزار می‌شود.\nایمیل: info@example.com",
+   "error": null
+  },
+  "mx2_small.png": {
+   "acc": 0.0,
+   "s": 0.0,
+   "text": null,
+   "error": "GEMINI_QUOTA"
+  },
+  "mx2_photo.jpg": {
+   "acc": 0.0,
+   "s": 0.0,
+   "text": null,
+   "error": "GEMINI_FAILED"
+  }
+ }
+}

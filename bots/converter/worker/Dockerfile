@@ -8,13 +8,18 @@ ARG PYTHON_IMAGE=python:3.12-slim-bookworm
 
 FROM ${PYTHON_IMAGE} AS base
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-# FriBiDi is loaded by Pillow's bundled RAQM at runtime (Persian text); tini reaps orphaned processes.
+# FriBiDi is loaded by Pillow's bundled RAQM at runtime (Persian text); tini reaps orphaned processes;
+# Tesseract 5 with the spec's languages (fas eng ara deu fra spa tur) + OSD (C5).
 RUN --mount=type=secret,id=extra_ca,required=false,mode=0444 \
     sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
  && CA=""; if [ -s /run/secrets/extra_ca ]; then CA="-o Acquire::https::CAInfo=/run/secrets/extra_ca"; fi \
  && apt-get $CA update \
- && apt-get $CA install -y --no-install-recommends libfribidi0 tini \
+ && apt-get $CA install -y --no-install-recommends libfribidi0 tini tesseract-ocr tesseract-ocr-osd \
+      tesseract-ocr-fas tesseract-ocr-eng tesseract-ocr-ara tesseract-ocr-deu tesseract-ocr-fra tesseract-ocr-spa tesseract-ocr-tur \
  && rm -rf /var/lib/apt/lists/*
+# The Debian (fast) models: on the benchmark they were as accurate as tessdata_best on average,
+# better on short lines and 2× faster (docs/OCR_BENCHMARK.md). tessdata_best stays optional:
+# mount a directory with fas/ara/eng.traineddata and set TESSDATA_BEST_DIR.
 
 FROM base AS build
 RUN python -m venv /opt/venv

@@ -188,3 +188,62 @@ def test_token_never_reaches_logs(live, fake_tg, capsys):
     wait_for(lambda: signed(live, "GET", f"/v1/jobs/{body['job_id']}?user_id=7").json()["job"]["status"] == "COMPLETED")
     out = capsys.readouterr()
     assert TOKEN not in out.out + out.err and SECRET not in out.out + out.err
+
+
+def test_ocr_job_text_lands_in_the_status_message_with_docx_and_copy(live, fake_tg):
+    import shutil
+    if not shutil.which("tesseract"):
+        pytest.skip("Tesseract is not installed")
+    from tests.test_ocr import page, png
+    fake_tg.files["SCAN"] = png(page("کتابخانه ملی ایران در سال ۱۳۱۶ تأسیس شد", 44, 1300))
+    body = job_body(20, op="ocr", inputs=[{"file_id": "SCAN", "name": "scan.png", "type": "png", "size": 1}], params={})
+    assert signed(live, "POST", "/v1/jobs", body).status_code == 202
+    job = wait_for(lambda: (j := signed(live, "GET", f"/v1/jobs/{body['job_id']}?user_id=7").json()["job"])["status"]
+                   in ("COMPLETED", "FAILED") and j, timeout=60)
+    assert job["status"] == "COMPLETED", job
+    final = fake_tg.calls[-1]
+    assert final[0] == "editMessageText"
+    text = final[1]["text"]
+    assert "متن استخراج" in text and "Tesseract" in text and "\n\nکتابخانه" in text
+    kb = json.loads(final[1]["reply_markup"])["inline_keyboard"]
+    assert kb[0][0]["copy_text"]["text"].startswith("کتابخانه") and kb[1][0]["callback_data"] == "od:000020"
+    assert job["outputs"] == []
+
+
+def test_pdf_password_reaches_the_tool_and_is_scrubbed(live, fake_tg, settings):
+    from tests.pdf_fixtures import encrypt, text_pdf
+    fake_tg.files["LOCKED"] = encrypt(text_pdf())
+    body = job_body(21, op="pdf.ul", inputs=[{"file_id": "LOCKED", "name": "a.pdf", "type": "pdf", "size": 1, "pages": 1}],
+                    params={"password": "secret"})
+    signed(live, "POST", "/v1/jobs", body)
+    job = wait_for(lambda: (j := signed(live, "GET", f"/v1/jobs/{body['job_id']}?user_id=7").json()["job"])["status"]
+                   in ("COMPLETED", "FAILED") and j, timeout=30)
+    assert job["status"] == "COMPLETED" and job["outputs"][0]["name"] == "a_unlocked.pdf"
+    import sqlite3
+    params = sqlite3.connect(settings.db_path).execute("SELECT params FROM jobs WHERE id = ?", (body["job_id"],)).fetchone()[0]
+    assert "secret" not in params
+
+
+def test_timeout_grows_with_pages(settings, fake_tg, monkeypatch):
+    from app import runner as R
+    seen = {}
+
+    def fake_run(spec, workdir, timeout, *a, **k):
+        seen["timeout"] = timeout
+        return {"outputs": [], "notes": ["compress_not_smaller"], "stats": {}}
+    monkeypatch.setattr(R.sandbox, "run", fake_run)
+    import structlog
+
+    from app.queue import JobQueue
+    from app.registry import load_operations
+    q = JobQueue(settings.db_path)
+    fake_tg.files["P"] = b"%PDF-1.7"
+    r = R.Runner(settings, q, fake_tg.client(), load_operations(), structlog.get_logger())
+    settings.jobs_dir.mkdir(parents=True, exist_ok=True)
+    for pages, expected in ((1, 120 + 25), (20, 120 + 25 * 20), (100, 900)):
+        job = {"id": f"01JOBTIMEOUT{pages:014d}", "code": "WC-TIMEOUT", "user_id": 7, "chat_id": 7, "lang": "fa", "op": "ocr",
+               "queue": "heavy", "inputs": [{"file_id": "P", "name": "a.pdf", "type": "pdf", "size": 8, "pages": pages}],
+               "params": {}, "status_message_id": None}
+        q.submit(job)
+        r.process(q.claim("heavy"))
+        assert seen["timeout"] == expected, pages

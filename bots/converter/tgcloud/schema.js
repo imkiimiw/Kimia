@@ -32,6 +32,7 @@ export const userSettings = table('user_settings', {
   ocrEngine: text('ocr_engine'),
   updatedAt: integer('updated_at').notNull(),
   ocrConsentAt: integer('ocr_consent_at'), // C3: one-time consent before the first Gemini OCR
+  ocrLang: text('ocr_lang'), // C5: language for offline OCR (Tesseract): auto | fas | ara | eng | deu | fra | spa | tur
 });
 
 /** Files users sent: the card's state (detected type) behind a short ref in callback_data. */

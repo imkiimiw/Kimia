@@ -10,11 +10,11 @@ import fa from '../../tgcloud/lib/i18n/fa.js';
 import en from '../../tgcloud/lib/i18n/en.js';
 
 const enc = new TextEncoder();
-const WORKER_OPS = ['img.cv', 'img.rs', 'img.cr', 'img.ro', 'img.fl', 'img.cp', 'img.sm', 'img.gr', 'img.bl', 'img.sh', 'img.cm', 'img.wm', 'img.tx', 'tti'];
+const WORKER_OPS = ['img.cv', 'img.rs', 'img.cr', 'img.ro', 'img.fl', 'img.cp', 'img.sm', 'img.gr', 'img.bl', 'img.sh', 'img.cm', 'img.wm', 'img.tx', 'tti', 'pdf.tx', 'pdf.im', 'pdf.cp', 'pdf.wm', 'pdf.ul', 'ocr'];
 const ALL_TYPES = ['avif', 'bmp', 'gif', 'heic', 'ico', 'jpeg', 'png', 'tiff', 'webp'];
 const workerCtx = (over = {}) => ({
   lang: 'fa', digits: true,
-  worker: { available: true, ops: new Set(WORKER_OPS), inputs: Object.fromEntries(WORKER_OPS.map((o) => [o, o === 'tti' ? [] : ALL_TYPES])), write: ['jpg', 'png', 'webp', 'gif', 'bmp', 'tiff', 'ico', 'avif', 'heic'], maxMb: 20, ...over },
+  worker: { available: true, ops: new Set(WORKER_OPS), inputs: Object.fromEntries(WORKER_OPS.map((o) => [o, o === 'tti' ? [] : o.startsWith('pdf.') ? ['pdf'] : o === 'ocr' ? [...ALL_TYPES, 'pdf'] : ALL_TYPES])), write: ['jpg', 'png', 'webp', 'gif', 'bmp', 'tiff', 'ico', 'avif', 'heic'], maxMb: 20, ...over },
 });
 
 test('signatures match the Python worker (app/security.py) byte for byte', async () => {
@@ -63,7 +63,17 @@ test('presets follow the capabilities: op, input type, size, writable format, no
   assert.ok(W.imageToolsOk(ctx, file, { id: 'jpeg' }));
   assert.ok(!W.presetOk(ctx, 'cv.jpg', file, { id: 'jpeg' }), 'no JPG → JPG');
   assert.ok(W.presetOk(ctx, 'cv.png', file, { id: 'jpeg' }));
-  assert.ok(!W.imageToolsOk(ctx, file, { id: 'pdf' }));
+  assert.ok(!W.imageToolsOk(ctx, file, { id: 'zip' }));
+  // PDFs (C5): the PDF tools; an encrypted one offers only «🔓 باز کردن با رمز»; page limits
+  const pdf = { ...file, name: 'a.pdf', meta: { pdf: { pages: 30 } } };
+  assert.ok(W.imageToolsOk(ctx, pdf, { id: 'pdf' }) && !W.unlockOk(ctx, pdf, { id: 'pdf' }));
+  assert.deepEqual(Object.keys(W.CATS).filter((c) => W.catPresets(ctx, c, pdf, { id: 'pdf' }).length), ['pt', 'pi', 'pc', 'pw']);
+  assert.ok(!W.offlineOcrOk(ctx, pdf, { id: 'pdf' }), 'OCR: at most 20 pages');
+  assert.ok(W.offlineOcrOk(ctx, { ...pdf, meta: { pdf: { pages: 20 } } }, { id: 'pdf' }));
+  assert.deepEqual(W.catPresets(ctx, 'pi', { ...pdf, meta: { pdf: { pages: 51 } } }, { id: 'pdf' }), [], 'to images: at most 50 pages');
+  const locked = { id: 'pdf', info: { encrypted: true } };
+  assert.ok(W.unlockOk(ctx, pdf, locked) && !W.offlineOcrOk(ctx, pdf, locked));
+  assert.deepEqual(Object.keys(W.CATS).filter((c) => W.catPresets(ctx, c, pdf, locked).length), ['pu']);
   assert.ok(!W.imageToolsOk(ctx, file, { id: 'jpeg', dangerous: 'polyglot' }));
   assert.ok(!W.imageToolsOk(ctx, { ...file, size: 21 * 1024 * 1024 }, { id: 'jpeg' }));
   const noAvif = workerCtx({ write: ['jpg', 'png'] });

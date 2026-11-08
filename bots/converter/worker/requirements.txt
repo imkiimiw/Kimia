@@ -7,3 +7,5 @@ httpx==0.28.1
 pillow==13.0.0
 pillow-heif==1.8.1
 structlog==26.1.0
+pypdfium2==5.15.1
+pikepdf==10.18.0

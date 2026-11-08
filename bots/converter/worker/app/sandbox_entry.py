@@ -45,7 +45,7 @@ def main() -> None:
         inputs = [Input(Path(i["path"]), i["name"], i["type"]) for i in spec["inputs"]]
         result = op.fn(inputs, params, workdir, spec["limits"])
         write({"outputs": [{"path": str(o.path), "name": o.name, "mime": o.mime, "type": o.type}
-                           for o in result.outputs], "notes": result.notes, "stats": result.stats})
+                           for o in result.outputs], "notes": result.notes, "stats": result.stats, "text": result.text})
     except ToolError as e:  # noqa: F821 — imported above when it can be raised
         write({"error": e.code, "vars": e.vars})
     except MemoryError:

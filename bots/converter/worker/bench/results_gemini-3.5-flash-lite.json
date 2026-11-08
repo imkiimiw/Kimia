@@ -1,0 +1,60 @@
+{
+ "gemini-3.5-flash-lite": {
+  "fa1_screen.png": {
+   "acc": 1.0,
+   "text": "کتاب‌خانه‌ی ملی ایران در سال ۱۳۱۶ تأسیس شد و امروز بیش از ده میلیون منبع دارد. پژوهشگران می‌توانند نسخه‌های خطی را در تالار مطالعه ببینند.",
+   "error": null,
+   "quota": null,
+   "s": 1.19
+  },
+  "fa2_small.png": {
+   "acc": 1.0,
+   "text": "هوا امروز ابری است و احتمال بارش باران در نیمه‌ی دوم روز وجود دارد.\nدمای هوا بین ۸ تا ۱۴ درجه‌ی سانتی‌گراد خواهد بود.",
+   "error": null,
+   "quota": null,
+   "s": 0.78
+  },
+  "fa3_photo.jpg": {
+   "acc": 1.0,
+   "text": "برای ثبت‌نام در دوره، فرم را تکمیل کنید و رسید پرداخت را بفرستید. مهلت ثبت‌نام تا پایان آبان است.",
+   "error": null,
+   "quota": null,
+   "s": 1.39
+  },
+  "fa4_small.png": {
+   "acc": 1.0,
+   "text": "شعر فارسی از دیرباز جایگاه ویژه‌ای در فرهنگ ایرانیان داشته است.\nحافظ و سعدی هنوز در خانه‌های بسیاری خوانده می‌شوند.",
+   "error": null,
+   "quota": null,
+   "s": 1.29
+  },
+  "mx1_small.png": {
+   "acc": 1.0,
+   "text": "نسخه‌ی جدید Wanger Converter از فرمت PDF و DOCX پشتیبانی می‌کند.\nکد پیگیری: WC-7K3P9Q",
+   "error": null,
+   "quota": null,
+   "s": 5.54
+  },
+  "mx2_small.png": {
+   "acc": 1.0,
+   "text": "جلسه‌ی بعدی روز دوشنبه ساعت ۱۰:۳۰ در اتاق 204 برگزار می‌شود.\nایمیل: info@example.com",
+   "error": null,
+   "quota": null,
+   "s": 1.1
+  },
+  "mx2_photo.jpg": {
+   "acc": 1.0,
+   "text": "جلسه‌ی بعدی روز دوشنبه ساعت ۱۰:۳۰ در اتاق 204 برگزار می‌شود.\nایمیل: info@example.com",
+   "error": null,
+   "quota": null,
+   "s": 2.98
+  },
+  "en2_photo.jpg": {
+   "acc": 1.0,
+   "text": "Please keep this receipt for your records.\nTotal amount: 1,250.00 USD including tax.",
+   "error": null,
+   "quota": null,
+   "s": 0.77
+  }
+ }
+}

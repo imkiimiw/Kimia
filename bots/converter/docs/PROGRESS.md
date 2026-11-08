@@ -1,9 +1,20 @@
 # Progress
 
-**Current state: Phase C4 done and DEPLOYED (2026-11-08, cloud revision 4). Bot tests 236/236, worker
-tests 149/149 (also inside the Docker image). Worker tools stay hidden until the owner hosts the worker
-and stores WORKER_URL + WORKER_SECRET (docs/HOSTING.md). Owner's standing instruction: continue through
-C8, deploy each phase, full report per phase (docs/reports/). Next: C5 (Tesseract OCR + advanced PDF).**
+**Current state: Phase C5 done and DEPLOYED (2026-11-08, cloud revision 5). Bot tests 242/242, worker
+tests 170/170 (168 + 2 skipped inside the Docker image). Worker tools (now incl. offline OCR and PDF
+tools) stay hidden until the owner hosts the worker. Gemini OCR is live with the owner's key (free tier:
+20/day per model, with model fallback). Next: C6 (documents with LibreOffice).**
+
+## Phase C5 — Offline OCR (Tesseract) + advanced PDF ✅ deployed (revision 5)
+
+Done (details in docs/reports/C5.md, choices in DECISIONS.md, numbers in docs/OCR_BENCHMARK.md):
+- Worker: Tesseract OCR (7 languages, OSD, preprocessing measured on a 24-image benchmark: 0.887 →
+  0.962), scanned-PDF OCR ≤ 20 pages; PDF text, PDF → images, compress, Persian watermark, unlock.
+- Bot: one OCR button with two engines and settings (engine, offline language), automatic fallback to
+  offline; «🧰 ابزار پیشرفته‌ی PDF»; encrypted PDFs → «🔓 باز کردن با رمز» (password deleted, stored nowhere).
+- Gemini: real 429 analysed (20/day per model on the free tier) → per-model quota tracking and model
+  fallback; per-minute limits no longer pause OCR for a day.
+- docs/OCR_BENCHMARK.md: Gemini 1.000 (19/19 answered), Tesseract 0.962.
 
 **Update 2026-11-08 (after the C4 report):** the owner's Gemini key is stored (tested against Google
 first; never in code/git/logs) and a real OCR ran on Serverless with an exact result — «📝 استخراج متن»

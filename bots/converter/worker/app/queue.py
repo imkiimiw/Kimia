@@ -151,7 +151,7 @@ class JobQueue:
         with self._lock:
             self._db.execute(
                 "UPDATE jobs SET status = ?, result = ?, error_code = ?, error_vars = ?, finished_at = ?,"
-                " params = json_remove(params, '$.text')"  # user text is never kept after the job
+                " params = json_remove(params, '$.text', '$.password')"  # user text is never kept after the job
                 f" WHERE id = ? AND status NOT IN ({','.join('?' * len(FINAL))})",
                 (status, json.dumps(result) if result is not None else None, error_code,
                  json.dumps(error_vars) if error_vars else None, time.time(), job_id, *FINAL))
@@ -166,7 +166,7 @@ class JobQueue:
                 return None
             if job["status"] == "QUEUED":
                 self._db.execute("UPDATE jobs SET status = 'CANCELLED', finished_at = ?,"
-                                 " params = json_remove(params, '$.text') WHERE id = ? AND status = 'QUEUED'",
+                                 " params = json_remove(params, '$.text', '$.password') WHERE id = ? AND status = 'QUEUED'",
                                  (time.time(), job_id))
             elif job["status"] in RUNNING:
                 self._db.execute("UPDATE jobs SET cancel_requested = 1 WHERE id = ?", (job_id,))
@@ -183,7 +183,7 @@ class JobQueue:
         with self._lock:
             rows = self._db.execute(
                 "UPDATE jobs SET status = 'FAILED', error_code = 'WORKER_RESTARTED', finished_at = ?,"
-                " params = json_remove(params, '$.text')"
+                " params = json_remove(params, '$.text', '$.password')"
                 f" WHERE status IN ({','.join('?' * len(RUNNING))}) RETURNING *", (time.time(), *RUNNING)).fetchall()
             return [_row(r) for r in rows]
 
@@ -191,7 +191,7 @@ class JobQueue:
         """Queued too long (the worker was overloaded or down): EXPIRED, never run late."""
         with self._lock:
             rows = self._db.execute(
-                "UPDATE jobs SET status = 'EXPIRED', finished_at = ?, params = json_remove(params, '$.text')"
+                "UPDATE jobs SET status = 'EXPIRED', finished_at = ?, params = json_remove(params, '$.text', '$.password')"
                 " WHERE status = 'QUEUED' AND created_at < ? RETURNING *",
                 (time.time(), time.time() - older_than_s)).fetchall()
             return [_row(r) for r in rows]

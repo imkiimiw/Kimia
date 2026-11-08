@@ -138,3 +138,41 @@ One line each: the choice — the reason. Newest phase last.
 - **Hosting** (docs/HOSTING.md): Oracle Cloud Always Free Arm VM recommended; Cloud Run's free tier
   doesn't fit a worker that processes after answering (CPU throttled outside requests, ephemeral
   disk). Both need a card — the owner's decision.
+
+## Phase C5 (2026-11-08)
+
+- **One OCR button, two engines** (spec §7.1). `cards.ocrEngine`: the user's setting (automatic /
+  «دقیق (هوش مصنوعی)» / «آفلاین», shown only when both exist); automatic = Gemini first, Tesseract when
+  Gemini can't take the file (PDF > 5 pages, size) or its quota is used up, or the user's daily Gemini
+  allowance is spent. The Gemini consent screen offers «📴 به‌جایش آفلاین» — no Google at all.
+- **Gemini quota handling, from a real 429 on the owner's key:** the free tier is 20 requests/day per
+  model. 429s are read (QuotaFailure.quotaId PerDay/PerMinute, RetryInfo.retryDelay): a model is skipped
+  until its own reset, the next model is tried (3.6-flash → 3.5-flash-lite → 3.1-flash-lite; lite read
+  8/8 benchmark images exactly), and only when all are out does OCR pause. GEMINI_MODEL (404) also falls
+  through to the next model and is logged.
+- **Tesseract:** fast models by default (benchmark: same average as tessdata_best, better on short lines,
+  2–3× faster); preprocessing = upscale lines < 20 px, deskew with background fill, crop to text, psm 7
+  for one line; OSD for 180° and the script, an ink-profile + confidence check for 90°/270° (OSD can't read
+  sideways Persian). Auto language: Arabic script → fas+eng (Persian first), Latin → eng, a Latin result
+  from fas+eng is re-read with eng. The user picks Arabic, German, … in ⚙️.
+- **OCR limits:** OCR_MAX_PAGES 20 (spec); the timeout grows with pages (base + 25 s/page, capped at
+  15 min; the bot sends `pages` with each PDF input).
+- **OCR results** are delivered by the worker exactly like the bot's Gemini results (head, notes, text
+  after a blank line; «📋 کپی متن» ≤ 256 chars; «📄 DOCX» = the bot's `od:` button that rebuilds DOCX from
+  the message or the .txt), so both engines look and work the same.
+- **PDF libraries:** pypdfium2 (Apache-2.0/BSD; PDFium BSD-3) for rendering and text, pikepdf (MPL-2.0;
+  qpdf Apache-2.0) for rewriting, decrypting and compressing. No PyMuPDF / Ghostscript (AGPL, spec §7.4).
+- **PDF text extraction** normalizes with NFKC (presentation forms → letters) and warns: PDFs that store
+  Persian as shaped glyphs in visual order are flagged (> 30 % presentation forms) and OCR is suggested;
+  any Persian text gets the general warning (spec §7.4). Scans → PDF_NO_TEXT with the OCR hint.
+- **PDF compress** recompresses only plain 8-bit RGB/Gray images (no masks, JBIG2, CCITT, JPX) to JPEG
+  at three levels, keeps text and vectors; not smaller → nothing sent, with a note.
+- **PDF watermark** is a RAQM-rendered image (so Persian is shaped) with an alpha mask, placed on every
+  page in the reader's orientation (/Rotate honoured), not a PDF text object (no Persian font embedding
+  needed).
+- **PDF password:** the bot deletes the user's message first, keeps only the file ref in its pending
+  state, never puts the password in the job row (like user text), and the worker removes it from its row
+  when the job ends (`json_remove(params, '$.text', '$.password')`). Owner-only restrictions are removed
+  with an empty password ("." in the chat).
+- **Encrypted PDFs** (found at intake by pdf-lib: files.meta.pdf.problem) offer only «🔓 باز کردن با رمز»;
+  the result is a new card with every tool.

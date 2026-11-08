@@ -24,7 +24,9 @@ def test_every_bot_preset_is_valid_for_the_worker():
     assert len(data["PRESETS"]) > 30
     for pid, entry in data["PRESETS"].items():
         op, params = entry[0], dict(entry[1])
-        if len(entry) > 2 and entry[2]:
+        if len(entry) > 2 and entry[2] == "password":
+            params["password"] = "secret"  # typed by the user, deleted from the chat at once
+        elif len(entry) > 2 and entry[2]:
             params["text"] = "نمونه"
         assert op in ops, pid
         ops[op].params.model_validate(params)

@@ -83,7 +83,9 @@ object count can be read cheaply before parsing (trailer / xref-stream `/Size`),
 | OCR via Gemini | **Bot** (C3) | `fetch` works, 30 MB response cap, ≈ 30 s wall per invocation; inline request ≤ 20 MB → images ≤ 14 MB, PDFs ≤ 5 pages. | ✅ C3 (needs the owner's key) |
 | Image convert / ops | **Worker** (C4) | Kept on the worker: Pillow 13 covers every format of the spec (AVIF/HEIC included) with one tested code path; a WASM codec in the bot would cover a fraction, inside 3 s CPU and 1 MiB modules. | ✅ C4 (needs a hosted worker) |
 | Text → Image | Worker (C4) | Correct Persian shaping needs HarfBuzz/RAQM — not in pure JS here. | ✅ C4 (needs a hosted worker) |
-| Tesseract OCR, advanced PDF, documents, audio/video, 7Z | Worker (C5–C7) | Native binaries; unchanged. | C5–C7 |
+| Tesseract OCR (fas eng ara deu fra spa tur), scanned-PDF OCR ≤ 20 pages | **Worker** (C5) | Native binary; 0.2 s per photo, 1.2 s per dense A4 page (fast models). | ✅ C5 (needs a hosted worker) |
+| PDF text, PDF → images, compress, watermark (Persian), unlock with password | **Worker** (C5) | pypdfium2 + pikepdf (no AGPL). | ✅ C5 (needs a hosted worker) |
+| Documents, audio/video, 7Z | Worker (C6–C7) | Native binaries; unchanged. | C6–C7 |
 
 ## 5. Conflicts between the spec and what was found (the measurement wins)
 
@@ -140,6 +142,16 @@ object count can be read cheaply before parsing (trailer / xref-stream `/Size`),
 | `crypto.subtle` HMAC-SHA256 | Matches Python's `hmac` byte for byte; the bot's own `signedHeaders` + a byte body sent to an echo service arrived unchanged (headers, Persian JSON body, query string) in 260 ms, and the worker's `verify()` accepted the echoed request. |
 | Deploy | No schema change; 13 modules pushed (revision 4); webhook in sync; no-op update 38 ms (47 modules); 0 errors. |
 | Worker container (local Docker) | Non-root, read-only root FS, no capabilities: 3 jobs (convert, text → image, watermark) in 0.5–0.75 s each, ≈ 0.7 s of it the sandboxed child's start-up. Healthcheck `healthy`. Image 295 MB. |
+
+## 6e. Measured in C5 (2026-11-08)
+
+| Check | Result |
+|---|---|
+| **Gemini free tier on the owner's key** | **20 requests per day per model** (`gemini-3.6-flash`: 429 `GenerateRequestsPerDayPerProjectPerModel-FreeTier`, quotaValue 20, retryDelay ≈ 16 h = Google's reset at midnight Pacific). Each model has its own quota → the bot falls back 3.6-flash → 3.5-flash-lite → 3.1-flash-lite, then to Tesseract. A per-minute 429 now skips a model for ~1 min only (was: a full-day pause). |
+| Gemini accuracy | 19/19 answered benchmark images exact (gemini-3.6-flash), 8/8 (3.5-flash-lite); 2.7 s per image (docs/OCR_BENCHMARK.md). |
+| Tesseract 5 (worker) | fast models + preprocessing: 0.962 character accuracy, 0.2 s per image; dense A4 page 1.2 s (best models 3.4 s). OSD can't read sideways Persian ("Too few characters") → profile check + confidence for 90°/270°. |
+| Worker container (Debian bookworm) | Tesseract 5.3.0 + 7 languages + OSD; image 490 MB (was 295). OCR of a photo 0.9 s, a 2-page scanned PDF 1.4 s, unlock 0.7 s, PDF → 2 images 0.7 s, Persian watermark 0.7 s (end to end through a fake Telegram). |
+| Deploy | 1 additive column (`user_settings.ocr_lang`); 15 modules pushed (revision 5); webhook in sync; no-op update 35 ms; 0 errors. |
 
 ## 7. Still unknown
 

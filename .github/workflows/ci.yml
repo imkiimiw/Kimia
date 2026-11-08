@@ -79,9 +79,9 @@ jobs:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: bots/converter/worker/requirements-dev.txt
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libfribidi0
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libfribidi0 tesseract-ocr tesseract-ocr-osd tesseract-ocr-fas tesseract-ocr-ara tesseract-ocr-deu tesseract-ocr-fra tesseract-ocr-spa tesseract-ocr-tur
       - run: pip install -r requirements-dev.txt pip-audit
-      - run: ruff check app tests
+      - run: ruff check app tests bench
       - run: python -m pytest -q
       - run: pip-audit -r requirements.txt
       - name: Docker image (runtime) + smoke test

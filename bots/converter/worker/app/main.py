@@ -40,6 +40,7 @@ class InputIn(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     type: str = Field(min_length=1, max_length=16, pattern=r"^[a-z0-9_]+$")
     size: int = Field(0, ge=0)
+    pages: int | None = Field(None, ge=0, le=100000)  # PDFs: the bot knows the page count (timeouts)
 
 
 class JobIn(BaseModel):

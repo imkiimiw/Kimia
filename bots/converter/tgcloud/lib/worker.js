@@ -80,7 +80,9 @@ const compact = (caps) => ({
   inputs: Object.fromEntries(Object.entries(caps.ops || {}).map(([k, v]) => [k, v.inputs || []])),
   write: (caps.formats && caps.formats.image_write) || [],
   maxMb: (caps.limits && caps.limits.max_input_mb) || 20,
-  features: caps.features || {},
+  features: Object.fromEntries(Object.entries(caps.features || {}).filter(([, v]) => typeof v === 'boolean')),
+  ocrLangs: (caps.ocr && caps.ocr.langs) || [],
+  ocrMaxPages: (caps.ocr && caps.ocr.max_pages) || 20,
 });
 
 /**
@@ -109,6 +111,7 @@ export async function loadWorker(ctx, { refresh = false } = {}) {
   ctx.worker = {
     configured: true, available: !!caps, ops: new Set(caps ? caps.ops : []), inputs: caps ? caps.inputs : {}, write: caps ? caps.write : [],
     maxMb: caps ? caps.maxMb : 20, version: caps ? caps.version : null, features: caps ? caps.features : {}, why: cached.ok ? null : cached.why, at: cached.at,
+    ocrLangs: caps ? caps.ocrLangs || [] : [], ocrMaxPages: caps ? caps.ocrMaxPages || 20 : 20,
   };
   return ctx.worker;
 }

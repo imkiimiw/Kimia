@@ -129,19 +129,21 @@ test('budgets: per user per day, per minute for the bot; staff skip the user lim
   assert.equal(calls.length, 4);
 });
 
-test('Google 429 pauses OCR until midnight Pacific; the owner can resume from the panel', async () => {
+test('Google 429 on every model pauses OCR until the reset; the owner can resume from the panel', async () => {
   const h = setup({ members: [U] });
   withKey(h);
   let status = 429;
-  const calls = fakeGemini(() => (status === 429 ? { status: 429, body: { error: { code: 429, status: 'RESOURCE_EXHAUSTED' } } } : { status: 200, body: { candidates: [{ content: { parts: [{ text: 'ok' }] } }] } }));
+  const day = { error: { code: 429, status: 'RESOURCE_EXHAUSTED', details: [{ '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', quotaValue: '20' }] }, { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '59032s' }] } };
+  const calls = fakeGemini(() => (status === 429 ? { status: 429, body: day } : { status: 200, body: { candidates: [{ content: { parts: [{ text: 'ok' }] } }] } }));
   await h.sendPhoto(U, jpegOf());
   await h.tapText(U, 'استخراج متن');
   await h.tapText(U, 'موافقم');
   assert.match(h.lastText(U), /سهمیه\u200cی امروز ربات/);
+  assert.deepEqual(calls.map((c) => c.url.split('/').pop().split(':')[0]), ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'], 'each model tried once');
   advance(61);
   await h.sendPhoto(U, jpegOf());
   await h.tapText(U, 'استخراج متن');
-  assert.equal(calls.length, 1, 'paused: no second request');
+  assert.equal(calls.length, 3, 'paused: no more requests');
   await h.send(OWNER, '/panel');
   await h.tap(OWNER, 'p:gm');
   assert.match(h.lastText(OWNER), /تمام\u200cشده اعلام کرد/);
@@ -150,8 +152,38 @@ test('Google 429 pauses OCR until midnight Pacific; the owner can resume from th
   advance(61);
   await h.sendPhoto(U, jpegOf());
   await h.tapText(U, 'استخراج متن');
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 4);
   assert.match(h.lastText(U), /ok$/);
+});
+
+test('one model out of quota: the next model answers, and the used-up one is skipped until its reset', async () => {
+  const h = setup({ members: [U] });
+  withKey(h);
+  const q = (id, delay) => ({ status: 429, body: { error: { code: 429, status: 'RESOURCE_EXHAUSTED', details: [{ violations: [{ quotaId: id }] }, { retryDelay: delay }] } } });
+  let first = q('GenerateRequestsPerDayPerProjectPerModel-FreeTier', '3600s');
+  const calls = fakeGemini((c) => (c.url.includes('gemini-3.6-flash:') && first ? first : { status: 200, body: { candidates: [{ content: { parts: [{ text: 'lite' }] } }] } }));
+  await h.sendPhoto(U, jpegOf());
+  await h.tapText(U, 'استخراج متن');
+  await h.tapText(U, 'موافقم');
+  assert.match(h.lastText(U), /lite$/);
+  assert.equal(calls.length, 2);
+  advance(120);
+  await h.sendPhoto(U, jpegOf());
+  await h.tapText(U, 'استخراج متن');
+  assert.equal(calls.length, 3, 'the used-up model is not asked again');
+  assert.ok(calls[2].url.includes('gemini-3.5-flash-lite'));
+  // after its reset it is first again; a per-minute 429 skips it for about a minute only
+  advance(3600);
+  first = q('GenerateRequestsPerMinutePerProjectPerModel-FreeTier', '17s');
+  await h.sendPhoto(U, jpegOf());
+  await h.tapText(U, 'استخراج متن');
+  assert.deepEqual(calls.slice(3).map((c) => c.url.split('/').pop().split(':')[0]), ['gemini-3.6-flash', 'gemini-3.5-flash-lite']);
+  first = null;
+  advance(31);
+  await h.sendPhoto(U, jpegOf());
+  await h.tapText(U, 'استخراج متن');
+  assert.ok(calls.at(-1).url.includes('gemini-3.6-flash'), 'back after the short wait');
+  assert.equal(h.one("SELECT value FROM settings WHERE key = 'gemini.exhausted'"), undefined, 'never a full pause');
 });
 
 test('errors: invalid key → friendly text + error row; no text found; Gemini down', async () => {

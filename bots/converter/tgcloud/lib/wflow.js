@@ -50,7 +50,7 @@ async function submit(ctx, message, { op, params, inputs, shownName, chatId, inp
   }
   if (message) await tg.edit(ctx, 'card', message, ui.plain(L(ctx, 'job.started', { op: ui.opLabel(ctx, op), name: shownName })));
   const first = inputs[0] || null;
-  const { text: _userText, ...shown } = params; // user text is never stored in the bot's job row
+  const { text: _userText, password: _password, ...shown } = params; // user text and passwords: never in the job row
   const job = {
     id: ulid(ctx.nowMs), code: jobCode(), userId: ctx.user.id, operation: op, status: 'QUEUED', engine: 'worker',
     inputType, inputSize, inputFileId: first ? first.file_id : null, inputRef: first ? first.ref : null,
@@ -73,7 +73,7 @@ async function submit(ctx, message, { op, params, inputs, shownName, chatId, inp
   try {
     r = await request(ctx, 'POST', '/v1/jobs', {
       job_id: job.id, code: job.code, user_id: job.userId, chat_id: chatId, lang: ctx.lang, op,
-      inputs: inputs.map((i) => ({ file_id: i.file_id, name: i.name, type: i.type, size: i.size || 0 })),
+      inputs: inputs.map((i) => ({ file_id: i.file_id, name: i.name, type: i.type, size: i.size || 0, ...(i.pages ? { pages: i.pages } : {}) })),
       params, status_message_id: statusMsg ? statusMsg.message_id : null, reply_to: null,
     });
   } catch (e) {
@@ -93,7 +93,10 @@ async function submit(ctx, message, { op, params, inputs, shownName, chatId, inp
   return fail(code, error ? `${r.status} ${error}` : `HTTP ${r.status}`);
 }
 
-const fileInput = (file, d) => ({ file_id: file.file_id, unique: file.file_unique_id, name: file.name, type: d.id, size: file.size, ref: file.ref });
+const fileInput = (file, d) => ({
+  file_id: file.file_id, unique: file.file_unique_id, name: file.name, type: d.id, size: file.size, ref: file.ref,
+  ...(file.meta && file.meta.pdf && file.meta.pdf.pages ? { pages: file.meta.pdf.pages } : {}),
+});
 
 /** Callback codes wi wo wt wf wx. */
 export async function onCallback(ctx, code, args, message) {
@@ -124,6 +127,10 @@ async function fileTool(ctx, code, [ref, sub], message) {
   if (!W.presetOk(ctx, sub, file, d)) return tools();
   const [op, base, needsText] = W.PRESETS[sub];
   const params = { ...base };
+  if (needsText === 'password') {
+    await state.setPending(ctx.user.id, 'input', 'wpw', { ref }, ctx.now + INPUT_TTL_S);
+    return show('wt_password', W.askPassword(ctx, file));
+  }
   if (needsText) {
     const cat = sub.split('.')[0];
     const p = await state.getPending(ctx.user.id, 'input', ctx.now);
@@ -138,10 +145,11 @@ async function fileTool(ctx, code, [ref, sub], message) {
   return submit(ctx, message, { op, params, inputs: [fileInput(file, d)], shownName: file.name, chatId: ctx.chatId, inputType: label, inputSize: file.size });
 }
 
-/** Typed text: watermark / text on image (kinds wtext, wpos) and text → image (tti, ttio). */
+/** Typed text: watermark / text on image (kinds wtext, wpos), text → image (tti, ttio), PDF password (wpw). */
 export async function onInput(ctx, message, pending) {
   await loadWorker(ctx);
   const chatId = message.chat.id;
+  if (pending.kind === 'wpw') return password(ctx, message, pending);
   const tti = pending.kind === 'tti' || pending.kind === 'ttio';
   const max = tti ? WTEXT_MAX.tti : WTEXT_MAX[pending.payload.cat];
   const v = checkText(message.text, max || 100);
@@ -210,6 +218,35 @@ async function more(ctx, code, message) {
     refs.push(ref);
   }
   return sendCard(ctx, refs[0], ctx.chatId);
+}
+
+/**
+ * The PDF password: the user's message is deleted first (whatever happens next), the password goes to
+ * the worker inside the signed job only, and it is stored nowhere (not in pending, not in the job row;
+ * the worker drops it from its row when the job ends).
+ */
+async function password(ctx, message, pending) {
+  const chatId = message.chat.id;
+  const deleted = await tg.remove(ctx, 'password_delete', chatId, message.message_id);
+  await state.clearPending(ctx.user.id, 'input');
+  const loaded = await loadFile(ctx, pending.payload.ref);
+  if (!loaded) return tg.send(ctx, 'card_expired', chatId, expired(ctx));
+  const { file, d } = loaded;
+  if (!W.unlockOk(ctx, file, d)) return tg.send(ctx, 'wt_off', chatId, unavailable(ctx));
+  const pw = String(message.text || '');
+  if (!pw || pw.length > 128) return tg.send(ctx, 'wt_text_error', chatId, ui.plain(L(ctx, 'wt.pw_bad'), [ui.homeBtn(ctx)]));
+  if (!deleted) await tg.send(ctx, 'password_note', chatId, ui.plain(L(ctx, 'wt.pw_delete_yourself')));
+  const label = (TYPES[d.id] || TYPES.unknown).label;
+  return submit(ctx, null, { op: 'pdf.ul', params: { password: pw }, inputs: [fileInput(file, d)], shownName: file.name, chatId, inputType: label, inputSize: file.size });
+}
+
+/** Offline OCR on the worker (Tesseract), in the user's chosen language (settings). */
+export async function ocrOffline(ctx, message, file, d, chatId = ctx.chatId) {
+  await loadWorker(ctx);
+  if (!W.offlineOcrOk(ctx, file, d)) return tg.send(ctx, 'wt_off', chatId, unavailable(ctx));
+  const lang = ctx.user.s_ocr_lang && (ctx.worker.ocrLangs || []).includes(ctx.user.s_ocr_lang) ? ctx.user.s_ocr_lang : 'auto';
+  const label = (TYPES[d.id] || TYPES.unknown).label;
+  return submit(ctx, message, { op: 'ocr', params: { lang }, inputs: [fileInput(file, d)], shownName: file.name, chatId, inputType: label, inputSize: file.size });
 }
 
 /** Cancel a worker job: the button on its status message, or /cancel (lib/router.js). */

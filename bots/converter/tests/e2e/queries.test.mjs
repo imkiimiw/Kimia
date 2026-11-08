@@ -62,6 +62,10 @@ test('no statement scans a growing table', async () => {
   await h.tapText(U, 'شب');
   await h.tapText(U, 'مربع');
   await h.press(U, `wf:${h.one("SELECT code FROM jobs WHERE engine = 'worker' LIMIT 1").code}`, 1);
+  // C5: OCR settings (engine, offline language)
+  await h.send(U, '/settings');
+  await h.press(U, 's:oe', 1);
+  await h.press(U, 's:ol:fas', 1);
   advance(300);
   await h.send(OWNER, '/panel');
   await h.tap(OWNER, 'p:wk');

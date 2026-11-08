@@ -8,6 +8,24 @@ import { ToolError } from './errors.js';
 export const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 /** Stable models as listed by Google on 2026-11-08 (docs/DECISIONS.md C3), plus the "latest" alias. */
 export const MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest'];
+/**
+ * Each model has its own free-tier quota (measured 2026-11-08 on the owner's key: 20 requests per day
+ * for gemini-3.6-flash), so when one is used up the next is tried. gemini-3.5-flash-lite read all 8
+ * benchmark images exactly (docs/OCR_BENCHMARK.md).
+ */
+export const FALLBACK = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+
+/** The models to try, the chosen one first. */
+export const modelChain = (chosen) => [...new Set([chosen, ...FALLBACK])];
+
+/** Google's 429: per-day or per-minute quota, and when to retry (RetryInfo.retryDelay "59032s"). */
+export function quotaInfo(j) {
+  const details = (j && j.error && Array.isArray(j.error.details)) ? j.error.details : [];
+  const ids = details.flatMap((d) => (Array.isArray(d.violations) ? d.violations.map((v) => String(v.quotaId || '')) : []));
+  const retry = details.map((d) => /^(\d+(?:\.\d+)?)s$/.exec(String(d.retryDelay || ''))).find(Boolean);
+  const scope = ids.some((q) => /PerDay/i.test(q)) ? 'day' : ids.some((q) => /PerMinute/i.test(q)) ? 'minute' : 'unknown';
+  return { scope, retryS: retry ? Math.ceil(Number(retry[1])) : null };
+}
 export const MIMES = { jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic', pdf: 'application/pdf' };
 
 export const PROMPT = [
@@ -48,7 +66,7 @@ export function parseResponse(status, body) {
   if (status !== 200) {
     const reason = j && j.error && Array.isArray(j.error.details) ? (j.error.details.find((d) => d.reason) || {}).reason : null;
     const st = j && j.error && j.error.status;
-    if (status === 429 || st === 'RESOURCE_EXHAUSTED') throw new ToolError('GEMINI_QUOTA');
+    if (status === 429 || st === 'RESOURCE_EXHAUSTED') throw new ToolError('GEMINI_QUOTA', quotaInfo(j));
     if (reason === 'API_KEY_INVALID' || status === 401 || status === 403 || st === 'PERMISSION_DENIED') throw new ToolError('GEMINI_KEY');
     if (status === 400 && /location|region|country/i.test((j && j.error && j.error.message) || '')) throw new ToolError('GEMINI_REGION');
     if (status === 404) throw new ToolError('GEMINI_MODEL');

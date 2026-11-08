@@ -54,6 +54,18 @@ export const PRESETS = {
   'tx.t': ['img.tx', { position: 'top' }, true],
   'tx.b': ['img.tx', { position: 'bottom' }, true],
   'tx.c': ['img.tx', { position: 'center' }, true],
+  // PDF (C5)
+  pt: ['pdf.tx', {}],
+  'pi.150': ['pdf.im', { dpi: 150, format: 'jpg' }],
+  'pi.300': ['pdf.im', { dpi: 300, format: 'jpg' }],
+  'pi.150p': ['pdf.im', { dpi: 150, format: 'png' }],
+  'pc.hi': ['pdf.cp', { level: 'hi' }],
+  'pc.md': ['pdf.cp', { level: 'md' }],
+  'pc.lo': ['pdf.cp', { level: 'lo' }],
+  'pw.d': ['pdf.wm', { position: 'diag' }, true],
+  'pw.b': ['pdf.wm', { position: 'bottom' }, true],
+  'pw.t': ['pdf.wm', { position: 'top' }, true],
+  pu: ['pdf.ul', {}, 'password'],
 };
 
 /** Categories of the image tools screen, in display order → the presets they list. */
@@ -67,8 +79,16 @@ export const CATS = {
   sm: ['sm'],
   wm: ['wm.br', 'wm.bl', 'wm.c', 'wm.t'],
   tx: ['tx.b', 'tx.t', 'tx.c'],
+  pu: ['pu'],
+  pt: ['pt'],
+  pi: ['pi.150', 'pi.300', 'pi.150p'],
+  pc: ['pc.md', 'pc.lo', 'pc.hi'],
+  pw: ['pw.d', 'pw.b', 'pw.t'],
 };
-export const TEXT_CATS = new Set(['wm', 'tx']);
+export const TEXT_CATS = new Set(['wm', 'tx', 'pw']);
+/** Categories with one preset: the tools screen runs it directly. */
+export const DIRECT_CATS = new Set(['sm', 'pt', 'pu']);
+const PDF_IMAGES_MAX_PAGES = 50;
 
 export const THEMES = ['light', 'dark', 'sepia', 'ocean', 'sunset', 'forest', 'rose', 'night'];
 export const SIZES = ['square', 'post', 'story', 'wide'];
@@ -81,10 +101,20 @@ export function canRun(ctx, op, type, size = 0) {
   return !size || size <= w.maxMb * 1024 * 1024;
 }
 
+/** Encrypted: the detector's flag, or what the intake inspection found (files.meta.pdf.problem). */
+const encrypted = (d, file = null) => !!(d.info && d.info.encrypted) || !!(file && file.meta && file.meta.pdf && file.meta.pdf.problem === 'PDF_ENCRYPTED');
+const pdfPages = (file) => (file.meta && file.meta.pdf && file.meta.pdf.pages) || 0;
+
 /** Is this preset offered for this file? (the op exists, reads this type, writes the format) */
 export function presetOk(ctx, preset, file, d) {
   const p = PRESETS[preset];
   if (!p || !canRun(ctx, p[0], d.id, file.size)) return false;
+  if (p[0].startsWith('pdf.')) {
+    if (p[0] === 'pdf.ul') return encrypted(d, file); // an encrypted PDF offers only «🔓 باز کردن با رمز»
+    if (encrypted(d, file)) return false;
+    if (p[0] === 'pdf.im' && pdfPages(file) > PDF_IMAGES_MAX_PAGES) return false;
+    return true;
+  }
   if (p[0] === 'img.cv') return ctx.worker.write.includes(p[1].format) && SAME[d.id] !== p[1].format;
   if (preset === 'cp.wp') return ctx.worker.write.includes('webp') && d.id !== 'webp';
   return true;
@@ -92,8 +122,18 @@ export function presetOk(ctx, preset, file, d) {
 
 export const catPresets = (ctx, cat, file, d) => (CATS[cat] || []).filter((p) => presetOk(ctx, p, file, d));
 
-/** The image tools are offered on this file's card. */
-export const imageToolsOk = (ctx, file, d) => !d.dangerous && IMAGE_TYPES.has(d.id) && Object.keys(CATS).some((c) => catPresets(ctx, c, file, d).length);
+/** The worker tools (image or PDF) are offered on this file's card. */
+export const imageToolsOk = (ctx, file, d) => !d.dangerous && (IMAGE_TYPES.has(d.id) || d.id === 'pdf') && Object.keys(CATS).some((c) => catPresets(ctx, c, file, d).length);
+
+/** «🔓 باز کردن با رمز» is the one thing to do with an encrypted PDF. */
+export const unlockOk = (ctx, file, d) => d.id === 'pdf' && presetOk(ctx, 'pu', file, d);
+
+/** Offline OCR (Tesseract on the worker): images it reads, PDFs up to its page limit. */
+export function offlineOcrOk(ctx, file, d) {
+  if (d.dangerous || !canRun(ctx, 'ocr', d.id, file.size)) return false;
+  if (d.id !== 'pdf') return true;
+  return !encrypted(d, file) && pdfPages(file) > 0 && pdfPages(file) <= ((ctx.worker && ctx.worker.ocrMaxPages) || 20);
+}
 
 export const ttiOk = (ctx) => canRun(ctx, 'tti', null);
 
@@ -113,8 +153,8 @@ export function presetLabel(ctx, preset) {
 /** «🖼 ابزار عکس» for a file: the categories that have something to offer. */
 export function toolsScreen(ctx, file, d) {
   const items = Object.keys(CATS).filter((c) => catPresets(ctx, c, file, d).length)
-    .map((c) => (c === 'sm' ? btn(P(ctx, 'wt.cat_sm'), 'wo', file.ref, 'sm') : btn(P(ctx, `wt.cat_${c}`), 'wi', file.ref, c)));
-  return screen(L(ctx, 'wt.head', { name: file.name }), ...grid(items), [backBtn(ctx, 'f', file.ref), homeBtn(ctx)]);
+    .map((c) => (DIRECT_CATS.has(c) ? btn(P(ctx, `wt.cat_${c}`), 'wo', file.ref, CATS[c][0]) : btn(P(ctx, `wt.cat_${c}`), 'wi', file.ref, c)));
+  return screen(L(ctx, d.id === 'pdf' ? 'wt.head_pdf' : 'wt.head', { name: file.name }), ...grid(items), [backBtn(ctx, 'f', file.ref), homeBtn(ctx)]);
 }
 
 export function catScreen(ctx, file, d, cat) {
@@ -125,6 +165,9 @@ export function catScreen(ctx, file, d, cat) {
 export function askText(ctx, file, cat) {
   return screen(L(ctx, `wt.ask_${cat}`, { max: num(ctx, WTEXT_MAX[cat]) }), [backBtn(ctx, 'wi', file.ref), cancelBtn(ctx)]);
 }
+
+/** The PDF password prompt: the user's message is deleted on arrival and the password never stored. */
+export const askPassword = (ctx, file) => screen(L(ctx, 'wt.ask_pu', { name: file.name }), [backBtn(ctx, 'f', file.ref), cancelBtn(ctx)]);
 
 export function positionScreen(ctx, ref, cat) {
   const items = (CATS[cat] || []).filter((p) => canRun(ctx, PRESETS[p][0], null)).map((p) => btn(presetLabel(ctx, p), 'wo', ref, p));

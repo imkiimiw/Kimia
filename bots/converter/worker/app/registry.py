@@ -9,7 +9,7 @@ import io
 from .config import VERSION
 from .processors.base import Operation
 
-MODULES = ("app.processors.images", "app.processors.text_image")
+MODULES = ("app.processors.images", "app.processors.text_image", "app.processors.pdftools", "app.processors.ocr")
 
 
 def load_operations(extra: tuple[str, ...] | list[str] = ()) -> dict[str, Operation]:
@@ -32,7 +32,7 @@ def self_test() -> dict[str, bool]:
     from .processors import imageio, textlayout
 
     out = {"pillow": True, "raqm": False, "fonts": textlayout.fonts_available(), "webp": False, "avif": False,
-           "heif": imageio.HEIF}
+           "heif": imageio.HEIF, "pdfium": False, "pikepdf": False, "tesseract": False}
     try:
         if features.check("raqm") and out["fonts"]:
             f = textlayout.font("vazirmatn", 24)
@@ -61,11 +61,38 @@ def self_test() -> dict[str, bool]:
             Image.open(buf).load()
         except Exception:  # noqa: BLE001
             out["heif"] = False
+    try:
+        import pypdfium2 as pdfium
+
+        doc = pdfium.PdfDocument.new()
+        doc.new_page(200, 200)
+        buf = io.BytesIO()
+        doc.save(buf)
+        out["pdfium"] = len(pdfium.PdfDocument(buf.getvalue())) == 1
+    except Exception:  # noqa: BLE001
+        out["pdfium"] = False
+    try:
+        import pikepdf
+
+        with pikepdf.new() as p:
+            p.add_blank_page()
+            buf = io.BytesIO()
+            p.save(buf)
+        out["pikepdf"] = buf.getvalue().startswith(b"%PDF")
+    except Exception:  # noqa: BLE001
+        out["pikepdf"] = False
+    from .processors import tesseract
+
+    tess = tesseract.available()
+    out["tesseract"] = bool(tess.get("langs")) and {"fas", "eng"} <= set(tess.get("langs", []))
+    out["ocr_langs"] = tess.get("langs", [])
+    out["ocr_best"] = tess.get("best", [])
+    out["tesseract_version"] = tess.get("version")
     return out
 
 
 def available(ops: dict[str, Operation], feats: dict[str, bool]) -> dict[str, Operation]:
-    return {k: op for k, op in ops.items() if all(feats.get(r, False) for r in op.requires)}
+    return {k: op for k, op in ops.items() if all(feats.get(r) is True for r in op.requires)}
 
 
 def capabilities(ops: dict[str, Operation], feats: dict[str, bool], limits: dict) -> dict:
@@ -79,5 +106,6 @@ def capabilities(ops: dict[str, Operation], feats: dict[str, bool], limits: dict
         "ops": {k: {"group": op.group, "queue": op.queue, "inputs": sorted(op.inputs), "min_inputs": op.min_inputs,
                     "max_inputs": op.max_inputs} for k, op in sorted(available(ops, feats).items())},
         "formats": {"image_read": imageio.read_types(), "image_write": writes},
+        "ocr": {"langs": [x for x in feats.get("ocr_langs", []) if x != "osd"], "max_pages": 20},
         "limits": limits,
     }

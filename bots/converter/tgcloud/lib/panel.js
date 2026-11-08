@@ -20,7 +20,7 @@ import { btn } from './codec.js';
 import * as tg from './tg.js';
 import * as ui from './ui.js';
 import { asciiDigits, esc, pacificDay } from './util.js';
-import { MODELS } from './gemini.js';
+import { FALLBACK, MODELS } from './gemini.js';
 import { loadWorker, request } from './worker.js';
 
 /** Owner-only actions: maintenance, keys, admins (adm*), broadcast (bc*), channel changes (ch* but the list). */
@@ -225,6 +225,7 @@ export async function onCallback(ctx, args, message) {
     }
     case 'gmr':
       await sys.setSetting('gemini.exhausted', 0, ctx.now, ctx.user.id);
+      for (const m of new Set([...MODELS, ...FALLBACK])) await sys.setSetting(`gemini.exhausted:${m}`, 0, ctx.now, ctx.user.id);
       return show(await geminiScreen(ctx));
     case 'bc': return ask(ctx, message, 'broadcast', 'bc.ask');
     case 'bcgo': {

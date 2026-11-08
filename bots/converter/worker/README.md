@@ -7,6 +7,10 @@ without it; worker-only tools appear in the bot only after the owner stores `WOR
 **C4 tools:** image convert (JPG, PNG, WEBP, GIF, BMP, TIFF, ICO, AVIF, HEIC), resize, crop, rotate,
 flip, compress, strip metadata, grayscale, blur, sharpen, colour mode, watermark, text on image, and
 text → image.
+**C5 tools:** offline OCR with Tesseract 5 (fas eng ara deu fra spa tur + OSD; photos and scanned PDFs
+≤ 20 pages; preprocessing measured in `../docs/OCR_BENCHMARK.md`), PDF text extraction, PDF → images,
+PDF compress, PDF watermark (Persian), PDF unlock with a password (never stored).
+Benchmark tools: `bench/` (`make_set.py`, `run_tesseract.py`, `score.py`) — not part of the image.
 
 ## How it works
 - `app/main.py` — FastAPI. Every `/v1` request is signed by the bot (`app/security.py`):
@@ -35,8 +39,9 @@ text → image.
 ## Run locally
 ```bash
 cd bots/converter/worker
-pip install -r requirements-dev.txt      # Python ≥ 3.12; Linux needs libfribidi0 for Persian text
-ruff check app tests && python -m pytest -q
+pip install -r requirements-dev.txt      # Python ≥ 3.12; Linux: libfribidi0 (Persian text) and
+# tesseract-ocr tesseract-ocr-osd tesseract-ocr-{fas,eng,ara,deu,fra,spa,tur} (offline OCR)
+ruff check app tests bench && python -m pytest -q
 BOT_TOKEN=… WORKER_SECRET=$(python3 -c "import secrets; print(secrets.token_urlsafe(48))") \
   DATA_DIR=./.data TMP_DIR=./.tmp uvicorn app.main:app_factory --factory --port 8080
 ```

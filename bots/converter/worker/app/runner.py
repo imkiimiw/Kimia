@@ -2,6 +2,7 @@
 status message → record the result. Plus a janitor (expired jobs, stale temp dirs, old rows)."""
 from __future__ import annotations
 
+import html
 import shutil
 import threading
 import time
@@ -16,6 +17,9 @@ from .telegram import Telegram, TelegramError
 MB = 1024 * 1024
 EXT = {t: v[2] for v in FORMATS.values() for t in [v[4]]}
 QUEUE_MAX_AGE_S = 30 * 60
+MAX_JOB_S = 900  # no job runs longer, whatever its page count
+TEXT_IN_MESSAGE = 3500  # like the bot's Gemini OCR (lib/jobs.js)
+COPY_MAX = 256
 USER_ERRORS = {"TOO_BIG", "FILE_GONE", "USER_BLOCKED"}
 
 
@@ -123,8 +127,9 @@ class Runner:
             if not self.queue.set_status(job["id"], "PROCESSING"):
                 raise SandboxError("CANCELLED")
             self._status(job, "PROCESSING")
-            timeout = op.timeout_s or (self.s.timeout_heavy_s if op.queue == "heavy" else self.s.timeout_light_s)
-            timeout = min(timeout, self.s.timeout_heavy_s if op.queue == "heavy" else self.s.timeout_light_s)
+            base = self.s.timeout_heavy_s if op.queue == "heavy" else self.s.timeout_light_s
+            pages = sum(max(1, int(i.get("pages") or 1)) for i in job["inputs"]) or 1
+            timeout = min(MAX_JOB_S, max(base, op.timeout_s) + op.timeout_per_page_s * pages)
             spec = {"op": job["op"], "params": job["params"], "inputs": inputs, "limits": self.s.limits(),
                     "extra_processors": self.extra}
             t1 = time.monotonic()
@@ -142,6 +147,7 @@ class Runner:
                 out_bytes += size
             if not self.queue.set_status(job["id"], "UPLOADING"):
                 raise SandboxError("CANCELLED")
+            result["_dir"] = str(workdir)
             sent = self._deliver(job, result)
             ms = int((time.monotonic() - t0) * 1000)
             self.queue.finish(job["id"], "COMPLETED", result={
@@ -180,8 +186,36 @@ class Runner:
     def _notes(self, lang: str, notes: list[str]) -> str:
         return "\n".join(i18n.t(lang, f"note.{n}") for n in notes if f"note.{n}" in i18n.FA)
 
+    def _deliver_text(self, job: dict, result: dict) -> list[dict]:
+        """OCR text, formatted like the bot's Gemini results so its «📄 DOCX» button (od:…) and
+        «📋 کپی متن» work the same: short → the status message turns into the text; long → a .txt."""
+        lang, code = job["lang"], job["code"]
+        text = result["text"]
+        script = (result.get("stats") or {}).get("script", "fa")
+        head = f'{i18n.t(lang, "ocr.head", script=i18n.t(lang, f"ocr.script_{script}"), code=code)} {i18n.t(lang, "ocr.engine")}'
+        notes = self._notes(lang, result.get("notes", []))
+        docx = {"text": i18n.t(lang, "ocr.docx"), "callback_data": f"od:{code[3:]}"}
+        if len(text) <= TEXT_IN_MESSAGE:
+            rows = []
+            if len(text) <= COPY_MAX:
+                rows.append([{"text": i18n.t(lang, "ocr.copy"), "copy_text": {"text": text}}])
+            rows.append([docx])
+            body = "\n".join(x for x in (head, notes) if x) + "\n\n" + html.escape(text, quote=False)
+            self._final_text(job, body, {"inline_keyboard": rows})
+            return []
+        path = Path(result["_dir"]) / "ocr.txt"
+        path.write_bytes(("\ufeff" + text).encode("utf-8"))
+        name = f"ocr_{code}.txt"
+        caption = "\n".join(x for x in (head, notes) if x)[:1000]
+        msg = self.tg.send_document(job["chat_id"], path, name, "text/plain", caption=caption, reply_to=job.get("reply_to"),
+                                    reply_markup={"inline_keyboard": [[docx]]})
+        self._final_text(job, i18n.t(lang, "job.done", name=name, code=code))
+        return [self._sent(msg, {"name": name, "mime": "text/plain", "type": "text", "size": path.stat().st_size})]
+
     def _deliver(self, job: dict, result: dict) -> list[dict]:
         lang, code = job["lang"], job["code"]
+        if result.get("text"):
+            return self._deliver_text(job, result)
         outputs = result.get("outputs", [])
         notes = self._notes(lang, result.get("notes", []))
         more = {"inline_keyboard": [[{"text": i18n.t(lang, "job.more"), "callback_data": f"wf:{code}"}]]}

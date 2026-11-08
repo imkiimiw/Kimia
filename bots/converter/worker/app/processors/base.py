@@ -45,6 +45,7 @@ class Result:
     outputs: list[Output] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     stats: dict = field(default_factory=dict)
+    text: str | None = None  # a text result (OCR): delivered in the message or as a .txt
 
 
 @dataclass
@@ -59,6 +60,7 @@ class Operation:
     min_inputs: int = 1
     max_inputs: int = 1
     group: str = "image"
+    timeout_per_page_s: int = 0  # added per input page (the bot sends `pages` for PDFs)
 
 
 @dataclass

@@ -9,8 +9,8 @@ import { CACHE_TTL_S, MB, STATUS_MESSAGE_MIN_BYTES, STALE_JOB_S } from './config
 import { zipParts } from './archive.js';
 import * as store from './db/files.js';
 import * as state from './db/state.js';
-import { addError, count, countMany, getSecret, getSetting, setSetting } from './db/system.js';
-import { ENDPOINT, requestBody, parseResponse } from './gemini.js';
+import { addError, count, countMany, getSecret, getSetting, getSettings, setSetting } from './db/system.js';
+import { ENDPOINT, MODELS, modelChain, requestBody, parseResponse } from './gemini.js';
 import { TYPES } from './detect/types.js';
 import { ToolError, isToolError } from './errors.js';
 import { OPS } from './ops.js';
@@ -72,29 +72,45 @@ export async function takeGeminiSlot(ctx) {
 
 /**
  * The Gemini call (key read here, sent only in the x-goog-api-key header to Google's host; never
- * logged). A 429 marks the quota as used up until midnight Pacific.
+ * logged). Models are tried in order (the chosen one first, then lib/gemini.js#FALLBACK): a model whose
+ * quota is used up (Google's 429: per day → until Google's reset, per minute → about a minute) or that no
+ * longer exists is skipped until then; when all are out, OCR pauses until the first is back.
  */
 export async function geminiOcr(ctx, bytes, mime) {
   const key = await getSecret('GEMINI_API_KEY');
   if (!key) throw new ToolError('GEMINI_OFF');
-  const model = await getSetting('gemini.model', 'gemini-3.6-flash');
+  const chain = modelChain(await getSetting('gemini.model', MODELS[0]));
+  const keyOf = (m) => `gemini.exhausted:${m}`;
+  const until = await getSettings(chain.map(keyOf));
   const body = requestBody(bytes, mime);
-  let res = null;
-  for (let attempt = 0; attempt < 2 && !res; attempt++) {
+  let last = null;
+  for (const model of chain) {
+    if ((until[keyOf(model)] || 0) > ctx.now) continue;
+    let res = null;
+    for (let attempt = 0; attempt < 2 && !res; attempt++) {
+      try {
+        res = await fetch(`${ENDPOINT}/${encodeURIComponent(model)}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body });
+      } catch {
+        if (attempt === 1) throw new ToolError('GEMINI_FAILED'); // Google unreachable: no other model helps
+      }
+    }
+    await count(ctx.day, 'gemini_requests');
     try {
-      res = await fetch(`${ENDPOINT}/${encodeURIComponent(model)}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body });
-    } catch {
-      if (attempt === 1) throw new ToolError('GEMINI_FAILED');
+      return { ...parseResponse(res.status, await res.text()), model };
+    } catch (e) {
+      if (!isToolError(e) || !['GEMINI_QUOTA', 'GEMINI_MODEL'].includes(e.code)) throw e;
+      const v = e.vars || {};
+      const wait = e.code === 'GEMINI_MODEL' ? 86400 : v.scope === 'minute' ? Math.max(30, v.retryS || 60) : (v.retryS || secondsToPacificMidnight(ctx.now));
+      until[keyOf(model)] = ctx.now + wait;
+      await setSetting(keyOf(model), ctx.now + wait, ctx.now);
+      if (e.code === 'GEMINI_MODEL') await addError(ctx.now, 'gemini', 'GEMINI_MODEL', model);
+      log.warn('gemini.model_skipped', { update_id: ctx.updateId, error_code: e.code, model, scope: v.scope || null, wait_s: wait });
+      last = e;
     }
   }
-  try {
-    return parseResponse(res.status, await res.text());
-  } catch (e) {
-    if (isToolError(e) && e.code === 'GEMINI_QUOTA') await setSetting('gemini.exhausted', ctx.now + secondsToPacificMidnight(ctx.now), ctx.now);
-    throw e;
-  } finally {
-    await count(ctx.day, 'gemini_requests');
-  }
+  const back = chain.map((m) => until[keyOf(m)] || 0).filter((t) => t > ctx.now);
+  if (back.length === chain.length) await setSetting('gemini.exhausted', Math.min(...back), ctx.now);
+  throw new ToolError(last && last.code === 'GEMINI_MODEL' && back.length < chain.length ? 'GEMINI_MODEL' : 'GEMINI_QUOTA');
 }
 
 /** Error code for a failure at a step (spec §4: friendly text + job code; no stack traces). */
@@ -327,14 +343,14 @@ export async function expireStale(ctx) {
 }
 
 /** Rate limit → job. The card turns into a short "↪️ action: name" line first (unless keepMessage). */
-export async function startJob(ctx, message, op, inputs, params, shownName, { chatId: chatIdOverride, keepMessage = false } = {}) {
+export async function startJob(ctx, message, op, inputs, params, shownName, { chatId: chatIdOverride, keepMessage = false, slotTaken = false } = {}) {
   const chatId = chatIdOverride || message.chat.id;
   const slot = await takeJobSlot(ctx);
   if (!slot.ok) {
     const mins = Math.max(1, Math.ceil(slot.retryS / 60));
     return tg.send(ctx, 'job_rate', chatId, { text: t(ctx.lang, 'rate.jobs', { m: ui.num(ctx, mins) }) });
   }
-  if (op === 'ocr') {
+  if (op === 'ocr' && !slotTaken) {
     const g = await takeGeminiSlot(ctx);
     if (!g.ok) return tg.send(ctx, 'ocr_quota', chatId, { text: t(ctx.lang, `ocr.limit_${g.why}`, { n: ui.num(ctx, ctx.limits.GEMINI_USER_DAILY) }) });
   }

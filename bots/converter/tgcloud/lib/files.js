@@ -16,7 +16,7 @@ import { textToDocx } from './docx.js';
 import { isToolError } from './errors.js';
 import { t } from './i18n/index.js';
 import { jpegInfo, pngInfo } from './images.js';
-import { startJob, takeIntakeSlot } from './jobs.js';
+import { startJob, takeGeminiSlot, takeIntakeSlot } from './jobs.js';
 import * as log from './log.js';
 import { defaultName, fixedName, hadSuspiciousChars, renameTo, sanitizeName, splitName } from './names.js';
 import { parseRanges, pdfInfo, rangeGroups } from './pdf.js';
@@ -24,12 +24,13 @@ import * as tg from './tg.js';
 import * as ui from './ui.js';
 import { fileRef, tehranDay } from './util.js';
 import { loadWorker } from './worker.js';
+import * as wflow from './wflow.js';
 
 /** Gemini state for the cards (C3): a key exists (OCR offered), paid tier (consent wording). */
 export async function loadGemini(ctx) {
   if (ctx.gemini) return ctx.gemini;
-  const [available, s] = await Promise.all([hasSecret('GEMINI_API_KEY'), getSettings(['gemini.paid'])]);
-  ctx.gemini = { available, paid: s['gemini.paid'] === true };
+  const [available, s] = await Promise.all([hasSecret('GEMINI_API_KEY'), getSettings(['gemini.paid', 'gemini.exhausted'])]);
+  ctx.gemini = { available, paid: s['gemini.paid'] === true, exhausted: (s['gemini.exhausted'] || 0) > ctx.now };
   return ctx.gemini;
 }
 
@@ -146,7 +147,7 @@ export async function loadFile(ctx, ref) {
 }
 
 const INSPECTED = new Set(['pdf', 'zip', 'tar', 'gzip', 'jpeg', 'png']);
-const NEEDS_META = new Set(['f', 'fm', 'fn', 'ax', 'al', 'ae', 'pd', 'pr', 'ps', 'pi', 'oc', 'oy']);
+const NEEDS_META = new Set(['f', 'fm', 'fn', 'ax', 'al', 'ae', 'pd', 'pr', 'ps', 'pi', 'oc', 'oy', 'ox']);
 
 /**
  * Files that were never looked inside (results of jobs, files from before C2) are inspected once,
@@ -267,15 +268,27 @@ export async function onCallback(ctx, code, args, message) {
       if (!usable(d)) return back();
       return batch.startFrom(ctx, message, file);
     case 'oc': case 'oy': {
-      if (!cards.ocrable(ctx, file, d)) return back();
+      // one OCR button, two engines (spec §7.1): Gemini in the bot ("ai") or Tesseract on the worker ("offline")
+      const engine = cards.ocrEngine(ctx, file, d);
+      if (!engine) return back();
+      if (engine === 'offline') return wflow.ocrOffline(ctx, message, file, d);
       if (code === 'oy') {
         const value = ctx.gemini.paid ? -ctx.now : ctx.now;
         await users.setSetting(ctx.user.id, 'ocrConsent', value, ctx.now);
         ctx.user.s_ocr_consent = value;
       }
-      if (!consented(ctx)) return show('ocr_consent', cards.ocrConsent(ctx, file));
+      if (!consented(ctx)) return show('ocr_consent', cards.ocrConsent(ctx, file, cards.offlineAlso(ctx, file, d)));
+      // Gemini's budget is used up for now: the offline engine takes over when there is one
+      if (cards.offlineAlso(ctx, file, d)) {
+        const g = await takeGeminiSlot(ctx);
+        if (!g.ok) return wflow.ocrOffline(ctx, message, file, d);
+        return startJob(ctx, message, 'ocr', [inputOf(file, d)], {}, file.name, { slotTaken: true });
+      }
       return startJob(ctx, message, 'ocr', [inputOf(file, d)], {}, file.name);
     }
+    case 'ox': // «📴 آفلاین» on the consent screen: no Google, Tesseract instead
+      if (!cards.offlineAlso(ctx, file, d)) return back();
+      return wflow.ocrOffline(ctx, message, file, d);
     default:
       return null;
   }
