@@ -80,6 +80,7 @@ owner's channels. Built phase by phase from [docs/SPEC.md](docs/SPEC.md).
 | Setting: tracks the owner/admins send go live at once | ⚙️ Settings |
 | Language: guessed only when reliable (Persian script); Latin-letter titles wait for a one-tap choice on the track card; a correction re-routes waiting posts | 🎵 Music, ⚙️ Settings |
 | 🆔 The channel's link as the last line of every post's caption (per channel, on by default) | 📢 Destination Channels |
+| Manual publishing: «📤 ارسال صف انتشار (N)» sends the queue when the owner presses it (automatic sending is a setting) | /admin, 🗳, channel card |
 
 ## Run it
 

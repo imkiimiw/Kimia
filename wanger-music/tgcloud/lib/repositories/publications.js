@@ -29,9 +29,9 @@ export function createPublicationsRepo() {
     },
 
     /** Claims the oldest due queued publication of a channel (one statement; the lease guards the send). */
-    claimNext: (channelId, now, leaseUntil) => db.run(sql`
+    claimNext: (channelId, now, leaseUntil, anyTime = false) => db.run(sql`
       UPDATE publications SET status = 'sending', locked_until = ${leaseUntil}, attempt_count = attempt_count + 1, updated_at = ${now}
-      WHERE id IN (SELECT id FROM publications WHERE channel_id = ${channelId} AND status = 'queued' AND next_attempt_at <= ${now} ORDER BY id LIMIT 1)
+      WHERE id IN (SELECT id FROM publications WHERE channel_id = ${channelId} AND status = 'queued' AND next_attempt_at <= ${anyTime ? Number.MAX_SAFE_INTEGER : now} ORDER BY id LIMIT 1)
         AND status = 'queued' RETURNING *`).then(first),
 
     /** Leases that ran out: the send may have reached Telegram → uncertain (never re-sent automatically). */

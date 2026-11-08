@@ -448,3 +448,57 @@ test('the destination card shows the queue and when the next post goes; «▶️
   const set = h.lastButtons(OWNER).map((b) => b.callback_data);
   assert.ok(set.includes('src:home') && set.includes('dst:home'));
 });
+
+test('manual sending (the owner\'s choice): nothing goes out by itself; «📤 ارسال صف انتشار» on /admin sends the queue in batches', async () => {
+  const h = setup({ autoSend: false });
+  const flow = await channel(h, FLOW);
+  for (let i = 0; i < 11; i++) await track(h, `آهنگ ${i + 1}`, `خواننده ${i + 1}`);
+  for (let i = 0; i < 3; i++) await tick(h, 700);
+  assert.equal(posts(h, FLOW).length, 0, 'manual: the tick sends nothing');
+  assert.equal(h.one("SELECT count(*) AS n FROM publications WHERE status = 'queued'").n, 11);
+  // the owner is told once, with the button
+  const notice = h.tg.callsOf('sendMessage', OWNER).filter((c) => /پست در صف انتشار منتظر ارسال است/.test(c.params.text));
+  assert.equal(notice.length, 1);
+  assert.deepEqual(buttons(notice[0].params).map((b) => b.callback_data), ['pub:sendq']);
+  await h.send(OWNER, '/admin');
+  assert.equal(h.lastButtons(OWNER)[0].text, '📤 ارسال صف انتشار (۱۱)', 'first button on /admin');
+  await h.tap(OWNER, 'pub:sendq');
+  assert.equal(posts(h, FLOW).filter((c) => c.method === 'sendAudio').length, 8, 'one batch (Telegram allows ~20 messages a minute)');
+  assert.match(h.lastText(OWNER), /✅ ۸ پست فرستاده شد\.\n📬 ۳ پست هنوز در صف است/);
+  await h.tap(OWNER, 'pub:sendq');
+  assert.equal(posts(h, FLOW).filter((c) => c.method === 'sendAudio').length, 11);
+  assert.match(h.lastText(OWNER), /📭 صف انتشار خالی شد/);
+  assert.deepEqual(h.q('SELECT DISTINCT status FROM publications').map((r) => r.status), ['published']);
+  // the channel card has its own button; the setting turns automatic sending back on
+  await track(h, 'آهنگ ۱۲', 'خواننده ۱۲');
+  await h.send(OWNER, '/admin');
+  await h.tap(OWNER, 'dst:home');
+  await h.tap(OWNER, `dst:v:${flow}`);
+  assert.match(h.lastText(OWNER), /ارسال دستی است/);
+  await h.tap(OWNER, `dst:sendq:${flow}`);
+  assert.equal(posts(h, FLOW).filter((c) => c.method === 'sendAudio').length, 12);
+  h.db().prepare("UPDATE settings SET value = 'true' WHERE key = 'publishing.auto_send'").run();
+  h.db().prepare("INSERT INTO settings (key, value, updated_at, updated_by) VALUES ('publishing.auto_send', 'true', 0, 0) ON CONFLICT (key) DO UPDATE SET value = 'true'").run();
+  await track(h, 'آهنگ ۱۳', 'خواننده ۱۳');
+  await tick(h, 700);
+  assert.equal(posts(h, FLOW).filter((c) => c.method === 'sendAudio').length, 13, 'auto again');
+});
+
+test('manual sending stops politely at a Telegram 429 and when publishing is paused; only the owner can press it', async () => {
+  const h = setup({ autoSend: false });
+  await channel(h, FLOW);
+  for (let i = 0; i < 3; i++) await track(h, `آهنگ ${i + 1}`, 'خواننده');
+  h.tg.failNext('sendAudio', 429, 'Too Many Requests: retry after 30', { parameters: { retry_after: 30 }, match: (p) => p.chat_id === FLOW });
+  await h.send(OWNER, '/admin');
+  await h.tap(OWNER, 'pub:sendq');
+  assert.match(h.lastText(OWNER), /تلگرام گفت کمی صبر کن/);
+  assert.equal(h.one("SELECT count(*) AS n FROM publications WHERE status = 'queued'").n, 3, 'nothing lost');
+  advance(60);
+  h.db().prepare("INSERT INTO settings (key, value, updated_at, updated_by) VALUES ('publishing.paused', 'true', 0, 0) ON CONFLICT (key) DO UPDATE SET value = 'true'").run();
+  await h.send(OWNER, '/admin');
+  await h.tap(OWNER, 'pub:sendq');
+  assert.match(h.lastText(OWNER), /متوقف است/);
+  const res = await h.press(ADMIN, 'pub:sendq', 1);
+  assert.equal(res.ok, true);
+  assert.equal(posts(h, FLOW).length, 0);
+});

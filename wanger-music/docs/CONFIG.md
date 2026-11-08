@@ -65,6 +65,7 @@ token. If a later provider needs an API key, it goes in the git-ignored
 | `digest.interval_seconds` | `3600` | 300–86400 | One approval digest per reviewer at most this often while items wait |
 | `publishing.per_tick` | `3` | 1–10 | Posts per tick (one per channel) |
 | `publishing.paused` | `false` | on/off | Emergency stop: the worker sends nothing (routing and approvals continue) |
+| `publishing.auto_send` | `false` | on/off | Off (the owner's choice, 2026-11-08): queued posts go out only when the owner presses «📤 ارسال صف انتشار» (/admin, 🗳, a channel's card), 8 per press; a message tells the owner when posts wait (≤ 1 per `digest.interval_seconds`). On: the tick also sends (one per channel per tick, interval / hours / daily limit) |
 | `time_zone` | `Asia/Tehran` | Asia/Tehran, UTC, Europe/Istanbul, Asia/Dubai, Europe/Berlin, Europe/London, America/New_York | Dates in the panel; schedules later |
 | `archive.chat_id` | empty | a channel where the bot can post | Every activated track is copied there (`#t<id>` caption) |
 | `import.bulk_summary` | `true` | on/off | A run of forwarded audios gets one summary message instead of a card each |

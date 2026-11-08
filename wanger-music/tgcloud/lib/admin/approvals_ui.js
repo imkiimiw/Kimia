@@ -4,6 +4,7 @@
 // - owner: uncertain / failed lists with «ثبت به\u200cعنوان منتشرشده» / «ارسال دوباره» / cancel,
 //   history per channel, backfill with a preview and a count, deleting a track's channel posts;
 // - publications of a track (catalog.manage, read-only).
+import { OWNER_ID } from '../config/static.js';
 import { t, tp, raw, dateTime } from '../i18n/index.js';
 import { esc, displayName } from '../telegram/html.js';
 import { btn, markup } from '../bot/keyboards.js';
@@ -21,10 +22,41 @@ const ICON = { pending_approval: '🗳', queued: '⏳', sending: '📤', publish
 const trackLabel = (lang, p) => truncate(`${p.track_title || tp(lang, 'trk.untitled')} — ${p.track_artist || '?'}`, 50);
 const channelLabel = (p) => p.channel_title || (p.channel_username ? '@' + p.channel_username : String(p.channel_id));
 
+/** One press of «📤 ارسال صف»: a batch now; the result screen offers the next batch. */
+export async function sendQueueView(app, channelId = null) {
+  const lang = app.lang;
+  const r = await app.worker.sendQueue({ channelId, max: 8, deadlineMs: app.clock.ms() + 20000 });
+  const left = channelId ? (await app.publisher.queueOf(await app.destinations.get(channelId))).queued : (await app.publisher.counts()).queued;
+  const lines = [t(lang, 'pub.sendq_title'), t(lang, 'pub.sendq_sent', { n: r.sent })];
+  if (r.failed) lines.push(t(lang, 'pub.sendq_failed', { n: r.failed }));
+  if (r.retry) lines.push(t(lang, 'pub.sendq_retry', { n: r.retry }));
+  if (r.stopped) lines.push(t(lang, `pub.sendq_stopped.${r.stopped}`));
+  if (r.limited) lines.push(t(lang, 'pub.sendq_limited', { n: r.limited }));
+  lines.push(left ? t(lang, 'pub.sendq_left', { n: left }) : t(lang, 'pub.sendq_empty'));
+  const again = channelId ? btn(tp(lang, 'pub.btn_sendq_more', { n: left }), 'dst', 'sendq', channelId) : btn(tp(lang, 'pub.btn_sendq_more', { n: left }), 'pub', 'sendq');
+  return { text: lines.join('\n'), keyboard: markup([left && !r.stopped ? [again] : [], [homeButton(lang)]]) };
+}
+
+/**
+ * Tick processor (manual mode): when posts wait in the queue, the owner gets one message with the
+ * send button — at most every digest interval.
+ */
+export async function notifyQueue(app) {
+  if (await app.settings.get('publishing.auto_send')) return 'auto';
+  const queued = (await app.publisher.counts()).queued;
+  if (!queued) return 'empty';
+  if (!(await app.alerts.claim('queue_notice', Number(await app.settings.get('digest.interval_seconds'))))) return 'throttled';
+  const owner = await app.users.get(OWNER_ID);
+  const lang = await app.users.languageOf(owner);
+  await app.tg.send(OWNER_ID, { text: t(lang, 'pub.queue_notice', { n: queued }), keyboard: markup([[btn(tp(lang, 'pub.btn_sendq', { n: queued }), 'pub', 'sendq')]]) }, 'queue_notice');
+  return { queued };
+}
+
 async function homeView(app, user) {
   const lang = app.lang;
   const c = await app.publisher.counts();
   const rows = [[btn(tp(lang, 'apr.btn_review_n', { n: c.pending }), 'apr', 'next', 0)]];
+  if (c.queued && can(user, 'destinations.manage')) rows.unshift([btn(tp(lang, 'pub.btn_sendq', { n: c.queued }), 'pub', 'sendq')]);
   if (can(user, OWNER)) rows.push([btn(tp(lang, 'apr.btn_uncertain', { n: c.uncertain }), 'pub', 'ls', 'uncertain'), btn(tp(lang, 'apr.btn_failed', { n: c.failed }), 'pub', 'ls', 'failed')], [btn(tp(lang, 'apr.btn_queued', { n: c.queued }), 'pub', 'ls', 'queued')]);
   rows.push([homeButton(lang)]);
   const paused = await app.settings.get('publishing.paused');
@@ -113,6 +145,14 @@ export const routes = [
   { ns: 'apr', action: 'ok', args: ['uint'], perm: REVIEW, run: (app, user, [id], cq) => decide(app, user, id, true, cq) },
   { ns: 'apr', action: 'no', args: ['uint'], perm: REVIEW, run: (app, user, [id], cq) => decide(app, user, id, false, cq) },
 
+  {
+    // «📤 ارسال صف انتشار»: the owner sends the queue by hand
+    ns: 'pub', action: 'sendq', args: [], perm: 'destinations.manage',
+    async run(app, user, _a, cq) {
+      await screen(app, user, cq, await sendQueueView(app), 'send_queue');
+      return {};
+    },
+  },
   {
     ns: 'pub', action: 'ls', args: ['word'], perm: OWNER,
     async run(app, user, [status], cq) {

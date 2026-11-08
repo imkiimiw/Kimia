@@ -206,6 +206,10 @@ restores the row (disabled) with its settings. **Nothing is posted to any channe
   won't send as a photo ("can't use file of type Thumbnail as Photo", production 2026-11-08): the
   worker downloads it once, uploads it as a photo and keeps that photo's file_id; any other cover
   error skips the cover — the audio is the post (only channel / transient errors stop the post).
+- **Manual sending** (default, the owner's choice): the tick sends nothing while `publishing.auto_send` is
+  off; «📤 ارسال صف انتشار» (`worker.sendQueue`: round-robin over channels, ≤ 8 posts per press,
+  stops at a 429; pause and daily limits apply) sends the queue; tick processor `queue_notice`
+  messages the owner (with the button) when posts wait.
 - **Queue on the channel card**: queued / awaiting approval, and when the next post can go
   (`rules.channelReady`); «▶️ send the next post now» (`worker.sendNow`) skips the interval and the
   active hours (explicit owner choice) but not pause, cooldown or the daily limit.

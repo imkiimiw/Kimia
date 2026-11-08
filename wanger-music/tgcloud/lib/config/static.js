@@ -85,6 +85,9 @@ export const SETTINGS = Object.freeze({
   'digest.interval_seconds': { type: 'int', min: 300, max: 86400, default: 3600 },
   'publishing.per_tick': { type: 'int', min: 1, max: 10, default: 3 },
   'publishing.paused': { type: 'bool', default: false },
+  // the owner asked (2026-11-08): no automatic sending — the queue goes out when they press «📤 ارسال صف»;
+  // on = the tick also sends (one post per channel per tick, interval / hours / daily limit apply)
+  'publishing.auto_send': { type: 'bool', default: false },
   time_zone: { type: 'tz', default: 'Asia/Tehran' },
   'archive.chat_id': { type: 'chat', default: null },
   'import.bulk_summary': { type: 'bool', default: true },

@@ -6,6 +6,7 @@ import { GENRES, LIMITS, BOT_USERNAME, SUGGESTED_DESTINATIONS } from '../config/
 import { t, tp, raw, digits, dateTime } from '../i18n/index.js';
 import { esc } from '../telegram/html.js';
 import { btn, markup, grid } from '../bot/keyboards.js';
+import { sendQueueView } from './approvals_ui.js';
 import { screen, homeButton, promptView } from './panel.js';
 import { UserError, parseIntInRange } from '../core/util.js';
 import { normalizeRules, parseHours, hoursOf, matches, RULE_LANGUAGES } from '../publishing/rules.js';
@@ -34,8 +35,9 @@ const hoursText = (lang, d) => {
 };
 
 /** «📬 Queue: 8 posts · next: in about 4 min» (why it waits, when it does). */
-function queueLine(lang, q) {
+function queueLine(lang, q, auto) {
   if (!q.queued) return t(lang, 'dst.queue_empty', { waiting: q.waiting ? raw(t(lang, 'dst.queue_waiting', { n: q.waiting })) : '' });
+  if (!auto) return t(lang, 'dst.queue_manual', { n: q.queued, waiting: q.waiting ? raw(t(lang, 'dst.queue_waiting', { n: q.waiting })) : '' });
   const mins = Math.max(0, Math.ceil(((q.nextAt || q.now) - q.now) / 60));
   const when = q.ready
     ? (mins ? t(lang, 'dst.next_in', { m: mins }) : t(lang, 'dst.next_now'))
@@ -56,7 +58,8 @@ async function cardView(app, d) {
     t(lang, 'dst.card_format', { format: tp(lang, `dst.format.${d.post_format}`), caption: tp(lang, d.caption_template ? 'dst.caption_custom' : 'dst.caption_default') }),
     t(lang, 'dst.card_schedule', { interval: Math.round(d.min_interval_seconds / 60), hours: hoursText(lang, d), daily: d.daily_limit ? digits(d.daily_limit, lang) : tp(lang, 'dst.no_limit'), tz: d.time_zone }),
   ];
-  lines.push(queueLine(lang, await app.publisher.queueOf(d)));
+  const queue = await app.publisher.queueOf(d);
+  lines.push(queueLine(lang, queue, await app.settings.get('publishing.auto_send')));
   if (!d.bot_rights_ok) lines.push(t(lang, 'dst.warn_rights'));
   else if (!rights.edit || !rights.delete) lines.push(t(lang, 'dst.warn_edit_delete'));
   if (!normalizeRules(d.rules).languages.length) lines.push(t(lang, 'dst.warn_languages'));
@@ -69,7 +72,7 @@ async function cardView(app, d) {
       [btn(tp(lang, 'dst.btn_langs'), 'dst', 'langs', id), btn(tp(lang, 'dst.btn_genres'), 'dst', 'gen', id, 'inc'), btn(tp(lang, 'dst.btn_exclude'), 'dst', 'gen', id, 'exc')],
       [btn(tp(lang, 'dst.btn_caption'), 'dst', 'cap', id), btn(tp(lang, 'dst.btn_preview'), 'dst', 'prev', id), btn(tp(lang, 'dst.btn_format'), 'dst', 'fmt', id)],
       [btn(tp(lang, 'dst.btn_signature', { v: tp(lang, d.signature !== 0 ? 'common.on' : 'common.off') }), 'dst', 'sig', id)],
-      [btn(tp(lang, 'dst.btn_send_now'), 'dst', 'now', id)],
+      [btn(tp(lang, 'dst.btn_sendq', { n: digits(queue.queued, lang) }), 'dst', 'sendq', id), btn(tp(lang, 'dst.btn_send_now'), 'dst', 'now', id)],
       [btn(tp(lang, 'dst.btn_interval_v', { v: digits(Math.round(d.min_interval_seconds / 60), lang) }), 'dst', 'int', id), btn(tp(lang, 'dst.btn_daily_v', { v: d.daily_limit ? digits(d.daily_limit, lang) : tp(lang, 'dst.no_limit') }), 'dst', 'daily', id)],
       [btn(tp(lang, 'dst.btn_hours_v', { v: hoursText(lang, d) }), 'dst', 'hours', id)],
       [btn(tp(lang, 'dst.btn_tz', { tz: d.time_zone }), 'dst', 'tz', id), btn(tp(lang, 'dst.btn_check'), 'dst', 'check', id)],
@@ -211,6 +214,15 @@ export const routes = [
   cardAction('auto', (app, user, id) => app.destinations.toggleAuto(user, id)),
   cardAction('appr', (app, user, id) => app.destinations.toggleApproval(user, id)),
   cardAction('sig', (app, user, id) => app.destinations.toggleSignature(user, id)),
+  {
+    // «📤 send this channel's queue» (owner)
+    ns: 'dst', action: 'sendq', args: ['uint'], perm: PERM,
+    async run(app, user, [id], cq) {
+      if (!(await app.destinations.get(id))) return { toast: tp(app.lang, 'common.expired'), alert: true };
+      await screen(app, user, cq, await sendQueueView(app, id), 'send_queue');
+      return {};
+    },
+  },
   {
     // «▶️ send the next post now» (owner): no waiting for the interval / active hours
     ns: 'dst', action: 'now', args: ['uint'], perm: PERM,

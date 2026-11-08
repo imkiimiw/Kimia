@@ -15,15 +15,16 @@ export const promptView = (lang, text) => ({ text, keyboard: markup([[btn(tp(lan
 
 export const homeButton = (lang) => btn(tp(lang, 'common.home'), 'adm', 'home');
 
-export function homeView(lang, user) {
+export function homeView(lang, user, queued = 0) {
+  const top = queued > 0 && can(user, 'destinations.manage') ? [[btn(tp(lang, 'pub.btn_sendq', { n: queued }), 'pub', 'sendq')]] : [];
   const buttons = ADMIN_SECTIONS.filter((s) => can(user, s.perm)).map((s) => {
     const target = s.phase <= CURRENT_PHASE && TARGETS[s.id] ? TARGETS[s.id] : ['adm', 'sec', s.id];
     return btn(tp(lang, `adm.sec.${s.id}`), target[0], target[1], ...target.slice(2));
   });
-  return { text: t(lang, 'adm.title'), keyboard: markup(grid(buttons, 2)) };
+  return { text: t(lang, 'adm.title'), keyboard: markup([...top, ...grid(buttons, 2)]) };
 }
 
-export const openPanel = (app, user, cq = null) => screen(app, user, cq, homeView(app.lang, user), 'admin_home');
+export const openPanel = async (app, user, cq = null) => screen(app, user, cq, homeView(app.lang, user, can(user, 'destinations.manage') ? (await app.publisher.counts()).queued : 0), 'admin_home');
 
 export const routes = [
   { ns: 'adm', action: 'home', args: [], perm: 'panel.open', run: async (app, user, _a, cq) => { await openPanel(app, user, cq); return {}; } },

@@ -146,9 +146,48 @@ export function createWorker({ pubs, channels, catalog, sources, settings, tg, a
       const ch = await channels.get(channelId);
       if (!ch || !ch.enabled || !ch.bot_rights_ok) return 'off';
       if (ch.daily_limit && (await pubs.publishedSince(ch.id, dayStart(now, ch.time_zone))) >= ch.daily_limit) return 'daily_limit';
-      const pub = await pubs.claimNext(ch.id, now, now + LEASE_SECONDS);
+      const pub = await pubs.claimNext(ch.id, now, now + LEASE_SECONDS, true);
       if (!pub) return 'empty';
       return sendOne(pub, ch);
+    },
+
+    /**
+     * The owner's «📤 ارسال صف»: queued posts go out now, round-robin over the channels (or one
+     * channel's queue), without waiting for the interval, the hours or a retry time. At most `max`
+     * posts per press (Telegram allows ~20 messages a minute in a channel; a cover is a message
+     * too), stopping at the deadline or a 429. Pause and each channel's daily limit still apply.
+     * @returns {Promise<{sent: number, failed: number, retry: number, rate_limited: number, cancelled: number, limited: number, stopped: string|null}>}
+     */
+    async sendQueue({ channelId = null, max = 8, deadlineMs }) {
+      const res = { sent: 0, failed: 0, retry: 0, rate_limited: 0, cancelled: 0, limited: 0, stopped: /** @type {string|null} */ (null) };
+      if (await settings.get('publishing.paused')) return { ...res, stopped: 'paused' };
+      await pubs.expireLeases(clock.now());
+      if (cooldownActive(clock.now(), Number(await settings.get('telegram.cooldown_until')))) return { ...res, stopped: 'cooldown' };
+      let open = (await channels.list()).filter((c) => c.enabled && c.bot_rights_ok && (!channelId || c.id === channelId));
+      const done = () => res.sent + res.failed + res.retry + res.cancelled >= max || clock.ms() >= deadlineMs;
+      while (open.length && !done()) {
+        /** @type {Set<number>} */
+        const finished = new Set();
+        for (const ch of open) {
+          if (done()) break;
+          const now = clock.now();
+          if (ch.daily_limit && (await pubs.publishedSince(ch.id, dayStart(now, ch.time_zone))) >= ch.daily_limit) {
+            res.limited += 1;
+            finished.add(ch.id);
+            continue;
+          }
+          const pub = await pubs.claimNext(ch.id, now, now + LEASE_SECONDS, true);
+          if (!pub) {
+            finished.add(ch.id);
+            continue;
+          }
+          const outcome = await sendOne(pub, ch);
+          res[outcome] += 1;
+          if (outcome === 'rate_limited') return { ...res, stopped: 'rate_limited' };
+        }
+        open = open.filter((c) => !finished.has(c.id));
+      }
+      return res;
     },
     /** Tick processor. */
     async run({ deadlineMs }) {
@@ -157,6 +196,7 @@ export function createWorker({ pubs, channels, catalog, sources, settings, tg, a
       const uncertain = await pubs.expireLeases(now);
       if (uncertain) await alerts.owner('pub_uncertain', (lang) => t(lang, 'alert.pub_uncertain', { n: uncertain }), LIMITS.alertDestinationEverySeconds);
       if (cooldownActive(now, Number(await settings.get('telegram.cooldown_until')))) return { skipped: 'cooldown', uncertain };
+      if (!(await settings.get('publishing.auto_send'))) return { skipped: 'manual', uncertain }; // the owner sends with «📤»
       const cap = Number(await settings.get('publishing.per_tick'));
       const res = { sent: 0, retry: 0, rate_limited: 0, failed: 0, cancelled: 0, uncertain };
       for (const ch of await channels.routable()) {
