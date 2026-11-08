@@ -1,7 +1,7 @@
 // Turns the output of `tgcloud webhook` into the input of endpoints/opsTick, so the bot can warn the
 // owner about webhook problems (the bot itself may not call getWebhookInfo on this platform).
 //   npx tgcloud webhook | node scripts/webhook-state.mjs   →   {"webhook":{"in_sync":true,"pending":0,…}}
-// Prints {} when the output can't be read (no false alarm).
+// Prints {"from":"github"} alone when the output can't be read (no false webhook alarm).
 
 /** @param {string} text CLI output @returns {{webhook?: {in_sync: boolean, pending: number, last_error: string|null, last_error_at: number|null}}} */
 export function parseWebhookOutput(text) {
@@ -20,5 +20,6 @@ if (isMain) {
   let input = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (d) => { input += d; });
-  process.stdin.on('end', () => process.stdout.write(JSON.stringify(parseWebhookOutput(input))));
+  // from: the bot counts only these runs as the GitHub schedule (manual `tgcloud run` calls don't)
+  process.stdin.on('end', () => process.stdout.write(JSON.stringify({ from: 'github', ...parseWebhookOutput(input) })));
 }

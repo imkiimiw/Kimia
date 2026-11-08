@@ -113,7 +113,8 @@ export const SETTINGS = Object.freeze({
   'stats.pruned_date': { type: 'text', default: '', internal: true },
   'backup.last': { type: 'json', default: null, internal: true },
   'monitor.webhook': { type: 'json', default: null, internal: true },
-  'monitor.scheduled_at': { type: 'int', default: 0, internal: true },
+  'monitor.scheduled_at': { type: 'int', default: 0, internal: true }, // legacy: set by any opsTick run, manual ones too (gave false alarms)
+  'monitor.github_at': { type: 'int', default: 0, internal: true }, // last opsTick run by the GitHub Actions job itself
   'notify.window': { type: 'json', default: null, internal: true },
 });
 

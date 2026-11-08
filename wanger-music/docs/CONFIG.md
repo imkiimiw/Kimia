@@ -79,7 +79,8 @@ Internal state keys (not editable): `system.bootstrapped`, `forcejoin.seeded`, `
 `archive.rate`, `search.reindex_cursor`, `stats.aggregated_at` (last aggregation; the tick
 aggregates at most every 15 min), `stats.pruned_date` (retention runs once per local day),
 `backup.last` (last export: time, size, rows, file_id), `monitor.webhook` (the GitHub job's webhook
-report), `monitor.scheduled_at` (last scheduled tick).
+report), `monitor.github_at` (last tick run by the GitHub job — only runs that pass `from: "github"` count;
+`monitor.scheduled_at` is the old marker, which manual `tgcloud run` calls also set: no longer read).
 
 Analytics (Phase 7) has no editable settings. Fixed in `stats/service.js`: aggregation every 15 min,
 keep 400 days (per-track plays 90 days), periods today / 7 / 30 days. Days follow `time_zone`

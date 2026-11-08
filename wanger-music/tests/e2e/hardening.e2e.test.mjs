@@ -8,6 +8,7 @@ import { parseWebhookOutput } from '../../scripts/webhook-state.mjs';
 import { senderUnreachable } from '../../tgcloud/lib/core/boundary.js';
 
 const U = 111;
+const GH = { from: 'github' }; // what the GitHub job passes (scripts/webhook-state.mjs)
 const join = (h, id) => { for (const c of SEED) h.tg.setMember(c, id, 'member'); };
 const alertsTo = (h, re) => h.tg.calls.filter((c) => c.method === 'sendMessage' && c.params.chat_id === OWNER && re.test(c.params.text));
 
@@ -19,19 +20,19 @@ test('monitoring: rising errors and publication failures alert the owner once pe
   const ins = h.db().prepare('INSERT INTO error_log (created_at, handler, code, message) VALUES (?, ?, ?, ?)');
   for (let i = 0; i < 9; i++) ins.run(now - 60, 'message', 'E', 'boom');
   ins.run(now - 7200, 'message', 'E', 'old'); // outside the hour
-  let r = await h.opsTick(OWNER);
+  let r = await h.opsTick(OWNER, GH);
   assert.deepEqual(r.result.results.monitor.warnings, [], '9 errors in the hour: below the threshold');
   ins.run(now - 30, 'message', 'E', 'boom');
-  r = await h.opsTick(OWNER);
+  r = await h.opsTick(OWNER, GH);
   assert.deepEqual(r.result.results.monitor, { warnings: ['errors'], sent: 1 });
   assert.equal(alertsTo(h, /پایش Wanger Music[\s\S]*۱۰ خطا در یک ساعت گذشته/).length, 1);
   advance(3600);
   for (let i = 0; i < 10; i++) ins.run(now + 3600, 'message', 'E', 'boom');
-  r = await h.opsTick(OWNER);
+  r = await h.opsTick(OWNER, GH);
   assert.equal(r.result.results.monitor.sent, 0, 'throttled: one alert per kind per 3 hours');
   advance(2 * 3600 + 60);
   for (let i = 0; i < 10; i++) ins.run(now + 3 * 3600 + 60, 'message', 'E', 'boom');
-  r = await h.opsTick(OWNER);
+  r = await h.opsTick(OWNER, GH);
   assert.equal(r.result.results.monitor.sent, 1, 'again after 3 hours');
 
   // publication failures in the last 24 h (on real tracks: maintenance sweeps orphans first)
@@ -46,10 +47,10 @@ test('monitoring: rising errors and publication failures alert the owner once pe
   p.run(trackIds[0], 'failed', t, t);
   p.run(trackIds[1], 'uncertain', t, t);
   p.run(trackIds[2], 'failed', t - 2 * 86400, t - 2 * 86400);
-  r = await h.opsTick(OWNER);
+  r = await h.opsTick(OWNER, GH);
   assert.ok(!r.result.results.monitor.warnings.includes('pub_failed'), '2 in the last day');
   p.run(trackIds[3], 'failed', t, t);
-  r = await h.opsTick(OWNER);
+  r = await h.opsTick(OWNER, GH);
   assert.ok(r.result.results.monitor.warnings.includes('pub_failed'));
   assert.equal(alertsTo(h, /۳ انتشار ناموفق یا نامشخص/).length, 1);
 
@@ -65,10 +66,10 @@ test('monitoring: the scheduled job reports the webhook; out of sync, a long que
   setClock('2026-11-06T10:00:00Z');
   await h.send(OWNER, '/admin');
   await h.tap(OWNER, 'sys:home');
-  assert.match(h.lastText(OWNER), /تیک زمان‌بندی‌شده هنوز اجرا نشده/, 'no schedule yet: shown on System Status…');
+  assert.match(h.lastText(OWNER), /اجرای خودکار گیت‌هاب راه‌اندازی نشده \(اختیاری/, 'no schedule yet: shown on System Status…');
   assert.equal(alertsTo(h, /پایش/).length, 0, '…but not alerted (the owner may not want the GitHub job)');
 
-  const ok = parseWebhookOutput('Webhook:\n  pending updates:  0\n  ✓ in sync with your deployed handlers\n');
+  const ok = { from: 'github', ...parseWebhookOutput('Webhook:\n  pending updates:  0\n  ✓ in sync with your deployed handlers\n') };
   let r = await h.opsTick(OWNER, ok);
   assert.deepEqual(r.result.results.monitor.warnings, []);
   await h.send(OWNER, '/admin');
@@ -77,7 +78,7 @@ test('monitoring: the scheduled job reports the webhook; out of sync, a long que
 
   const nowIso = new Date(Date.now()).toISOString().slice(0, 16).replace('T', ' ');
   const bad = parseWebhookOutput(`Webhook:\n  pending updates:  250\n  last error:       Read timeout expired (${nowIso} UTC)\n  ✗ OUT OF SYNC with your deployed handlers\n`);
-  r = await h.opsTick(OWNER, bad);
+  r = await h.opsTick(OWNER, { from: 'github', ...bad });
   assert.deepEqual(r.result.results.monitor.warnings.sort(), ['webhook_error', 'webhook_pending', 'webhook_sync']);
   assert.equal(r.result.results.monitor.sent, 3);
   assert.equal(alertsTo(h, /Read timeout expired/).length, 1);
@@ -95,7 +96,7 @@ test('monitoring: the scheduled job reports the webhook; out of sync, a long que
   advance(120);
   r = await h.send(U, '/help');
   assert.ok(r.tick && r.tick.monitor.warnings.includes('schedule_stopped'));
-  assert.equal(alertsTo(h, /تیک زمان‌بندی‌شده \d+|تیک زمان‌بندی‌شده [۰-۹]+ ساعت/).length, 1);
+  assert.equal(alertsTo(h, /اجرای خودکار گیت‌هاب [۰-۹]+ ساعت است اجرا نشده/).length, 1);
 });
 
 test('a reply to a sender who deleted the chat or blocked the bot is not an error: no error row, no owner alert, marked unreachable', async () => {
@@ -164,4 +165,15 @@ test('webhook-state parser: in sync, out of sync with an error, unreadable outpu
   assert.deepEqual(parseWebhookOutput('Webhook:\n  url: x\n  pending updates:  3\n  \u001b[32m  ✓ in sync with your deployed handlers\u001b[39m\n'), { webhook: { in_sync: true, pending: 3, last_error: null, last_error_at: null } });
   assert.deepEqual(parseWebhookOutput('  pending updates:  7\n  last error:       Connection refused (2026-11-06 03:10 UTC)\n  ✗ OUT OF SYNC with your deployed handlers\n'), { webhook: { in_sync: false, pending: 7, last_error: 'Connection refused', last_error_at: Date.parse('2026-11-06T03:10:00Z') / 1000 } });
   assert.deepEqual(parseWebhookOutput('Error: network down'), {});
+});
+
+test('the false alarm the owner saw: manual ticks (not the GitHub job) then hours of quiet → no "schedule stopped" alert', async () => {
+  const h = setup();
+  await h.send(OWNER, '/admin');
+  await h.opsTick(OWNER); // a manual `tgcloud run endpoints/opsTick` (no from: 'github')
+  advance(6 * 3600);
+  const r = await h.opsTick(OWNER);
+  assert.ok(!r.result.results.monitor.warnings.includes('schedule_stopped'));
+  assert.ok(r.result.results.monitor.warnings.includes('no_schedule'), 'a note on System Status…');
+  assert.equal(alertsTo(h, /گیت‌هاب/).length, 0, '…never a message');
 });

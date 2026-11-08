@@ -87,8 +87,9 @@ node scripts/backup.mjs restore backup.json --staging --tables tracks,artists,ar
 The owner gets (throttled) alerts for: errors (each kind ≤ 1 per 30 min); a force-join channel
 the bot can't check; a destination channel that lost post rights; publishing failures and uncertain
 posts; an archive failure; and, from the Phase 8 monitor on every tick (each kind ≤ 1 per 3 h):
-≥ 10 errors in an hour, ≥ 3 failed/uncertain publications in 24 h, the scheduled tick not seen for
-2 h, a Telegram cooldown over 10 min, and the webhook report from the GitHub job (out of sync,
+≥ 10 errors in an hour, ≥ 3 failed/uncertain publications in 24 h, the GitHub job's tick not seen
+for 2 h **after it had been running** (never set up → only a note on System Status: it is optional,
+publishing is manual by default; a manual `tgcloud run endpoints/opsTick` doesn't count as the job), a Telegram cooldown over 10 min, and the webhook report from the GitHub job (out of sync,
 ≥ 100 pending updates, an error in the last hour). 🧪 System Status lists the current warnings.
 
 The GitHub job `.github/workflows/wanger-music-tick.yml` (every 30 min, needs the secret) runs the

@@ -264,7 +264,8 @@ date = the local day in the `time_zone` setting. Aggregated only: no per-user ro
   and upserted (`ON CONFLICT (pk) DO UPDATE … ON CONFLICT DO NOTHING`), then `finishRestore`
   clears/rebuilds the search index. Weekly export: tick processor `backup` (setting `backup.weekly`).
 - **Monitoring** (`core/health.js`): `healthWarnings()` (errors in the last hour, failed/uncertain
-  publications in 24 h, scheduled tick, cooldown, the webhook report the GitHub job passes to
+  publications in 24 h, the GitHub job's tick (`monitor.github_at`; never run → a note on System
+  Status only, stopped after running → an alert), cooldown, the webhook report the GitHub job passes to
   `opsTick`) → System Status; tick processor `monitor` → owner alerts, ≤ 1 per kind per 3 h.
 - **Flood guard**: `users.flood()` — one conditional `UPDATE` counts the update in a 60 s window
   (`flood_at`, `flood_n`); over 30 → ignored (one notice); staff exempt.
@@ -285,7 +286,9 @@ date = the local day in the `time_zone` setting. Aggregated only: no per-user ro
    archive backlog → search index rebuild → stats (aggregation, retention) → weekly backup → monitor;
 2. **manual**: 🧪 System Status «▶️ اجرای تیک» and the broadcast's «▶️ ادامه» (8 s budget);
 3. **scheduled**: `endpoints/opsTick.js` (owner id only) run every 30 min by
-   `.github/workflows/wanger-music-tick.yml`, which pulls the **deployed** modules first.
+   `.github/workflows/wanger-music-tick.yml`, which pulls the **deployed** modules first and passes
+   `from: "github"` (only those runs count as the schedule for monitoring; a manual
+   `npm run tg -- run endpoints/opsTick` runs the tick but doesn't).
 
 Limitation: background work happens only when one of these runs, so its timing depends on traffic
 and the schedule.

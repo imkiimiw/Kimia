@@ -13,7 +13,8 @@ export default async function (input, ctx) {
   return runEndpoint('opsTick', async (app) => {
     // Phase 8: the GitHub Actions job passes what `tgcloud webhook` reported (scripts/webhook-state.mjs)
     if (input && typeof input === 'object' && input.webhook && typeof input.webhook === 'object') await recordWebhookCheck(app, input.webhook);
-    await app.settings.setInternal('monitor.scheduled_at', app.clock.now());
+    // only the GitHub job's runs count as "the schedule" (a manual `tgcloud run` is not a schedule)
+    if (input && typeof input === 'object' && input.from === 'github') await app.settings.setInternal('monitor.github_at', app.clock.now());
     return runTick(app, 'scheduled', Number(await app.settings.get('tick.budget_ms')));
   });
 }

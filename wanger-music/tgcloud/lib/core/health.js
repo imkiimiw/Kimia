@@ -36,7 +36,7 @@ export async function healthWarnings(app) {
   const [errors, pubBroken, scheduledAt, cooldownUntil, webhook, undecided] = await Promise.all([
     app.repos.system.errorsSince(now - 3600, 500),
     app.repos.publications.brokenSince(now - 86400),
-    app.settings.get('monitor.scheduled_at'),
+    app.settings.get('monitor.github_at'),
     app.settings.get('telegram.cooldown_until'),
     app.settings.get('monitor.webhook'),
     app.catalog.countUndecidedActive(),
@@ -47,6 +47,8 @@ export async function healthWarnings(app) {
   if (pubBroken >= LIMITS.monitorPubFailuresPerDay) out.push({ key: 'pub_failed', vars: { n: pubBroken } });
   if (undecided > 0) out.push({ key: 'no_language', vars: { n: undecided } });
   const sched = Number(scheduledAt) || 0;
+  // the GitHub job is optional (publishing is manual by default): never set up → a note on System
+  // Status only; it ran and then stopped → an alert, since someone relied on it
   if (!sched) out.push({ key: 'no_schedule', vars: {} });
   else if (now - sched > LIMITS.monitorTickStaleSeconds) out.push({ key: 'schedule_stopped', vars: { h: Math.floor((now - sched) / 3600) } });
   if ((Number(cooldownUntil) || 0) - now > LIMITS.monitorCooldownSeconds) out.push({ key: 'cooldown', vars: { m: Math.ceil(((Number(cooldownUntil) || 0) - now) / 60) } });
