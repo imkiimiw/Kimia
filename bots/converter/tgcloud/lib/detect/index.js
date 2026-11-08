@@ -188,11 +188,6 @@ function magic(b, nameExt) {
   }
   if (ascii(b, 4, 4) === 'ftyp') return isoBmff(b);
   if (ascii(b, 0, 5) === '%PDF-') return { id: 'pdf' };
-  {
-    // %PDF- within the first KB (readers accept junk before it) and %%EOF near the end
-    const at = indexOfBytes(b, [0x25, 0x50, 0x44, 0x46, 0x2d], 0, 1024);
-    if (at > 0 && indexOfBytes(b, [0x25, 0x25, 0x45, 0x4f, 0x46], Math.max(0, b.length - 2048)) >= 0) return { id: 'pdf', info: { offset: at } };
-  }
   if (startsWith(b, [0x50, 0x4b, 0x03, 0x04]) || startsWith(b, [0x50, 0x4b, 0x05, 0x06])) return zipBased(b, nameExt);
   if (startsWith(b, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) return ole(b, nameExt);
   if (ascii(b, 0, 5) === '{\\rtf') return { id: 'rtf' };
@@ -233,6 +228,10 @@ function magic(b, nameExt) {
   // MPEG audio without an ID3 tag: AAC ADTS (layer 0) or MP3 (layer III); weak, so after the rest
   if (b[0] === 0xff && (b[1] & 0xf6) === 0xf0) return { id: 'aac' };
   if (b[0] === 0xff && (b[1] & 0xe0) === 0xe0 && ((b[1] >> 1) & 3) === 1 && (b[2] >> 4) !== 15 && (b[2] >> 4) !== 0) return { id: 'mp3' };
+  // last: %PDF- within the first KB (readers accept junk before it) and %%EOF near the end — only
+  // when no exact signature matched (a ZIP holding a stored PDF must stay a ZIP)
+  const at = indexOfBytes(b, [0x25, 0x50, 0x44, 0x46, 0x2d], 0, 1024);
+  if (at > 0 && indexOfBytes(b, [0x25, 0x25, 0x45, 0x4f, 0x46], Math.max(0, b.length - 2048)) >= 0) return { id: 'pdf', info: { offset: at } };
   return null;
 }
 

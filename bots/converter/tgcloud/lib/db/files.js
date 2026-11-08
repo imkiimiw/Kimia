@@ -4,14 +4,31 @@ import { sql } from 'sdk/db';
 
 // ---- files ----
 export function putFile(f) {
-  return db.run(sql`INSERT INTO files (ref, user_id, file_id, file_unique_id, kind, name, size, type, created_at)
-    VALUES (${f.ref}, ${f.userId}, ${f.fileId}, ${f.fileUniqueId}, ${f.kind}, ${f.name}, ${f.size}, ${f.type}, ${f.createdAt})`);
+  return db.run(sql`INSERT INTO files (ref, user_id, file_id, file_unique_id, kind, name, size, type, created_at, meta, batch_id, seq)
+    VALUES (${f.ref}, ${f.userId}, ${f.fileId}, ${f.fileUniqueId}, ${f.kind}, ${f.name}, ${f.size}, ${f.type}, ${f.createdAt},
+      ${f.meta ? JSON.stringify(f.meta) : null}, ${f.batchId || null}, ${f.seq ?? null})`);
 }
 
+const FILE_COLS = sql`ref, user_id, file_id, file_unique_id, kind, name, size, type, created_at, meta, batch_id, seq`;
+const parsed = (r) => {
+  if (!r) return r;
+  let meta = null;
+  try { meta = r.meta ? JSON.parse(r.meta) : null; } catch { meta = null; }
+  return { ...r, meta };
+};
+
 /** A file card's row, only for its owner. */
-export function getFile(ref, userId) {
-  return db.get(sql`SELECT ref, user_id, file_id, file_unique_id, kind, name, size, type, created_at FROM files WHERE ref = ${ref} AND user_id = ${userId}`);
+export async function getFile(ref, userId) {
+  return parsed(await db.get(sql`SELECT ${FILE_COLS} FROM files WHERE ref = ${ref} AND user_id = ${userId}`));
 }
+
+/** The files of a batch, in the order they arrived (≤ 50: the batch limit is lower). */
+export async function batchFiles(batchId) {
+  return (await db.all(sql`SELECT ${FILE_COLS} FROM files WHERE batch_id = ${batchId} ORDER BY seq LIMIT 50`)).map(parsed);
+}
+
+/** Moves a received file into a batch (the «📚 چند فایل با هم» button). */
+export const setFileBatch = (ref, userId, batchId, seq) => db.run(sql`UPDATE files SET batch_id = ${batchId}, seq = ${seq} WHERE ref = ${ref} AND user_id = ${userId}`);
 
 // ---- jobs ----
 const JOB_COLS = sql`id, code, user_id, operation, status, engine, input_type, input_size, input_file_id, input_ref, params,

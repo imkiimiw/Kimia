@@ -1,15 +1,23 @@
 // File intake (spec §3, §4, §6): document, photo, audio, voice, video, video note, animation →
-// size check → download (≤ 20 MB) → detection from the bytes → a file card with the actions that
-// exist. Then Detect & Fix and the safe renames, which run as jobs (lib/jobs.js).
-import { FILE_TTL_S, INPUT_TTL_S, MB } from './config.js';
+// size check → download (≤ 20 MB) → detection from the bytes → a quick look inside (archive index,
+// PDF pages, image size → files.meta) → a file card, or a place in the open batch (albums, C2).
+// Then the single-file actions: Detect & Fix, rename, extract, PDF pages, image → PDF, ZIP.
+import { BATCH_COLLECT_S, FILE_TTL_S, INPUT_TTL_S, MB } from './config.js';
+import { openArchive } from './archive.js';
+import * as batch from './batch.js';
+import * as batches from './db/batches.js';
+import * as cards from './cards.js';
 import { detect, describe, extMatches, extOf, storedType } from './detect/index.js';
 import * as store from './db/files.js';
 import * as state from './db/state.js';
 import { count } from './db/system.js';
+import { isToolError } from './errors.js';
 import { t } from './i18n/index.js';
-import { runRename, takeIntakeSlot, takeJobSlot } from './jobs.js';
+import { jpegInfo, pngInfo } from './images.js';
+import { startJob, takeIntakeSlot } from './jobs.js';
 import * as log from './log.js';
 import { defaultName, fixedName, hadSuspiciousChars, renameTo, sanitizeName, splitName } from './names.js';
+import { parseRanges, pdfInfo, rangeGroups } from './pdf.js';
 import * as tg from './tg.js';
 import * as ui from './ui.js';
 import { fileRef } from './util.js';
@@ -29,19 +37,65 @@ export function extractFile(m) {
 }
 
 const KIND_NAME = { photo: 'photo', voice: 'voice', video_note: 'video_note', audio: 'audio', video: 'video', animation: 'animation', document: 'file' };
+const archiveLimits = (L) => ({ maxEntries: L.ARCHIVE_MAX_ENTRIES, maxUnpacked: L.ARCHIVE_MAX_UNPACKED_MB * MB, maxRatio: L.ARCHIVE_MAX_RATIO });
 
-/** A received file → its card. */
+/** A quick look inside, kept in files.meta: archive index (checked), PDF pages, image size. */
+export async function analyze(ctx, bytes, d, name) {
+  if (d.dangerous) return null;
+  if (cards.EXTRACTABLE.has(d.id) && !(d.info && d.info.encrypted)) {
+    try {
+      const arc = openArchive(bytes, d.id, name, archiveLimits(ctx.limits));
+      const items = arc.entries.map((e, i) => ({ ...e, i })).filter((e) => !e.dir);
+      return { archive: { files: items.length, total: arc.total, items: items.slice(0, 1000).map((e) => [e.i, e.name.replace(/\\/g, '/').split('/').filter(Boolean).pop() || 'file', e.size]) } };
+    } catch (e) {
+      if (isToolError(e)) return { archive: { problem: e.code } };
+      throw e;
+    }
+  }
+  if (d.id === 'pdf') {
+    const info = await pdfInfo(bytes, ctx.limits.PDF_MAX_OBJECTS);
+    return { pdf: { pages: info.pages, problem: info.problem } };
+  }
+  if (d.id === 'jpeg') { const i = jpegInfo(bytes); return i ? { image: { w: i.width, h: i.height, o: i.orientation } } : null; }
+  if (d.id === 'png') { const i = pngInfo(bytes); return i ? { image: { w: i.width, h: i.height } } : null; }
+  return null;
+}
+
+/**
+ * A received file → its card, or a place in the open batch. An album (media_group_id) opens a
+ * batch; while a batch is open (BATCH_COLLECT_S), every new file joins it.
+ */
 export async function intake(ctx, message, file) {
   const chatId = message.chat.id;
+  const mg = message.media_group_id || null;
+  const once = (key) => (mg ? state.claimOnce(ctx.user.id, `${key}:${mg}`, ctx.now + 600) : Promise.resolve(true));
   const max = ctx.limits.MAX_INPUT_MB * MB;
   if (file.size && file.size > max) {
     await count(ctx.day, 'intake_too_big');
     return tg.send(ctx, 'intake_too_big', chatId, { text: t(ctx.lang, 'intake.too_big', { mb: ui.num(ctx, ctx.limits.MAX_INPUT_MB), size: ui.size(ctx, file.size) }) });
   }
   const slot = await takeIntakeSlot(ctx);
-  if (!slot.ok) return tg.send(ctx, 'intake_rate', chatId, { text: t(ctx.lang, 'rate.intake', { s: ui.num(ctx, slot.retryS) }) });
+  if (!slot.ok) {
+    if (await once('rate')) await tg.send(ctx, 'intake_rate', chatId, { text: t(ctx.lang, 'rate.intake', { s: ui.num(ctx, slot.retryS) }) });
+    return null;
+  }
 
-  await tg.action(ctx, chatId, 'typing');
+  // batch: the open one, or a new one for an album
+  let b = await batches.open(ctx.user.id, ctx.now, BATCH_COLLECT_S);
+  if (!b && mg) {
+    await batches.closeStale(ctx.user.id, ctx.now, BATCH_COLLECT_S);
+    b = await batches.openOrCreate(ctx.user.id, fileRef(), ctx.now);
+  }
+  let seq = null;
+  if (b) {
+    seq = await batches.reserve(b.id, ctx.limits.BATCH_MAX_FILES, ctx.now);
+    if (seq === null) {
+      if (await once('full')) await tg.send(ctx, 'batch_full', chatId, { text: t(ctx.lang, 'batch.full', { max: ui.num(ctx, ctx.limits.BATCH_MAX_FILES) }) });
+      b = null;
+    }
+  }
+
+  if (!b) await tg.action(ctx, chatId, 'typing');
   let bytes;
   try {
     bytes = await tg.download(ctx, 'intake_download', file.fileId);
@@ -55,65 +109,144 @@ export async function intake(ctx, message, file) {
   const name = file.name ? sanitizeName(file.name, { fallback }) : fallback;
   const nameExt = extOf(name);
   const d = { ...d0, nameExt, extOk: extMatches(d0.id, nameExt) };
-  const row = { ref: fileRef(), userId: ctx.user.id, fileId: file.fileId, fileUniqueId: file.uniqueId, kind: file.kind, name, size: bytes.length, type: storedType(d), createdAt: ctx.now };
+  const meta = await analyze(ctx, bytes, d, name);
+  const row = { ref: fileRef(), userId: ctx.user.id, fileId: file.fileId, fileUniqueId: file.uniqueId, kind: file.kind, name, size: bytes.length, type: storedType(d), createdAt: ctx.now, meta, batchId: b ? b.id : null, seq };
   await store.putFile(row);
   await count(ctx.day, 'intake');
   log.info('intake', { update_id: ctx.updateId, user_id: ctx.user.id, input_type: d.label, input_size: bytes.length });
-  return tg.send(ctx, 'card', chatId, ui.card(ctx, { ...row, ref: row.ref }, d, { suspicious: hadSuspiciousChars(file.name) }));
+  if (b) return batch.showStatus(ctx, b.id, chatId);
+  return tg.send(ctx, 'card', chatId, cards.card(ctx, row, d, { suspicious: hadSuspiciousChars(file.name) }));
 }
 
-/** The file behind a card ref (owner-checked and not expired), with its detection. */
-async function loadFile(ctx, ref) {
+/** The file behind a card ref (owner-checked, not expired) with its detection. */
+export async function loadFile(ctx, ref) {
   const f = await store.getFile(ref, ctx.user.id);
   if (!f || f.created_at < ctx.now - FILE_TTL_S) return null;
   return { file: { ...f, fileId: f.file_id }, d: describe(f.type, f.name) };
 }
 
-const expired = (ctx) => ui.plain(t(ctx.lang, 'card.expired'), [ui.homeBtn(ctx)]);
+export const expired = (ctx) => ui.plain(t(ctx.lang, 'card.expired'), [ui.homeBtn(ctx)]);
+const inputOf = (file, d) => ({ fileId: file.file_id, uniqueId: file.file_unique_id, size: file.size, type: d.id, name: file.name, ref: file.ref });
+const usable = (d) => !d.dangerous && d.id !== 'empty';
 
-/** Callback codes of the file flow: f, fn, fx, rn, re. */
+/** Callback codes of the file flow: f fm fn fx rn re ax al ae pz pd pr ps pi bn. */
 export async function onCallback(ctx, code, args, message) {
-  const [ref, sub] = args;
+  const [ref, sub, extra] = args;
   const loaded = await loadFile(ctx, ref);
   if (!loaded) return tg.edit(ctx, 'card_expired', message, expired(ctx));
   const { file, d } = loaded;
+  const show = (view, s) => tg.edit(ctx, view, message, s);
+  const back = () => show('card', cards.card(ctx, file, d));
+  const meta = file.meta || {};
   switch (code) {
     case 'f':
       await state.clearPending(ctx.user.id, 'input');
-      return tg.edit(ctx, 'card', message, ui.card(ctx, file, d));
-    case 'fn':
-      return tg.edit(ctx, 'card', message, ui.cardNoFix(ctx, file, d));
-    case 'fx': {
-      if (d.dangerous || d.extOk || d.id === 'unknown' || d.id === 'empty') return tg.edit(ctx, 'card', message, ui.card(ctx, file, d));
-      return startJob(ctx, message, file, d, 'fix', fixedName(file.name, d));
-    }
+      return back();
+    case 'fm': return show('card', cards.card(ctx, file, d, { page: 2 }));
+    case 'fn': return show('card', cards.card(ctx, file, d, { noFix: true }));
+    case 'fx':
+      if (!usable(d) || d.extOk || d.id === 'unknown') return back();
+      return startJob(ctx, message, 'fix', [inputOf(file, d)], { name: fixedName(file.name, d) }, fixedName(file.name, d));
     case 'rn': {
-      if (d.dangerous || d.id === 'empty') return tg.edit(ctx, 'card', message, ui.card(ctx, file, d));
-      if (!sub) return tg.edit(ctx, 'rename', message, ui.renameMenu(ctx, file, d));
-      if (sub === 'e') return tg.edit(ctx, 'rename_ext', message, ui.extMenu(ctx, file, d, splitName(file.name).ext));
+      if (!usable(d)) return back();
+      if (!sub) return show('rename', cards.renameMenu(ctx, file, d));
+      if (sub === 'e') return show('rename_ext', cards.extMenu(ctx, file, d));
       if (sub === 'z') return applyRename(ctx, message, file, d, { mode: 'normalize' });
       const mode = { n: 'name', p: 'prefix', s: 'suffix' }[sub];
       if (!mode) return null;
-      await state.setPending(ctx.user.id, 'input', 'rename', { ref: file.ref, mode, mid: message.message_id }, ctx.now + INPUT_TTL_S);
-      return tg.edit(ctx, 'rename_ask', message, ui.inputPrompt(ctx, file, mode));
+      await state.setPending(ctx.user.id, 'input', 'rename', { ref: file.ref, mode }, ctx.now + INPUT_TTL_S);
+      return show('rename_ask', cards.renamePrompt(ctx, file, mode));
     }
-    case 're':
-      return applyRename(ctx, message, file, d, { mode: 'ext', value: sub });
+    case 're': return applyRename(ctx, message, file, d, { mode: 'ext', value: sub });
+    case 'pz':
+      if (!usable(d)) return back();
+      return startJob(ctx, message, 'zip', [inputOf(file, d)], { name: `${splitName(file.name).base || 'file'}.zip` }, `${splitName(file.name).base || 'file'}.zip`);
+    case 'ax': {
+      if (!usable(d) || !meta.archive || meta.archive.problem || !cards.EXTRACTABLE.has(d.id)) return back();
+      if (sub === 'z') return startJob(ctx, message, 'extract_zip', [inputOf(file, d)], {}, file.name);
+      if (meta.archive.files > 10) return show('extract_choice', cards.extractChoice(ctx, file));
+      return startJob(ctx, message, 'extract', [inputOf(file, d)], {}, file.name);
+    }
+    case 'al':
+      if (!meta.archive || meta.archive.problem) return back();
+      return show('extract_list', cards.entryList(ctx, file, Number(sub) || 0));
+    case 'ae': {
+      const item = meta.archive && (meta.archive.items || []).find(([i]) => i === Number(sub));
+      if (!item) return back();
+      return startJob(ctx, message, 'extract_one', [inputOf(file, d)], { index: item[0] }, item[1], { keepMessage: true });
+    }
+    case 'pi':
+      if (!usable(d) || !['jpeg', 'png'].includes(d.id)) return back();
+      return startJob(ctx, message, 'pdf_combine', [inputOf(file, d)], {}, `${splitName(file.name).base || 'file'}.pdf`);
+    case 'pd': {
+      if (!usable(d) || d.id !== 'pdf' || !meta.pdf || !meta.pdf.pages || meta.pdf.problem) return back();
+      if (sub === 'r') return show('pdf_rotate', cards.rotateMenu(ctx, file));
+      if (sub === 's') return show('pdf_split', cards.splitMenu(ctx, file));
+      const op = { x: 'x', d: 'd', o: 'o', R: 'r' }[sub];
+      if (!op) return back();
+      await state.setPending(ctx.user.id, 'input', 'pdf', { ref: file.ref, op }, ctx.now + INPUT_TTL_S);
+      return show('pdf_ask', cards.pdfPrompt(ctx, file, op));
+    }
+    case 'pr': {
+      if (d.id !== 'pdf' || !meta.pdf || !meta.pdf.pages || meta.pdf.problem) return back();
+      const deg = Number(sub);
+      if (![90, 180, 270].includes(deg)) return back();
+      let ranges = null;
+      if (extra === 'p') {
+        const p = await state.getPending(ctx.user.id, 'input', ctx.now);
+        if (!p || p.kind !== 'pdfrot' || p.payload.ref !== file.ref) return show('pdf_rotate', cards.rotateMenu(ctx, file));
+        ranges = p.payload.ranges;
+        await state.clearPending(ctx.user.id, 'input');
+      }
+      return startJob(ctx, message, 'pdf_rotate', [inputOf(file, d)], ranges ? { deg, ranges } : { deg }, file.name);
+    }
+    case 'ps': {
+      if (d.id !== 'pdf' || !meta.pdf || !meta.pdf.pages || meta.pdf.problem) return back();
+      if (sub === 'r') {
+        await state.setPending(ctx.user.id, 'input', 'pdf', { ref: file.ref, op: 's' }, ctx.now + INPUT_TTL_S);
+        return show('pdf_ask', cards.pdfPrompt(ctx, file, 's'));
+      }
+      const n = Number(sub);
+      if (![1, 2, 5, 10].includes(n)) return back();
+      return startJob(ctx, message, 'pdf_split', [inputOf(file, d)], { mode: 'n', n }, file.name);
+    }
+    case 'bn':
+      if (!usable(d)) return back();
+      return batch.startFrom(ctx, message, file);
     default:
       return null;
   }
 }
 
-/** A typed answer for a pending rename (new name / prefix / suffix). */
+/** Typed answers: rename (new name / prefix / suffix) and PDF page ranges. */
 export async function onInput(ctx, message, pending) {
   const loaded = await loadFile(ctx, pending.payload.ref);
   if (!loaded) { await state.clearPending(ctx.user.id, 'input'); return tg.send(ctx, 'card_expired', message.chat.id, expired(ctx)); }
   const { file, d } = loaded;
   const text = String(message.text || '');
-  const r = renameTo(file.name, d, { mode: pending.payload.mode, value: text });
-  if (!r.ok) return tg.send(ctx, 'rename_error', message.chat.id, ui.plain(t(ctx.lang, `rn.err_${r.error}`), [ui.backBtn(ctx, 'rn', file.ref), ui.cancelBtn(ctx)]));
+  const chatId = message.chat.id;
+  if (pending.kind === 'rename') {
+    const r = renameTo(file.name, d, { mode: pending.payload.mode, value: text });
+    if (!r.ok) return tg.send(ctx, 'rename_error', chatId, ui.plain(t(ctx.lang, `rn.err_${r.error}`), [ui.backBtn(ctx, 'rn', file.ref), ui.cancelBtn(ctx)]));
+    await state.clearPending(ctx.user.id, 'input');
+    return startJob(ctx, null, 'rename', [inputOf(file, d)], { name: r.name }, r.name, { chatId });
+  }
+  // PDF ranges (pdf: x extract, d remove, o reorder, r rotate-some, s split by ranges; pdfrot: retyped)
+  const pages = file.meta && file.meta.pdf && file.meta.pdf.pages;
+  if (!pages) { await state.clearPending(ctx.user.id, 'input'); return tg.send(ctx, 'card', chatId, cards.card(ctx, file, d)); }
+  const op = pending.kind === 'pdfrot' ? 'r' : pending.payload.op;
+  const check = op === 's' ? rangeGroups(text, pages) : parseRanges(text, pages);
+  const retry = (key, vars = {}) => tg.send(ctx, 'pdf_range_error', chatId, ui.plain(t(ctx.lang, key, { pages: ui.num(ctx, pages), ...vars }), [ui.backBtn(ctx, 'f', file.ref), ui.cancelBtn(ctx)]));
+  if (!check.ok) return check.error === 'out_of_range' ? retry('pdf.err_range', { page: ui.num(ctx, check.page) }) : retry('pdf.err_syntax');
+  if (op === 'd' && new Set(check.pages).size >= pages) return retry('pdf.err_all');
+  if (op === 's' && check.groups.length < 2) return retry('pdf.err_one_part');
+  if (op === 'r') {
+    await state.setPending(ctx.user.id, 'input', 'pdfrot', { ref: file.ref, ranges: text }, ctx.now + INPUT_TTL_S);
+    return tg.send(ctx, 'pdf_rotate', chatId, cards.rotateMenu(ctx, file, text));
+  }
   await state.clearPending(ctx.user.id, 'input');
-  return startJob(ctx, null, file, d, 'rename', r.name, message.chat.id);
+  const job = { x: ['pdf_extract', { ranges: text }], d: ['pdf_remove', { ranges: text }], o: ['pdf_reorder', { ranges: text }], s: ['pdf_split', { mode: 'ranges', ranges: text }] }[op];
+  return startJob(ctx, null, job[0], [inputOf(file, d)], job[1], file.name, { chatId });
 }
 
 async function applyRename(ctx, message, file, d, op) {
@@ -123,18 +256,5 @@ async function applyRename(ctx, message, file, d, op) {
     ctx.answered = true;
     return null;
   }
-  return startJob(ctx, message, file, d, 'rename', r.name);
-}
-
-/** Rate limit → job. The card message turns into a short "working on it" line first. */
-async function startJob(ctx, message, file, d, op, outName, chatIdOverride) {
-  const chatId = chatIdOverride || message.chat.id;
-  const slot = await takeJobSlot(ctx);
-  if (!slot.ok) {
-    const mins = Math.max(1, Math.ceil(slot.retryS / 60));
-    return tg.send(ctx, 'job_rate', chatId, { text: t(ctx.lang, 'rate.jobs', { m: ui.num(ctx, mins) }) });
-  }
-  if (message) await tg.edit(ctx, 'card', message, ui.plain(t(ctx.lang, 'job.started', { op: ui.opLabel(ctx, op), name: outName })));
-  const r = await runRename(ctx, { op, input: { fileId: file.fileId, uniqueId: file.file_unique_id, size: file.size, type: d.id, ref: file.ref }, outName, chatId });
-  return r;
+  return startJob(ctx, message, 'rename', [inputOf(file, d)], { name: r.name }, r.name);
 }

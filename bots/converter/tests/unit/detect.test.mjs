@@ -129,3 +129,11 @@ test('storedType / describe round-trip what a file card needs', async () => {
   assert.equal(describe(storedType(detect(enc, 'a.zip')), 'a.zip').info.encrypted, true);
   assert.equal(describe('nonsense', 'a').id, 'unknown');
 });
+
+test('a ZIP that stores a PDF stays a ZIP (exact signatures before the offset-PDF heuristic)', () => {
+  const pdf = new TextEncoder().encode('%PDF-1.4\n1 0 obj <<>> endobj\ntrailer <<>>\n%%EOF\n');
+  assert.equal(detect(zip([['a.txt', 'x'], ['b.pdf', pdf]]), 'x.zip').id, 'zip');
+  const junk = new Uint8Array(200).fill(32);
+  const offset = new Uint8Array(junk.length + pdf.length); offset.set(junk); offset.set(pdf, junk.length);
+  assert.equal(detect(offset, 'x.pdf').id, 'pdf', 'a PDF after some junk is still found');
+});

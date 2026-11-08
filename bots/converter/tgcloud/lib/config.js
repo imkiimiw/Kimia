@@ -20,7 +20,7 @@ export const WANGER_LINKS = [
 
 export const MB = 1024 * 1024;
 
-/** Spec §9 defaults (+ RATE_INTAKE_PER_MIN, see docs/DECISIONS.md C1). */
+/** Spec §9 defaults (+ RATE_INTAKE_PER_MIN, BATCH_TOTAL_MB, PDF_*, PNG_MAX_PIXELS: docs/DECISIONS.md). */
 export const DEFAULT_LIMITS = Object.freeze({
   MAX_INPUT_MB: 20,
   MAX_OUTPUT_MB: 50,
@@ -33,9 +33,13 @@ export const DEFAULT_LIMITS = Object.freeze({
   ARCHIVE_MAX_UNPACKED_MB: 200,
   ARCHIVE_MAX_RATIO: 100,
   BATCH_MAX_FILES: 20,
+  BATCH_TOTAL_MB: 50, // C2: in-bot batch jobs (downloads + one ≤ 50 MB output inside ~30 s)
+  PDF_MAX_OBJECTS: 200000, // C2: ≈ 1.2 s of parsing on Serverless (docs/LIMITS.md §3)
+  PDF_MAX_PARTS: 100, // C2: a split makes at most this many PDFs
+  PNG_MAX_PIXELS: 12000000, // C2: PNG → PDF ≈ 0.12 s per megapixel
   RATE_JOBS_PER_HOUR: 10,
   RATE_BURST_PER_MIN: 3,
-  RATE_INTAKE_PER_MIN: 10,
+  RATE_INTAKE_PER_MIN: 20,
   AUDIO_MAX_MIN: 60,
   VIDEO_MAX_MIN: 10,
   TEMP_RETENTION_MIN: 30,
@@ -64,6 +68,8 @@ export const ERRORS_KEEP = 200;
 export const BROADCAST_BATCH = 25;
 export const UPDATE_KEEP_S = 2 * 86400;
 export const HOUSEKEEPING_EVERY = 100; // ~1% of invocations run housekeeping (spec §10)
+export const BATCH_COLLECT_S = 600; // an open batch takes more files for 10 min after the last one
+export const LIST_PAGE = 8; // archive entries per page
 
 /** Tehran is UTC+03:30 with no DST since 2022; counters use Tehran days. */
 export const TZ_OFFSET_S = 3.5 * 3600;

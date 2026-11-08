@@ -13,7 +13,8 @@ import * as users from './db/users.js';
 import { runBatch } from './broadcast.js';
 import { botStanding, channelLabel, resolveChannel } from './gate.js';
 import { t, tp } from './i18n/index.js';
-import { runRename } from './jobs.js';
+import { jobInputs, runJob } from './jobs.js';
+import { opExists } from './ops.js';
 import { listScreen as secretsScreen } from './secrets.js';
 import { btn } from './codec.js';
 import * as tg from './tg.js';
@@ -115,14 +116,13 @@ export async function onCallback(ctx, args, message) {
     case 'act': return show(jobList(ctx, await jobsdb.activeJobs(10), 'panel.act_head', false));
     case 'rt': {
       const job = await jobsdb.jobById(arg);
-      let params = null;
-      try { params = job && job.params ? JSON.parse(job.params) : null; } catch { params = null; }
-      if (!job || job.status !== 'FAILED' || !job.input_file_id || !params || !params.name) return show(ui.plain(L(ctx, 'panel.retry_no'), [back(ctx, 'p', 'fail')]));
+      if (!job || job.status !== 'FAILED' || !job.input_file_id || !opExists(job.operation)) return show(ui.plain(L(ctx, 'panel.retry_no'), [back(ctx, 'p', 'fail')]));
+      const { inputs, params } = jobInputs(job);
       // the result goes to the job's user, in their language
       const target = await users.get(job.user_id);
       const lang = (target && target.s_lang) || 'fa';
       const userCtx = { ...ctx, targetUserId: job.user_id, lang, digits: target && target.s_digits != null ? !!target.s_digits : lang === 'fa' };
-      const r = await runRename(userCtx, { op: job.operation, input: { fileId: job.input_file_id, uniqueId: params.unique, size: job.input_size, type: params.type || 'unknown', ref: job.input_ref }, outName: params.name, chatId: job.user_id, retry: true });
+      const r = await runJob(userCtx, { op: job.operation, inputs, params, chatId: job.user_id, retry: true });
       await sys.addError(ctx.now, 'panel.retry', r.ok ? 'RETRY_OK' : `RETRY_${r.code}`, null, job.code);
       return show(ui.plain(L(ctx, r.ok ? 'panel.retry_ok' : 'panel.retry_failed', { code: r.job.code, error: r.code || '' }), [back(ctx, 'p', 'fail')]));
     }

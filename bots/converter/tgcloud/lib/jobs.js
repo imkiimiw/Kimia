@@ -1,12 +1,19 @@
-// In-bot jobs (engine 'bot'): rate limits, the result cache, and the runner that downloads the input,
-// produces the output and uploads it — all inside one invocation (≤ 20 MB in, measured ≈ 3 s for
-// 19 MB). Status machine: DOWNLOADING → PROCESSING → UPLOADING → COMPLETED | FAILED; a job left
+// In-bot jobs (engine 'bot'): rate limits, the result cache, and the runner — download the inputs
+// (≤ 4 at a time), run the operation (lib/ops.js), validate and deliver the outputs, all inside one
+// invocation. Status machine: DOWNLOADING → PROCESSING → UPLOADING → COMPLETED | FAILED; a job left
 // "running" by a dead invocation becomes EXPIRED (lib/db/files.js#expireStale).
+// Delivery: ≤ maxSeparate outputs as separate documents (each with «🔁» to its own card), more as
+// store-only ZIP parts ≤ 50 MB; batch renames as document albums.
 import { CACHE_TTL_S, MB, STATUS_MESSAGE_MIN_BYTES, STALE_JOB_S } from './config.js';
+import { zipParts } from './archive.js';
 import * as store from './db/files.js';
 import * as state from './db/state.js';
 import { addError, count, countMany } from './db/system.js';
 import { TYPES } from './detect/types.js';
+import { isToolError } from './errors.js';
+import { OPS } from './ops.js';
+import { splitName } from './names.js';
+import { t } from './i18n/index.js';
 import * as log from './log.js';
 import * as tg from './tg.js';
 import * as ui from './ui.js';
@@ -41,6 +48,7 @@ export async function takeIntakeSlot(ctx) {
 
 /** Error code for a failure at a step (spec §4: friendly text + job code; no stack traces). */
 export function errorCode(step, err) {
+  if (isToolError(err)) return err.code;
   const kind = err && err.kind;
   if (kind === 'too_big') return 'TOO_BIG';
   if (kind === 'rate') return 'RATE_LIMITED';
@@ -51,16 +59,30 @@ export function errorCode(step, err) {
   return 'INTERNAL';
 }
 
-const cacheKey = (userId, uniqueId, op, outName) => `${userId}:${uniqueId}:${op}:${hash32(outName)}`;
+/** Runs fn over items with at most `limit` in flight (Telegram downloads: 4, measured in C0). */
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => { while (next < items.length) { const i = next++; out[i] = await fn(items[i], i); } };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+const label = (inputs) => (inputs.length === 1 ? (TYPES[inputs[0].type] || TYPES.unknown).label : `${inputs.length} files`);
 
 /**
- * Runs a re-upload job (Detect & Fix, rename): the same bytes under `outName`.
- * input: { fileId, uniqueId, size, type (detected id), ref }
- * → { ok, job, ref? (the result's file card), code? }
+ * Runs operation `op` (lib/ops.js) on inputs [{ fileId, uniqueId, size, type, name, ref }].
+ * → { ok, job, refs (cards of the delivered outputs), code? }
  */
-export async function runRename(ctx, { op, input, outName, chatId, retry = false }) {
+export async function runJob(ctx, { op, inputs, params = {}, chatId, retry = false }) {
+  const def = OPS[op];
   const t0 = Date.now();
-  const type = TYPES[input.type] || TYPES.unknown;
+  const total = inputs.reduce((s, i) => s + (i.size || 0), 0);
+  const first = inputs[0];
+  const stored = {
+    ...params,
+    ...(inputs.length === 1 ? { src: first.name, type: first.type, unique: first.uniqueId || null } : { inputs: inputs.map(({ fileId, uniqueId, size, type, name }) => ({ fileId, uniqueId, size, type, name })) }),
+  };
   const job = {
     id: ulid(ctx.nowMs),
     code: jobCode(),
@@ -68,72 +90,136 @@ export async function runRename(ctx, { op, input, outName, chatId, retry = false
     operation: op,
     status: 'DOWNLOADING',
     engine: 'bot',
-    inputType: type.label,
-    inputSize: input.size,
-    inputFileId: input.fileId,
-    inputRef: input.ref || null,
-    params: JSON.stringify({ name: outName, type: input.type, unique: input.uniqueId || null }),
+    inputType: label(inputs),
+    inputSize: total,
+    inputFileId: first.fileId,
+    inputRef: inputs.length === 1 ? first.ref || null : null,
+    params: JSON.stringify(stored),
     createdAt: ctx.now,
     startedAt: ctx.now,
   };
   await store.createJob(job);
-  const logBase = { update_id: ctx.updateId, job_id: job.id, job_code: job.code, user_id: job.userId, operation: op, input_type: type.label, input_size: input.size };
+  const logBase = { update_id: ctx.updateId, job_id: job.id, job_code: job.code, user_id: job.userId, operation: op, input_type: job.inputType, input_size: total };
 
-  const key = input.uniqueId ? cacheKey(job.userId, input.uniqueId, op, outName) : null;
-  const caption = ui.resultCaption(ctx, job, outName);
+  const key = def.cacheable && inputs.length === 1 && first.uniqueId ? `${job.userId}:${first.uniqueId}:${op}:${hash32(JSON.stringify(params))}` : null;
   let statusMsg = null;
   let step = 'download';
+  const setStatus = async (s) => {
+    if (s !== 'DOWNLOADING') await store.setJobStatus(job.id, s);
+    if (statusMsg) await tg.edit(ctx, 'job_status', statusMsg, { text: ui.progress(ctx, job, s) });
+  };
   try {
-    // an identical request in the last 24 h: answered from the cache, no re-processing (spec §10)
     if (key && !retry) {
       const hit = await store.getCached(key, ctx.now);
       if (hit) {
-        // same bytes, new name: the result's card can reuse the input's identity for later caching
         const outRef = fileRef();
-        await store.putFile({ ref: outRef, userId: job.userId, fileId: hit.file_id, fileUniqueId: input.uniqueId, kind: 'document', name: hit.name || outName, size: hit.output_size || input.size, type: input.type, createdAt: ctx.now });
-        const sent = await tg.sendFileId(ctx, 'job_cached', chatId, hit.file_id, { caption, reply_markup: ui.resultMarkup(ctx, outRef) });
-        await finish(ctx, job, 'COMPLETED', { outputType: type.label, outputSize: hit.output_size, outputFileId: hit.file_id });
+        const type = hit.output_type || first.type;
+        await store.putFile({ ref: outRef, userId: job.userId, fileId: hit.file_id, fileUniqueId: `${first.uniqueId}:${op}`, kind: 'document', name: hit.name, size: hit.output_size || 0, type, createdAt: ctx.now });
+        await tg.sendFileId(ctx, 'job_cached', chatId, hit.file_id, { caption: ui.resultCaption(ctx, job, hit.name), reply_markup: ui.resultMarkup(ctx, outRef) });
+        await finish(ctx, job, 'COMPLETED', { outputType: (TYPES[type] || TYPES.unknown).label, outputSize: hit.output_size, outputFileId: hit.file_id });
         log.info('job.cached', { ...logBase, status: 'COMPLETED', duration_ms: Date.now() - t0 });
-        return { ok: true, job, cached: true, ref: outRef, messageId: sent && sent.message_id };
+        return { ok: true, job, cached: true, refs: [outRef] };
       }
     }
-    if (input.size >= STATUS_MESSAGE_MIN_BYTES) statusMsg = await tg.send(ctx, 'job_status', chatId, { text: ui.progress(ctx, job, 'DOWNLOADING') });
+    if (inputs.length > 1 || total >= STATUS_MESSAGE_MIN_BYTES || def.heavy) statusMsg = await tg.send(ctx, 'job_status', chatId, { text: ui.progress(ctx, job, 'DOWNLOADING') });
     else await tg.action(ctx, chatId, 'upload_document');
 
-    const bytes = await tg.download(ctx, 'job_download', input.fileId);
+    const blobs = await mapLimit(inputs, 4, async (i) => {
+      const bytes = await tg.download(ctx, 'job_download', i.fileId);
+      if (!bytes || (i.size && bytes.length !== i.size)) throw Object.assign(new Error('size mismatch'), { kind: 'validate' });
+      return { bytes, name: i.name, type: i.type, size: bytes.length };
+    });
+
+    step = 'process';
+    await setStatus('PROCESSING');
+    const result = await def.run(blobs, params, ctx.limits);
+    const notes = [...(result.notes || [])];
+    let outputs = result.outputs;
+
     step = 'validate';
-    if (!bytes || bytes.length !== input.size) throw Object.assign(new Error('size mismatch'), { kind: 'validate' });
-    if (bytes.length > ctx.limits.MAX_OUTPUT_MB * MB) throw Object.assign(new Error('too big'), { kind: 'too_big' });
+    const maxOut = ctx.limits.MAX_OUTPUT_MB * MB;
+    for (const o of outputs) {
+      if (!o.bytes || !o.bytes.length) throw Object.assign(new Error('empty output'), { kind: 'validate' });
+      if (o.bytes.length > maxOut) {
+        if (outputs.length === 1) throw Object.assign(new Error('too big'), { kind: 'too_big' });
+        notes.push({ key: 'note.big_skipped', vars: { name: o.name } });
+      }
+    }
+    outputs = outputs.filter((o) => o.bytes.length <= maxOut);
+    if (!outputs.length) throw Object.assign(new Error('nothing to send'), { kind: 'validate' });
+    const max = def.maxSeparate ?? 5;
+    if (def.delivery !== 'group' && outputs.length > max) {
+      const base = splitName((inputs.length === 1 ? first.name : 'files') || 'files').base || 'files';
+      const { parts, skipped } = zipParts(outputs, maxOut);
+      for (const name of skipped) notes.push({ key: 'note.big_skipped', vars: { name } });
+      outputs = parts.map((bytes, i) => ({ bytes, name: parts.length === 1 ? `${base}_files.zip` : `${base}_files_part${i + 1}.zip`, type: 'zip' }));
+    }
 
     step = 'upload';
-    await store.setJobStatus(job.id, 'UPLOADING');
-    if (statusMsg) await tg.edit(ctx, 'job_status', statusMsg, { text: ui.progress(ctx, job, 'UPLOADING') });
-    const outRef = fileRef();
-    const sent = await tg.sendBytes(ctx, 'job_result', chatId, bytes, outName, type.mime, { caption, reply_markup: ui.resultMarkup(ctx, outRef) });
-    const doc = sent && sent.document;
-    step = 'validate';
-    if (!doc || doc.file_size !== bytes.length) throw Object.assign(new Error('upload mismatch'), { kind: 'validate' });
-    if (doc.file_name !== outName) log.warn('job.name_changed_by_telegram', logBase);
+    await setStatus('UPLOADING');
+    const refs = [];
+    const sent = [];
+    const noteText = notes.length ? notes.slice(0, 15).map((n) => t(ctx.lang, n.key, n.vars)).join('\n') : '';
+    if (def.delivery === 'group' && outputs.length > 1) {
+      for (const chunk of tg.albumChunks(outputs)) {
+        const msgs = await tg.sendGroup(ctx, 'job_result', chatId, chunk, (o) => (TYPES[o.type] || TYPES.unknown).mime);
+        msgs.forEach((m, k) => sent.push({ doc: m && m.document, out: chunk[k] }));
+      }
+      await tg.send(ctx, 'job_done', chatId, { text: [ui.groupDone(ctx, job, outputs.length), noteText].filter(Boolean).join('\n') });
+    } else {
+      for (let i = 0; i < outputs.length; i++) {
+        const o = outputs[i];
+        const ref = fileRef();
+        const last = i === outputs.length - 1;
+        const caption = last ? [ui.resultCaption(ctx, job, o.name), noteText].filter(Boolean).join('\n').slice(0, 1000) : `<code>${ui.escName(o.name)}</code>`;
+        const m = await tg.sendBytes(ctx, 'job_result', chatId, o.bytes, o.name, (TYPES[o.type] || TYPES.unknown).mime, { caption, reply_markup: ui.resultMarkup(ctx, ref) });
+        sent.push({ doc: m && m.document, out: o, ref });
+        refs.push(ref);
+      }
+    }
 
-    // the result gets its own card, so «🔁 کار دیگری با همین فایل» works on it
-    await store.putFile({ ref: outRef, userId: job.userId, fileId: doc.file_id, fileUniqueId: doc.file_unique_id, kind: 'document', name: doc.file_name || outName, size: doc.file_size, type: input.type, createdAt: ctx.now });
-    if (key) await store.putCached({ key, userId: job.userId, fileId: doc.file_id, name: outName, outputType: type.label, outputSize: doc.file_size, expiresAt: ctx.now + CACHE_TTL_S });
-    await finish(ctx, job, 'COMPLETED', { outputType: type.label, outputSize: doc.file_size, outputFileId: doc.file_id });
+    step = 'validate';
+    let outSize = 0;
+    for (const s of sent) {
+      if (!s.doc || s.doc.file_size !== s.out.bytes.length) throw Object.assign(new Error('upload mismatch'), { kind: 'validate' });
+      if (s.doc.file_name !== s.out.name) log.warn('job.name_changed_by_telegram', logBase);
+      outSize += s.doc.file_size;
+      // each result gets its own card, so «🔁 کار دیگری با همین فایل» works on it
+      await store.putFile({ ref: s.ref || fileRef(), userId: job.userId, fileId: s.doc.file_id, fileUniqueId: s.doc.file_unique_id, kind: 'document', name: s.doc.file_name || s.out.name, size: s.doc.file_size, type: s.out.type, createdAt: ctx.now, meta: s.out.meta || null });
+    }
+    const one = sent.length === 1 ? sent[0] : null;
+    if (key && one) await store.putCached({ key, userId: job.userId, fileId: one.doc.file_id, name: one.out.name, outputType: one.out.type, outputSize: one.doc.file_size, expiresAt: ctx.now + CACHE_TTL_S });
+    const outType = one ? (TYPES[one.out.type] || TYPES.unknown).label : `${sent.length} files`;
+    await finish(ctx, job, 'COMPLETED', { outputType: outType, outputSize: outSize, outputFileId: one ? one.doc.file_id : null });
     if (statusMsg) await tg.edit(ctx, 'job_status', statusMsg, { text: ui.progress(ctx, job, 'COMPLETED') });
-    log.info('job.done', { ...logBase, status: 'COMPLETED', output_type: type.label, output_size: doc.file_size, duration_ms: Date.now() - t0 });
-    return { ok: true, job, ref: outRef };
+    log.info('job.done', { ...logBase, status: 'COMPLETED', output_type: outType, output_size: outSize, duration_ms: Date.now() - t0 });
+    return { ok: true, job, refs };
   } catch (err) {
     const code = errorCode(step, err);
     await finish(ctx, job, 'FAILED', { errorCode: code });
-    await addError(ctx.now, `job.${op}`, code, err && (err.description || err.message), job.code);
+    await addError(ctx.now, `job.${op}`, code, isToolError(err) ? null : err && (err.description || err.message), job.code);
     log.warn('job.failed', { ...logBase, status: 'FAILED', error_code: code, kind: err && err.kind, duration_ms: Date.now() - t0 });
     if (code !== 'USER_BLOCKED') {
-      const text = ui.failure(ctx, code, job.code);
+      const text = ui.failure(ctx, code, job.code, isToolError(err) ? err.vars : {});
       if (statusMsg) await tg.edit(ctx, 'job_status', statusMsg, { text }).catch(() => null);
       else await tg.send(ctx, 'job_failed', chatId, { text }).catch(() => null);
     }
     return { ok: false, job, code };
   }
+}
+
+/** Detect & Fix / rename: the same bytes under `outName` (kept for callers from C1). */
+export function runRename(ctx, { op, input, outName, chatId, retry = false }) {
+  return runJob(ctx, { op, inputs: [input], params: { name: outName }, chatId, retry });
+}
+
+/** Rebuilds a stored job's inputs and params (staff retry). */
+export function jobInputs(job) {
+  let p = {};
+  try { p = job.params ? JSON.parse(job.params) : {}; } catch { p = {}; }
+  const { src, type, unique, inputs, ...params } = p;
+  const list = inputs || [{ fileId: job.input_file_id, uniqueId: unique || null, size: job.input_size, type: type || 'unknown', name: src || params.name || 'file', ref: job.input_ref }];
+  return { inputs: list, params };
 }
 
 async function finish(ctx, job, status, out) {
@@ -148,4 +234,16 @@ export async function expireStale(ctx) {
   const n = await store.expireStale(ctx.now - STALE_JOB_S);
   if (n) await count(ctx.day, 'jobs_expired', n);
   return n;
+}
+
+/** Rate limit → job. The card turns into a short "↪️ action: name" line first (unless keepMessage). */
+export async function startJob(ctx, message, op, inputs, params, shownName, { chatId: chatIdOverride, keepMessage = false } = {}) {
+  const chatId = chatIdOverride || message.chat.id;
+  const slot = await takeJobSlot(ctx);
+  if (!slot.ok) {
+    const mins = Math.max(1, Math.ceil(slot.retryS / 60));
+    return tg.send(ctx, 'job_rate', chatId, { text: t(ctx.lang, 'rate.jobs', { m: ui.num(ctx, mins) }) });
+  }
+  if (message && !keepMessage) await tg.edit(ctx, 'card', message, ui.plain(t(ctx.lang, 'job.started', { op: ui.opLabel(ctx, op), name: shownName })));
+  return runJob(ctx, { op, inputs, params, chatId });
 }

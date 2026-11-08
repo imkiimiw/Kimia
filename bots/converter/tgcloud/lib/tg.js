@@ -115,3 +115,30 @@ export function sendFileId(ctx, view, chatId, fileId, extra = {}) {
 export function download(ctx, view, fileId) {
   return call(ctx, view, 'getFileContent', fileId);
 }
+
+/**
+ * Sends 1–10 byte outputs as one document album (sendMediaGroup needs 2–10 items; a single item goes
+ * as a normal document). → the sent messages.
+ */
+export async function sendGroup(ctx, view, chatId, outputs, mimeOf = () => 'application/octet-stream') {
+  if (outputs.length === 1) {
+    const o = outputs[0];
+    return [await sendBytes(ctx, view, chatId, o.bytes, o.name, mimeOf(o))];
+  }
+  return call(ctx, view, 'sendMediaGroup', {
+    chat_id: chatId,
+    media: outputs.map((o) => ({ type: 'document', media: new InputFile(o.bytes, o.name, { type: mimeOf(o) }), disable_content_type_detection: true })),
+  });
+}
+
+/** Splits n items into album-sized chunks of ≤ 10 with no chunk of exactly 1 (when n > 1). */
+export function albumChunks(list, size = 10) {
+  const chunks = [];
+  for (let i = 0; i < list.length; i += size) chunks.push(list.slice(i, i + size));
+  if (chunks.length > 1 && chunks[chunks.length - 1].length === 1) {
+    const last = chunks.pop();
+    const prev = chunks.pop();
+    chunks.push(prev.slice(0, -1), [prev[prev.length - 1], ...last]);
+  }
+  return chunks;
+}

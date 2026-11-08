@@ -42,3 +42,28 @@ export async function take(userId, bucket, limit, expiresAt) {
 
 /** Gives a unit back (when a later check refused the request). */
 export const giveBack = (userId, bucket) => db.run(sql`UPDATE rate_counters SET n = n - 1 WHERE user_id = ${userId} AND bucket = ${bucket} AND n > 0`);
+
+/** Once per key per user (album notices: one reply for ten files). → true the first time. */
+export async function claimOnce(userId, key, expiresAt) {
+  const r = await db.run(sql`INSERT INTO pending_actions (user_id, slot, kind, payload, expires_at) VALUES (${userId}, 'once', ${key}, NULL, ${expiresAt})
+    ON CONFLICT (user_id, slot) DO UPDATE SET kind = excluded.kind, expires_at = excluded.expires_at WHERE pending_actions.kind IS NOT excluded.kind`);
+  return r.rowsAffected === 1;
+}
+
+/**
+ * Adds a file to the forced-join resume list in one statement (album items arrive in parallel).
+ * → how many files the list holds now (1 = the first: show the join screen once).
+ */
+export async function addResumeFile(userId, file, now, expiresAt, max = 20) {
+  const one = JSON.stringify({ files: [file] });
+  const r = await db.run(sql`INSERT INTO pending_actions (user_id, slot, kind, payload, expires_at) VALUES (${userId}, 'resume', 'files', ${one}, ${expiresAt})
+    ON CONFLICT (user_id, slot) DO UPDATE SET
+      payload = CASE
+        WHEN pending_actions.kind = 'files' AND pending_actions.expires_at > ${now} AND json_array_length(pending_actions.payload, '$.files') < ${max}
+          THEN json_insert(pending_actions.payload, '$.files[#]', json_extract(excluded.payload, '$.files[0]'))
+        WHEN pending_actions.kind = 'files' AND pending_actions.expires_at > ${now} THEN pending_actions.payload
+        ELSE excluded.payload END,
+      kind = 'files', expires_at = excluded.expires_at
+    RETURNING json_array_length(payload, '$.files') AS n`);
+  return r.rows && r.rows[0] ? r.rows[0].n : 1;
+}

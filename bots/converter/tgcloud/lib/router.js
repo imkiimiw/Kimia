@@ -10,12 +10,20 @@
 //   m:<screen>       tools|set|help|bots|privacy|lang   L:<lang>:<back>  set language
 //   s:dg             toggle Persian digits                hi:<page>       history
 //   j                "I joined" (re-check, then resume)   dd / dd:y       delete my data
-//   f:<ref>          file card     fn:<ref> no fix   fx:<ref> Detect & Fix
+//   f:<ref>          file card     fm:<ref> more actions   fn:<ref> no fix   fx:<ref> Detect & Fix
 //   rn:<ref>[:n|p|s|z|e]  rename menu / new name / prefix / suffix / normalize / extension menu
 //   re:<ref>:<ext>   rename to an allowed extension
+//   ax:<ref>[:z]     extract (≤ 10 files) / all as ZIP parts    al:<ref>:<page> list   ae:<ref>:<i> one entry
+//   pz:<ref>         ZIP one file      pi:<ref> image → PDF
+//   pd:<ref>:<x|d|o|r|s|R>  PDF: extract / remove / reorder / rotate menu / split menu / rotate some pages
+//   pr:<ref>:<deg>:<a|p>    rotate all (a) or the typed pages (p)   ps:<ref>:<n|r> split every n / by ranges
+//   bn:<ref>         start a batch with this file
+//   b:<id> done collecting → menu · bm:<id> menu · bx:<id> cancel · bz zip · bp one PDF · bf fix · bl list
+//   br:<id>[:p|s|n|z] batch rename
 //   p[:<action>[:<arg>]]  panel (lib/panel.js)
 import { HISTORY_PAGE, HOUSEKEEPING_EVERY, OWNER_ID, RESUME_TTL_S, STALE_JOB_S, TAP_GUARD_MS, UPDATE_KEEP_S } from './config.js';
 import { parse } from './codec.js';
+import * as batch from './batch.js';
 import * as files from './files.js';
 import * as gate from './gate.js';
 import * as jobsdb from './db/files.js';
@@ -104,14 +112,21 @@ export async function handleMessage(message, update) {
       if (await users.claimBanNotice(ctx.user.id, ctx.day)) await send(ctx, 'banned', ui.banned(ctx));
       return 'banned';
     }
+    const albumOnce = (key) => (message.media_group_id ? state.claimOnce(ctx.user.id, `${key}:${message.media_group_id}`, ctx.now + 600) : Promise.resolve(true));
     if (cmd && PRE_GATE_COMMANDS.has(cmd.name)) return command(ctx, message, cmd);
-    if (ctx.flags.maintenance && ctx.actor === 'user') { await send(ctx, 'maintenance', ui.maintenance(ctx)); return 'maintenance'; }
+    if (ctx.flags.maintenance && ctx.actor === 'user') {
+      if (await albumOnce('mt')) await send(ctx, 'maintenance', ui.maintenance(ctx));
+      return 'maintenance';
+    }
 
     const file = files.extractFile(message);
     const g = await gate.check(ctx);
     if (!g.pass) {
-      if (file) await state.setPending(ctx.user.id, 'resume', 'file', { file, date: message.date || ctx.now }, ctx.now + RESUME_TTL_S);
-      else if (cmd) await state.setPending(ctx.user.id, 'resume', 'cmd', { name: cmd.name, args: cmd.args }, ctx.now + RESUME_TTL_S);
+      // files are queued (all of an album, atomically) and the join screen is shown once
+      if (file) {
+        const n = await state.addResumeFile(ctx.user.id, { ...file, date: message.date || ctx.now }, ctx.now, ctx.now + RESUME_TTL_S, ctx.limits.BATCH_MAX_FILES);
+        if (n > 1 && message.media_group_id) return 'join_queued';
+      } else if (cmd) await state.setPending(ctx.user.id, 'resume', 'cmd', { name: cmd.name, args: cmd.args }, ctx.now + RESUME_TTL_S);
       await send(ctx, 'join', ui.join(ctx, g.missing));
       return 'join';
     }
@@ -120,7 +135,8 @@ export async function handleMessage(message, update) {
     const pending = await state.getPending(ctx.user.id, 'input', ctx.now);
     if (pending && pending.kind === 'broadcast') { await panel.onInput(ctx, message, pending); return 'panel_input'; }
     if (pending && message.text) {
-      if (pending.kind === 'rename') await files.onInput(ctx, message, pending);
+      if (['rename', 'pdf', 'pdfrot'].includes(pending.kind)) await files.onInput(ctx, message, pending);
+      else if (pending.kind === 'brename') await batch.onInput(ctx, message, pending);
       else await panel.onInput(ctx, message, pending);
       return 'input';
     }
@@ -247,9 +263,13 @@ async function route(ctx, cq, msg) {
       await users.deleteUserData(ctx.user.id);
       await tg.edit(ctx, 'deleted', msg, ui.deleted(ctx));
       return 'deleted';
-    case 'f': case 'fn': case 'fx': case 'rn': case 're':
+    case 'f': case 'fm': case 'fn': case 'fx': case 'rn': case 're':
+    case 'ax': case 'al': case 'ae': case 'pz': case 'pi': case 'pd': case 'pr': case 'ps': case 'bn':
       await files.onCallback(ctx, code, args, msg);
       return `file_${code}`;
+    case 'b': case 'bm': case 'bx': case 'bz': case 'bp': case 'bf': case 'bl': case 'br':
+      await batch.onCallback(ctx, code, args, msg);
+      return `batch_${code}`;
     case 'p':
       if (ctx.actor === 'user') { await alertAnswer(ctx, cq, 'panel.denied_short'); return 'denied'; }
       if (!args.length) await housekeeping(ctx);
@@ -267,7 +287,7 @@ async function alertAnswer(ctx, cq, key) {
 }
 
 async function screen(ctx, msg, name) {
-  const screens = { tools: ui.tools, set: ui.settings, help: ui.help, bots: ui.bots, privacy: ui.privacy, lang: (c) => ui.language(c, 'set') };
+  const screens = { tools: ui.tools, pdf: ui.pdfTools, zip: ui.zipTools, set: ui.settings, help: ui.help, bots: ui.bots, privacy: ui.privacy, lang: (c) => ui.language(c, 'set') };
   const fn = screens[name] || ui.home;
   await tg.edit(ctx, name || 'home', msg, fn(ctx));
   return name || 'home';
@@ -277,8 +297,12 @@ async function screen(ctx, msg, name) {
 async function resume(ctx, msg) {
   const r = await state.takePending(ctx.user.id, 'resume', ctx.now);
   await tg.edit(ctx, 'join_ok', msg, ui.plain(t(ctx.lang, 'join.ok')));
-  if (r && r.kind === 'file' && r.payload && r.payload.file) {
-    await files.intake(ctx, { chat: { id: ctx.chatId }, date: r.payload.date }, r.payload.file);
+  const queued = r && r.kind === 'files' && r.payload && Array.isArray(r.payload.files) ? r.payload.files : [];
+  if (queued.length) {
+    // one file → its card; several (an album) → one batch, as if they had just arrived
+    for (const f of queued.slice(0, ctx.limits.BATCH_MAX_FILES)) {
+      await files.intake(ctx, { chat: { id: ctx.chatId }, date: f.date || ctx.now, media_group_id: queued.length > 1 ? `resume:${ctx.updateId}` : undefined }, f);
+    }
     return 'resume_file';
   }
   if (r && r.kind === 'cmd' && r.payload) {

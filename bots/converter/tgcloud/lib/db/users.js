@@ -85,6 +85,7 @@ export function nextRecipients(cursor, limit) {
 export async function deleteUserData(id) {
   await db.run(sql`DELETE FROM jobs WHERE user_id = ${id}`);
   await db.run(sql`DELETE FROM files WHERE user_id = ${id}`);
+  await db.run(sql`DELETE FROM batches WHERE user_id = ${id}`);
   await db.run(sql`DELETE FROM pending_actions WHERE user_id = ${id}`);
   await db.run(sql`DELETE FROM rate_counters WHERE user_id = ${id}`);
   await db.run(sql`DELETE FROM result_cache WHERE user_id = ${id}`);

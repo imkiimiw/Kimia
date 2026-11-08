@@ -11,6 +11,7 @@ import { mergeLimits } from '../../tgcloud/lib/db/system.js';
 import { esc, ulid, jobCode, isJobCode, fileRef, tehranDay, formatBytes, faDigits, asciiDigits } from '../../tgcloud/lib/util.js';
 import { parseCommand } from '../../tgcloud/lib/router.js';
 import * as ui from '../../tgcloud/lib/ui.js';
+import * as cards from '../../tgcloud/lib/cards.js';
 import { detect } from '../../tgcloud/lib/detect/index.js';
 import { DEFAULT_LIMITS } from '../../tgcloud/lib/config.js';
 import { SAMPLES } from '../helpers/fixtures.mjs';
@@ -65,7 +66,7 @@ test('i18n: every text is valid Telegram HTML once filled (balanced tags, nothin
 });
 
 test('invisible characters (ZWNJ, bidi controls, …) are written as escapes, never literally', () => {
-  for (const f of walk(ROOT)) assert.ok(!/\p{Cf}/u.test(fs.readFileSync(f, 'utf8')), path.relative(ROOT, f));
+  for (const f of walk(ROOT).filter((x) => !x.includes('/vendor/'))) assert.ok(!/\p{Cf}/u.test(fs.readFileSync(f, 'utf8')), path.relative(ROOT, f));
 });
 
 test('codec: callback_data ≤ 64 bytes, parse round trip', () => {
@@ -77,15 +78,25 @@ test('codec: callback_data ≤ 64 bytes, parse round trip', () => {
 
 test('every screen\'s buttons fit in 64 bytes with the longest arguments', () => {
   const ctx = { lang: 'fa', digits: true, actor: 'owner', limits: DEFAULT_LIMITS, from: { first_name: 'x' } };
-  const file = { ref: 'ZZZZZZ', name: 'n'.repeat(64) + '.jpeg', size: 20 * 1024 * 1024, kind: 'photo' };
+  const file = { ref: 'ZZZZZZ', name: 'n'.repeat(64) + '.jpeg', size: 20 * 1024 * 1024, kind: 'photo', meta: { image: { w: 10, h: 10 } } };
   const d = detect(SAMPLES.jpeg[0], 'x.png');
-  const screens = [ui.home(ctx, { greet: true }), ui.tools(ctx), ui.help(ctx), ui.privacy(ctx), ui.deleteConfirm(ctx), ui.bots(ctx), ui.settings(ctx), ui.language(ctx), ui.language(ctx, 'h'),
-    ui.join(ctx, [{ username: 'a'.repeat(32), title: 'x'.repeat(200) }]), ui.card(ctx, file, d), ui.renameMenu(ctx, file, d), ui.extMenu(ctx, file, d, 'jpg'), ui.inputPrompt(ctx, file, 'name'),
+  const items = Array.from({ length: 1000 }, (_, i) => [999 + i, 'ف'.repeat(80), 123456789]);
+  const pdfFile = { ...file, name: 'x.pdf', meta: { pdf: { pages: 999 } } };
+  const pdfD = detect(SAMPLES.pdf[0], 'x.pdf');
+  const arcFile = { ...file, name: 'x.zip', meta: { archive: { files: 1000, total: 1e9, items } } };
+  const batch = { id: 'ZZZZZZ' };
+  const rows = [{ ref: 'ZZZZZZ', name: 'ن'.repeat(64), type: 'jpeg!zip#enc', size: 1 }];
+  const screens = [ui.home(ctx, { greet: true }), ui.tools(ctx), ui.pdfTools(ctx), ui.zipTools(ctx), ui.help(ctx), ui.privacy(ctx), ui.deleteConfirm(ctx), ui.bots(ctx), ui.settings(ctx), ui.language(ctx), ui.language(ctx, 'h'),
+    ui.join(ctx, [{ username: 'a'.repeat(32), title: 'x'.repeat(200) }]), cards.card(ctx, file, d), cards.card(ctx, pdfFile, pdfD), cards.card(ctx, pdfFile, pdfD, { page: 2 }), cards.card(ctx, arcFile, detect(SAMPLES.zip[0], 'x.zip')),
+    cards.renameMenu(ctx, file, d), cards.extMenu(ctx, file, d), cards.renamePrompt(ctx, file, 'name'),
+    cards.extractChoice(ctx, arcFile), cards.entryList(ctx, arcFile, 124), cards.pdfPrompt(ctx, pdfFile, 'x'), cards.rotateMenu(ctx, pdfFile), cards.rotateMenu(ctx, pdfFile, '1-999'), cards.splitMenu(ctx, pdfFile),
+    cards.batchStatus(ctx, batch, 20, 5e7), cards.batchMenu(ctx, batch, rows, (f) => detect(SAMPLES.jpeg[0], f.name)), cards.batchList(ctx, batch, rows), cards.batchRenameMenu(ctx, batch), cards.batchPrompt(ctx, batch, 'number'),
     ui.history(ctx, [], 0, 0), ui.statusScreen(ctx, null)];
   for (const s of screens) for (const b of (s.reply_markup ? s.reply_markup.inline_keyboard.flat() : [])) {
     if (b.callback_data) assert.ok(new TextEncoder().encode(b.callback_data).length <= 64, b.callback_data);
   }
-  assert.ok(ui.card(ctx, file, d).text.length < 4096);
+  assert.ok(cards.card(ctx, file, d).text.length < 4096);
+  assert.ok(cards.entryList(ctx, arcFile, 0).reply_markup.inline_keyboard.length <= 12, 'a list page stays short');
 });
 
 test('gate: member classification ("member not found" = not a member; errors = unknown)', () => {

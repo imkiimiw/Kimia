@@ -103,6 +103,7 @@ export async function housekeeping(now, { jobDays, updateKeepS }) {
   const run = async (key, q) => { out[key] = (await db.run(q)).rowsAffected; };
   await run('jobs', sql`DELETE FROM jobs WHERE id IN (SELECT id FROM jobs WHERE created_at < ${now - jobDays * 86400} ORDER BY created_at LIMIT 500)`);
   await run('files', sql`DELETE FROM files WHERE ref IN (SELECT ref FROM files WHERE created_at < ${now - 86400} ORDER BY created_at LIMIT 500)`);
+  await run('batches', sql`DELETE FROM batches WHERE id IN (SELECT id FROM batches WHERE updated_at < ${now - 86400} ORDER BY updated_at LIMIT 500)`);
   await run('pending', sql`DELETE FROM pending_actions WHERE expires_at < ${now}`);
   await run('rate', sql`DELETE FROM rate_counters WHERE expires_at < ${now}`);
   await run('cache', sql`DELETE FROM result_cache WHERE key IN (SELECT key FROM result_cache WHERE expires_at < ${now} ORDER BY expires_at LIMIT 500)`);

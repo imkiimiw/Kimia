@@ -44,9 +44,28 @@ export const files = table('files', {
   size: integer('size').notNull(),
   type: text('type'),
   createdAt: integer('created_at').notNull(),
+  meta: text('meta'), // C2: JSON — PDF pages, archive index, image size
+  batchId: text('batch_id'), // C2: the batch (album) this file belongs to
+  seq: integer('seq'),
 }, (t) => ({
   byUser: index('idx_files_user').on(t.userId, t.createdAt),
   byTime: index('idx_files_created').on(t.createdAt),
+  byBatch: index('idx_files_batch').on(t.batchId, t.seq),
+}));
+
+/** C2: batches — albums and files collected together (one status message, then batch actions). */
+export const batches = table('batches', {
+  id: text('id').primaryKey(),
+  userId: integer('user_id').notNull(),
+  status: text('status').notNull(), // collecting | ready | cancelled
+  slots: integer('slots').notNull().default(0),
+  statusMid: integer('status_mid'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, (t) => ({
+  oneOpen: uniqueIndex('uidx_batches_open').on(t.userId).where(sql`status = 'collecting'`),
+  byUser: index('idx_batches_user').on(t.userId, t.updatedAt),
+  byTime: index('idx_batches_time').on(t.updatedAt),
 }));
 
 /** Jobs (spec §10): never file contents; input file_id + params only to retry. */

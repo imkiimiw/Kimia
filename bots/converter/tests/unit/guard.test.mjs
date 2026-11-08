@@ -32,9 +32,30 @@ test('imports: only sdk, sdk/* and relative .js modules inside tgcloud/', () => 
   }
 });
 
+const OWN = FILES.filter((f) => !rel(f).startsWith('lib/vendor/'));
+
+test('vendored libraries: only fflate and pdf-lib, each < 1 MiB, with their license header', () => {
+  const vendor = FILES.filter((f) => rel(f).startsWith('lib/vendor/')).map(rel).sort();
+  assert.deepEqual(vendor, ['lib/vendor/fflate.js', 'lib/vendor/pdf-lib.js']);
+  for (const v of vendor) assert.match(fs.readFileSync(path.join(ROOT, v), 'utf8').slice(0, 800), /MIT License|Permission is hereby granted/i, v);
+});
+
+test('pdf-lib is always used with the Serverless-safe options (docs/LIMITS.md §3)', () => {
+  for (const f of OWN) {
+    const src = code(f);
+    for (const m of src.matchAll(/PDFDocument\.load\(([^)]*)\)/g)) assert.match(m[1], /LOAD/, `${rel(f)}: load without parseSpeed: Infinity`);
+    for (const m of src.matchAll(/\.save\(([^)]*)\)/g)) if (/doc|out/.test(m[0])) assert.match(m[1], /SAVE/, `${rel(f)}: save without the options`);
+  }
+  const pdf = fs.readFileSync(path.join(ROOT, 'lib/pdf.js'), 'utf8');
+  assert.match(pdf, /parseSpeed: Infinity/);
+  assert.match(pdf, /objectsPerTick: Infinity, useObjectStreams: false/);
+  // fflate's callback APIs (zip(), unzip(), …) need Workers/setTimeout: only *Sync and the streaming classes
+  for (const f of OWN) assert.ok(!/(?<![\w.])(zip|unzip|gzip|gunzip|deflate|inflate)\(/.test(code(f)), `${rel(f)}: only the synchronous fflate APIs exist here`);
+});
+
 test('no globals the isolate lacks (measured in C0)', () => {
   const missing = ['setTimeout', 'setInterval', 'queueMicrotask', 'URL', 'URLSearchParams', 'atob', 'btoa', 'Buffer', 'process', 'performance', 'structuredClone', 'AbortController', 'Blob', 'CompressionStream', 'DecompressionStream', 'require'];
-  for (const f of FILES) {
+  for (const f of OWN) {
     const src = code(f).replace(/'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g, "''");
     for (const g of missing) assert.ok(!new RegExp(`(?<![.\\w])${g}\\b(?!\\s*:)`).test(src), `${rel(f)} uses ${g}`);
     assert.ok(!/WebAssembly\.(compile|instantiate)\(/.test(src), `${rel(f)}: only synchronous WebAssembly works`);
@@ -42,7 +63,7 @@ test('no globals the isolate lacks (measured in C0)', () => {
 });
 
 test('pure modules never import sdk', () => {
-  const PURE = ['lib/config.js', 'lib/util.js', 'lib/codec.js', 'lib/names.js', 'lib/ui.js', 'lib/log.js', 'lib/i18n/index.js', 'lib/i18n/fa.js', 'lib/i18n/en.js', 'lib/detect/index.js', 'lib/detect/types.js', 'lib/detect/zip.js'];
+  const PURE = ['lib/config.js', 'lib/util.js', 'lib/codec.js', 'lib/names.js', 'lib/ui.js', 'lib/cards.js', 'lib/log.js', 'lib/errors.js', 'lib/archive.js', 'lib/pdf.js', 'lib/images.js', 'lib/ops.js', 'lib/i18n/index.js', 'lib/i18n/fa.js', 'lib/i18n/en.js', 'lib/detect/index.js', 'lib/detect/types.js', 'lib/detect/zip.js', 'lib/vendor/fflate.js', 'lib/vendor/pdf-lib.js'];
   for (const p of PURE) assert.ok(!/from\s+['"]sdk/.test(fs.readFileSync(path.join(ROOT, p), 'utf8')), p);
 });
 
@@ -56,14 +77,14 @@ test('SQL only in lib/db/ (and the schema)', () => {
 });
 
 test('Bot API only through lib/tg.js', () => {
-  for (const f of FILES) {
+  for (const f of OWN) {
     if (rel(f) === 'lib/tg.js') continue;
     assert.ok(!/\bapi\.[a-zA-Z]+\(/.test(code(f)), `${rel(f)} calls api directly`);
   }
 });
 
 test('no secrets or tokens in code', () => {
-  for (const f of FILES) {
+  for (const f of OWN) {
     const s = fs.readFileSync(f, 'utf8');
     assert.ok(!/\d{8,10}:[A-Za-z0-9_-]{35}/.test(s), `${rel(f)}: bot token`);
     assert.ok(!/app\d+:[A-Za-z0-9_-]{20,}/.test(s), `${rel(f)}: CLI token`);

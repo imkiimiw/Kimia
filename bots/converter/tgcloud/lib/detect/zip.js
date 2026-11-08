@@ -36,7 +36,7 @@ const latin1 = new TextDecoder('latin1');
 
 /**
  * → { ok: true, entries, total, truncated, zip64, cdOffset } | { ok: false, reason }
- * entries: { name, method, flags, encrypted, csize, usize, offset, dir, symlink, unixMode }
+ * entries: { name, method, flags, encrypted, crc, csize, usize, offset, dir, symlink, unixMode }
  */
 export function readCentralDirectory(b, { maxEntries = 5000 } = {}) {
   const e = findEocd(b);
@@ -66,6 +66,7 @@ export function readCentralDirectory(b, { maxEntries = 5000 } = {}) {
     if (u32(b, p) !== SIG_CD) return { ok: false, reason: 'bad_entry' };
     const flags = u16(b, p + 8);
     const method = u16(b, p + 10);
+    const crc = u32(b, p + 16);
     let csize = u32(b, p + 20);
     let usize = u32(b, p + 24);
     const nameLen = u16(b, p + 28);
@@ -97,6 +98,7 @@ export function readCentralDirectory(b, { maxEntries = 5000 } = {}) {
       method,
       flags,
       encrypted: !!(flags & 1),
+      crc,
       csize,
       usize,
       offset: local + shift,

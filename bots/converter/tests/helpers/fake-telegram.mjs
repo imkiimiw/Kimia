@@ -140,6 +140,16 @@ export function createFakeTelegram() {
       }
       return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, document: doc, caption: p.caption || null, reply_markup: p.reply_markup || null });
     },
+    sendMediaGroup(p, m) {
+      toUser(p.chat_id, m);
+      if (!Array.isArray(p.media) || p.media.length < 2 || p.media.length > 10) fail(400, 'Bad Request: wrong number of messages in the media group', m);
+      return p.media.map((item) => {
+        if (item.type !== 'document' || !(item.media instanceof InputFile)) fail(400, 'Bad Request: invalid media group item', m);
+        if (!item.media.bytes.length) fail(400, 'Bad Request: file must be non-empty', m);
+        const doc = putFile(item.media.bytes, { name: telegramName(item.media.name), mime: item.media.type || 'application/octet-stream' });
+        return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, document: doc, media_group_id: 'G' + nextMessageId });
+      });
+    },
     getFile(p, m) {
       const f = files.get(p.file_id);
       if (!f) fail(400, 'Bad Request: invalid file_id', m);

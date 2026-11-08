@@ -5,7 +5,6 @@ import { t, tp } from './i18n/index.js';
 import { btn, urlBtn, kb, grid } from './codec.js';
 import { faDigits, formatBytes, esc } from './util.js';
 import { TZ_OFFSET_S, WANGER_LINKS, HISTORY_PAGE } from './config.js';
-import { allowedExts } from './names.js';
 
 const screen = (text, ...rows) => ({ text, reply_markup: rows.length ? kb(...rows) : undefined });
 
@@ -50,6 +49,8 @@ const cancelBtn = (ctx) => btn(P(ctx, 'btn.cancel'), 'x');
 export function home(ctx, { greet = false } = {}) {
   const text = (greet ? `${L(ctx, 'home.hello', { name: (ctx.from && ctx.from.first_name) || '' })}\n\n` : '') + L(ctx, 'home.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB) });
   const items = [
+    btn(P(ctx, 'menu.pdf'), 'm', 'pdf'),
+    btn(P(ctx, 'menu.zip'), 'm', 'zip'),
     btn(P(ctx, 'menu.tools'), 'm', 'tools'),
     btn(P(ctx, 'menu.history'), 'hi', 0),
     btn(P(ctx, 'menu.settings'), 'm', 'set'),
@@ -63,6 +64,8 @@ export function home(ctx, { greet = false } = {}) {
 }
 
 export const tools = (ctx) => screen(L(ctx, 'tools.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB) }), [homeBtn(ctx)]);
+export const pdfTools = (ctx) => screen(L(ctx, 'pdf.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB), n: num(ctx, ctx.limits.BATCH_MAX_FILES) }), [homeBtn(ctx)]);
+export const zipTools = (ctx) => screen(L(ctx, 'zip.text', { mb: num(ctx, ctx.limits.ARCHIVE_MAX_UNPACKED_MB), n: num(ctx, ctx.limits.ARCHIVE_MAX_ENTRIES), total: num(ctx, ctx.limits.BATCH_TOTAL_MB) }), [homeBtn(ctx)]);
 export const help = (ctx) => screen(L(ctx, 'help.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB) }), [btn(P(ctx, 'btn.privacy'), 'm', 'privacy'), homeBtn(ctx)]);
 export const privacy = (ctx) => screen(L(ctx, 'privacy.text', { days: num(ctx, ctx.limits.JOB_HISTORY_DAYS) }), [btn(P(ctx, 'btn.delete_data'), 'dd'), homeBtn(ctx)]);
 export const deleteConfirm = (ctx) => screen(L(ctx, 'delete.confirm'), [btn(P(ctx, 'btn.delete_yes'), 'dd', 'y'), btn(P(ctx, 'btn.no'), 'h')]);
@@ -97,54 +100,6 @@ export function join(ctx, missing) {
 export const banned = (ctx) => screen(L(ctx, 'gate.banned'));
 export const maintenance = (ctx) => screen(L(ctx, 'gate.maintenance'));
 
-// ---- file card ----
-const FAMILY = { image: 'image', pdf: 'pdf', document: 'document', text: 'text', archive: 'archive', audio: 'audio', video: 'video', font: 'font', data: 'data', executable: 'executable', unknown: 'unknown' };
-
-/** «🖼 تصویر دریافت شد — JPEG، 2.4 MB» + notes + «چه کاری انجام بدهم؟» with the available actions. */
-export function card(ctx, file, d, notes = {}) {
-  const lines = [L(ctx, `card.${FAMILY[d.family] || 'unknown'}`, { type: d.label, size: size(ctx, file.size) })];
-  lines.push(L(ctx, 'card.name', { name: file.name }));
-  if (notes.suspicious) lines.push(L(ctx, 'card.rtlo'));
-  if (d.dangerous === 'polyglot') lines.push(L(ctx, 'card.polyglot'));
-  else if (d.dangerous) lines.push(L(ctx, 'card.dangerous'));
-  else if (d.id === 'empty') lines.push(L(ctx, 'card.empty'));
-  else if (d.id === 'unknown') lines.push(L(ctx, 'card.unknown_note'));
-  else if (!d.extOk) lines.push(L(ctx, 'card.mismatch', { type: d.label, ext: d.nameExt ? `.${d.nameExt}` : P(ctx, 'card.no_ext'), fix: `.${d.ext}` }));
-  if (d.info && d.info.encrypted) lines.push(L(ctx, 'card.encrypted'));
-  if (file.kind === 'photo') lines.push(L(ctx, 'card.photo_tip'));
-  if (file.kind === 'animation') lines.push(L(ctx, 'card.gif_tip'));
-  const rows = [];
-  if (!d.dangerous && d.id !== 'empty') {
-    if (!d.extOk && d.id !== 'unknown') rows.push([btn(P(ctx, 'card.fix_yes'), 'fx', file.ref), btn(P(ctx, 'card.fix_no'), 'fn', file.ref)]);
-    else lines.push(L(ctx, 'card.ask'));
-    rows.push([btn(P(ctx, 'op.rename'), 'rn', file.ref)]);
-  }
-  rows.push([homeBtn(ctx), cancelBtn(ctx)]);
-  return screen(lines.join('\n'), ...rows);
-}
-
-/** The card after «❌ نه» on the fix question: the question is gone, rename stays. */
-export function cardNoFix(ctx, file, d) {
-  return card(ctx, file, { ...d, extOk: true });
-}
-
-export function renameMenu(ctx, file, d) {
-  const exts = allowedExts(d);
-  return screen(L(ctx, 'rn.text', { name: file.name }),
-    [btn(P(ctx, 'rn.name'), 'rn', file.ref, 'n')],
-    [btn(P(ctx, 'rn.prefix'), 'rn', file.ref, 'p'), btn(P(ctx, 'rn.suffix'), 'rn', file.ref, 's')],
-    [btn(P(ctx, 'rn.normalize'), 'rn', file.ref, 'z'), exts.length > 1 ? btn(P(ctx, 'rn.ext'), 'rn', file.ref, 'e') : null],
-    [backBtn(ctx, 'f', file.ref), cancelBtn(ctx)]);
-}
-
-export function extMenu(ctx, file, d, current) {
-  const exts = allowedExts(d);
-  const buttons = exts.map((e) => btn(`.${e}${e === current ? ' ✓' : ''}`, 're', file.ref, e));
-  return screen(L(ctx, 'rn.ext_text', { name: file.name }), ...grid(buttons, 3), [backBtn(ctx, 'rn', file.ref), cancelBtn(ctx)]);
-}
-
-export const inputPrompt = (ctx, file, mode) => screen(L(ctx, `rn.ask_${mode}`, { name: file.name }), [backBtn(ctx, 'rn', file.ref), cancelBtn(ctx)]);
-
 // ---- jobs ----
 export const opLabel = (ctx, op) => P(ctx, `op.${op}`);
 export const statusLabel = (ctx, s) => P(ctx, `status.${s}`);
@@ -153,7 +108,9 @@ export const statusLabel = (ctx, s) => P(ctx, `status.${s}`);
 export const resultCaption = (ctx, job, name) => L(ctx, 'job.done', { name, code: job.code });
 export const resultMarkup = (ctx, ref) => kb([btn(P(ctx, 'job.again'), 'f', ref)]);
 export const progress = (ctx, job, status) => L(ctx, 'job.progress', { status: statusLabel(ctx, status), code: job.code });
-export const failure = (ctx, code, jobCode) => L(ctx, `err.${code}`, { code: jobCode });
+export const failure = (ctx, code, jobCode, vars = {}) => L(ctx, `err.${code}`, { ...Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, typeof v === 'number' ? num(ctx, v) : v])), code: jobCode });
+export const groupDone = (ctx, job, n) => L(ctx, 'job.group_done', { n: num(ctx, n), code: job.code });
+export const escName = (name) => esc(name);
 
 export function statusScreen(ctx, job) {
   if (!job) return screen(L(ctx, 'status.none'), [homeBtn(ctx)]);
