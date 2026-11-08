@@ -1,8 +1,25 @@
 # Progress
 
-**Current state: Phase C3 done and DEPLOYED (2026-11-08, cloud revision 3). Tests 221/221.
-OCR stays hidden until the owner stores a Gemini key. Owner's standing instruction: continue through
-C8, deploy each phase, full report per phase (docs/reports/). Next: C4 (worker + images).**
+**Current state: Phase C4 done and DEPLOYED (2026-11-08, cloud revision 4). Bot tests 236/236, worker
+tests 149/149 (also inside the Docker image). Worker tools stay hidden until the owner hosts the worker
+and stores WORKER_URL + WORKER_SECRET (docs/HOSTING.md). Owner's standing instruction: continue through
+C8, deploy each phase, full report per phase (docs/reports/). Next: C5 (Tesseract OCR + advanced PDF).**
+
+## Phase C4 — Worker foundation, image tools, text → image ✅ deployed (revision 4)
+
+Done (details in docs/reports/C4.md, choices in DECISIONS.md):
+- `worker/`: FastAPI API with HMAC + nonce signing, SQLite queue (light/heavy, per-user caps,
+  idempotent), sandboxed child per operation (process group, rlimits, minimal env), Bot API client
+  that can't touch the webhook, plugin processors with a start-up self-test → `/v1/capabilities`.
+- 13 image operations (Pillow 13, decoders restricted to the detected type) and text → image with
+  correct Persian shaping (RAQM; Vazirmatn, Sahel, Samim; 4 sizes, 8 themes, auto-fit, RTL wrap).
+- Docker (multi-stage, non-root, read-only, healthcheck), compose with Caddy for HTTPS, CI job
+  (ruff, pytest, pip-audit, image build + smoke test), docs/HOSTING.md.
+- Bot: `lib/worker.js`, `lib/wflow.js`, `lib/wtools.js`; «🖼 ابزار عکس» on image cards and in the menu,
+  «✍️ متن به عکس», status message with «🚫 لغو», /cancel and /status for worker jobs, «⚙️ کار دیگری
+  با نتیجه» on results, /panel → 🧩 Worker; everything hidden until the worker answers.
+- Measured on Serverless: only ports 80/443 reachable; dead hosts cost 1.6–3.2 s; the bot's signing
+  verified end to end against the Python verifier.
 
 ## Phase C3 — OCR with Gemini ✅ deployed (revision 3)
 

@@ -98,7 +98,7 @@ def test_submit_validates_everything(api):
     assert r.json()["error"] == "BAD_REQUEST"
 
 
-def test_submit_is_idempotent_and_jobs_are_private(api):
+def test_submit_is_idempotent_and_jobs_are_private(api, fake_tg):
     r1 = signed(api, "POST", "/v1/jobs", job_body(5))
     r2 = signed(api, "POST", "/v1/jobs", job_body(5))
     assert r1.status_code == 202 and r2.status_code == 200
@@ -108,6 +108,7 @@ def test_submit_is_idempotent_and_jobs_are_private(api):
     assert signed(api, "GET", f"/v1/jobs/{jid}?user_id=8").status_code == 404
     assert signed(api, "DELETE", f"/v1/jobs/{jid}?user_id=8").status_code == 404
     assert signed(api, "DELETE", f"/v1/jobs/{jid}?user_id=7").json()["job"]["status"] == "CANCELLED"
+    wait_for(lambda: any(c[0] == "editMessageText" and "WC-000005" in c[1].get("text", "") for c in fake_tg.calls))
 
 
 def test_end_to_end_job_downloads_processes_sends_and_cleans_up(live, fake_tg, settings):

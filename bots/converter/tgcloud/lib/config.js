@@ -81,3 +81,6 @@ export const TZ_OFFSET_S = 3.5 * 3600;
 
 /** Bot secrets the owner may store with /secret (spec §2). */
 export const SECRET_NAMES = ['HUB_KEY', 'WORKER_URL', 'WORKER_SECRET', 'GEMINI_API_KEY'];
+export const WORKER_CAPS_TTL_S = 600; // the worker's capabilities are re-read every 10 min (spec §8)
+export const WORKER_DOWN_TTL_S = 120; // an unreachable worker is asked again after 2 min
+export const WTEXT_MAX = { wm: 100, tx: 500, tti: 2000 }; // text for watermark / text on image / text → image

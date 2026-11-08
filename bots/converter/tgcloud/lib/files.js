@@ -23,6 +23,7 @@ import { parseRanges, pdfInfo, rangeGroups } from './pdf.js';
 import * as tg from './tg.js';
 import * as ui from './ui.js';
 import { fileRef, tehranDay } from './util.js';
+import { loadWorker } from './worker.js';
 
 /** Gemini state for the cards (C3): a key exists (OCR offered), paid tier (consent wording). */
 export async function loadGemini(ctx) {
@@ -30,6 +31,11 @@ export async function loadGemini(ctx) {
   const [available, s] = await Promise.all([hasSecret('GEMINI_API_KEY'), getSettings(['gemini.paid'])]);
   ctx.gemini = { available, paid: s['gemini.paid'] === true };
   return ctx.gemini;
+}
+
+/** Everything the cards and menus depend on: Gemini (C3) and the worker (C4). */
+export async function loadServices(ctx) {
+  await Promise.all([loadGemini(ctx), loadWorker(ctx)]);
 }
 
 /** Consent given under the free-tier wording covers both tiers; under the paid wording only the paid tier. */
@@ -128,7 +134,7 @@ export async function intake(ctx, message, file) {
   await count(ctx.day, 'intake');
   log.info('intake', { update_id: ctx.updateId, user_id: ctx.user.id, input_type: d.label, input_size: bytes.length });
   if (b) return batch.showStatus(ctx, b.id, chatId);
-  await loadGemini(ctx);
+  await loadServices(ctx);
   return tg.send(ctx, 'card', chatId, cards.card(ctx, row, d, { suspicious: hadSuspiciousChars(file.name) }));
 }
 
@@ -160,6 +166,16 @@ async function ensureMeta(ctx, file, d) {
   return meta;
 }
 
+/** A file's card as a new message (results registered later, e.g. a worker's output). */
+export async function sendCard(ctx, ref, chatId) {
+  const loaded = await loadFile(ctx, ref);
+  if (!loaded) return tg.send(ctx, 'card_expired', chatId, expired(ctx));
+  const { file, d } = loaded;
+  file.meta = await ensureMeta(ctx, file, d);
+  await loadServices(ctx);
+  return tg.send(ctx, 'card', chatId, cards.card(ctx, file, d));
+}
+
 export const expired = (ctx) => ui.plain(t(ctx.lang, 'card.expired'), [ui.homeBtn(ctx)]);
 const inputOf = (file, d) => ({ fileId: file.file_id, uniqueId: file.file_unique_id, size: file.size, type: d.id, name: file.name, ref: file.ref });
 const usable = (d) => !d.dangerous && d.id !== 'empty';
@@ -171,7 +187,7 @@ export async function onCallback(ctx, code, args, message) {
   if (!loaded) return tg.edit(ctx, 'card_expired', message, expired(ctx));
   const { file, d } = loaded;
   if (NEEDS_META.has(code)) file.meta = await ensureMeta(ctx, file, d);
-  await loadGemini(ctx);
+  await loadServices(ctx);
   const show = (view, s) => tg.edit(ctx, view, message, s);
   const back = () => show('card', cards.card(ctx, file, d));
   const meta = file.meta || {};

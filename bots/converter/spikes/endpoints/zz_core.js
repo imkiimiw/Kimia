@@ -5,6 +5,7 @@ import { db, api, fetch, InputFile } from 'sdk';
 import { sql } from 'sdk/db';
 import { toBase64 } from '../lib/base64.js';
 import { requestBody } from '../lib/gemini.js';
+import { signedHeaders } from '../lib/worker.js';
 
 const OWNER_ID = 5557901897;
 const CHANNELS = ['@HIDE_i_SEEK', '@Nepenthw_ir', '@wangerBots'];
@@ -84,6 +85,35 @@ const cases = {
   },
 
   // C3: is the Gemini API reachable, and what does a refusal look like? (an invalid key on purpose)
+  // C4: the bot's real signing code + a byte body, echoed back by httpbin (headers and body intact?)
+  async workersign({ secret = 'e'.repeat(40) }) {
+    const body = new TextEncoder().encode(JSON.stringify({ op: 'tti', params: { text: 'سلام دنیا' } }));
+    const path = '/anything/v1/jobs?user_id=7';
+    const headers = { ...(await signedHeaders(secret, 'POST', path, body)), 'Content-Type': 'application/json' };
+    const t0 = await now();
+    const r = await fetch(`https://httpbin.org${path}`, { method: 'POST', headers, body });
+    const echo = await r.json();
+    return { status: r.status, ms: (await now()) - t0, sent: headers, echoed: { ts: echo.headers['X-Wanger-Timestamp'], nonce: echo.headers['X-Wanger-Nonce'], sig: echo.headers['X-Wanger-Signature'], data: echo.data, url: echo.url } };
+  },
+
+  // C4: how long does fetch take to fail for a dead worker? (blackholed IP, closed port, bad DNS, HMAC)
+  async deadfetch({ targets = ['https://10.255.255.1/v1/capabilities', 'https://192.0.2.1:9/v1/capabilities', 'https://no-such-host.invalid/x', 'https://httpbin.org/status/503'] }) {
+    const out = {};
+    for (const url of targets) {
+      const t0 = await now();
+      try {
+        const r = await fetch(url, { method: 'GET', headers: { 'X-Wanger-Timestamp': '1' } });
+        out[url] = { status: r.status, ms: (await now()) - t0 };
+      } catch (e) {
+        out[url] = { error: String(e && (e.name || e.message)).slice(0, 80), ms: (await now()) - t0 };
+      }
+    }
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('k'.repeat(40)), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode('1700000000.n.GET./v1/x.')));
+    out.hmac = Array.from(sig, (b) => b.toString(16).padStart(2, '0')).join('');
+    out.random = crypto.getRandomValues(new Uint8Array(4)).length;
+    return out;
+  },
   async gemini({ model = 'gemini-3.6-flash' }) {
     const t = await now();
     try {

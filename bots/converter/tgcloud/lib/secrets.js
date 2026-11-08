@@ -5,6 +5,7 @@
 //   /secret del NAME
 import { SECRET_NAMES } from './config.js';
 import { deleteSecret, secretNames, setSecret } from './db/system.js';
+import { clearCache } from './worker.js';
 import { t } from './i18n/index.js';
 import * as tg from './tg.js';
 import * as ui from './ui.js';
@@ -13,7 +14,8 @@ import * as ui from './ui.js';
 export function validate(name, value) {
   if (!SECRET_NAMES.includes(name)) return 'sec.err_name';
   if (!value || value.length > 500 || /\s/.test(value)) return 'sec.err_value';
-  if (name === 'WORKER_URL' && !/^https:\/\/[a-z0-9.-]+(:\d+)?(\/[\w./-]*)?$/i.test(value)) return 'sec.err_url';
+  // Serverless reaches only ports 80/443 (C4, docs/LIMITS.md §6d): https on the default port
+  if (name === 'WORKER_URL' && !/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(:443)?(\/[\w./-]*)?$/i.test(value)) return 'sec.err_url';
   return null;
 }
 
@@ -38,11 +40,13 @@ export async function command(ctx, message, args) {
     const err = validate(name, value);
     if (err) return tg.send(ctx, 'secret_error', chatId, { text: t(ctx.lang, err, { names: SECRET_NAMES.join(', ') }) });
     await setSecret(name, value, ctx.user.id, ctx.now);
+    if (name.startsWith('WORKER_')) await clearCache(ctx.now); // the next update asks the (new) worker
     return tg.send(ctx, 'secret_saved', chatId, { text: t(ctx.lang, deleted ? 'sec.saved' : 'sec.saved_delete_yourself', { name }) });
   }
   if (sub === 'del') {
     if (!SECRET_NAMES.includes(name)) return tg.send(ctx, 'secret_error', chatId, { text: t(ctx.lang, 'sec.err_name', { names: SECRET_NAMES.join(', ') }) });
     await deleteSecret(name);
+    if (name.startsWith('WORKER_')) await clearCache(ctx.now);
     return tg.send(ctx, 'secret_deleted', chatId, { text: t(ctx.lang, 'sec.deleted', { name }) });
   }
   return tg.send(ctx, 'secret_usage', chatId, { text: t(ctx.lang, 'sec.usage') });

@@ -69,7 +69,7 @@ Rates for planning: parsing ≈ **5.7 µs per object** on Serverless; JPEG pages
 copies JPEG bytes without decoding); PNG → PDF ≈ **0.12 s per megapixel** (decode + re-deflate). The
 object count can be read cheaply before parsing (trailer / xref-stream `/Size`), so a guard is possible.
 
-## 4. Feature matrix after C0 (replaces spec §5's "Where") — status after C2 in the last column
+## 4. Feature matrix after C0 (replaces spec §5's "Where") — status after C4 in the last column
 
 | Feature | Where | Condition measured in C0 | Status |
 |---|---|---|---|
@@ -81,8 +81,8 @@ object count can be read cheaply before parsing (trailer / xref-stream `/Size`),
 | JPG → PDF | **Bot** (C2) | Trivial (ms). | ✅ C2 |
 | PNG → PDF | **Bot** (C2) | ≤ ≈ 12 MP per job (≈ 1.5 s); larger → worker. | ✅ C2 |
 | OCR via Gemini | **Bot** (C3) | `fetch` works, 30 MB response cap, ≈ 30 s wall per invocation; inline request ≤ 20 MB → images ≤ 14 MB, PDFs ≤ 5 pages. | ✅ C3 (needs the owner's key) |
-| Image convert / ops | Worker (C4) — **candidate for the bot** | Not moved yet. Synchronous WebAssembly works and memory is ample, so WASM image codecs could run in-bot for small images (≤ 1 MiB per module; CPU is the limit). Needs a spike with a real codec and a license check before anything is promised. | C4 |
-| Text → Image | Worker (C4) | Correct Persian shaping needs HarfBuzz/RAQM — not in pure JS here. | C4 |
+| Image convert / ops | **Worker** (C4) | Kept on the worker: Pillow 13 covers every format of the spec (AVIF/HEIC included) with one tested code path; a WASM codec in the bot would cover a fraction, inside 3 s CPU and 1 MiB modules. | ✅ C4 (needs a hosted worker) |
+| Text → Image | Worker (C4) | Correct Persian shaping needs HarfBuzz/RAQM — not in pure JS here. | ✅ C4 (needs a hosted worker) |
 | Tesseract OCR, advanced PDF, documents, audio/video, 7Z | Worker (C5–C7) | Native binaries; unchanged. | C5–C7 |
 
 ## 5. Conflicts between the spec and what was found (the measurement wins)
@@ -129,10 +129,21 @@ object count can be read cheaply before parsing (trailer / xref-stream `/Size`),
 | Byte-built request body | 14 MB image → 19.5 MB JSON body in 21–23 ms; uploaded to Google in 0.7 s. |
 | Migration | 1 additive column. No-op update after C3: 34 ms (44 modules). |
 
+## 6d. Measured in C4 (Serverless, 2026-11-08)
+
+| Check | Result |
+|---|---|
+| **Outbound ports** | Only **80 and 443** are reachable: `:8080`, `:8443`, `:81`, `:9` fail in 4–11 ms (portquiz.net answers on every port; `http://portquiz.net/` → 200 in 52 ms). → `WORKER_URL` must be `https://host` on the default port (validated by `/secret`). |
+| Private / reserved addresses | `10.255.255.1`, `192.0.2.1`, `*.invalid` fail in 6–10 ms (blocked or unresolvable). |
+| An unresponsive public host on 443 | `1.2.3.4` fails after 1.6 s, `203.0.113.50` after 3.2 s → reads of the worker are not retried; the capabilities cache keeps a dead worker from being asked more than every 2 min. |
+| `crypto.subtle` HMAC-SHA256 | Matches Python's `hmac` byte for byte; the bot's own `signedHeaders` + a byte body sent to an echo service arrived unchanged (headers, Persian JSON body, query string) in 260 ms, and the worker's `verify()` accepted the echoed request. |
+| Deploy | No schema change; 13 modules pushed (revision 4); webhook in sync; no-op update 38 ms (47 modules); 0 errors. |
+| Worker container (local Docker) | Non-root, read-only root FS, no capabilities: 3 jobs (convert, text → image, watermark) in 0.5–0.75 s each, ≈ 0.7 s of it the sandboxed child's start-up. Healthcheck `healthy`. Image 295 MB. |
+
 ## 7. Still unknown
 
 - Whether **webhook invocations** get the same CPU / wall limits as `tgcloud run` (the other Wanger bots run in production on the same assumptions without trouble).
 - How many updates may run **concurrently** (assume parallel: every state change is one atomic statement).
 - The JS-heap limit (as opposed to typed arrays); a total project-size limit; the exact module-count limit.
-- Sending from outside with the bot token (§1, last row).
+- Sending from outside with the bot token (§1, last row) — the worker does exactly this; it can only be checked once the owner hosts it with the real `BOT_TOKEN`.
 - The hub's latency and behaviour — it doesn't exist yet.

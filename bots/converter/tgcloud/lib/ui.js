@@ -50,6 +50,7 @@ export function home(ctx, { greet = false } = {}) {
   const text = (greet ? `${L(ctx, 'home.hello', { name: (ctx.from && ctx.from.first_name) || '' })}\n\n` : '') + L(ctx, 'home.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB) });
   const items = [
     ctx.gemini && ctx.gemini.available ? btn(P(ctx, 'menu.ocr'), 'm', 'ocr') : null,
+    ctx.worker && ctx.worker.available ? btn(P(ctx, 'menu.image'), 'm', 'image') : null,
     btn(P(ctx, 'menu.pdf'), 'm', 'pdf'),
     btn(P(ctx, 'menu.zip'), 'm', 'zip'),
     btn(P(ctx, 'menu.tools'), 'm', 'tools'),

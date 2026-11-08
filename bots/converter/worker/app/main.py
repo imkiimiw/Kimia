@@ -220,7 +220,11 @@ def create_app(settings: Settings | None = None, tg: Telegram | None = None, run
         uid = request.query_params.get("user_id")
         if not _owned(job_id, uid):
             return err("NOT_FOUND", 404)
+        before = st.queue.get(job_id)
         job = st.queue.cancel(job_id, int(uid))
+        if before and before["status"] == "QUEUED" and job["status"] == "CANCELLED":
+            # a queued job never reached the runner: its status message is edited here
+            threading.Thread(target=st.runner.notify_cancelled, args=(job,), daemon=True).start()
         return {"job": public(job)}
 
     return app

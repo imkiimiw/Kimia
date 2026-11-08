@@ -81,6 +81,19 @@ export async function expireStale(before) {
   return r.rowsAffected;
 }
 
+/** Worker jobs (C4) are updated lazily from the worker's answer. */
+export function syncWorkerJob(id, { status, outputType = null, outputSize = null, outputFileId = null, errorCode = null, finishedAt = null }) {
+  return db.run(sql`UPDATE jobs SET status = ${status}, output_type = ${outputType}, output_size = ${outputSize},
+    output_file_id = ${outputFileId}, error_code = ${errorCode}, finished_at = ${finishedAt} WHERE id = ${id} AND engine = 'worker'`);
+}
+
+/** Unfinished worker jobs created before `before`, oldest first. */
+export const activeWorkerJobs = (limit, before) => db.all(sql`SELECT ${JOB_COLS} FROM jobs
+  WHERE status IN ${ACTIVE} AND created_at < ${before} AND engine = 'worker' ORDER BY created_at LIMIT ${limit}`);
+
+/** A user's latest jobs (for /cancel without a code). */
+export const recentJobs = (userId, limit = 5) => db.all(sql`SELECT ${JOB_COLS} FROM jobs WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT ${limit}`);
+
 // ---- result cache (24 h) ----
 export const getCached = (key, now) => db.get(sql`SELECT key, file_id, name, output_type, output_size FROM result_cache WHERE key = ${key} AND expires_at > ${now}`);
 export function putCached(c) {

@@ -94,3 +94,47 @@ One line each: the choice — the reason. Newest phase last.
 - The request body is built as bytes (base64 into a Uint8Array) — on Serverless the old string encoder died with "Memory limit exceeded" at 14 MB (millions of small string concatenations); the byte body takes 21 ms and uploads 19.5 MB in 0.7 s (measured).
 - `gemini.js` is pure (request/response); the only network code is `jobs.js#geminiOcr` — the operations stay testable without a network.
 - `fetch` in the test emulator takes an installable handler; tests never reach Google.
+
+## Phase C4 (2026-11-08)
+
+- **Worker stack:** Python 3.12, FastAPI + uvicorn (one process), Pillow 13 (12.3 had 39 published
+  vulnerabilities; pip-audit runs in CI), pillow-heif, structlog. No Celery/Redis: a **SQLite queue**
+  on the worker's volume (`light`/`heavy`, per-user 2/1 running, ≤ 5 active per user, ≤ 200 queued)
+  is enough for one VM, survives restarts and needs no second service.
+- **Signing:** `HMAC-SHA256(WORKER_SECRET, "{ts}.{nonce}.{METHOD}.{path?query}." + body)`, ±300 s,
+  nonce once (replay cache 15 min). The nonce was added after a test showed that a retry of the same
+  idempotent request inside one second would otherwise look like a replay.
+- **Who talks to the user:** the worker. The bot records the job (`engine = 'worker'`), sends the
+  status message («⏳ در صف» + «🚫 لغو») and POSTs the job with that message id; the worker edits it,
+  sends the result with `sendDocument` and a «⚙️ کار دیگری با نتیجه» button (`wf:<code>`). The bot
+  never waits for the worker (no timers on Serverless); its row is updated lazily (/status, /history,
+  the result button, housekeeping, the panel).
+- **The result button** turns the document on the pressed message into a file card without asking
+  the worker (works while the worker is down); only an album summary asks it for the outputs.
+- **Restart policy:** jobs caught mid-run by a worker restart fail with WORKER_RESTARTED and a
+  message — never re-run silently, which could send a result twice. Queued > 30 min → EXPIRED.
+- **Sandbox:** every operation in a fresh `python -I` child: own process group (killed as a group),
+  `RLIMIT_AS/CPU/FSIZE/NOFILE/CORE`, environment without token/secret, cwd = the job's temp dir,
+  outputs must be regular files inside it. The container adds non-root, read-only root, no
+  capabilities, `no-new-privileges`, tini.
+- **Images:** only the decoder of the detected type may run (`Image.open(formats=…)`), header size
+  checked before decoding, EXIF orientation applied and EXIF never copied to outputs (GPS/camera data
+  stay private), ICC kept, transparency flattened onto white (note), first frame of animations
+  (note), compress returns nothing with a note when it can't beat the original, metadata stripping is
+  lossless for JPEG (segments) and PNG (chunks).
+- **Text:** RAQM with Vazirmatn, Sahel and Samim (OFL, licenses shipped); paragraph direction by the
+  Unicode bidi rule P2; bidi override characters removed; emoji removed with a note (no colour-emoji
+  font); tests assert properties (ligature narrower, joining, bidi order equal to the visual order,
+  no tofu for every Persian letter) instead of pixel hashes that break on library updates.
+- **User text** (watermark, text on image, text → image) lives in `pending_actions` only until the
+  layout is chosen (≤ 15 min), goes to the worker in the job, is removed from the worker's row when
+  the job ends, and is never put in the bot's job row.
+- **Presets, not free numbers:** the bot offers fixed presets (sizes, ratios, qualities, positions,
+  themes) — short callback_data, nothing to validate twice, and a contract test checks every preset
+  against the worker's params models.
+- **Capabilities:** cached in `settings` 10 min (2 min when down); a refresh is claimed first so
+  concurrent updates don't all ask; any failed call hides the worker tools at once; setting or
+  deleting a WORKER_* secret clears the cache.
+- **Hosting** (docs/HOSTING.md): Oracle Cloud Always Free Arm VM recommended; Cloud Run's free tier
+  doesn't fit a worker that processes after answering (CPU throttled outside requests, ephemeral
+  disk). Both need a card — the owner's decision.

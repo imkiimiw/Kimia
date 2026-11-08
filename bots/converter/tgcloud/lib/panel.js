@@ -21,6 +21,7 @@ import * as tg from './tg.js';
 import * as ui from './ui.js';
 import { asciiDigits, esc, pacificDay } from './util.js';
 import { MODELS } from './gemini.js';
+import { loadWorker, request } from './worker.js';
 
 /** Owner-only actions: maintenance, keys, admins (adm*), broadcast (bc*), channel changes (ch* but the list). */
 export const ownerOnly = (a) => a === 'mt' || a === 'sec' || a.startsWith('adm') || a.startsWith('bc') || (a.startsWith('ch') && a !== 'ch') || (a.startsWith('gm') && a !== 'gm');
@@ -53,7 +54,7 @@ async function overview(ctx) {
     [btn(P(ctx, 'panel.btn_channels'), 'p', 'ch'), btn(P(ctx, 'panel.btn_bans'), 'p', 'ban')],
     owner ? [btn(P(ctx, 'panel.btn_mt', { v: P(ctx, ctx.flags.maintenance ? 'set.on' : 'set.off') }), 'p', 'mt'), btn(P(ctx, 'panel.btn_admins'), 'p', 'adm')] : null,
     owner ? [btn(P(ctx, 'panel.btn_broadcast'), 'p', 'bc'), btn(P(ctx, 'panel.btn_keys'), 'p', 'sec')] : null,
-    [btn(P(ctx, 'panel.btn_gemini'), 'p', 'gm')],
+    [btn(P(ctx, 'panel.btn_gemini'), 'p', 'gm'), btn(P(ctx, 'panel.btn_worker'), 'p', 'wk')],
     [btn(P(ctx, 'panel.btn_refresh'), 'p', 'r'), ui.homeBtn(ctx)]);
 }
 
@@ -96,6 +97,28 @@ async function geminiScreen(ctx) {
     ...(owner ? MODELS.map((m, i) => [btn(`${m === model ? '✓ ' : ''}${m}`, 'p', 'gmm', i)]) : []),
     owner ? [btn(P(ctx, s['gemini.paid'] ? 'panel.gm_set_free' : 'panel.gm_set_paid'), 'p', 'gmp'), exhausted ? btn(P(ctx, 'panel.gm_reset'), 'p', 'gmr') : null] : null,
     [back(ctx)]);
+}
+
+/** The worker (C4): connected?, its tools and engine features, queue sizes (GET /v1/health). */
+async function workerScreen(ctx, refresh = false) {
+  const w = await loadWorker(ctx, { refresh });
+  const lines = [L(ctx, 'panel.wk_head')];
+  if (!w.configured) return ui.plain([...lines, L(ctx, 'panel.wk_none')].join('\n'), [back(ctx)]);
+  if (w.available) {
+    lines.push(L(ctx, 'panel.wk_ok', { version: w.version, n: ui.num(ctx, w.ops.size), at: ui.dateTime(ctx, w.at) }));
+    const feats = Object.entries(w.features || {}).map(([k, v]) => `${v ? '✅' : '❌'} ${k}`).join(' · ');
+    if (feats) lines.push(L(ctx, 'panel.wk_feat', { list: feats }));
+    try {
+      const r = await request(ctx, 'GET', '/v1/health');
+      if (r.status === 200 && r.data) {
+        const sum = (q) => Object.values((r.data.queues || {})[q] || {}).reduce((a, b) => a + b, 0);
+        lines.push(L(ctx, 'panel.wk_health', { light: ui.num(ctx, sum('light')), heavy: ui.num(ctx, sum('heavy')), hours: ui.num(ctx, Math.floor((r.data.uptime_s || 0) / 3600)), disk: ui.num(ctx, r.data.disk_free_mb || 0) }));
+      }
+    } catch { /* the capabilities answered a moment ago; health is optional */ }
+  } else {
+    lines.push(L(ctx, 'panel.wk_down', { why: w.why || '?', at: ui.dateTime(ctx, w.at || ctx.now) }));
+  }
+  return ui.plain(lines.join('\n'), [btn(P(ctx, 'panel.wk_refresh'), 'p', 'wkr')], [back(ctx)]);
 }
 
 async function bansScreen(ctx) {
@@ -188,6 +211,8 @@ export async function onCallback(ctx, args, message) {
       return show(await adminsScreen(ctx));
     case 'sec': return show(await secretsScreen(ctx));
     case 'gm': return show(await geminiScreen(ctx));
+    case 'wk': return show(await workerScreen(ctx));
+    case 'wkr': return show(await workerScreen(ctx, true));
     case 'gmm': {
       const m = MODELS[Number(arg)];
       if (m) await sys.setSetting('gemini.model', m, ctx.now, ctx.user.id);

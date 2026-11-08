@@ -7,6 +7,7 @@ import { allowedExts, splitName } from './names.js';
 import { TYPES } from './detect/types.js';
 import { LIST_PAGE } from './config.js';
 import { num, size, homeBtn, backBtn, cancelBtn } from './ui.js';
+import { imageToolsOk } from './wtools.js';
 
 const screen = (text, ...rows) => ({ text, reply_markup: rows.length ? kb(...rows) : undefined });
 const L = (ctx, key, vars) => t(ctx.lang, key, vars);
@@ -42,6 +43,7 @@ export function fileOps(ctx, file, d) {
     ops.push(btn(P(ctx, 'op.pdf_extract'), 'pd', ref, 'x'), btn(P(ctx, 'op.pdf_remove'), 'pd', ref, 'd'), btn(P(ctx, 'op.pdf_rotate'), 'pd', ref, 'r'));
     if (m.pdf.pages > 1) ops.push(btn(P(ctx, 'op.pdf_reorder'), 'pd', ref, 'o'), btn(P(ctx, 'op.pdf_split'), 'pd', ref, 's'));
   }
+  if (imageToolsOk(ctx, file, d)) ops.unshift(btn(P(ctx, 'op.wimage'), 'wi', ref));
   if (ocrable(ctx, file, d)) ops.unshift(btn(P(ctx, 'op.ocr'), 'oc', ref));
   if (d.id === 'jpeg' || (d.id === 'png' && m.image && m.image.w * m.image.h <= ctx.limits.PNG_MAX_PIXELS)) ops.push(btn(P(ctx, 'op.pdf_combine'), 'pi', ref));
   ops.push(btn(P(ctx, 'op.rename'), 'rn', ref));

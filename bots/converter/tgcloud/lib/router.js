@@ -21,6 +21,8 @@
 //   b:<id> done collecting → menu · bm:<id> menu · bx:<id> cancel · bz zip · bp one PDF · bf fix · bl list
 //   br:<id>[:p|s|n|z] batch rename
 //   oc:<ref> OCR (consent first) · oy:<ref> consent given → OCR · od:<code> DOCX of the OCR text in this message
+//   wi:<ref>[:<cat>]  image tools (worker, C4) · wo:<ref>:<preset> run a preset (lib/wtools.js#PRESETS)
+//   wt[:t:<theme>|:g:<theme>:<size>|:b]  text → image · wf:<code> a worker result → its card · wx:<code> cancel a worker job
 //   p[:<action>[:<arg>]]  panel (lib/panel.js)
 import { HISTORY_PAGE, HOUSEKEEPING_EVERY, OWNER_ID, RESUME_TTL_S, STALE_JOB_S, TAP_GUARD_MS, UPDATE_KEEP_S } from './config.js';
 import { parse } from './codec.js';
@@ -31,6 +33,9 @@ import * as jobsdb from './db/files.js';
 import * as state from './db/state.js';
 import * as sys from './db/system.js';
 import * as users from './db/users.js';
+import * as wflow from './wflow.js';
+import * as W from './wtools.js';
+import { syncJob, syncStale } from './worker.js';
 import { alertOwner } from './alerts.js';
 import { LANGS, t, tp } from './i18n/index.js';
 import { expireStale } from './jobs.js';
@@ -84,6 +89,7 @@ async function prepare(ctx, from) {
 export async function housekeeping(ctx) {
   const out = await sys.housekeeping(ctx.now, { jobDays: ctx.limits.JOB_HISTORY_DAYS, updateKeepS: UPDATE_KEEP_S });
   out.expired = await expireStale(ctx);
+  out.workerSynced = await syncStale(ctx, 3).catch(() => 0);
   return out;
 }
 
@@ -137,6 +143,7 @@ export async function handleMessage(message, update) {
     if (pending && pending.kind === 'broadcast') { await panel.onInput(ctx, message, pending); return 'panel_input'; }
     if (pending && message.text) {
       if (['rename', 'pdf', 'pdfrot'].includes(pending.kind)) await files.onInput(ctx, message, pending);
+      else if (['wtext', 'wpos', 'tti', 'ttio'].includes(pending.kind)) await wflow.onInput(ctx, message, pending);
       else if (pending.kind === 'brename') await batch.onInput(ctx, message, pending);
       else await panel.onInput(ctx, message, pending);
       return 'input';
@@ -152,7 +159,7 @@ async function command(ctx, message, cmd) {
   switch (cmd.name) {
     case 'start':
       await state.clearPending(ctx.user.id, 'input');
-      await files.loadGemini(ctx);
+      await files.loadServices(ctx);
       await send(ctx, 'home', ui.home(ctx, { greet: true }));
       return 'start';
     case 'help': await send(ctx, 'help', ui.help(ctx)); return 'help';
@@ -164,13 +171,20 @@ async function command(ctx, message, cmd) {
     case 'status': {
       const code = cmd.args[0] ? cmd.args[0].toUpperCase() : null;
       if (code && !isJobCode(code)) { await send(ctx, 'status', ui.plain(t(ctx.lang, 'status.bad_code'))); return 'status'; }
-      const job = code ? await jobsdb.jobByCode(code, ctx.user.id) : await jobsdb.latestJob(ctx.user.id);
+      const row = code ? await jobsdb.jobByCode(code, ctx.user.id) : await jobsdb.latestJob(ctx.user.id);
+      const { job } = await syncJob(ctx, row);
       await send(ctx, 'status', ui.statusScreen(ctx, job ? withExpiry(ctx, job) : null));
       return 'status';
     }
     case 'cancel': {
+      // /cancel WC-… cancels that worker job; /cancel alone: a pending input first, else the newest worker job
+      if (cmd.args[0]) { await wflow.cancel(ctx, cmd.args[0].toUpperCase()); return 'cancel_job'; }
       const had = await state.takePending(ctx.user.id, 'input', ctx.now);
       await state.clearPending(ctx.user.id, 'resume');
+      if (!had) {
+        const job = await wflow.latestActive(ctx);
+        if (job) { await wflow.cancel(ctx, job.code); return 'cancel_job'; }
+      }
       await send(ctx, 'cancel', ui.plain(t(ctx.lang, had ? 'cancel.done' : 'cancel.none'), [ui.homeBtn(ctx)]));
       return 'cancel';
     }
@@ -200,6 +214,11 @@ async function historyScreen(ctx, page) {
   const total = await jobsdb.jobsCount(ctx.user.id, since);
   const p = Math.max(0, Math.min(page, Math.max(0, Math.ceil(total / HISTORY_PAGE) - 1)));
   const rows = await jobsdb.jobsPage(ctx.user.id, since, HISTORY_PAGE, p * HISTORY_PAGE);
+  // unfinished worker jobs on this page are asked about (at most 3 requests)
+  let asked = 0;
+  for (let i = 0; i < rows.length && asked < 3; i++) {
+    if (rows[i].engine === 'worker' && ['QUEUED', 'DOWNLOADING', 'PROCESSING', 'UPLOADING'].includes(rows[i].status)) { asked++; rows[i] = (await syncJob(ctx, rows[i])).job; }
+  }
   return ui.history(ctx, rows.map((j) => withExpiry(ctx, j)), p, total);
 }
 
@@ -236,7 +255,7 @@ async function route(ctx, cq, msg) {
     }
   }
   switch (code) {
-    case 'h': await state.clearPending(ctx.user.id, 'input'); await files.loadGemini(ctx); await tg.edit(ctx, 'home', msg, ui.home(ctx)); return 'home';
+    case 'h': await state.clearPending(ctx.user.id, 'input'); await files.loadServices(ctx); await tg.edit(ctx, 'home', msg, ui.home(ctx)); return 'home';
     case 'x': {
       await state.clearPending(ctx.user.id, 'input');
       await tg.edit(ctx, 'cancel', msg, ui.plain(t(ctx.lang, 'cancel.done'), [ui.homeBtn(ctx)]));
@@ -275,6 +294,9 @@ async function route(ctx, cq, msg) {
     case 'od':
       await files.onDocx(ctx, cq.message);
       return 'ocr_docx';
+    case 'wi': case 'wo': case 'wt': case 'wf': case 'wx':
+      await wflow.onCallback(ctx, code, args, msg);
+      return `worker_${code}`;
     case 'b': case 'bm': case 'bx': case 'bz': case 'bp': case 'bf': case 'bl': case 'br':
       await batch.onCallback(ctx, code, args, msg);
       return `batch_${code}`;
@@ -295,8 +317,8 @@ async function alertAnswer(ctx, cq, key) {
 }
 
 async function screen(ctx, msg, name) {
-  await files.loadGemini(ctx);
-  const screens = { tools: ui.tools, ocr: ui.ocrTools, pdf: ui.pdfTools, zip: ui.zipTools, set: ui.settings, help: ui.help, bots: ui.bots, privacy: ui.privacy, lang: (c) => ui.language(c, 'set') };
+  await files.loadServices(ctx);
+  const screens = { tools: ui.tools, ocr: ui.ocrTools, pdf: ui.pdfTools, zip: ui.zipTools, image: W.imageMenu, set: ui.settings, help: ui.help, bots: ui.bots, privacy: ui.privacy, lang: (c) => ui.language(c, 'set') };
   const fn = screens[name] || ui.home;
   await tg.edit(ctx, name || 'home', msg, fn(ctx));
   return name || 'home';

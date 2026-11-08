@@ -171,7 +171,9 @@ state in [docs/PROGRESS.md](docs/PROGRESS.md) — read PROGRESS first.
   actions) / `lib/batch.js` (albums, batch actions) → `lib/jobs.js` (rate limits, result cache, the
   generic runner: download ≤ 4 at a time → `lib/ops.js` → validate → deliver) → pure tools
   `lib/archive.js`, `lib/pdf.js`, `lib/images.js`, `lib/gemini.js`, `lib/docx.js`, `lib/base64.js` on
-  `lib/vendor/{fflate,pdf-lib}.js` (the only network code is `jobs.js#geminiOcr`) · `lib/cards.js`
+  `lib/vendor/{fflate,pdf-lib}.js` (network code only in `jobs.js#geminiOcr` and `lib/worker.js`) ·
+  worker tools (C4): `lib/worker.js` (signed client, capabilities cache, lazy job sync) →
+  `lib/wflow.js` (wi/wo/wt/wf/wx flows) + `lib/wtools.js` (pure presets and screens) · `lib/cards.js`
   (file card ≤ 6 actions + «بیشتر», tool screens) · `lib/gate.js` (forced join, local
   provider until the Wanger Hub exists) · `lib/panel.js` + `lib/broadcast.js` + `lib/secrets.js` ·
   `lib/detect/` (type detection from bytes, ZIP central directory) · `lib/names.js` (sanitizer,
@@ -181,6 +183,9 @@ state in [docs/PROGRESS.md](docs/PROGRESS.md) — read PROGRESS first.
   ≈ 7.9 GB memory, ≤ 1 MiB per module; `Date.now()` is frozen during synchronous work; no timers,
   `URL`, `atob`, `Buffer`, `AbortController`; WebAssembly only through its synchronous APIs; a query
   fails above ≈ 50 000 rows read (other Wanger bots) → every query is index-backed and `LIMIT`ed.
+- **Serverless reaches only ports 80/443** (C4): other ports fail at once; a dead host costs 1.6–3.2 s per fetch.
+- **The worker** (`worker/`, Python, its own README and tests) talks to users itself (status edits, results);
+  the bot records worker jobs (`engine = 'worker'`) and syncs them lazily. Never wait for it in the bot.
 - **Big data = typed arrays, never strings built from many small pieces** (a 14 MB base64 string ran
   out of JS heap; typed arrays have gigabytes — measured in C3).
 - **No transactions:** every state change is one statement (conditional UPDATE, upsert, RETURNING).

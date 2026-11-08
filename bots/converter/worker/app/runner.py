@@ -74,6 +74,9 @@ class Runner:
                 except FileNotFoundError:
                     pass
 
+    def notify_cancelled(self, job: dict) -> None:
+        self._final_text(job, i18n.t(job["lang"], "status.CANCELLED", code=job["code"]))
+
     def notify_restarted(self, jobs: list[dict]) -> None:
         for job in jobs:
             self._final_text(job, i18n.error_text(job["lang"], "WORKER_RESTARTED", {}, job["code"]))
