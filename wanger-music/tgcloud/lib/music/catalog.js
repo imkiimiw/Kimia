@@ -283,6 +283,9 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
       return row;
     },
 
+    /** The worker uploaded the audio's thumbnail as a photo: keep that photo as the cover (no actor). */
+    replaceCover: (id, fileId) => repo.update(id, { cover_file_id: fileId }, clock.now()),
+
     /** Cover for channel posts (the audio file's own thumbnail does not change). */
     async setCover(actor, id, fileId) {
       assertCan(actor, PERM);

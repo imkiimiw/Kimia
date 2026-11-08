@@ -82,6 +82,10 @@ export function createPublicationsRepo() {
         SELECT p.id FROM publications p LEFT JOIN tracks t ON t.id = p.track_id WHERE t.id IS NULL LIMIT ${cap})`).then((r) => r.rowsAffected),
     markDeleted: (id, now) => db.run(sql`UPDATE publications SET deleted_at = ${now}, updated_at = ${now} WHERE id = ${id} AND deleted_at IS NULL`),
 
+    /** A channel's queue: queued posts, the earliest one due, and posts awaiting approval (index channel+status). */
+    queueOf: (channelId) => db.get(sql`SELECT coalesce(sum(status = 'queued'), 0) AS queued, coalesce(sum(status = 'pending_approval'), 0) AS waiting,
+      min(CASE WHEN status = 'queued' THEN next_attempt_at END) AS due FROM publications WHERE channel_id = ${channelId} AND status IN ('queued', 'pending_approval')`)
+      .then((r) => ({ queued: r ? Number(r.queued) : 0, waiting: r ? Number(r.waiting) : 0, due: r && r.due !== null ? Number(r.due) : null })),
     /** Publications that failed or became uncertain since `since` (monitoring; index on status). */
     brokenSince: (since) => db.get(sql`SELECT count(*) AS n FROM publications WHERE status IN ('failed', 'uncertain') AND updated_at >= ${since}`).then((r) => (r ? Number(r.n) : 0)),
     publishedSince: (channelId, since) => db.get(sql`SELECT count(*) AS n FROM publications WHERE channel_id = ${channelId} AND status = 'published' AND published_at >= ${since}`).then((r) => (r ? r.n : 0)),

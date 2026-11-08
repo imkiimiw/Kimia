@@ -202,6 +202,13 @@ restores the row (disabled) with its settings. **Nothing is posted to any channe
   counted); 5xx / network → backoff 1, 2, 4… min (jitter, cap 60) and failed after 6 attempts;
   channel errors → failed + channel disabled + alert; file errors → failed + track hidden + alert;
   caption errors → failed + alert. ≤ `publishing.per_tick` posts per tick, one per channel.
+- **Cover** (cover_then_audio): a track's cover is often the audio's own thumbnail, which Telegram
+  won't send as a photo ("can't use file of type Thumbnail as Photo", production 2026-11-08): the
+  worker downloads it once, uploads it as a photo and keeps that photo's file_id; any other cover
+  error skips the cover — the audio is the post (only channel / transient errors stop the post).
+- **Queue on the channel card**: queued / awaiting approval, and when the next post can go
+  (`rules.channelReady`); «▶️ send the next post now» (`worker.sendNow`) skips the interval and the
+  active hours (explicit owner choice) but not pause, cooldown or the daily limit.
 - **At most once**: an expired lease is `uncertain` and is never re-sent automatically; the owner
   chooses «ثبت به‌عنوان منتشرشده» or «ارسال دوباره».
 - **Removal**: hide / remove cancels the track's waiting rows; «🧹 Delete channel posts» deletes its

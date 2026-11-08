@@ -1,6 +1,7 @@
 // ⚙️ Settings (owner only): every editable key with its value; enums/booleans/time zones cycle on a
 // tap, numbers and the archive channel are typed in a flow. Plus "sync bot commands".
 import { SETTINGS, CURRENT_PHASE, COMMANDS_VERSION } from '../config/static.js';
+import { can } from '../permissions/policy.js';
 import { t, tp, digits } from '../i18n/index.js';
 import { btn, markup } from '../bot/keyboards.js';
 import { screen, homeButton, promptView } from './panel.js';
@@ -32,6 +33,9 @@ const label = (lang, key) => tp(lang, `set.key.${key}`);
 async function listView(app) {
   const lang = app.lang;
   const rows = [];
+  // channel settings live on each channel's card: shortcuts, so they are found from here too
+  if (can(app.user, 'sources.manage')) rows.push([btn(tp(lang, 'set.goto_sources'), 'src', 'home')]);
+  if (can(app.user, 'destinations.manage')) rows.push([btn(tp(lang, 'set.goto_dest'), 'dst', 'home')]);
   for (const key of EDITABLE_KEYS) {
     const d = SETTINGS[key];
     const later = d.phase && d.phase > CURRENT_PHASE ? ' ' + tp(lang, 'set.phase', { phase: d.phase }) : '';

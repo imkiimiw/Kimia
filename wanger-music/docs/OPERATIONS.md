@@ -102,6 +102,7 @@ e-mails the repository owner, which still works when the bot can't message anyon
 | The bot doesn't answer | `npm run tg -- webhook` (in sync? pending?) → `npm run tg -- webhook sync`; `npm run smoke`; GitHub Actions runs |
 | "errors in the last hour" alert | 🧪 System Status → latest errors; reproduce with `npm run tg -- run handlers/<name> '<payload>'` on staging |
 | Posts stuck / uncertain | 🗳 Approvals → uncertain / failed; ⚙️ «توقف همه‌ی انتشارها» stops the worker at once |
+| Posts queued but not going out | 📢 → the channel's card shows the queue and why it waits (interval, hours, daily limit). There is no clock on this platform: the queue moves with activity (messages, buttons, source posts) or the GitHub job (needs the secret; GitHub runs it every few hours at best). «▶️ ارسال پست بعدی الان» sends the next one at once |
 | Telegram 429 cooldown | Wait; bulk work resumes by itself; interactive replies are not delayed |
 | A deploy broke something | Roll back code (above), then fix forward |
 | Data lost or corrupted | Restore the latest backup (staging rehearsal first) |

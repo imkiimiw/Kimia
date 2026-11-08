@@ -386,3 +386,65 @@ test('🆔 channel link at the end of captions: on by default, switchable per ch
   await tick(h, 700);
   assert.doesNotMatch(posts(h, FLOW)[1].params.caption, /🆔/);
 });
+
+test('cover then audio with the audio\'s own thumbnail (production: "can\'t use file of type Thumbnail as Photo"): uploaded once as a photo, the post goes out', async () => {
+  const h = setup();
+  await channel(h, FLOW, { format: true }); // cover_then_audio
+  seq += 1;
+  advance(61);
+  await h.send(OWNER, null, { audio: { file_id: `F${seq}`, file_unique_id: `U${seq}`, duration: 210, title: 'دلم تنگه', performer: 'شادمهر', file_name: 'x.mp3', thumbnail: { file_id: 'THUMB1', file_unique_id: 'TU1', width: 320, height: 320 } } });
+  const tr = h.one('SELECT * FROM tracks ORDER BY id DESC LIMIT 1');
+  assert.equal(tr.cover_file_id, 'THUMB1');
+  await h.press(OWNER, `trk:act:${tr.id}`, 1);
+  await tick(h, 700);
+  assert.deepEqual(pubs(h).map((p) => p.status), ['published'], 'not failed any more');
+  const photos = posts(h, FLOW).filter((c) => c.method === 'sendPhoto');
+  assert.equal(photos.length, 1, 'the cover was uploaded as a photo');
+  assert.ok(photos[0].params.photo.bytes instanceof Uint8Array);
+  assert.match(h.one('SELECT cover_file_id FROM tracks WHERE id = ?', tr.id).cover_file_id, /^PHb/, 'and kept for next time');
+});
+
+test('a cover Telegram refuses for another reason is skipped: the audio still goes out', async () => {
+  const h = setup();
+  await channel(h, FLOW, { format: true });
+  const tr = await track(h, 'دلم تنگه', 'شادمهر', { activate: false });
+  h.db().prepare('UPDATE tracks SET cover_file_id = ? WHERE id = ?').run('BADPHOTO', tr.id);
+  await h.press(OWNER, `trk:act:${tr.id}`, 1);
+  h.tg.failNext('sendPhoto', 400, 'Bad Request: wrong file identifier/HTTP URL specified', { match: (p) => p.chat_id === FLOW });
+  await tick(h, 700);
+  assert.deepEqual(pubs(h).map((p) => p.status), ['published']);
+  assert.equal(posts(h, FLOW).filter((c) => c.method === 'sendAudio').length, 1);
+});
+
+test('the destination card shows the queue and when the next post goes; «▶️ send the next post now» skips the waiting', async () => {
+  const h = setup();
+  const id = await channel(h, FLOW);
+  await track(h, 'دلم تنگه', 'شادمهر');
+  await track(h, 'بی تو', 'ابی');
+  await track(h, 'نامه', 'داریوش');
+  await tick(h, 700); // a post, then the 10-minute gap (imports are messages: they ran ticks too)
+  const before = posts(h, FLOW).length;
+  const left = h.one("SELECT count(*) AS n FROM publications WHERE status = 'queued'").n;
+  assert.ok(before >= 1 && left >= 1, `${before} posted, ${left} queued`);
+  await h.send(OWNER, '/admin');
+  await h.tap(OWNER, 'dst:home');
+  assert.match(h.lastText(OWNER), /روی اسمش \(⚙️\) بزن/);
+  assert.ok(h.lastButtons(OWNER).some((b) => /^⚙️ ۱\. WangerFlow/.test(b.text)));
+  await h.tap(OWNER, `dst:v:${id}`);
+  assert.match(h.lastText(OWNER), /📬 صف انتشار: [۰-۹]+ پست · پست بعدی: حدود [۰-۹]+ دقیقه دیگر \(فاصله‌ی بین پست‌ها\)/);
+  const labels = h.lastButtons(OWNER).map((b) => b.text);
+  for (const l of ['▶️ ارسال پست بعدی الان', '⏱ فاصله: ۱۰ دقیقه', '📅 سقف روزانه: ۵۰', '🕘 ساعت‌های فعال: همه‌ی روز']) assert.ok(labels.includes(l), l);
+  for (let i = 0; i < left; i++) {
+    await h.tap(OWNER, `dst:now:${id}`);
+    assert.equal(h.tg.answers().at(-1).text, '✅ پست بعدی فرستاده شد.', 'no waiting for the interval');
+  }
+  assert.equal(posts(h, FLOW).length, before + left);
+  assert.match(h.lastText(OWNER), /📬 صف انتشار خالی است/);
+  await h.tap(OWNER, `dst:now:${id}`);
+  assert.match(h.tg.answers().at(-1).text, /صف این کانال خالی است/);
+  // ⚙️ Settings leads to the channel settings too
+  await h.send(OWNER, '/admin');
+  await h.tap(OWNER, 'set:home');
+  const set = h.lastButtons(OWNER).map((b) => b.callback_data);
+  assert.ok(set.includes('src:home') && set.includes('dst:home'));
+});

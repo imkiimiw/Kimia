@@ -41,6 +41,35 @@ export function createWorker({ pubs, channels, catalog, sources, settings, tg, a
     await alerts.owner(`dst:${ch.id}`, (lang) => t(lang, 'alert.pub_channel', { title: ch.title || String(ch.chat_id), reason: description }), LIMITS.alertDestinationEverySeconds);
   }
 
+  /** Errors that concern the channel or Telegram as a whole: the post's normal error handling decides. */
+  const fatal = (e) => ['transient', 'rate_limit', 'no_rights', 'chat_gone', 'blocked'].includes(classify(e).kind);
+
+  /**
+   * The cover photo of a cover_then_audio post. A track's cover is often the audio file's own
+   * thumbnail, which Telegram refuses to send as a photo ("can't use file of type Thumbnail as
+   * Photo", seen in production): its bytes are uploaded once as a photo and that photo is kept.
+   * Any other cover problem skips the cover — the audio is the post. @returns {Promise<number|null>}
+   */
+  async function sendCover(track, ch) {
+    try {
+      return (await tg.call('sendPhoto', { chat_id: ch.chat_id, photo: track.cover_file_id }, 'publish_cover')).message_id;
+    } catch (e) {
+      if (fatal(e)) throw e;
+      if (/thumbnail/i.test(classify(e).description)) {
+        try {
+          const m = await tg.sendPhotoFile(ch.chat_id, await tg.fileContent(track.cover_file_id), 'cover.jpg', 'publish_cover');
+          const best = m && m.photo && m.photo.length ? m.photo[m.photo.length - 1] : null;
+          if (best) await catalog.replaceCover(track.id, best.file_id);
+          return m.message_id;
+        } catch (e2) {
+          if (fatal(e2)) throw e2;
+        }
+      }
+      log.warn('cover_skipped', { publication_id: track.id, channel_id: ch.chat_id, error: classify(e).kind });
+      return null;
+    }
+  }
+
   /** @returns {Promise<'sent'|'retry'|'rate_limited'|'failed'|'cancelled'>} */
   async function sendOne(pub, ch) {
     const track = await catalog.get(pub.track_id);
@@ -51,9 +80,7 @@ export function createWorker({ pubs, channels, catalog, sources, settings, tg, a
     const caption = await captionFor(track, ch, sources);
     let coverId = null;
     try {
-      if (ch.post_format === 'cover_then_audio' && track.cover_file_id) {
-        coverId = (await tg.call('sendPhoto', { chat_id: ch.chat_id, photo: track.cover_file_id }, 'publish_cover')).message_id;
-      }
+      if (ch.post_format === 'cover_then_audio' && track.cover_file_id) coverId = await sendCover(track, ch);
       const m = await tg.call('sendAudio', { chat_id: ch.chat_id, audio: track.audio_file_id, caption, parse_mode: 'HTML' }, 'publish');
       const now = clock.now();
       await pubs.markPublished(pub.id, m.message_id, coverId, now);
@@ -106,6 +133,23 @@ export function createWorker({ pubs, channels, catalog, sources, settings, tg, a
 
   return {
     sendOne,
+    /**
+     * The owner's «▶️ send the next post now»: the channel's oldest due queued post, without waiting
+     * for the minimum interval or the active hours (an explicit choice). Pause, the 429 cooldown,
+     * the daily limit and the channel's state still apply.
+     * @returns {Promise<'sent'|'retry'|'rate_limited'|'failed'|'cancelled'|'empty'|'paused'|'cooldown'|'off'|'daily_limit'>}
+     */
+    async sendNow(channelId) {
+      if (await settings.get('publishing.paused')) return 'paused';
+      const now = clock.now();
+      if (cooldownActive(now, Number(await settings.get('telegram.cooldown_until')))) return 'cooldown';
+      const ch = await channels.get(channelId);
+      if (!ch || !ch.enabled || !ch.bot_rights_ok) return 'off';
+      if (ch.daily_limit && (await pubs.publishedSince(ch.id, dayStart(now, ch.time_zone))) >= ch.daily_limit) return 'daily_limit';
+      const pub = await pubs.claimNext(ch.id, now, now + LEASE_SECONDS);
+      if (!pub) return 'empty';
+      return sendOne(pub, ch);
+    },
     /** Tick processor. */
     async run({ deadlineMs }) {
       if (await settings.get('publishing.paused')) return { skipped: 'paused' };

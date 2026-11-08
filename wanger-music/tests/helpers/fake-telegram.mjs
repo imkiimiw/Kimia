@@ -105,6 +105,12 @@ export function createFakeTelegram() {
         if (!c) fail(400, 'Bad Request: chat not found', m);
         if (c.bot.status !== 'administrator' || !c.bot.can_post_messages) fail(403, 'Forbidden: bot is not a member of the channel chat', m);
       } else if (p.chat_id > 0 && blocked.has(p.chat_id)) fail(403, 'Forbidden: bot was blocked by the user', m);
+      // like Telegram: an audio file's thumbnail id can't be sent as a photo; uploaded bytes become a photo
+      if (typeof p.photo === 'string' && p.photo.startsWith('THUMB')) fail(400, "Bad Request: can't use file of type Thumbnail as Photo", m);
+      if (p.photo && p.photo.bytes instanceof Uint8Array) {
+        const id = ++nextMessageId;
+        return store(p.chat_id, { message_id: id, chat: { id: p.chat_id }, photo: [{ file_id: `PHs${id}` }, { file_id: `PHb${id}` }], caption: p.caption || null });
+      }
       return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, photo: [{ file_id: p.photo }], caption: p.caption || null });
     },
     sendDocument(p, m) {
@@ -117,6 +123,7 @@ export function createFakeTelegram() {
       return store(p.chat_id, { message_id: nextMessageId, chat: { id: p.chat_id }, document: { file_id, file_unique_id: `DU${nextMessageId}`, file_name: d.name, mime_type: d.type, file_size: d.bytes.length }, caption: p.caption || null });
     },
     getFileContent(p, m) {
+      if (String(p.file_id).startsWith('THUMB')) return new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]); // a thumbnail's bytes
       const bytes = files.get(p.file_id);
       if (!bytes) fail(400, 'Bad Request: wrong file_id or the file is temporarily unavailable', m);
       if (bytes.length > 20 * 1024 * 1024) fail(400, 'Bad Request: file is too big', m);

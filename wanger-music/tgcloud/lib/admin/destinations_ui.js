@@ -33,6 +33,17 @@ const hoursText = (lang, d) => {
   return h ? tp(lang, 'dst.hours_range', { from: h.from, to: h.to }) : tp(lang, 'dst.all_day');
 };
 
+/** «📬 Queue: 8 posts · next: in about 4 min» (why it waits, when it does). */
+function queueLine(lang, q) {
+  if (!q.queued) return t(lang, 'dst.queue_empty', { waiting: q.waiting ? raw(t(lang, 'dst.queue_waiting', { n: q.waiting })) : '' });
+  const mins = Math.max(0, Math.ceil(((q.nextAt || q.now) - q.now) / 60));
+  const when = q.ready
+    ? (mins ? t(lang, 'dst.next_in', { m: mins }) : t(lang, 'dst.next_now'))
+    : q.reason === 'interval' ? t(lang, 'dst.next_in', { m: Math.max(1, mins) })
+      : t(lang, `dst.next_${q.reason === 'hours' || q.reason === 'daily_limit' || q.reason === 'off' ? q.reason : 'off'}`);
+  return t(lang, 'dst.queue', { n: q.queued, waiting: q.waiting ? raw(t(lang, 'dst.queue_waiting', { n: q.waiting })) : '', when: raw(when) });
+}
+
 async function cardView(app, d) {
   const lang = app.lang;
   const tz = await app.settings.get('time_zone');
@@ -45,6 +56,7 @@ async function cardView(app, d) {
     t(lang, 'dst.card_format', { format: tp(lang, `dst.format.${d.post_format}`), caption: tp(lang, d.caption_template ? 'dst.caption_custom' : 'dst.caption_default') }),
     t(lang, 'dst.card_schedule', { interval: Math.round(d.min_interval_seconds / 60), hours: hoursText(lang, d), daily: d.daily_limit ? digits(d.daily_limit, lang) : tp(lang, 'dst.no_limit'), tz: d.time_zone }),
   ];
+  lines.push(queueLine(lang, await app.publisher.queueOf(d)));
   if (!d.bot_rights_ok) lines.push(t(lang, 'dst.warn_rights'));
   else if (!rights.edit || !rights.delete) lines.push(t(lang, 'dst.warn_edit_delete'));
   if (!normalizeRules(d.rules).languages.length) lines.push(t(lang, 'dst.warn_languages'));
@@ -57,7 +69,9 @@ async function cardView(app, d) {
       [btn(tp(lang, 'dst.btn_langs'), 'dst', 'langs', id), btn(tp(lang, 'dst.btn_genres'), 'dst', 'gen', id, 'inc'), btn(tp(lang, 'dst.btn_exclude'), 'dst', 'gen', id, 'exc')],
       [btn(tp(lang, 'dst.btn_caption'), 'dst', 'cap', id), btn(tp(lang, 'dst.btn_preview'), 'dst', 'prev', id), btn(tp(lang, 'dst.btn_format'), 'dst', 'fmt', id)],
       [btn(tp(lang, 'dst.btn_signature', { v: tp(lang, d.signature !== 0 ? 'common.on' : 'common.off') }), 'dst', 'sig', id)],
-      [btn(tp(lang, 'dst.btn_interval'), 'dst', 'int', id), btn(tp(lang, 'dst.btn_hours'), 'dst', 'hours', id), btn(tp(lang, 'dst.btn_daily'), 'dst', 'daily', id)],
+      [btn(tp(lang, 'dst.btn_send_now'), 'dst', 'now', id)],
+      [btn(tp(lang, 'dst.btn_interval_v', { v: digits(Math.round(d.min_interval_seconds / 60), lang) }), 'dst', 'int', id), btn(tp(lang, 'dst.btn_daily_v', { v: d.daily_limit ? digits(d.daily_limit, lang) : tp(lang, 'dst.no_limit') }), 'dst', 'daily', id)],
+      [btn(tp(lang, 'dst.btn_hours_v', { v: hoursText(lang, d) }), 'dst', 'hours', id)],
       [btn(tp(lang, 'dst.btn_tz', { tz: d.time_zone }), 'dst', 'tz', id), btn(tp(lang, 'dst.btn_check'), 'dst', 'check', id)],
       [btn(tp(lang, 'dst.btn_history'), 'pub', 'ch', id, 0), btn(tp(lang, 'dst.btn_backfill'), 'pub', 'bf', id)],
       [btn(tp(lang, 'fjm.btn_delete'), 'dst', 'del', id), btn(tp(lang, 'common.back'), 'dst', 'home')],
@@ -72,7 +86,7 @@ async function listView(app) {
     const r = normalizeRules(d.rules);
     return `${digits(i + 1, lang)}. ${d.enabled ? '✅' : '⏸'} ${d.bot_rights_ok ? '🟢' : '🔴'} ${esc(title(d))} · ${esc(r.languages.map((l) => tp(lang, `tlang.${l}`)).join('، ') || '—')}`;
   });
-  const buttons = rows.map((d, i) => [btn(`${digits(i + 1, lang)}. ${title(d)}`.slice(0, 60), 'dst', 'v', d.id)]);
+  const buttons = rows.map((d, i) => [btn(`⚙️ ${digits(i + 1, lang)}. ${title(d)}`.slice(0, 60), 'dst', 'v', d.id)]);
   const known = new Set(rows.map((d) => d.chat_id));
   for (const s of SUGGESTED_DESTINATIONS) {
     if (!known.has(s.chat_id)) buttons.push([btn(tp(lang, 'dst.btn_suggested', { name: '@' + s.username, lang: tp(lang, `tlang.${s.language}`) }), 'dst', 'sug', s.chat_id)]);
@@ -197,6 +211,15 @@ export const routes = [
   cardAction('auto', (app, user, id) => app.destinations.toggleAuto(user, id)),
   cardAction('appr', (app, user, id) => app.destinations.toggleApproval(user, id)),
   cardAction('sig', (app, user, id) => app.destinations.toggleSignature(user, id)),
+  {
+    // «▶️ send the next post now» (owner): no waiting for the interval / active hours
+    ns: 'dst', action: 'now', args: ['uint'], perm: PERM,
+    async run(app, user, [id], cq) {
+      const outcome = await app.worker.sendNow(id);
+      await showCard(app, user, cq, id);
+      return { toast: tp(app.lang, `dst.now.${outcome}`), alert: outcome !== 'sent' };
+    },
+  },
   cardAction('conf', (app, user, id) => app.destinations.cycleConfidence(user, id)),
   cardAction('fmt', (app, user, id) => app.destinations.cycleFormat(user, id)),
   cardAction('tz', (app, user, id) => app.destinations.cycleTimeZone(user, id)),

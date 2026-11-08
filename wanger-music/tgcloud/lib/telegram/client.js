@@ -91,6 +91,8 @@ export function createTelegramClient({ log, onBlocked, api = sdkApi }) {
     sendDocument: (chatId, bytes, filename, { type = 'application/octet-stream', caption = '' } = {}, viewName = 'document') => call('sendDocument', {
       chat_id: chatId, document: new InputFile(bytes, filename, { type }), ...(caption ? { caption, parse_mode: 'HTML' } : {}),
     }, viewName),
+    /** Uploads bytes as a photo (e.g. an audio thumbnail, which Telegram won't send as a photo by id). @param {Uint8Array} bytes */
+    sendPhotoFile: (chatId, bytes, filename, viewName = 'photo') => call('sendPhoto', { chat_id: chatId, photo: new InputFile(bytes, filename, { type: 'image/jpeg' }) }, viewName),
     /** Downloads a file the bot can see (≤ 20 MB, Bot API getFile cap). @returns {Promise<Uint8Array>} */
     fileContent: (fileId) => call('getFileContent', { file_id: fileId }, 'file'),
     getWebhookInfo: () => call('getWebhookInfo', {}),

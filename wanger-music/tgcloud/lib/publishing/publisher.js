@@ -4,7 +4,7 @@
 import { LIMITS, OWNER_ID } from '../config/static.js';
 import { assertCan } from '../permissions/policy.js';
 import { UserError } from '../core/util.js';
-import { matches } from './rules.js';
+import { matches, channelReady, dayStart } from './rules.js';
 import { classify } from '../telegram/errors.js';
 import { t, tp } from '../i18n/index.js';
 
@@ -57,6 +57,13 @@ export function createPublisher({ repo, channels, tg, users, settings, alerts, a
       return { cancelled, routed };
     },
 
+    /** A channel's queue with when its next post can go (pure readiness from rules.channelReady). */
+    async queueOf(ch) {
+      const q = await repo.queueOf(ch.id);
+      const now = clock.now();
+      const ready = channelReady(ch, now, await repo.publishedSince(ch.id, dayStart(now, ch.time_zone)));
+      return { ...q, ready: ready.ready, reason: ready.reason, nextAt: ready.ready ? Math.max(now, q.due || now) : ready.nextAt, now };
+    },
     cancelForTrack: (trackId) => repo.cancelForTrack(trackId, clock.now()),
     cancelForChannel: (channelId) => repo.cancelForChannel(channelId, clock.now()),
 

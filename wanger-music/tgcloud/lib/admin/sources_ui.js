@@ -16,7 +16,7 @@ async function listView(app) {
   const lang = app.lang;
   const rows = await app.sources.list();
   const lines = rows.map((s, i) => `${digits(i + 1, lang)}. ${s.enabled ? '✅' : '⏸'} ${tp(lang, `src.type.${s.chat_type || 'channel'}`)} ${esc(title(s))} · ${esc(tp(lang, `src.mode.${s.auto_import}`))} · ${esc(langName(lang, s.default_language))}`);
-  const buttons = rows.map((s, i) => [btn(`${digits(i + 1, lang)}. ${tp(lang, `src.type.${s.chat_type || 'channel'}`)} ${title(s)}`.slice(0, 60), 'src', 'v', s.id)]);
+  const buttons = rows.map((s, i) => [btn(`⚙️ ${digits(i + 1, lang)}. ${tp(lang, `src.type.${s.chat_type || 'channel'}`)} ${title(s)}`.slice(0, 60), 'src', 'v', s.id)]);
   if (rows.length < LIMITS.sourcesMax) buttons.push([btn(tp(lang, 'src.btn_add'), 'src', 'add')]);
   buttons.push([homeButton(lang)]);
   return { text: t(lang, 'src.title', { count: rows.length, list: raw(lines.length ? lines.join('\n') : t(lang, 'src.empty')) }), keyboard: markup(buttons) };
