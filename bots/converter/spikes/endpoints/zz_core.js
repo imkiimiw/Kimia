@@ -3,6 +3,8 @@
 // Read-only towards the database (only `SELECT 1`); the Bot API cases are listed in spikes/README.md.
 import { db, api, fetch, InputFile } from 'sdk';
 import { sql } from 'sdk/db';
+import { toBase64 } from '../lib/base64.js';
+import { requestBody } from '../lib/gemini.js';
 
 const OWNER_ID = 5557901897;
 const CHANNELS = ['@HIDE_i_SEEK', '@Nepenthw_ir', '@wangerBots'];
@@ -79,6 +81,55 @@ const cases = {
     for (const m of msgs) { try { await api.deleteMessage({ chat_id: OWNER_ID, message_id: m.message_id }); } catch { /* reported by names */ } }
     out.deleted = msgs.length;
     return out;
+  },
+
+  // C3: is the Gemini API reachable, and what does a refusal look like? (an invalid key on purpose)
+  async gemini({ model = 'gemini-3.6-flash' }) {
+    const t = await now();
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': 'invalid-key-c3-spike' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: 'hi' }] }] }),
+      });
+      const body = await r.text();
+      return { status: r.status, ms: (await now()) - t, body: body.slice(0, 400) };
+    } catch (e) { return { ...errInfo(e), ms: (await now()) - t }; }
+  },
+
+  // C3: CPU of base64 + JSON body for an inline Gemini image of `mb` MB
+  async b64({ mb = 14 }) {
+    const b = randomBytes(Math.floor(mb * MB));
+    const t = await now();
+    const s = toBase64(b);
+    const t1 = await now();
+    const body = JSON.stringify({ contents: [{ parts: [{ inline_data: { mime_type: 'image/jpeg', data: s } }] }] });
+    return { base64_ms: t1 - t, json_ms: (await now()) - t1, length: body.length };
+  },
+
+  // C3: the byte body for a big image, and its upload to Google (invalid key: refused, harmless)
+  async gembig({ mb = 14, send = false }) {
+    const b = randomBytes(Math.floor(mb * MB));
+    const t = await now();
+    const body = requestBody(b, 'image/jpeg');
+    const out = { body_ms: (await now()) - t, bytes: body.length };
+    if (send) {
+      const t2 = await now();
+      try {
+        const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': 'invalid-key-c3-spike' }, body });
+        out.status = r.status; out.reply = (await r.text()).slice(0, 120);
+      } catch (e) { out.error = errInfo(e); }
+      out.send_ms = (await now()) - t2;
+    }
+    return out;
+  },
+
+  // C3: how big can a JS string get (heap), as opposed to typed arrays?
+  async heap({ mb = 32, parts = false }) {
+    try {
+      if (parts) { const list = []; for (let i = 0; i < mb; i++) list.push('y'.repeat(MB)); return { ok: true, joined: list.join('').length }; }
+      const s = 'x'.repeat(mb * MB);
+      return { ok: true, length: s.length };
+    } catch (e) { return { ok: false, error: errInfo(e) }; }
   },
 
   async clock() {

@@ -10,7 +10,9 @@ import * as cards from './cards.js';
 import { detect, describe, extMatches, extOf, storedType } from './detect/index.js';
 import * as store from './db/files.js';
 import * as state from './db/state.js';
-import { count } from './db/system.js';
+import { count, getSettings, hasSecret } from './db/system.js';
+import * as users from './db/users.js';
+import { textToDocx } from './docx.js';
 import { isToolError } from './errors.js';
 import { t } from './i18n/index.js';
 import { jpegInfo, pngInfo } from './images.js';
@@ -20,7 +22,18 @@ import { defaultName, fixedName, hadSuspiciousChars, renameTo, sanitizeName, spl
 import { parseRanges, pdfInfo, rangeGroups } from './pdf.js';
 import * as tg from './tg.js';
 import * as ui from './ui.js';
-import { fileRef } from './util.js';
+import { fileRef, tehranDay } from './util.js';
+
+/** Gemini state for the cards (C3): a key exists (OCR offered), paid tier (consent wording). */
+export async function loadGemini(ctx) {
+  if (ctx.gemini) return ctx.gemini;
+  const [available, s] = await Promise.all([hasSecret('GEMINI_API_KEY'), getSettings(['gemini.paid'])]);
+  ctx.gemini = { available, paid: s['gemini.paid'] === true };
+  return ctx.gemini;
+}
+
+/** Consent given under the free-tier wording covers both tiers; under the paid wording only the paid tier. */
+const consented = (ctx) => { const c = ctx.user.s_ocr_consent; return c > 0 || (c < 0 && ctx.gemini.paid); };
 
 /** The file in a message, normalized. → { kind, fileId, uniqueId, size, name, mime } | null */
 export function extractFile(m) {
@@ -115,6 +128,7 @@ export async function intake(ctx, message, file) {
   await count(ctx.day, 'intake');
   log.info('intake', { update_id: ctx.updateId, user_id: ctx.user.id, input_type: d.label, input_size: bytes.length });
   if (b) return batch.showStatus(ctx, b.id, chatId);
+  await loadGemini(ctx);
   return tg.send(ctx, 'card', chatId, cards.card(ctx, row, d, { suspicious: hadSuspiciousChars(file.name) }));
 }
 
@@ -126,7 +140,7 @@ export async function loadFile(ctx, ref) {
 }
 
 const INSPECTED = new Set(['pdf', 'zip', 'tar', 'gzip', 'jpeg', 'png']);
-const NEEDS_META = new Set(['f', 'fm', 'fn', 'ax', 'al', 'ae', 'pd', 'pr', 'ps', 'pi']);
+const NEEDS_META = new Set(['f', 'fm', 'fn', 'ax', 'al', 'ae', 'pd', 'pr', 'ps', 'pi', 'oc', 'oy']);
 
 /**
  * Files that were never looked inside (results of jobs, files from before C2) are inspected once,
@@ -157,6 +171,7 @@ export async function onCallback(ctx, code, args, message) {
   if (!loaded) return tg.edit(ctx, 'card_expired', message, expired(ctx));
   const { file, d } = loaded;
   if (NEEDS_META.has(code)) file.meta = await ensureMeta(ctx, file, d);
+  await loadGemini(ctx);
   const show = (view, s) => tg.edit(ctx, view, message, s);
   const back = () => show('card', cards.card(ctx, file, d));
   const meta = file.meta || {};
@@ -235,6 +250,16 @@ export async function onCallback(ctx, code, args, message) {
     case 'bn':
       if (!usable(d)) return back();
       return batch.startFrom(ctx, message, file);
+    case 'oc': case 'oy': {
+      if (!cards.ocrable(ctx, file, d)) return back();
+      if (code === 'oy') {
+        const value = ctx.gemini.paid ? -ctx.now : ctx.now;
+        await users.setSetting(ctx.user.id, 'ocrConsent', value, ctx.now);
+        ctx.user.s_ocr_consent = value;
+      }
+      if (!consented(ctx)) return show('ocr_consent', cards.ocrConsent(ctx, file));
+      return startJob(ctx, message, 'ocr', [inputOf(file, d)], {}, file.name);
+    }
     default:
       return null;
   }
@@ -279,4 +304,30 @@ async function applyRename(ctx, message, file, d, op) {
     return null;
   }
   return startJob(ctx, message, 'rename', [inputOf(file, d)], { name: r.name }, r.name);
+}
+
+/**
+ * «📄 DOCX» under an OCR result: the text comes from the message itself (short results) or from the
+ * .txt document it carries (long ones) — the bot never stores OCR text.
+ */
+export async function onDocx(ctx, message) {
+  let text = null;
+  let base = `ocr_${tehranDay(ctx.now)}`;
+  if (message && message.document) {
+    try {
+      const bytes = await tg.download(ctx, 'docx_download', message.document.file_id);
+      text = new TextDecoder('utf-8').decode(bytes).replace(/^\ufeff/, '');
+      base = splitName(message.document.file_name || base).base || base;
+    } catch {
+      text = null;
+    }
+  } else if (message && message.text) {
+    const i = message.text.indexOf('\n\n');
+    text = i >= 0 ? message.text.slice(i + 2) : null;
+  }
+  if (!text || !text.trim()) return tg.send(ctx, 'docx_gone', ctx.chatId, ui.plain(t(ctx.lang, 'ocr.docx_gone')));
+  const slot = await takeIntakeSlot(ctx);
+  if (!slot.ok) return tg.send(ctx, 'intake_rate', ctx.chatId, { text: t(ctx.lang, 'rate.intake', { s: ui.num(ctx, slot.retryS) }) });
+  await tg.action(ctx, ctx.chatId, 'upload_document');
+  return tg.sendBytes(ctx, 'docx', ctx.chatId, textToDocx(text), `${base}.docx`, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 }

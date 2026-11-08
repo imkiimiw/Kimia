@@ -67,3 +67,9 @@ export async function addResumeFile(userId, file, now, expiresAt, max = 20) {
     RETURNING json_array_length(payload, '$.files') AS n`);
   return r.rows && r.rows[0] ? r.rows[0].n : 1;
 }
+
+/** How many units a bucket used (for the panel). */
+export async function used(userId, bucket) {
+  const r = await db.get(sql`SELECT n FROM rate_counters WHERE user_id = ${userId} AND bucket = ${bucket}`);
+  return r ? r.n : 0;
+}

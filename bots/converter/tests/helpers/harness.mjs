@@ -3,6 +3,7 @@
 import * as schema from '../../tgcloud/schema.js';
 import { setupDatabase, rawDatabase } from '../sdk/db.mjs';
 import { setApiHandler } from '../sdk/api.mjs';
+import { setFetchHandler } from '../sdk/fetch.mjs';
 import { createFakeTelegram, buttons } from './fake-telegram.mjs';
 import messageHandler from '../../tgcloud/handlers/message.js';
 import callbackHandler from '../../tgcloud/handlers/callback_query.js';
@@ -33,6 +34,7 @@ export function setup({ botAdminIn = SEED, members = [] } = {}) {
   logs.length = 0;
   Date.now = () => realNow() + offsetMs;
   setupDatabase(schema);
+  setFetchHandler(null);
   const tg = createFakeTelegram();
   setApiHandler(tg.handler);
   tg.addChannel({ id: SEED[0], username: 'HIDE_i_SEEK', title: 'HIDE & SEEK', botAdmin: botAdminIn.includes(SEED[0]) });
@@ -69,7 +71,9 @@ export function setup({ botAdminIn = SEED, members = [] } = {}) {
     /** Presses a button: data, and the message it sits on. */
     async press(fromId, data, messageId = null, updateIdOverride) {
       const chat = { id: fromId, type: 'private' };
-      const cq = { id: `cq${updateId}`, from: person(fromId), chat_instance: 'x', data, message: { message_id: messageId || 1, chat, date: 0 } };
+      const stored = messageId ? tg.message(fromId, messageId) : null;
+      const plainText = stored && stored.text ? stored.text.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') : undefined;
+      const cq = { id: `cq${updateId}`, from: person(fromId), chat_instance: 'x', data, message: { message_id: messageId || 1, chat, date: 0, ...(plainText ? { text: plainText } : {}), ...(stored && stored.document ? { document: stored.document } : {}) } };
       const update_id = updateIdOverride ?? updateId++;
       return callbackHandler(cq, { update: { update_id, callback_query: cq } });
     },
@@ -107,4 +111,4 @@ export function setup({ botAdminIn = SEED, members = [] } = {}) {
   return h;
 }
 
-export { buttons };
+export { buttons, setFetchHandler };

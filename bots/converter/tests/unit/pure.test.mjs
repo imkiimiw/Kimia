@@ -66,7 +66,7 @@ test('i18n: every text is valid Telegram HTML once filled (balanced tags, nothin
 });
 
 test('invisible characters (ZWNJ, bidi controls, …) are written as escapes, never literally', () => {
-  for (const f of walk(ROOT).filter((x) => !x.includes('/vendor/'))) assert.ok(!/\p{Cf}/u.test(fs.readFileSync(f, 'utf8')), path.relative(ROOT, f));
+  for (const f of walk(ROOT).filter((x) => !x.includes('/vendor/'))) assert.ok(!/[\p{Cf}\p{Cn}\p{Co}\p{Me}]/u.test(fs.readFileSync(f, 'utf8')), path.relative(ROOT, f));
 });
 
 test('codec: callback_data ≤ 64 bytes, parse round trip', () => {

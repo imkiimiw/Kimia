@@ -1,8 +1,17 @@
 # Progress
 
-**Current state: Phase C2 done and DEPLOYED (2026-11-08, cloud revision 2). Tests 203/203.
-Owner's standing instruction: continue through C8, deploy each phase, full report per phase
-(docs/reports/). Next: C3 (Gemini OCR).**
+**Current state: Phase C3 done and DEPLOYED (2026-11-08, cloud revision 3). Tests 221/221.
+OCR stays hidden until the owner stores a Gemini key. Owner's standing instruction: continue through
+C8, deploy each phase, full report per phase (docs/reports/). Next: C4 (worker + images).**
+
+## Phase C3 — OCR with Gemini ✅ deployed (revision 3)
+
+Done (details in docs/reports/C3.md): «📝 استخراج متن» on JPEG/PNG/WEBP/HEIC cards and PDFs ≤ 5 pages
+when a key exists; one-time consent worded after Google's current terms (free/paid); strict prompt;
+results in the message (copy button ≤ 256 chars) or a UTF-8 .txt; DOCX (RTL) from either; budgets
+(bot per Pacific day / per minute, per user per day), Google's 429 pauses until midnight Pacific;
+/panel → 🤖 Gemini (key status, model, usage, paid switch, resume); privacy text updated. Found and
+fixed on Serverless: big base64 strings run out of JS heap → the request body is built as bytes.
 
 ## Phase C2 — Archives, PDF page tools, batches ✅ deployed (revision 2)
 
@@ -91,5 +100,5 @@ WebAssembly sync only, Telegram name limits); matrix updated; nothing moved to t
 
 ## Remaining phases
 
-C3 Gemini OCR · C4 Worker + images + text → image ·
+C4 Worker + images + text → image ·
 C5 Tesseract + advanced PDF · C6 Documents · C7 Audio/video + 7Z · C8 Hardening.

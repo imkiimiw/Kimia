@@ -78,3 +78,19 @@ One line each: the choice — the reason. Newest phase last.
 - Results and files from before C2 are inspected lazily when their card is opened (one download, meta stored) — PDFs extracted from an archive get PDF tools too, without parsing every output during the job.
 - A job is generic now (`runJob`: inputs, params, outputs) with the operations as pure functions in `lib/ops.js`; staff retry rebuilds any job from its stored inputs and params.
 - Loading pdf-lib with every update costs ≈ 27 ms (a no-op went from 8 to 35 ms, measured) — accepted; dynamic `import()` doesn't exist here.
+
+## Phase C3 (2026-11-08)
+
+- Model: `gemini-3.6-flash` by default (Google's model page, 2026-11-08: stable; `gemini-2.5-flash` is deprecated and rerouted on 2026-12-01); the owner can switch in /panel → 🤖 Gemini among the stable `gemini-3.5-flash-lite` and the alias `gemini-flash-latest` — model names change; a 404 reports GEMINI_MODEL.
+- The key goes only in the `x-goog-api-key` header to generativelanguage.googleapis.com — never in a URL, a log, a trace or an error row; it is read from `secrets` at call time.
+- Consent wording follows Google's Gemini API terms (effective 2026-03-23): free tier → content may be used to improve Google's products and read by human reviewers, don't send personal/confidential data; paid tier → not used for improvement, logged briefly for abuse detection. The owner states which tier the key is on (panel switch) — the bot can't see billing.
+- A consent given under the free-tier wording covers both tiers; one given under the paid wording only the paid tier (stored as +/− timestamp) — switching back to free asks again.
+- EEA/UK/Switzerland: Google allows only paid services for apps serving users there; the bot can't locate users, so the panel says so and the decision stays with the owner (report).
+- Budgets (free-tier numbers aren't on Google's docs page any more): bot-wide GEMINI_DAILY_BUDGET 200 per Pacific day (Google resets at midnight Pacific) and GEMINI_RPM 8, per user GEMINI_USER_DAILY 20 (staff exempt); a 429 from Google pauses OCR until midnight Pacific (owner can resume) — never surprise the owner with errors or bills.
+- OCR inputs: JPEG, PNG, WEBP, HEIC (what Gemini reads) and PDFs ≤ GEMINI_PDF_MAX_PAGES (5) — a PDF must finish inside the ~30 s wall clock; ≤ GEMINI_MAX_MB (14) per file — the inline request limit is 20 MB after base64.
+- Strict prompt (only the text, keep paragraphs and line breaks, no translation/summary, `[NO_TEXT]` when empty), temperature 0, code fences stripped — spec §7.1.
+- Results: ≤ 3500 characters in the message (the status message turns into it) with «📋 کپی متن» (Bot API copy_text) when ≤ 256 characters; longer → UTF-8 .txt with a BOM; «📄 DOCX» rebuilds a right-to-left DOCX from the message text or the .txt — the bot never stores OCR text.
+- Script shown as Persian/Arabic, Latin or mixed — Persian and Arabic can't be told apart from the characters alone (spec §7.1); no confidence figure (Gemini gives none) — no invented numbers.
+- The request body is built as bytes (base64 into a Uint8Array) — on Serverless the old string encoder died with "Memory limit exceeded" at 14 MB (millions of small string concatenations); the byte body takes 21 ms and uploads 19.5 MB in 0.7 s (measured).
+- `gemini.js` is pure (request/response); the only network code is `jobs.js#geminiOcr` — the operations stay testable without a network.
+- `fetch` in the test emulator takes an installable handler; tests never reach Google.

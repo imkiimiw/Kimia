@@ -5,13 +5,14 @@ Telegram Serverless; heavy work will go to an optional Python worker (phase C4+)
 Plan: [docs/SPEC.md](docs/SPEC.md) · limits: [docs/LIMITS.md](docs/LIMITS.md) ·
 state: [docs/PROGRESS.md](docs/PROGRESS.md) · choices: [docs/DECISIONS.md](docs/DECISIONS.md).
 
-## What it does now (C2)
+## What it does now (C3)
 
 - Send any file (≤ 20 MB, Telegram's limit for bots): the real type is detected from the content,
   not the name; a wrong extension can be fixed (a renamed copy, same bytes); safe renames.
 - PDF: extract / remove / rotate / reorder / split pages; JPG/PNG → PDF; several PDFs and photos → one PDF.
 - Archives: ZIP / TAR / TAR.GZ opened safely (zip-slip, links, bombs, encryption refused); ZIP creation.
 - Albums: several files at once → one batch → ZIP, one PDF, batch rename (incl. numbering), fix extensions.
+- OCR with Google's Gemini (photos, PDFs ≤ 5 pages) once the owner stores `GEMINI_API_KEY` (one-time user consent).
 - Executables, scripts, macro documents and disguised files are only reported.
 - Forced join to the Wanger channels, bans, maintenance, admins, broadcast and job overview in
   `/panel` (until the Wanger Hub / Mother Bot exist).
@@ -20,7 +21,7 @@ state: [docs/PROGRESS.md](docs/PROGRESS.md) · choices: [docs/DECISIONS.md](docs
 
 ```bash
 npm install
-npm test                                   # 203 tests: unit + end-to-end on a local SDK emulation
+npm test                                   # 221 tests: unit + end-to-end on a local SDK emulation
 npm run tg -- status                       # this bot only (token from Converter_BOT_TGCLOUD_TOKEN)
 npm run tg -- migrate --local --dry-run    # see schema changes, applies nothing
 npm run tg -- migrate --local --safe       # apply additive schema changes (owner's OK)

@@ -49,6 +49,7 @@ const cancelBtn = (ctx) => btn(P(ctx, 'btn.cancel'), 'x');
 export function home(ctx, { greet = false } = {}) {
   const text = (greet ? `${L(ctx, 'home.hello', { name: (ctx.from && ctx.from.first_name) || '' })}\n\n` : '') + L(ctx, 'home.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB) });
   const items = [
+    ctx.gemini && ctx.gemini.available ? btn(P(ctx, 'menu.ocr'), 'm', 'ocr') : null,
     btn(P(ctx, 'menu.pdf'), 'm', 'pdf'),
     btn(P(ctx, 'menu.zip'), 'm', 'zip'),
     btn(P(ctx, 'menu.tools'), 'm', 'tools'),
@@ -64,6 +65,7 @@ export function home(ctx, { greet = false } = {}) {
 }
 
 export const tools = (ctx) => screen(L(ctx, 'tools.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB) }), [homeBtn(ctx)]);
+export const ocrTools = (ctx) => screen(L(ctx, 'ocr.text', { pages: num(ctx, ctx.limits.GEMINI_PDF_MAX_PAGES), n: num(ctx, ctx.limits.GEMINI_USER_DAILY) }), [homeBtn(ctx)]);
 export const pdfTools = (ctx) => screen(L(ctx, 'pdf.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB), n: num(ctx, ctx.limits.BATCH_MAX_FILES) }), [homeBtn(ctx)]);
 export const zipTools = (ctx) => screen(L(ctx, 'zip.text', { mb: num(ctx, ctx.limits.ARCHIVE_MAX_UNPACKED_MB), n: num(ctx, ctx.limits.ARCHIVE_MAX_ENTRIES), total: num(ctx, ctx.limits.BATCH_TOTAL_MB) }), [homeBtn(ctx)]);
 export const help = (ctx) => screen(L(ctx, 'help.text', { mb: num(ctx, ctx.limits.MAX_INPUT_MB), n: num(ctx, ctx.limits.BATCH_MAX_FILES), total: num(ctx, ctx.limits.BATCH_TOTAL_MB) }), [btn(P(ctx, 'btn.privacy'), 'm', 'privacy'), homeBtn(ctx)]);
@@ -111,6 +113,8 @@ export const progress = (ctx, job, status) => L(ctx, 'job.progress', { status: s
 export const failure = (ctx, code, jobCode, vars = {}) => L(ctx, `err.${code}`, { ...Object.fromEntries(Object.entries(vars).map(([k, v]) => [k, typeof v === 'number' ? num(ctx, v) : v])), code: jobCode });
 export const groupDone = (ctx, job, n) => L(ctx, 'job.group_done', { n: num(ctx, n), code: job.code });
 export const escName = (name) => esc(name);
+export { P };
+export const ocrHead = (ctx, job, script) => L(ctx, 'ocr.head', { script: P(ctx, `ocr.script_${script}`), code: job.code });
 
 export function statusScreen(ctx, job) {
   if (!job) return screen(L(ctx, 'status.none'), [homeBtn(ctx)]);

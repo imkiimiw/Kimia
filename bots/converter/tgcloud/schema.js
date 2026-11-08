@@ -31,6 +31,7 @@ export const userSettings = table('user_settings', {
   output: text('output'),
   ocrEngine: text('ocr_engine'),
   updatedAt: integer('updated_at').notNull(),
+  ocrConsentAt: integer('ocr_consent_at'), // C3: one-time consent before the first Gemini OCR
 });
 
 /** Files users sent: the card's state (detected type) behind a short ref in callback_data. */

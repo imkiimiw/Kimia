@@ -92,6 +92,9 @@ export const setSecret = (name, value, by, now) => db.run(sql`INSERT INTO secret
   ON CONFLICT (name) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`);
 export const deleteSecret = (name) => db.run(sql`DELETE FROM secrets WHERE name = ${name}`);
 export const secretNames = () => db.all(sql`SELECT name, updated_at FROM secrets ORDER BY name LIMIT 20`);
+export async function hasSecret(name) {
+  return !!(await db.get(sql`SELECT 1 AS x FROM secrets WHERE name = ${name}`));
+}
 export async function getSecret(name) {
   const r = await db.get(sql`SELECT value FROM secrets WHERE name = ${name}`);
   return r ? r.value : null;

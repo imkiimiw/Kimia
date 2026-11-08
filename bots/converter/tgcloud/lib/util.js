@@ -84,3 +84,18 @@ export function hash32(s) {
   for (let i = 0; i < s.length; i++) h = (Math.imul(h, 33) + s.charCodeAt(i)) | 0;
   return (h >>> 0).toString(16).padStart(8, '0');
 }
+
+/** Pacific parts of a unix time (Google resets Gemini quotas at midnight Pacific). Uses Intl when it has
+ * the time zone (it does on Serverless), else a fixed UTC−8. */
+function pacificParts(tS) {
+  try {
+    const f = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+    const p = Object.fromEntries(f.formatToParts(new Date(tS * 1000)).map((x) => [x.type, x.value]));
+    return { day: `${p.year}-${p.month}-${p.day}`, secs: Number(p.hour) * 3600 + Number(p.minute) * 60 + Number(p.second) };
+  } catch {
+    const d = new Date((tS - 8 * 3600) * 1000);
+    return { day: d.toISOString().slice(0, 10), secs: d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds() };
+  }
+}
+export const pacificDay = (tS) => pacificParts(tS).day;
+export const secondsToPacificMidnight = (tS) => 86400 - pacificParts(tS).secs;

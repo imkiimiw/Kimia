@@ -28,6 +28,6 @@ owner's accounts or credentials (list those in the report instead).
   `tgcloud run` and removes it). Never push while a spike runs.
 - pdf-lib on Serverless: `load(…, { parseSpeed: Infinity })`, `save({ objectsPerTick: Infinity,
   useObjectStreams: false })` — always. WebAssembly: synchronous APIs only.
-- Tests: `npm test` must stay green (203 at the end of C2), including the query-plan and module guards.
+- Tests: `npm test` must stay green (221 at the end of C3), including the query-plan and module guards.
 - Literal invisible characters creep in through tool edits: run `python3 scripts/fix-invisible.py` before testing.
 - Never read or edit `.tgcloud/` (credentials).

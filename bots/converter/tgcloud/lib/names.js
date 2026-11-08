@@ -11,7 +11,7 @@ const BIDI = /[\u202a-\u202e\u2066-\u2069\u200e\u200f\u061c]/g;
 // format characters except ZWNJ (U+200C, needed in Persian words) and ZWJ (U+200D)
 const FORMAT = /(?![\u200c\u200d])[\p{Cf}]/gu;
 const CONTROL = /[\p{Cc}\p{Co}\p{Cs}]/gu;
-const EMOJI = /[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\u{1F1E6}-\u{1F1FF}︎️⃣]/gu;
+const EMOJI = /[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\u{1F1E6}-\u{1F1FF}\uFE0E\uFE0F\u20E3]/gu;
 const UNSAFE = /[/\\:*?"<>|]/g; // path separators + what Windows refuses in names
 const EXT_RE = /^[a-z0-9]{1,16}$/;
 

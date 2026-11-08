@@ -4,20 +4,23 @@
 // "running" by a dead invocation becomes EXPIRED (lib/db/files.js#expireStale).
 // Delivery: ≤ maxSeparate outputs as separate documents (each with «🔁» to its own card), more as
 // store-only ZIP parts ≤ 50 MB; batch renames as document albums.
+import { fetch } from 'sdk';
 import { CACHE_TTL_S, MB, STATUS_MESSAGE_MIN_BYTES, STALE_JOB_S } from './config.js';
 import { zipParts } from './archive.js';
 import * as store from './db/files.js';
 import * as state from './db/state.js';
-import { addError, count, countMany } from './db/system.js';
+import { addError, count, countMany, getSecret, getSetting, setSetting } from './db/system.js';
+import { ENDPOINT, requestBody, parseResponse } from './gemini.js';
 import { TYPES } from './detect/types.js';
-import { isToolError } from './errors.js';
+import { ToolError, isToolError } from './errors.js';
 import { OPS } from './ops.js';
 import { splitName } from './names.js';
 import { t } from './i18n/index.js';
 import * as log from './log.js';
 import * as tg from './tg.js';
 import * as ui from './ui.js';
-import { fileRef, hash32, jobCode, ulid } from './util.js';
+import { esc, fileRef, hash32, jobCode, pacificDay, secondsToPacificMidnight, ulid } from './util.js';
+import { btn, kb } from './codec.js';
 
 /**
  * Takes one job from the user's rate limits (spec §9: RATE_BURST_PER_MIN, RATE_JOBS_PER_HOUR; staff
@@ -44,6 +47,54 @@ export async function takeIntakeSlot(ctx) {
   const minute = Math.floor(ctx.now / 60);
   if (await state.take(ctx.user.id, `i:${minute}`, ctx.limits.RATE_INTAKE_PER_MIN, (minute + 2) * 60)) return { ok: true };
   return { ok: false, retryS: (minute + 1) * 60 - ctx.now };
+}
+
+/**
+ * Gemini budget (C3): per user per day (staff unlimited), and for the whole bot per minute and per
+ * Pacific day (Google resets free-tier quotas at midnight Pacific). One atomic upsert each; a
+ * refused later step gives the earlier units back. → { ok } | { ok: false, why: 'user'|'busy'|'quota' }
+ */
+export async function takeGeminiSlot(ctx) {
+  const L = ctx.limits;
+  if ((await getSetting('gemini.exhausted', 0)) > ctx.now) return { ok: false, why: 'quota' };
+  const userBucket = `o:${ctx.day}`;
+  const minute = Math.floor(ctx.now / 60);
+  if (ctx.actor === 'user' && !(await state.take(ctx.user.id, userBucket, L.GEMINI_USER_DAILY, ctx.now + 2 * 86400))) return { ok: false, why: 'user' };
+  const back = async () => { if (ctx.actor === 'user') await state.giveBack(ctx.user.id, userBucket); };
+  if (!(await state.take(0, `gm:${minute}`, L.GEMINI_RPM, (minute + 2) * 60))) { await back(); return { ok: false, why: 'busy' }; }
+  if (!(await state.take(0, `gd:${pacificDay(ctx.now)}`, L.GEMINI_DAILY_BUDGET, ctx.now + 2 * 86400))) {
+    await back();
+    await state.giveBack(0, `gm:${minute}`);
+    return { ok: false, why: 'quota' };
+  }
+  return { ok: true };
+}
+
+/**
+ * The Gemini call (key read here, sent only in the x-goog-api-key header to Google's host; never
+ * logged). A 429 marks the quota as used up until midnight Pacific.
+ */
+export async function geminiOcr(ctx, bytes, mime) {
+  const key = await getSecret('GEMINI_API_KEY');
+  if (!key) throw new ToolError('GEMINI_OFF');
+  const model = await getSetting('gemini.model', 'gemini-3.6-flash');
+  const body = requestBody(bytes, mime);
+  let res = null;
+  for (let attempt = 0; attempt < 2 && !res; attempt++) {
+    try {
+      res = await fetch(`${ENDPOINT}/${encodeURIComponent(model)}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body });
+    } catch {
+      if (attempt === 1) throw new ToolError('GEMINI_FAILED');
+    }
+  }
+  try {
+    return parseResponse(res.status, await res.text());
+  } catch (e) {
+    if (isToolError(e) && e.code === 'GEMINI_QUOTA') await setSetting('gemini.exhausted', ctx.now + secondsToPacificMidnight(ctx.now), ctx.now);
+    throw e;
+  } finally {
+    await count(ctx.day, 'gemini_requests');
+  }
 }
 
 /** Error code for a failure at a step (spec §4: friendly text + job code; no stack traces). */
@@ -132,7 +183,9 @@ export async function runJob(ctx, { op, inputs, params = {}, chatId, retry = fal
 
     step = 'process';
     await setStatus('PROCESSING');
-    const result = await def.run(blobs, params, ctx.limits);
+    const services = { ocr: (b, mime) => geminiOcr(ctx, b, mime) };
+    const result = await def.run(blobs, params, ctx.limits, services);
+    if (def.delivery === 'text') return await deliverText(ctx, { job, def, result, statusMsg, chatId, first, logBase, t0 });
     const notes = [...(result.notes || [])];
     let outputs = result.outputs;
 
@@ -211,6 +264,40 @@ export async function runJob(ctx, { op, inputs, params = {}, chatId, retry = fal
   }
 }
 
+const TEXT_IN_MESSAGE = 3500;
+const COPY_MAX = 256;
+
+/**
+ * OCR results (spec §7.1): short → the message itself (the status message turns into it), with a
+ * Copy Text button when ≤ 256 characters; long → a UTF-8 .txt (BOM, so Windows editors read Persian);
+ * «📄 DOCX» on both. The text is never logged or stored by the bot.
+ */
+async function deliverText(ctx, { job, result, statusMsg, chatId, first, logBase, t0 }) {
+  const head = ui.ocrHead(ctx, job, result.script);
+  const notes = (result.notes || []).map((n) => t(ctx.lang, n.key, n.vars)).join('\n');
+  const text = result.text;
+  const docxBtn = btn(ui.P(ctx, 'ocr.docx'), 'od', job.code.slice(3));
+  let size = new TextEncoder().encode(text).length;
+  let outputType = 'TEXT';
+  if (text.length <= TEXT_IN_MESSAGE) {
+    const rows = [];
+    if ([...text].length <= COPY_MAX) rows.push([{ text: ui.P(ctx, 'ocr.copy'), copy_text: { text } }]);
+    rows.push([docxBtn]);
+    const screen = { text: [head, notes].filter(Boolean).join('\n') + `\n\n${esc(text)}`, reply_markup: kb(...rows) };
+    if (statusMsg) await tg.edit(ctx, 'ocr_result', statusMsg, screen); else await tg.send(ctx, 'ocr_result', chatId, screen);
+  } else {
+    const bytes = new TextEncoder().encode(`\ufeff${text}`);
+    size = bytes.length;
+    outputType = 'TXT';
+    const m = await tg.sendBytes(ctx, 'ocr_result', chatId, bytes, result.name, 'text/plain', { caption: [head, notes].filter(Boolean).join('\n'), reply_markup: kb([docxBtn]) });
+    if (m && m.document) await store.putFile({ ref: fileRef(), userId: job.userId, fileId: m.document.file_id, fileUniqueId: m.document.file_unique_id, kind: 'document', name: m.document.file_name || result.name, size: m.document.file_size, type: 'text', createdAt: ctx.now, meta: {} });
+    if (statusMsg) await tg.edit(ctx, 'job_status', statusMsg, { text: ui.progress(ctx, job, 'COMPLETED') });
+  }
+  await finish(ctx, job, 'COMPLETED', { outputType, outputSize: size });
+  log.info('job.done', { ...logBase, status: 'COMPLETED', output_type: outputType, output_size: size, duration_ms: Date.now() - t0 });
+  return { ok: true, job, refs: [] };
+}
+
 /** Detect & Fix / rename: the same bytes under `outName` (kept for callers from C1). */
 export function runRename(ctx, { op, input, outName, chatId, retry = false }) {
   return runJob(ctx, { op, inputs: [input], params: { name: outName }, chatId, retry });
@@ -246,6 +333,10 @@ export async function startJob(ctx, message, op, inputs, params, shownName, { ch
   if (!slot.ok) {
     const mins = Math.max(1, Math.ceil(slot.retryS / 60));
     return tg.send(ctx, 'job_rate', chatId, { text: t(ctx.lang, 'rate.jobs', { m: ui.num(ctx, mins) }) });
+  }
+  if (op === 'ocr') {
+    const g = await takeGeminiSlot(ctx);
+    if (!g.ok) return tg.send(ctx, 'ocr_quota', chatId, { text: t(ctx.lang, `ocr.limit_${g.why}`, { n: ui.num(ctx, ctx.limits.GEMINI_USER_DAILY) }) });
   }
   if (message && !keepMessage) await tg.edit(ctx, 'card', message, ui.plain(t(ctx.lang, 'job.started', { op: ui.opLabel(ctx, op), name: shownName })));
   return runJob(ctx, { op, inputs, params, chatId });

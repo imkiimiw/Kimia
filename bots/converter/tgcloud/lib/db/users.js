@@ -4,7 +4,7 @@ import { sql } from 'sdk/db';
 
 const USER_COLS = sql`u.id, u.first_name, u.username, u.lang_code, u.created_at, u.last_seen_at, u.last_seen_day,
   u.blocked, u.banned, u.join_ok_until, u.ban_notice_day,
-  s.lang AS s_lang, s.digits AS s_digits, s.output AS s_output, s.ocr_engine AS s_ocr`;
+  s.lang AS s_lang, s.digits AS s_digits, s.output AS s_output, s.ocr_engine AS s_ocr, s.ocr_consent_at AS s_ocr_consent`;
 
 /** A user with settings, or null. */
 export function get(id) {
@@ -35,7 +35,7 @@ export async function touch(from, now, day) {
 }
 
 export function setSetting(id, column, value, now) {
-  const cols = { lang: sql`lang`, digits: sql`digits`, output: sql`output`, ocr: sql`ocr_engine` };
+  const cols = { lang: sql`lang`, digits: sql`digits`, output: sql`output`, ocr: sql`ocr_engine`, ocrConsent: sql`ocr_consent_at` };
   if (!cols[column]) throw new Error(`unknown setting ${column}`);
   return db.run(sql`INSERT INTO user_settings (user_id, ${cols[column]}, updated_at) VALUES (${id}, ${value}, ${now})
     ON CONFLICT (user_id) DO UPDATE SET ${cols[column]} = excluded.${cols[column]}, updated_at = excluded.updated_at`);

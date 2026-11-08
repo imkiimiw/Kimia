@@ -19,10 +19,11 @@ import { listScreen as secretsScreen } from './secrets.js';
 import { btn } from './codec.js';
 import * as tg from './tg.js';
 import * as ui from './ui.js';
-import { asciiDigits, esc } from './util.js';
+import { asciiDigits, esc, pacificDay } from './util.js';
+import { MODELS } from './gemini.js';
 
 /** Owner-only actions: maintenance, keys, admins (adm*), broadcast (bc*), channel changes (ch* but the list). */
-export const ownerOnly = (a) => a === 'mt' || a === 'sec' || a.startsWith('adm') || a.startsWith('bc') || (a.startsWith('ch') && a !== 'ch');
+export const ownerOnly = (a) => a === 'mt' || a === 'sec' || a.startsWith('adm') || a.startsWith('bc') || (a.startsWith('ch') && a !== 'ch') || (a.startsWith('gm') && a !== 'gm');
 
 export const canUse = (ctx, action) => ctx.actor === 'owner' || (ctx.actor === 'admin' && !ownerOnly(action));
 
@@ -52,6 +53,7 @@ async function overview(ctx) {
     [btn(P(ctx, 'panel.btn_channels'), 'p', 'ch'), btn(P(ctx, 'panel.btn_bans'), 'p', 'ban')],
     owner ? [btn(P(ctx, 'panel.btn_mt', { v: P(ctx, ctx.flags.maintenance ? 'set.on' : 'set.off') }), 'p', 'mt'), btn(P(ctx, 'panel.btn_admins'), 'p', 'adm')] : null,
     owner ? [btn(P(ctx, 'panel.btn_broadcast'), 'p', 'bc'), btn(P(ctx, 'panel.btn_keys'), 'p', 'sec')] : null,
+    [btn(P(ctx, 'panel.btn_gemini'), 'p', 'gm')],
     [btn(P(ctx, 'panel.btn_refresh'), 'p', 'r'), ui.homeBtn(ctx)]);
 }
 
@@ -73,6 +75,26 @@ async function channelsScreen(ctx) {
     ...(owner ? list.map((c) => [btn(P(ctx, 'panel.ch_del', { ch: channelLabel(c) }), 'p', 'chd', c.id)]) : []),
     owner ? [btn(P(ctx, 'panel.ch_add'), 'p', 'cha'), btn(P(ctx, 'panel.ch_recheck'), 'p', 'chr')] : null,
     owner ? [btn(P(ctx, 'panel.ch_toggle', { v: P(ctx, ctx.flags.forcedJoin ? 'set.on' : 'set.off') }), 'p', 'cht')] : null,
+    [back(ctx)]);
+}
+
+async function geminiScreen(ctx) {
+  const L2 = ctx.limits;
+  const [key, s, usedDay] = await Promise.all([sys.hasSecret('GEMINI_API_KEY'), sys.getSettings(['gemini.model', 'gemini.paid', 'gemini.exhausted']), state.used(0, `gd:${pacificDay(ctx.now)}`)]);
+  const model = s['gemini.model'] || MODELS[0];
+  const exhausted = (s['gemini.exhausted'] || 0) > ctx.now;
+  const lines = [
+    L(ctx, 'panel.gm_head'),
+    L(ctx, key ? 'panel.gm_key' : 'panel.gm_nokey'),
+    L(ctx, 'panel.gm_model', { model }),
+    L(ctx, 'panel.gm_used', { used: ui.num(ctx, usedDay), budget: ui.num(ctx, L2.GEMINI_DAILY_BUDGET), rpm: ui.num(ctx, L2.GEMINI_RPM), user: ui.num(ctx, L2.GEMINI_USER_DAILY) }),
+    L(ctx, s['gemini.paid'] ? 'panel.gm_paid' : 'panel.gm_free'),
+  ];
+  if (exhausted) lines.push(L(ctx, 'panel.gm_exhausted'));
+  const owner = ctx.actor === 'owner';
+  return ui.plain(lines.join('\n'),
+    ...(owner ? MODELS.map((m, i) => [btn(`${m === model ? '✓ ' : ''}${m}`, 'p', 'gmm', i)]) : []),
+    owner ? [btn(P(ctx, s['gemini.paid'] ? 'panel.gm_set_free' : 'panel.gm_set_paid'), 'p', 'gmp'), exhausted ? btn(P(ctx, 'panel.gm_reset'), 'p', 'gmr') : null] : null,
     [back(ctx)]);
 }
 
@@ -165,6 +187,20 @@ export async function onCallback(ctx, args, message) {
       await sys.removeStaff(Number(arg));
       return show(await adminsScreen(ctx));
     case 'sec': return show(await secretsScreen(ctx));
+    case 'gm': return show(await geminiScreen(ctx));
+    case 'gmm': {
+      const m = MODELS[Number(arg)];
+      if (m) await sys.setSetting('gemini.model', m, ctx.now, ctx.user.id);
+      return show(await geminiScreen(ctx));
+    }
+    case 'gmp': {
+      const cur = await sys.getSetting('gemini.paid', false);
+      await sys.setSetting('gemini.paid', !cur, ctx.now, ctx.user.id);
+      return show(await geminiScreen(ctx));
+    }
+    case 'gmr':
+      await sys.setSetting('gemini.exhausted', 0, ctx.now, ctx.user.id);
+      return show(await geminiScreen(ctx));
     case 'bc': return ask(ctx, message, 'broadcast', 'bc.ask');
     case 'bcgo': {
       if (!(await bcdb.transition(Number(arg), 'draft', 'sending', ctx.now))) return show(ui.plain(L(ctx, 'bc.gone'), [back(ctx)]));

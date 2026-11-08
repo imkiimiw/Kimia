@@ -80,7 +80,7 @@ object count can be read cheaply before parsing (trailer / xref-stream `/Size`),
 | PDF page tools (merge, split, extract/remove/reorder/rotate) | **Bot** (C2) | The three options of §3; guard on the **object count** (≈ 200 000 objects per job ≈ 1.2 s), not on MB; larger → worker (or a clear refusal while there is none). Encrypted PDFs: reported (worker opens them with a password). | ✅ C2 |
 | JPG → PDF | **Bot** (C2) | Trivial (ms). | ✅ C2 |
 | PNG → PDF | **Bot** (C2) | ≤ ≈ 12 MP per job (≈ 1.5 s); larger → worker. | ✅ C2 |
-| OCR via Gemini | **Bot** (C3) | `fetch` works, 30 MB response cap, ≈ 30 s wall per invocation; check the request-size limit for inline images in C3. | C3 |
+| OCR via Gemini | **Bot** (C3) | `fetch` works, 30 MB response cap, ≈ 30 s wall per invocation; inline request ≤ 20 MB → images ≤ 14 MB, PDFs ≤ 5 pages. | ✅ C3 (needs the owner's key) |
 | Image convert / ops | Worker (C4) — **candidate for the bot** | Not moved yet. Synchronous WebAssembly works and memory is ample, so WASM image codecs could run in-bot for small images (≤ 1 MiB per module; CPU is the limit). Needs a spike with a real codec and a license check before anything is promised. | C4 |
 | Text → Image | Worker (C4) | Correct Persian shaping needs HarfBuzz/RAQM — not in pure JS here. | C4 |
 | Tesseract OCR, advanced PDF, documents, audio/video, 7Z | Worker (C5–C7) | Native binaries; unchanged. | C5–C7 |
@@ -119,6 +119,15 @@ object count can be read cheaply before parsing (trailer / xref-stream `/Size`),
 | `sendMediaGroup` with two `InputFile` documents | Works, 102 ms; names kept. Test messages deleted. |
 | Loading the C2 module graph (41 modules, 696 KB of vendored code) | A no-op update: 34–36 ms (was 8 ms in C1) — the cost of evaluating pdf-lib. |
 | Migration | 5 additive steps (new table, three columns, an index); all indexes present afterwards. |
+
+## 6c. Measured in C3 (Serverless, 2026-11-08)
+
+| Check | Result |
+|---|---|
+| Gemini API from Serverless | Reachable: an invalid key → `400 INVALID_ARGUMENT / API_KEY_INVALID` in 73 ms. |
+| **JS heap vs. typed arrays** | A 14 MB image's base64 built by small string concatenations → `Terminated: Memory limit exceeded`; 5 MB was fine (175 ms). Flat strings up to 128 MB and joins of 1-MB parts work. → Never build big data out of many small strings; use typed arrays. |
+| Byte-built request body | 14 MB image → 19.5 MB JSON body in 21–23 ms; uploaded to Google in 0.7 s. |
+| Migration | 1 additive column. No-op update after C3: 34 ms (44 modules). |
 
 ## 7. Still unknown
 

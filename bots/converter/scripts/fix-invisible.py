@@ -5,7 +5,15 @@ for f in glob.glob('tgcloud/**/*.js', recursive=True) + glob.glob('tests/**/*.mj
     if '/vendor/' in f:
         continue
     s = open(f, encoding='utf-8').read()
-    out = ''.join('\\u%04x' % ord(c) if unicodedata.category(c) == 'Cf' else c for c in s)
+    def bad(i, c):
+        cat = unicodedata.category(c)
+        if cat in ('Cf', 'Cn', 'Co', 'Cs', 'Me'):
+            return True
+        # a combining mark is fine after a letter or an emoji (Persian diacritics, VS16), not in a regex range
+        return cat == 'Mn' and i > 0 and unicodedata.category(s[i - 1])[0] not in ('L', 'S', 'M')
+    def esc(c):
+        return '\\u%04x' % ord(c) if ord(c) < 0x10000 else '\\u{%x}' % ord(c)
+    out = ''.join(esc(c) if bad(i, c) else c for i, c in enumerate(s))
     if out != s:
         open(f, 'w', encoding='utf-8').write(out)
         print('escaped', f)

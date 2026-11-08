@@ -20,6 +20,7 @@
 //   bn:<ref>         start a batch with this file
 //   b:<id> done collecting → menu · bm:<id> menu · bx:<id> cancel · bz zip · bp one PDF · bf fix · bl list
 //   br:<id>[:p|s|n|z] batch rename
+//   oc:<ref> OCR (consent first) · oy:<ref> consent given → OCR · od:<code> DOCX of the OCR text in this message
 //   p[:<action>[:<arg>]]  panel (lib/panel.js)
 import { HISTORY_PAGE, HOUSEKEEPING_EVERY, OWNER_ID, RESUME_TTL_S, STALE_JOB_S, TAP_GUARD_MS, UPDATE_KEEP_S } from './config.js';
 import { parse } from './codec.js';
@@ -151,6 +152,7 @@ async function command(ctx, message, cmd) {
   switch (cmd.name) {
     case 'start':
       await state.clearPending(ctx.user.id, 'input');
+      await files.loadGemini(ctx);
       await send(ctx, 'home', ui.home(ctx, { greet: true }));
       return 'start';
     case 'help': await send(ctx, 'help', ui.help(ctx)); return 'help';
@@ -234,7 +236,7 @@ async function route(ctx, cq, msg) {
     }
   }
   switch (code) {
-    case 'h': await state.clearPending(ctx.user.id, 'input'); await tg.edit(ctx, 'home', msg, ui.home(ctx)); return 'home';
+    case 'h': await state.clearPending(ctx.user.id, 'input'); await files.loadGemini(ctx); await tg.edit(ctx, 'home', msg, ui.home(ctx)); return 'home';
     case 'x': {
       await state.clearPending(ctx.user.id, 'input');
       await tg.edit(ctx, 'cancel', msg, ui.plain(t(ctx.lang, 'cancel.done'), [ui.homeBtn(ctx)]));
@@ -267,6 +269,12 @@ async function route(ctx, cq, msg) {
     case 'ax': case 'al': case 'ae': case 'pz': case 'pi': case 'pd': case 'pr': case 'ps': case 'bn':
       await files.onCallback(ctx, code, args, msg);
       return `file_${code}`;
+    case 'oc': case 'oy':
+      await files.onCallback(ctx, code, args, msg);
+      return `file_${code}`;
+    case 'od':
+      await files.onDocx(ctx, cq.message);
+      return 'ocr_docx';
     case 'b': case 'bm': case 'bx': case 'bz': case 'bp': case 'bf': case 'bl': case 'br':
       await batch.onCallback(ctx, code, args, msg);
       return `batch_${code}`;
@@ -287,7 +295,8 @@ async function alertAnswer(ctx, cq, key) {
 }
 
 async function screen(ctx, msg, name) {
-  const screens = { tools: ui.tools, pdf: ui.pdfTools, zip: ui.zipTools, set: ui.settings, help: ui.help, bots: ui.bots, privacy: ui.privacy, lang: (c) => ui.language(c, 'set') };
+  await files.loadGemini(ctx);
+  const screens = { tools: ui.tools, ocr: ui.ocrTools, pdf: ui.pdfTools, zip: ui.zipTools, set: ui.settings, help: ui.help, bots: ui.bots, privacy: ui.privacy, lang: (c) => ui.language(c, 'set') };
   const fn = screens[name] || ui.home;
   await tg.edit(ctx, name || 'home', msg, fn(ctx));
   return name || 'home';

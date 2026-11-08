@@ -16,6 +16,21 @@ export const EXTRACTABLE = new Set(['zip', 'tar', 'gzip']);
 const FAMILY = new Set(['image', 'pdf', 'document', 'text', 'archive', 'audio', 'video', 'font', 'data', 'executable', 'unknown']);
 const PER_PAGE = 6;
 
+/** OCR with Gemini (C3): a key is set, the type is one Gemini reads, the size fits a request. */
+export function ocrable(ctx, file, d) {
+  if (!ctx.gemini || !ctx.gemini.available || d.dangerous) return false;
+  if (file.size > ctx.limits.GEMINI_MAX_MB * 1024 * 1024) return false;
+  if (['jpeg', 'png', 'webp', 'heic'].includes(d.id)) return true;
+  const m = file.meta || {};
+  return d.id === 'pdf' && !!(m.pdf && m.pdf.pages && !m.pdf.problem && m.pdf.pages <= ctx.limits.GEMINI_PDF_MAX_PAGES);
+}
+
+/** The one-time OCR consent (spec §7.1), worded after Google's terms for the tier in use. */
+export function ocrConsent(ctx, file) {
+  return screen(L(ctx, ctx.gemini && ctx.gemini.paid ? 'ocr.consent_paid' : 'ocr.consent_free'),
+    [btn(P(ctx, 'ocr.agree'), 'oy', file.ref)], [backBtn(ctx, 'f', file.ref), cancelBtn(ctx)]);
+}
+
 /** The actions a file offers, in display order. */
 export function fileOps(ctx, file, d) {
   if (d.dangerous || d.id === 'empty') return [];
@@ -27,6 +42,7 @@ export function fileOps(ctx, file, d) {
     ops.push(btn(P(ctx, 'op.pdf_extract'), 'pd', ref, 'x'), btn(P(ctx, 'op.pdf_remove'), 'pd', ref, 'd'), btn(P(ctx, 'op.pdf_rotate'), 'pd', ref, 'r'));
     if (m.pdf.pages > 1) ops.push(btn(P(ctx, 'op.pdf_reorder'), 'pd', ref, 'o'), btn(P(ctx, 'op.pdf_split'), 'pd', ref, 's'));
   }
+  if (ocrable(ctx, file, d)) ops.unshift(btn(P(ctx, 'op.ocr'), 'oc', ref));
   if (d.id === 'jpeg' || (d.id === 'png' && m.image && m.image.w * m.image.h <= ctx.limits.PNG_MAX_PIXELS)) ops.push(btn(P(ctx, 'op.pdf_combine'), 'pi', ref));
   ops.push(btn(P(ctx, 'op.rename'), 'rn', ref));
   ops.push(btn(P(ctx, 'op.zip'), 'pz', ref));

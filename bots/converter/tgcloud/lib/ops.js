@@ -7,7 +7,8 @@ import { detect } from './detect/index.js';
 import { TYPES } from './detect/types.js';
 import { ToolError } from './errors.js';
 import { cleanBase, splitName, renameTo, fixedName, sanitizeName } from './names.js';
-import { combine, everyN, extractPages, loadPdf, looksLikePdf, parseRanges, rangeGroups, removePages, reorderPages, rotatePages, splitPages } from './pdf.js';
+import { combine, everyN, extractPages, loadPdf, looksLikePdf, parseRanges, pdfInfo, rangeGroups, removePages, reorderPages, rotatePages, splitPages } from './pdf.js';
+import { MIMES, scriptOf } from './gemini.js';
 import { NAME_BASE_MAX } from './config.js';
 
 const MB = 1024 * 1024;
@@ -198,6 +199,25 @@ export const OPS = {
       if (!outputs.length) throw new ToolError('NOTHING_TO_FIX');
       return { outputs };
     },
+  },
+};
+
+/** OCR (C3): `services.ocr(bytes, mime)` is the Gemini call, injected by the job runner. */
+OPS.ocr = {
+  heavy: true,
+  delivery: 'text',
+  run: async ([f], p, L, services) => {
+    if (!services || !services.ocr) throw new ToolError('GEMINI_OFF');
+    const mime = MIMES[f.type];
+    if (!mime) throw new ToolError('OCR_INPUT_TYPE');
+    if (f.bytes.length > L.GEMINI_MAX_MB * MB) throw new ToolError('GEMINI_TOO_BIG', { mb: L.GEMINI_MAX_MB });
+    if (f.type === 'pdf') {
+      const info = await pdfInfo(f.bytes, L.PDF_MAX_OBJECTS);
+      if (!info.pages || info.problem) throw new ToolError(info.problem || 'PDF_DAMAGED');
+      if (info.pages > L.GEMINI_PDF_MAX_PAGES) throw new ToolError('OCR_TOO_MANY_PAGES', { max: L.GEMINI_PDF_MAX_PAGES });
+    }
+    const r = await services.ocr(f.bytes, mime);
+    return { text: r.text, script: scriptOf(r.text), name: withSuffix(f.name, '_ocr', 'txt'), notes: r.truncated ? [{ key: 'note.ocr_truncated', vars: {} }] : [] };
   },
 };
 

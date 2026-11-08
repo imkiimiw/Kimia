@@ -37,6 +37,11 @@ export const DEFAULT_LIMITS = Object.freeze({
   PDF_MAX_OBJECTS: 200000, // C2: ≈ 1.2 s of parsing on Serverless (docs/LIMITS.md §3)
   PDF_MAX_PARTS: 100, // C2: a split makes at most this many PDFs
   PNG_MAX_PIXELS: 12000000, // C2: PNG → PDF ≈ 0.12 s per megapixel
+  GEMINI_DAILY_BUDGET: 200, // C3: requests per Pacific day for the whole bot (free-tier limits vary; owner can raise)
+  GEMINI_RPM: 8, // C3: requests per minute for the whole bot
+  GEMINI_USER_DAILY: 20, // C3: OCR requests per user per day (staff unlimited)
+  GEMINI_MAX_MB: 14, // C3: inline request ≤ 20 MB after base64 (+33 %)
+  GEMINI_PDF_MAX_PAGES: 5, // C3: a PDF must finish inside the ~30 s wall clock
   RATE_JOBS_PER_HOUR: 10,
   RATE_BURST_PER_MIN: 3,
   RATE_INTAKE_PER_MIN: 20,
