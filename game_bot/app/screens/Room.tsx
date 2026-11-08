@@ -3,7 +3,7 @@
 import type { ComponentType } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { seatName, useApp } from '../ctx';
-import { n, t } from '../i18n';
+import { n, rtl, t } from '../i18n';
 import { haptic, shareInline } from '../tg';
 import { Avatar, Button, GameArt, Icon, Overlay, Segmented, Spinner, TimerRing } from '../ui';
 import { myTurn, type RoomView, useRoom } from '../useRoom';
@@ -36,9 +36,10 @@ function Seat({ seat, i, room, onSit }: { seat: RoomView; i: number; room: RoomV
     );
   }
   return (
-    <div class={`seat${seat.me ? ' me' : ''}`}>
+    <div class={`seat${seat.me ? ' me' : ''}${seat.here === false ? ' away' : ''}`}>
       <Avatar name={seat.name} bot={seat.bot} seed={seat.name + i} />
       <span class="ellipsis">{seat.me ? t('lobby_you') : seatName(seat, t, n)}</span>
+      {seat.here === false && <span class="away-note">⏳ {t('lobby_not_here')}</span>}
     </div>
   );
 }
@@ -46,6 +47,7 @@ function Seat({ seat, i, room, onSit }: { seat: RoomView; i: number; room: RoomV
 function Lobby({ room, act, busy }: { room: RoomView; act: (i: Record<string, unknown>) => Promise<boolean>; busy: boolean }) {
   const { back } = useApp();
   const filled = room.seats.filter(Boolean).length;
+  const away = room.seats.filter((s: RoomView) => s && s.here === false).map((s: RoomView) => s.name);
   const [botsIn, setBotsIn] = useState(room.botsIn ?? 0);
   const at = useRef(Date.now());
   useEffect(() => {
@@ -67,7 +69,10 @@ function Lobby({ room, act, busy }: { room: RoomView; act: (i: Record<string, un
       <div class="lobby-head">
         <GameArt game={room.game} size={88} />
         <h1>{t(`game_${room.game}`)}</h1>
-        <p class="hint waiting">{t('lobby_waiting', { n: filled, m: room.seats.length })}<span class="dots"><i /><i /><i /></span></p>
+        <p class="hint waiting">
+          {away.length && filled === room.seats.length ? t('lobby_waiting_for', { name: away.join(rtl() ? '، ' : ', ') }) : t('lobby_waiting', { n: filled, m: room.seats.length })}
+          <span class="dots"><i /><i /><i /></span>
+        </p>
       </div>
 
       {room.game === 'hokm' ? (

@@ -31,6 +31,8 @@ const realNow = Date.now.bind(Date);
 Date.now = () => realNow() + offset * 1000;
 const E = {};
 for (const f of fs.readdirSync(path.join(ROOT, 'tgcloud', 'endpoints'))) E[f.replace('.js', '')] = (await import(`../tgcloud/endpoints/${f}`)).default;
+const H = {};
+for (const h of ['message', 'inline_query']) H[h] = (await import(`../tgcloud/handlers/${h}.js`)).default;
 const errors = [];
 const origError = console.error;
 console.error = (...a) => { errors.push(a.join(' ')); origError(...a); };
@@ -188,6 +190,26 @@ await scenario('tic-tac-toe: two accounts play through the UI; the winner sees t
   await b.waitForFunction(() => !document.querySelector('.sheet'), null, { timeout: 6000 });
   await a.context().close();
   await b.context().close();
+});
+
+await scenario('invitation as people send it: the inviter only sends it; the friend opens it, sees who they wait for; the inviter is messaged and the game starts when they open it', async () => {
+  mock.state.started.add(users.ali.id);
+  await H.message({ message_id: 1, from: users.ali, chat: { id: users.ali.id, type: 'private' }, date: 0, text: '/start' });
+  await H.inline_query({ id: 'iq-ui', from: users.ali, query: '', offset: '' });
+  const url = mock.state.inlineAnswers.get('iq-ui').results[0].reply_markup.inline_keyboard[0][0].url;
+  const start = /startapp=(t_[A-Za-z0-9]{12})$/.exec(url)[1];
+  const friend = await open(users.nina, { start });
+  await friend.waitForSelector('.seat.away');
+  assert.match(await friend.locator('.waiting').textContent(), /علی/);
+  await wait(400);
+  await shot(friend, '04b-invite-friend-waiting');
+  const ping = mock.state.calls.find((c) => c.method === 'sendMessage' && c.params.chat_id === users.ali.id && /Nina/.test(c.params.text));
+  assert.ok(ping, 'the inviter got a message that Nina is waiting');
+  const inviter = await open(users.ali, { start: /startapp=(.*)$/.exec(ping.params.reply_markup.inline_keyboard[0][0].url)[1] });
+  await inviter.waitForSelector('.ttt-board');
+  await friend.waitForSelector('.ttt-board', { timeout: 6000 });
+  await friend.context().close();
+  await inviter.context().close();
 });
 
 await scenario('backgammon: the board, dice and a turn played through the UI', async () => {

@@ -406,6 +406,23 @@
   box-shadow: var(--shadow-1), var(--ring);
 }
 
+.seat.away {
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.seat.away .avatar {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+}
+
+.away-note {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hint);
+  text-align: center;
+}
+
 .seat.empty {
   background: transparent;
   border: 2px dashed var(--line);

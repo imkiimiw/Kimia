@@ -8,13 +8,19 @@
  * forfeits), and finishes the game. getState() is what the Mini App polls.
  * Life of a room: waiting (seats filling) → playing → finished (rematch → playing again);
  * a game idle for ROOM_IDLE_TTL becomes expired; old rooms are swept when a new one is created.
+ *
+ * Invitations: the inline results reserve a room per game with the inviter already in seat 0
+ * (here: false — they haven't opened it yet). A friend who opens the link takes the next seat, and
+ * the inviter gets a private message ("… is waiting for you"). The game starts once every seat is
+ * taken by someone who has opened the room; a reservation nobody opens is released after RESERVE_TTL.
+ * Lobby actions (options, bots) belong to the creator if present, else to the first present player.
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
 import * as bg from './games/backgammon.js';
 import * as hokm from './games/hokm.js';
 import * as ttt from './games/tictactoe.js';
-import { GRACE_SEC, HOKM_BOTS_AFTER_SEC, MAX_TIMEOUTS, POINTS, ROOM_IDLE_TTL, ROOM_KEEP_TTL, ROOM_WAIT_TTL } from './config.js';
+import { GRACE_SEC, HOKM_BOTS_AFTER_SEC, MAX_TIMEOUTS, POINTS, RESERVE_TTL, ROOM_IDLE_TTL, ROOM_KEEP_TTL, ROOM_WAIT_TTL } from './config.js';
 import { bumpCounter, nowSec, recordResult } from './store.js';
 
 export const MODS = { ttt, bg, hokm };
@@ -75,6 +81,25 @@ export async function ensureRoom({ id, game, creator = 0, chat = null, inlineId 
   return room;
 }
 
+/*
+ * Inline results: one room per game, with the inviter reserved in seat 0 (one INSERT for all of
+ * them). The sweep runs on a fraction of the calls: inline queries come at every keystroke.
+ */
+export async function reserveRooms(list, inviter, lang) {
+  const t = nowSec();
+  if (Math.random() < 0.25) await sweep(t);
+  let values = null;
+  for (const { id, game } of list) {
+    const seats = new Array(MODS[game].SEATS).fill(null);
+    seats[0] = { id: inviter.id, name: inviter.name, here: false, at: t };
+    const v = sql`(${id}, ${game}, 'waiting', ${inviter.id}, ${JSON.stringify(seats)}, '{}', '{}', ${lang}, ${t}, ${t})`;
+    values = values ? sql`${values}, ${v}` : v;
+  }
+  if (!values) return;
+  await db.run(sql`INSERT INTO rooms (id, game, status, creator, seats, opts, meta, lang, created_at, updated_at)
+    VALUES ${values} ON CONFLICT(id) DO NOTHING`);
+}
+
 /* Writes the room if nobody changed it since it was read; false = someone was faster. */
 async function save(room) {
   const t = nowSec();
@@ -90,6 +115,30 @@ async function save(room) {
 
 export const seatOf = (room, userId) => room.seats.findIndex((s) => s && !s.bot && s.id === userId);
 const humans = (room) => room.seats.map((s, i) => (s && !s.bot ? i : -1)).filter((i) => i >= 0);
+/* A seat whose player has opened the room (bots always have). Seats saved before `here` existed count as here. */
+const present = (s) => !!s && (s.bot || s.here !== false);
+const ready = (room) => room.seats.every(present);
+
+/* Who may set options / call bots: the creator if they are seated and here, else whoever arrived first. */
+export function leader(room) {
+  const c = room.seats.find((s) => s && !s.bot && s.id === room.creator);
+  if (c && present(c)) return c.id;
+  const here = room.seats.filter((s) => s && !s.bot && present(s)).sort((a, b) => (a.at || 0) - (b.at || 0));
+  return here.length ? here[0].id : 0;
+}
+
+/* Releases reservations nobody opened within RESERVE_TTL. */
+function dropStale(room, t) {
+  let changed = false;
+  room.seats = room.seats.map((s) => {
+    if (s && !s.bot && s.here === false && t - (s.at || room.createdAt) > RESERVE_TTL) {
+      changed = true;
+      return null;
+    }
+    return s;
+  });
+  return changed;
+}
 
 function start(room, rng, t) {
   const mod = MODS[room.game];
@@ -192,8 +241,8 @@ export function view(room, userId, t) {
   const seat = seatOf(room, userId);
   const meta = room.meta || {};
   const out = {
-    id: room.id, game: room.game, status: room.status, ver: room.ver, you: seat, creator: room.creator === userId,
-    seats: room.seats.map((s) => (s ? { name: s.name, bot: !!s.bot, me: !s.bot && s.id === userId } : null)),
+    id: room.id, game: room.game, status: room.status, ver: room.ver, you: seat, creator: leader(room) === userId,
+    seats: room.seats.map((s) => (s ? { name: s.name, bot: !!s.bot, me: !s.bot && s.id === userId, here: present(s) } : null)),
     opts: room.opts, left: room.deadline ? Math.max(0, room.deadline - t) : 0, turnSec: mod.TURN_SEC,
     result: meta.result || null, inChat: !!room.chat,
     rematch: { votes: (meta.rematch || []).length, needed: humans(room).length, mine: (meta.rematch || []).includes(userId) },
@@ -205,27 +254,49 @@ export function view(room, userId, t) {
 
 /* ---------- what players do ---------- */
 
-const nameOf = (u) => String(u.first_name || u.username || 'Player').slice(0, 32);
+export const playerName = (u) => String(u.first_name || u.username || 'Player').slice(0, 32);
+const nameOf = playerName;
 
-export function joinChange(user, chat, rng, t) {
+/*
+ * Opening a room: a reserved player becomes "here"; anyone else takes a free seat (in a waiting
+ * room). `out.ping` lists reserved players who haven't opened it yet, to be told someone is waiting
+ * (each once). Starts the game when every seat is taken by someone here.
+ */
+export function joinChange(user, chat, rng, t, out = {}) {
   return (room) => {
-    if (seatOf(room, user.id) >= 0 || room.status !== 'waiting') {
-      if (chat && !room.chat && seatOf(room, user.id) >= 0) {
-        room.chat = chat;
-        return true;
+    delete out.ping;
+    let changed = false;
+    const mine = seatOf(room, user.id);
+    if (mine >= 0) {
+      if (room.seats[mine].here === false) {
+        room.seats[mine] = { id: user.id, name: nameOf(user), here: true, at: t };
+        changed = true;
       }
-      return false;
+    } else if (room.status === 'waiting') {
+      if (dropStale(room, t)) changed = true;
+      const free = room.seats.findIndex((s) => s === null);
+      if (free >= 0) {
+        room.seats[free] = { id: user.id, name: nameOf(user), here: true, at: t };
+        if (!room.creator) room.creator = user.id;
+        const pinged = room.meta.pinged || [];
+        const absent = room.seats.filter((s) => s && !s.bot && s.here === false && !pinged.includes(s.id)).map((s) => s.id);
+        if (absent.length) {
+          room.meta = { ...room.meta, pinged: pinged.concat(absent) };
+          out.ping = absent;
+          out.by = nameOf(user);
+        }
+        changed = true;
+      }
     }
-    const free = room.seats.findIndex((s) => s === null);
-    if (free < 0) return false;
-    room.seats[free] = { id: user.id, name: nameOf(user) };
-    if (!room.creator) room.creator = user.id;
-    if (chat && !room.chat) room.chat = chat;
-    if (room.seats.every((s) => s !== null)) {
+    if (chat && !room.chat && seatOf(room, user.id) >= 0) {
+      room.chat = chat;
+      changed = true;
+    }
+    if (changed && room.status === 'waiting' && ready(room)) {
       start(room, rng, t);
       advance(room, t, rng);
     }
-    return true;
+    return changed;
   };
 }
 
@@ -276,7 +347,7 @@ export function actionChange(userId, input, rng, t) {
         if (room.status === 'waiting') {
           room.seats[seat] = null;
           if (room.creator === userId) {
-            const next = room.seats.find((s) => s && !s.bot);
+            const next = room.seats.find((s) => s && !s.bot && present(s));
             room.creator = next ? next.id : 0;
           }
           return true;
@@ -294,7 +365,7 @@ export function actionChange(userId, input, rng, t) {
         return true;
       }
       case 'opts': {
-        if (room.status !== 'waiting' || room.creator !== userId) throw new RoomError('NOT_CREATOR');
+        if (room.status !== 'waiting' || leader(room) !== userId) throw new RoomError('NOT_CREATOR');
         if (room.game !== 'bg' || !bg.TARGETS.includes(input.target)) throw new RoomError('BAD_OPTS');
         if (room.opts.target === input.target) return false;
         room.opts = { ...room.opts, target: input.target };
@@ -302,11 +373,11 @@ export function actionChange(userId, input, rng, t) {
       }
       case 'bots': {
         if (room.game !== 'hokm' || room.status !== 'waiting') throw new RoomError('BAD_ACTION');
-        if (room.creator !== userId || seat < 0) throw new RoomError('NOT_CREATOR');
+        if (leader(room) !== userId || seat < 0) throw new RoomError('NOT_CREATOR');
         if (t < room.createdAt + HOKM_BOTS_AFTER_SEC) throw new RoomError('TOO_EARLY');
         let k = 0;
         room.seats = room.seats.map((s) => {
-          if (s) return s;
+          if (present(s)) return s; /* empty seats and reservations nobody opened get bots */
           k += 1;
           return { id: -k, name: String(k), bot: true };
         });

@@ -253,6 +253,48 @@ await scenario('turn timers: a timeout plays for the player; three in a row forf
   assert.equal(JSON.parse(row('SELECT meta FROM rooms WHERE id = ?', tttRoom).meta).timeouts[0], 0, 'Ali, who played in time, has no timeouts');
 });
 
+await scenario('invitation, the way people use it: the inviter only sends it, the friend opens it first — the inviter is already seated, is messaged, and the game starts when they open it', async () => {
+  await dm(U.bea, '/start'); // the inviter has a private chat with the bot
+  const q = (await run(H.inline_query, { id: 'q-inv', from: U.bea, query: '', offset: '' })).find((c) => c.method === 'answerInlineQuery');
+  const url = q.params.results[0].reply_markup.inline_keyboard[0][0].url;
+  const room = /startapp=t_([A-Za-z0-9]{12})$/.exec(url)[1];
+  const reserved = row('SELECT * FROM rooms WHERE id = ?', room);
+  assert.ok(reserved, 'the room exists as soon as the invitation is offered (no inline feedback needed)');
+  assert.deepEqual(JSON.parse(reserved.seats)[0], { id: U.bea.id, name: 'Béa', here: false, at: Math.floor(clock / 1000) });
+  // Bea sends it and does NOT tap it. Ivan taps it:
+  const before = mock.state.calls.length;
+  const f = ok(await api('joinRoom', U.ivan, { room, game: 'ttt' }, 'chatI'));
+  assert.equal(f.status, 'waiting');
+  assert.equal(f.you, 1);
+  assert.deepEqual(f.seats.map((x) => x && x.here), [false, true]);
+  const ping = mock.state.calls.slice(before).filter((c) => c.method === 'sendMessage' && c.params.chat_id === U.bea.id);
+  assert.equal(ping.length, 1, 'the inviter is told someone is waiting');
+  assert.match(ping[0].params.text, /Иван/);
+  assert.match(ping[0].params.text, /vous attend/);
+  assert.equal(ping[0].params.reply_markup.inline_keyboard[0][0].url, url);
+  const again = mock.state.calls.length;
+  ok(await api('joinRoom', U.ivan, { room, game: 'ttt' }, 'chatI'));
+  assert.equal(mock.state.calls.slice(again).filter((c) => c.method === 'sendMessage').length, 0, 'told once');
+  const g = ok(await api('joinRoom', U.bea, { room, game: 'ttt' }, 'chatI'));
+  assert.equal(g.status, 'playing');
+  assert.equal(g.you, 0);
+  assert.equal(ok(await api('getState', U.ivan, { room })).status, 'playing');
+});
+
+await scenario('a reservation nobody opens is released after 3 minutes; lobby actions pass to the player who is there', async () => {
+  const q = (await run(H.inline_query, { id: 'q-inv2', from: U.bea, query: '', offset: '' })).find((c) => c.method === 'answerInlineQuery');
+  const hokmRoom = /startapp=h_([A-Za-z0-9]{12})$/.exec(q.params.results[2].reply_markup.inline_keyboard[0][0].url)[1];
+  const a = ok(await api('joinRoom', U.ivan, { room: hokmRoom, game: 'hokm' }));
+  assert.equal(a.you, 1);
+  assert.equal(a.creator, true, 'the inviter is away, so the friend runs the lobby');
+  tick(181);
+  const b = ok(await api('joinRoom', U.dan, { room: hokmRoom, game: 'hokm' }));
+  assert.equal(b.seats[0] && b.seats[0].me, true, 'the stale reservation was released and taken');
+  const s = ok(await api('roomAction', U.ivan, { room: hokmRoom, action: 'bots' }));
+  assert.equal(s.status, 'playing');
+  assert.deepEqual(s.seats.map((x) => !!(x && x.bot)), [false, false, true, true]);
+});
+
 // ---------- backgammon ----------
 
 await scenario('backgammon: match length chosen by the creator, server dice, legal turns only, illegal ones refused', async () => {

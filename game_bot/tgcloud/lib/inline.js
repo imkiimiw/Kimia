@@ -2,9 +2,10 @@
  * Inline mode, the main way in: typing @bot in any chat lists the five games in the user's
  * language. Each result posts a message with a URL button to the Direct Link Mini App
  * (web_app buttons aren't allowed in inline messages): t.me/<bot>/<short>?startapp=<payload>.
- * Room games get a fresh random room id per result; the room row is created when the result is
- * chosen (chosen_inline_result, which also carries inline_message_id so the message can be edited
- * with the result) or, if inline feedback is off, by the first player who opens it.
+ * Room games get a fresh random room id per result, reserved right away with the inviter already
+ * seated (rooms.reserveRooms), so a friend who opens the link finds them there and the inviter is
+ * messaged to come and play. chosen_inline_result (inline feedback on) adds the inline_message_id,
+ * so the message can be edited with the game's progress and result.
  * "room <id>" (from the Mini App's invite button) lists just that room.
  * Users who haven't joined the forced-join channels get no games, only a button to the bot's chat.
  */
@@ -12,7 +13,7 @@ import { APP_URL, ROOM_GAMES } from './config.js';
 import { GAME_ICONS, t } from './i18n/index.js';
 import { joinStatus } from './join.js';
 import { appLink, botUsername, payloadFor } from './links.js';
-import { ensureRoom, loadRoom, newRoomId } from './rooms.js';
+import { ensureRoom, loadRoom, newRoomId, playerName, reserveRooms } from './rooms.js';
 import * as store from './store.js';
 import { call, createCtx, esc, short } from './tg.js';
 
@@ -61,7 +62,10 @@ export async function onInlineQuery(iq) {
       results = room && room.status !== 'expired' ? [article(lang, username, room.game, room.id, iq.from)] : [];
       if (results.length) results[0].title = `${GAME_ICONS[room.game]} ${t(lang, 'inline_room_title', { game: t(lang, `game_${room.game}`) })}`;
     } else {
-      results = ORDER.map((g) => article(lang, username, g, ROOM_GAMES.includes(g) ? newRoomId() : null, iq.from));
+      const ids = {};
+      for (const g of ROOM_GAMES) ids[g] = newRoomId();
+      await reserveRooms(ROOM_GAMES.map((g) => ({ id: ids[g], game: g })), { id: iq.from.id, name: playerName(iq.from) }, lang);
+      results = ORDER.map((g) => article(lang, username, g, ids[g] || null, iq.from));
     }
     await call(ctx, 'answerInlineQuery', { inline_query_id: iq.id, results, cache_time: 0, is_personal: true }, 'inline');
   } catch (err) {

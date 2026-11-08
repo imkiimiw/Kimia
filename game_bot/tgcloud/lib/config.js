@@ -16,6 +16,7 @@ export const WARN_INTERVAL_SEC = 3 * 3600; /* at most one "channel check failed"
 export const GRACE_SEC = 2; /* turn timers: extra seconds before a timeout counts (clock skew, latency) */
 export const MAX_TIMEOUTS = 3; /* consecutive timeouts that forfeit the game */
 export const HOKM_BOTS_AFTER_SEC = 60; /* the creator may fill empty Hokm seats with bots after this */
+export const RESERVE_TTL = 180; /* an inviter's reserved seat is released if they haven't opened the room by then */
 export const ROOM_WAIT_TTL = 2 * 3600; /* a room nobody joined is deleted after this */
 export const ROOM_IDLE_TTL = 15 * 60; /* a game where nothing happened for this long is closed */
 export const ROOM_KEEP_TTL = 2 * 24 * 3600; /* finished / closed rooms are deleted after this */
