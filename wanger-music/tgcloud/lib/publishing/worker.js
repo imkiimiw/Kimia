@@ -1,6 +1,6 @@
 // Publishing worker (spec 10.6), run by the tick: per channel that is ready (enabled, auto-publish,
 // interval, active hours in its time zone, daily limit) it claims ONE due publication with a lease,
-// posts it (cover first for cover_then_audio), and records the result. Error handling comes from
+// posts it (cover first for cover_then_audio — the full picture from the audio file), and records the result. Error handling comes from
 // telegram/errors.js#publishAction. At most once: an expired lease becomes "uncertain".
 import { BOT_USERNAME, LIMITS } from '../config/static.js';
 import { SYSTEM_ACTOR } from '../permissions/policy.js';
@@ -9,6 +9,7 @@ import { renderCaption, captionValues, DEFAULT_TEMPLATE, CAPTION_MAX, channelHan
 import { publishAction, classify } from '../telegram/errors.js';
 import { backoffSeconds, cooldownAfter429, cooldownActive } from '../telegram/limiter.js';
 import { t, tp } from '../i18n/index.js';
+import { readCover } from '../music/artwork.js';
 
 export const LEASE_SECONDS = 60;
 export const MAX_ATTEMPTS = 6;
@@ -44,28 +45,72 @@ export function createWorker({ pubs, channels, catalog, sources, settings, tg, a
   /** Errors that concern the channel or Telegram as a whole: the post's normal error handling decides. */
   const fatal = (e) => ['transient', 'rate_limit', 'no_rights', 'chat_gone', 'blocked'].includes(classify(e).kind);
 
+  /** Keeps the photo Telegram made of an uploaded cover as the track's cover. */
+  async function keepCover(track, m, source) {
+    const best = m && m.photo && m.photo.length ? m.photo[m.photo.length - 1] : null;
+    if (best) await catalog.replaceCover(track.id, best.file_id, source);
+  }
+
   /**
-   * The cover photo of a cover_then_audio post. A track's cover is often the audio file's own
-   * thumbnail, which Telegram refuses to send as a photo ("can't use file of type Thumbnail as
-   * Photo", seen in production): its bytes are uploaded once as a photo and that photo is kept.
-   * Any other cover problem skips the cover — the audio is the post. @returns {Promise<number|null>}
+   * The full cover picture inside the track's audio file (music/artwork.js reads only the file's
+   * start), or null. A file without a bigger picture than the thumbnail, or one Telegram won't
+   * hand out (> 20 MB), is marked so it isn't read again; a passing download problem just falls
+   * back to the thumbnail this time (`settled` false: the file is read again next time).
+   * @returns {Promise<{picture: import('../music/artwork.js').Picture|null, settled: boolean}>}
    */
-  async function sendCover(track, ch) {
+  async function fullCover(track) {
     try {
-      return (await tg.call('sendPhoto', { chat_id: ch.chat_id, photo: track.cover_file_id }, 'publish_cover')).message_id;
+      const picture = await readCover((await tg.fileStream(track.audio_file_id)).body);
+      if (!picture) await catalog.replaceCover(track.id, null, 'thumb');
+      return { picture, settled: true };
     } catch (e) {
-      if (fatal(e)) throw e;
-      if (/thumbnail/i.test(classify(e).description)) {
-        try {
-          const m = await tg.sendPhotoFile(ch.chat_id, await tg.fileContent(track.cover_file_id), 'cover.jpg', 'publish_cover');
-          const best = m && m.photo && m.photo.length ? m.photo[m.photo.length - 1] : null;
-          if (best) await catalog.replaceCover(track.id, best.file_id);
-          return m.message_id;
-        } catch (e2) {
-          if (fatal(e2)) throw e2;
+      const c = classify(e);
+      log.warn('cover_read_failed', { track_id: track.id, error: c.kind });
+      if (c.code !== 400) return { picture: null, settled: false };
+      await catalog.replaceCover(track.id, null, 'thumb');
+      return { picture: null, settled: true };
+    }
+  }
+
+  /**
+   * Sends a track's cover photo to a chat (a cover_then_audio post, or the owner's preview).
+   * Telegram keeps only a small thumbnail of a song's cover (2–6 KB in production: blurry as a
+   * photo), so the first time the full picture inside the audio file is uploaded (up to 3000 px
+   * seen) and that photo is kept as the cover. With no bigger picture, the thumbnail is used; its
+   * bytes are uploaded once, as Telegram refuses a thumbnail as a photo by id ("can't use file of
+   * type Thumbnail as Photo"). Problems other than the chat's or Telegram's skip the cover — the
+   * audio is the post. @returns {Promise<number|null>} the cover's message id
+   */
+  async function sendCover(track, chatId, view = 'publish_cover') {
+    try {
+      let settled = Boolean(track.cover_source);
+      if (!settled) {
+        const { picture: pic, settled: s } = await fullCover(track);
+        settled = s;
+        if (pic) {
+          try {
+            const m = await tg.sendPhotoFile(chatId, pic.bytes, pic.mime === 'image/png' ? 'cover.png' : 'cover.jpg', view, pic.mime);
+            await keepCover(track, m, 'file');
+            return m.message_id;
+          } catch (e) {
+            if (fatal(e)) throw e;
+            log.warn('cover_full_refused', { track_id: track.id, error: classify(e).kind });
+            await catalog.replaceCover(track.id, null, 'thumb');
+          }
         }
       }
-      log.warn('cover_skipped', { publication_id: track.id, channel_id: ch.chat_id, error: classify(e).kind });
+      if (!track.cover_file_id) return null;
+      try {
+        return (await tg.call('sendPhoto', { chat_id: chatId, photo: track.cover_file_id }, view)).message_id;
+      } catch (e) {
+        if (fatal(e) || !/thumbnail/i.test(classify(e).description)) throw e;
+        const m = await tg.sendPhotoFile(chatId, await tg.fileContent(track.cover_file_id), 'cover.jpg', view);
+        await keepCover(track, m, settled ? 'thumb' : null);
+        return m.message_id;
+      }
+    } catch (e) {
+      if (fatal(e)) throw e;
+      log.warn('cover_skipped', { track_id: track.id, chat_id: chatId, error: classify(e).kind });
       return null;
     }
   }
@@ -80,7 +125,7 @@ export function createWorker({ pubs, channels, catalog, sources, settings, tg, a
     const caption = await captionFor(track, ch, sources);
     let coverId = null;
     try {
-      if (ch.post_format === 'cover_then_audio' && track.cover_file_id) coverId = await sendCover(track, ch);
+      if (ch.post_format === 'cover_then_audio' && (track.cover_file_id || !track.cover_source)) coverId = await sendCover(track, ch.chat_id);
       const m = await tg.call('sendAudio', { chat_id: ch.chat_id, audio: track.audio_file_id, caption, parse_mode: 'HTML' }, 'publish');
       const now = clock.now();
       await pubs.markPublished(pub.id, m.message_id, coverId, now);
@@ -133,6 +178,7 @@ export function createWorker({ pubs, channels, catalog, sources, settings, tg, a
 
   return {
     sendOne,
+    sendCover,
     /**
      * The owner's «▶️ send the next post now»: the channel's oldest due queued post, without waiting
      * for the minimum interval or the active hours (an explicit choice). Pause, the 429 cooldown,

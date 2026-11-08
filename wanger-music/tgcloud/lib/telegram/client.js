@@ -92,9 +92,11 @@ export function createTelegramClient({ log, onBlocked, api = sdkApi }) {
       chat_id: chatId, document: new InputFile(bytes, filename, { type }), ...(caption ? { caption, parse_mode: 'HTML' } : {}),
     }, viewName),
     /** Uploads bytes as a photo (e.g. an audio thumbnail, which Telegram won't send as a photo by id). @param {Uint8Array} bytes */
-    sendPhotoFile: (chatId, bytes, filename, viewName = 'photo') => call('sendPhoto', { chat_id: chatId, photo: new InputFile(bytes, filename, { type: 'image/jpeg' }) }, viewName),
+    sendPhotoFile: (chatId, bytes, filename, viewName = 'photo', type = 'image/jpeg') => call('sendPhoto', { chat_id: chatId, photo: new InputFile(bytes, filename, { type }) }, viewName),
     /** Downloads a file the bot can see (≤ 20 MB, Bot API getFile cap). @returns {Promise<Uint8Array>} */
     fileContent: (fileId) => call('getFileContent', { file_id: fileId }, 'file'),
+    /** Opens a file as a stream of chunks (≤ 20 MB), to read only its start. @returns {Promise<{body: AsyncIterable<Uint8Array>}>} */
+    fileStream: (fileId) => call('getFileStream', { file_id: fileId }, 'file'),
     getWebhookInfo: () => call('getWebhookInfo', {}),
     setMyCommands: (params) => call('setMyCommands', params),
     deleteMyCommands: (params) => call('deleteMyCommands', params),

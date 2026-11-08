@@ -202,10 +202,16 @@ restores the row (disabled) with its settings. **Nothing is posted to any channe
   counted); 5xx / network → backoff 1, 2, 4… min (jitter, cap 60) and failed after 6 attempts;
   channel errors → failed + channel disabled + alert; file errors → failed + track hidden + alert;
   caption errors → failed + alert. ≤ `publishing.per_tick` posts per tick, one per channel.
-- **Cover** (cover_then_audio): a track's cover is often the audio's own thumbnail, which Telegram
-  won't send as a photo ("can't use file of type Thumbnail as Photo", production 2026-11-08): the
-  worker downloads it once, uploads it as a photo and keeps that photo's file_id; any other cover
-  error skips the cover — the audio is the post (only channel / transient errors stop the post).
+- **Cover** (cover_then_audio, `worker.sendCover`, also used by the owner's preview): Telegram keeps
+  only a small thumbnail of a song's cover (2–6 KB in production — blurry as a photo), while the
+  file usually carries the original (622–3000 px seen). The first time, the worker streams the start
+  of the audio file (`music/artwork.js`: ID3v2 APIC/PIC, FLAC PICTURE, MP4 `covr` with `moov` first;
+  ≤ 12 MB read, ~150 KB–1.7 MB in practice), uploads the picture as a photo and keeps that photo
+  (`tracks.cover_source = 'file'`). No picture bigger than 320 px (or a file > 20 MB) → the thumbnail
+  (`'thumb'`: its bytes are uploaded once, as Telegram refuses a thumbnail as a photo by id); a passing
+  download error leaves `cover_source` NULL (tried again next time); a cover a person set
+  (`'manual'`) is never replaced. Any other cover error skips the cover — the audio is the post (only
+  channel / transient errors stop the post).
 - **New-song message** (`approvals_ui.notifyNewTrack`, from `sources.handlePost`): the owner and every admin
   get the song, its language, status and channels, with the next action as buttons (`nt:*`: language,
   activate, approve / reject, send now — each by permission — and play); every button re-renders

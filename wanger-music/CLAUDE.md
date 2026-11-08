@@ -24,7 +24,7 @@ end: all tests green, docs updated, the report (SPEC §15), then STOP and wait f
 - handlers → services → repositories → sdk. Handlers are thin (`core/boundary` + `bot/router`).
 - SQL only in `lib/repositories/`; only `core/context.js` builds them (DI). Services get deps as args.
 - Pure modules (config, util, logger, html, errors, limiter, chatref, codec, keyboards, i18n,
-  policy, gate, music/normalize, music/classify, music/duplicates, search/terms, publishing/captions,
+  policy, gate, music/normalize, music/classify, music/duplicates, music/artwork, search/terms, publishing/captions,
   publishing/rules)
   never import `sdk` — `tests/unit/guard.test.mjs` enforces this and the layering.
 - One place each: permissions `permissions/policy.js`, config `config/static.js`, Telegram error
@@ -46,7 +46,7 @@ end: all tests green, docs updated, the report (SPEC §15), then STOP and wait f
 - Publishing: routing only on activation (publishing_since → no backfill), one row per (track, channel),
   the worker claims with a lease; error actions come from `telegram/errors.js#publishAction`; an expired
   lease is `uncertain` and is NEVER re-sent automatically.
-- Keep ≤ 85 modules (the platform refused a 104-module deploy; 83 used). Add handlers only in their phase.
+- Keep ≤ 85 modules (the platform refused a 104-module deploy; 84 used). Add handlers only in their phase.
 - Platform limits per SQL statement (measured): ≤ 4096 bound values ("Run error") and ≤ 10 000 rows
   written ("rows_written limit exceeded"). Batch mass writes (≤ 5000 rows); the local SDK enforces both.
 - `npm run query-review` must stay green (every full scan of a growing table needs a reason in its list).

@@ -133,7 +133,7 @@ async function sendPreview(app, user, d, template) {
   const chat = user.telegram_id;
   try {
     if (tr) {
-      if (d.post_format === 'cover_then_audio' && tr.cover_file_id) await app.tg.call('sendPhoto', { chat_id: chat, photo: tr.cover_file_id }, 'destination_preview');
+      if (d.post_format === 'cover_then_audio' && (tr.cover_file_id || !tr.cover_source)) await app.worker.sendCover(tr, chat, 'destination_preview');
       await app.tg.call('sendAudio', { chat_id: chat, audio: tr.audio_file_id, caption, parse_mode: 'HTML' }, 'destination_preview');
     } else {
       await app.tg.call('sendMessage', { chat_id: chat, text: caption || '—', parse_mode: 'HTML', link_preview_options: { is_disabled: true } }, 'destination_preview');

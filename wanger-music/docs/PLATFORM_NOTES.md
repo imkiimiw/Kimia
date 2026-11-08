@@ -98,6 +98,7 @@ deployed yet) · **Unknown** = neither documented nor measurable without deployi
 | §10.3 "no backfill: tracks activated before a channel was enabled" | `destination_channels.publishing_since` is set when the channel becomes enabled + auto-publish (cleared when either turns off); routing requires `track.activated_at ≥ publishing_since`. |
 | §10.8 "at least 1 s between messages to the same chat" | One post per channel per tick. Exception: cover_then_audio sends the cover photo and the audio back to back (one logical post); there is no way to wait without sleeping, and two messages are far below Telegram's ~20/min per channel. |
 | §10.6 "400 file errors → flag the track for review" | The track is hidden (it leaves search and routing, as its file is broken for inline too) and the owner is alerted. |
+| Covers | Telegram keeps a song's cover only as a small audio thumbnail (2–6 KB, ≤ 320 px; seen in production) and won't send it as a photo by id. `api.getFileStream` streams a file (≤ 20 MB), so the full embedded picture is read from the file's first 150 KB–1.7 MB in 5–70 ms (measured on 6 production files). |
 | §6 `publications` | Two extra columns: `cover_message_id` (to delete the cover too) and `deleted_at` («🧹 Delete channel posts»). |
 | §10.4 reviewers | Owner + admins (`approvals.review`); admins see 🗳 Approvals in /admin. Uncertain / failed actions, backfill, history and post deletion are owner-only. |
 | Caption language | Language/genre names in captions use the channel's first rules language (English channel → English names, otherwise Persian). |

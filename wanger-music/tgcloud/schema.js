@@ -146,6 +146,9 @@ export const tracks = table('tracks', {
   fileSize: integer('file_size'),
   fileName: text('file_name'),
   coverFileId: text('cover_file_id'),
+  // addition: where cover_file_id came from — NULL = the audio's small thumbnail (not checked yet),
+  // 'file' = the full picture inside the audio file, 'thumb' = checked, the file has no bigger one, 'manual' = a person
+  coverSource: text('cover_source'),
   normalizedTitle: text('normalized_title').notNull().default(''),
   normalizedArtist: text('normalized_artist').notNull().default(''),
   dupKey: text('dup_key').notNull(),

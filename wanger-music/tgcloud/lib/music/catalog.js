@@ -283,14 +283,19 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
       return row;
     },
 
-    /** The worker uploaded the audio's thumbnail as a photo: keep that photo as the cover (no actor). */
-    replaceCover: (id, fileId) => repo.update(id, { cover_file_id: fileId }, clock.now()),
+    /**
+     * The worker uploaded a cover photo: keep it as the cover (no actor). `source`: 'file' (the full
+     * picture inside the audio file), 'thumb' (the audio's thumbnail; the file has no bigger one) or
+     * null (the thumbnail, but the file couldn't be read this time: it is tried again).
+     * @param {number} id @param {string|null} fileId null keeps the current cover @param {'file'|'thumb'|null} source
+     */
+    replaceCover: (id, fileId, source) => repo.update(id, fileId ? { cover_file_id: fileId, cover_source: source } : { cover_source: source }, clock.now()),
 
     /** Cover for channel posts (the audio file's own thumbnail does not change). */
     async setCover(actor, id, fileId) {
       assertCan(actor, PERM);
       const tr = await mustGet(id);
-      const row = await repo.update(id, { cover_file_id: fileId }, clock.now());
+      const row = await repo.update(id, { cover_file_id: fileId, cover_source: 'manual' }, clock.now());
       await audit.record(actor, 'catalog.cover', 'track', tr.public_id);
       return row;
     },

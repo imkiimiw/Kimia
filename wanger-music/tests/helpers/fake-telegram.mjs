@@ -1,6 +1,7 @@
 // A strict in-memory Bot API for tests: channels with members and the bot's status, users who
 // blocked the bot, scripted failures, and a log of every call.
 import { BotApiError } from '../sdk/api.mjs';
+import { chunked, mp3Audio } from './audio-files.mjs';
 
 export const BOT_ID = 9280424458;
 
@@ -128,6 +129,13 @@ export function createFakeTelegram() {
       if (!bytes) fail(400, 'Bad Request: wrong file_id or the file is temporarily unavailable', m);
       if (bytes.length > 20 * 1024 * 1024) fail(400, 'Bad Request: file is too big', m);
       return bytes;
+    },
+    /** Like the SDK's api.getFileStream: chunks of the file; an unknown audio id streams audio without a picture. */
+    getFileStream(p, m) {
+      const bytes = files.get(p.file_id) || mp3Audio(200000);
+      if (bytes.length > 20 * 1024 * 1024) fail(400, 'Bad Request: file is too big', m);
+      const s = chunked(bytes);
+      return { file: { file_id: p.file_id, file_size: bytes.length }, body: s.body, stats: s.stats };
     },
     setMyCommands: () => true,
     deleteMyCommands: () => true,

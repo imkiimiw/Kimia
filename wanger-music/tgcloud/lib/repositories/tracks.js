@@ -12,7 +12,7 @@ const inList = (list) => commaJoin(list.map((v) => sql`${v}`));
 
 /** Columns a metadata update may touch (identifiers come only from this list). */
 const EDITABLE = ['title', 'artist', 'featured_artists', 'album', 'version', 'genre', 'language', 'language_confidence', 'language_source',
-  'cover_file_id', 'normalized_title', 'normalized_artist', 'dup_key', 'duplicate_of', 'audio_file_id'];
+  'cover_file_id', 'cover_source', 'normalized_title', 'normalized_artist', 'dup_key', 'duplicate_of', 'audio_file_id'];
 
 /** Language nobody decided: unknown, or a low-confidence script guess (same text as idx_tracks_undecided_language). */
 const UNDECIDED = sql`language_source = 'heuristic' AND (language = 'unknown' OR language_confidence = 'low')`;

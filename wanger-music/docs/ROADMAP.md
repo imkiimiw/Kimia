@@ -33,6 +33,7 @@ code with a synthetic catalog (5000 tracks, ~2000 users) for load and restore te
 | 2026-11-08 | New-song message to the owner and admins at once, with buttons (language, activate, approve / reject, send now, play); burst limit; fix: a batch's «activate all» window could take in the next batch's first song (second boundary) | **Deployed** |
 | 2026-11-08 | Manual publishing (owner's request): automatic sending off by default; «📤 ارسال صف انتشار» first on /admin, in 🗳 and on each channel card; a message when posts wait | **Deployed** |
 | 2026-11-08 | Fix: cover_then_audio posts failed with the audio's thumbnail as cover (now uploaded as a photo, or skipped); queue + next post time + «▶️ send the next post now» on the destination card; current values on its buttons; ⚙️ Settings shortcuts to 📡 / 📢; group chatter runs the piggyback tick again | **Deployed** |
+| 2026-11-08 | Fix: blurry covers in cover_then_audio posts — the full picture inside the audio file (ID3 / FLAC / M4A, `music/artwork.js`) is uploaded once and kept (`tracks.cover_source`), instead of Telegram's 2–6 KB thumbnail | **Deployed** |
 | 2026-11-08 | Fix: false alert «تیک زمان‌بندی‌شده … ساعت است اجرا نشده» — manual `tgcloud run endpoints/opsTick` calls counted as the GitHub job, which never runs here (no secret). Now only the job's own runs (`from: "github"`, `monitor.github_at`) count; never set up → a note on System Status, no message | **Deployed** |
 | 2026-11-07 | Fix: Latin-titled tracks from sources without a language were silently never published — one-tap source language question (applied to existing tracks + re-routed), per-artist learning, «no language» warning | **Deployed** |
 | 2026-11-06 | Refused: Spotify / SoundCloud / YouTube Music / Amazon Music / Deezer as audio sources, and reading channels where the bot isn't admin (copyright, the services' terms, spec "never build" list). Offered instead: "listen on" links + metadata, Jamendo / downloadable-by-artist SoundCloud, artists' permission | — |
@@ -69,6 +70,6 @@ code with a synthetic catalog (5000 tracks, ~2000 users) for load and restore te
 
 ## Module budget
 
-83 of ≤ 85 modules after Phase 8 (+2: `repositories/backup`, `backup/service`). The platform
+84 of ≤ 85 modules (Phase 8: +2, `repositories/backup`, `backup/service`; then `music/artwork`). The platform
 refused a 104-module deploy for another bot. All eight phases are built; new features should first
 merge modules if they need room.
