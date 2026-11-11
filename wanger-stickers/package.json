@@ -1,0 +1,45 @@
+{
+  "name": "wanger-stickers",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:spike": "npm run build && node scripts/spike-assets.mjs",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "test": "node --test tests/*.test.mjs",
+    "tg": "node scripts/tg.mjs",
+    "status": "node scripts/tg.mjs status",
+    "deploy": "node scripts/tg.mjs deploy",
+    "probe": "node scripts/probe.mjs",
+    "spike:local": "node scripts/spike-local.mjs"
+  },
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "@fontsource/vazirmatn": "^5.3.0",
+    "@jsquash/webp": "^1.5.0",
+    "onnxruntime-web": "^1.31.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "wasm-webp": "^0.1.0",
+    "webm-muxer": "^5.1.4"
+  },
+  "devDependencies": {
+    "@tgcloud/cli": "^0.2.0",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "json5": "^2.2.3",
+    "oxlint": "^1.90.0",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.6"
+  },
+  "description": "Wanger Stickers: Telegram + WhatsApp sticker and GIF studio (bot + Mini App) on Telegram Serverless (tgcloud). Phase 0: discovery and spike.",
+  "engines": {
+    "node": ">=18"
+  }
+}

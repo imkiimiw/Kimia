@@ -1,0 +1,12 @@
+{
+  // Wanger Stickers. Vite builds the Mini App into dist/, and `npm run deploy` (build + push)
+  // uploads it with the bot, served at https://app<app_id>.tgcloud.ai/.
+  "$schema": "./node_modules/@tgcloud/cli/schema/tgcloud.json",
+  "static": {
+    "source": "dist",
+    // index.html for unknown extension-less paths (client-side routing in the Studio)
+    "spa": true,
+    // content-hashed Vite output: cache for a year
+    "immutable": ["/assets/*"]
+  }
+}

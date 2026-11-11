@@ -1,0 +1,581 @@
+{
+  "spike": "wanger-stickers phase 0",
+  "at": "2026-11-11T18:57:55.470Z",
+  "results": {
+    "caps": {
+      "telegram": {
+        "platform": "unknown",
+        "version": "6.0",
+        "colorScheme": "light",
+        "inside": false
+      },
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+      "cores": 4,
+      "deviceMemoryGB": 16,
+      "jsHeapLimitMB": 3586,
+      "screen": {
+        "w": 420,
+        "h": 900,
+        "dpr": 1
+      },
+      "crossOriginIsolated": false,
+      "sharedArrayBuffer": false,
+      "wasm": true,
+      "wasmSimd": true,
+      "offscreenCanvas": true,
+      "createImageBitmap": true,
+      "canvasDirection": true,
+      "canvasWebPEncode": true,
+      "fontFace": true,
+      "webCodecs": {
+        "VideoEncoder": true,
+        "VideoDecoder": true,
+        "ImageDecoder": true
+      },
+      "vp9EncodeAlpha": false,
+      "vp9EncodeNoAlpha": true,
+      "h264Encode": true,
+      "decompressionStream": true,
+      "compressionStream": true,
+      "webgl2": true,
+      "webgpu": true,
+      "indexedDB": true,
+      "worker": true,
+      "totalMs": 43
+    },
+    "vp9WebCodecs": {
+      "supported": true,
+      "frames": 90,
+      "fps": 30,
+      "runs": [
+        {
+          "bitrate": 600000,
+          "alpha": "keep",
+          "supported": false
+        },
+        {
+          "bitrate": 400000,
+          "alpha": "keep",
+          "supported": false
+        },
+        {
+          "bitrate": 250000,
+          "alpha": "keep",
+          "supported": false
+        },
+        {
+          "bitrate": 400000,
+          "alpha": "discard",
+          "encodeMs": 311,
+          "heapDeltaMB": 0,
+          "kb": 111.5,
+          "fitsTelegram": true,
+          "alphaSideData": false,
+          "info": {
+            "bytes": 114197,
+            "docType": "webm",
+            "tracks": [
+              {
+                "type": 1,
+                "codec": "V_VP9",
+                "defaultDurationNs": 33333333,
+                "width": 512,
+                "height": 512
+              }
+            ],
+            "durationMs": 2966,
+            "frames": 90,
+            "fps": 30,
+            "hasAudio": false
+          }
+        }
+      ],
+      "totalMs": 344
+    },
+    "vp9DualAlpha": {
+      "frames": 90,
+      "fps": 30,
+      "runs": [
+        {
+          "colorBitrate": 500000,
+          "alphaBitrate": 120000,
+          "encodeMs": 552,
+          "kb": 161.4,
+          "fitsTelegram": true,
+          "colorKb": 122.1,
+          "alphaKb": 32.7,
+          "keyframes": 1,
+          "keyMismatch": 0,
+          "info": {
+            "bytes": 165243,
+            "docType": "webm",
+            "tracks": [
+              {
+                "type": 1,
+                "codec": "V_VP9",
+                "defaultDurationNs": 33333333,
+                "width": 512,
+                "height": 512,
+                "alphaMode": 1
+              }
+            ],
+            "durationMs": 3000,
+            "frames": 90,
+            "fps": 30,
+            "hasAudio": false
+          },
+          "decoded": {
+            "playable": true,
+            "durationS": 3,
+            "cornerAlpha": 0,
+            "textAlpha": 254,
+            "transparent": true
+          }
+        },
+        {
+          "colorBitrate": 350000,
+          "alphaBitrate": 80000,
+          "encodeMs": 618,
+          "kb": 124.7,
+          "fitsTelegram": true,
+          "colorKb": 91.2,
+          "alphaKb": 26.9,
+          "keyframes": 1,
+          "keyMismatch": 0,
+          "info": {
+            "bytes": 127709,
+            "docType": "webm",
+            "tracks": [
+              {
+                "type": 1,
+                "codec": "V_VP9",
+                "defaultDurationNs": 33333333,
+                "width": 512,
+                "height": 512,
+                "alphaMode": 1
+              }
+            ],
+            "durationMs": 3000,
+            "frames": 90,
+            "fps": 30,
+            "hasAudio": false
+          },
+          "decoded": {
+            "playable": true,
+            "durationS": 3,
+            "cornerAlpha": 0,
+            "textAlpha": 255,
+            "transparent": true
+          }
+        },
+        {
+          "colorBitrate": 220000,
+          "alphaBitrate": 60000,
+          "encodeMs": 533,
+          "kb": 96,
+          "fitsTelegram": true,
+          "colorKb": 64.3,
+          "alphaKb": 25.1,
+          "keyframes": 1,
+          "keyMismatch": 0,
+          "info": {
+            "bytes": 98330,
+            "docType": "webm",
+            "tracks": [
+              {
+                "type": 1,
+                "codec": "V_VP9",
+                "defaultDurationNs": 33333333,
+                "width": 512,
+                "height": 512,
+                "alphaMode": 1
+              }
+            ],
+            "durationMs": 3000,
+            "frames": 90,
+            "fps": 30,
+            "hasAudio": false
+          },
+          "decoded": {
+            "playable": true,
+            "durationS": 3,
+            "cornerAlpha": 0,
+            "textAlpha": 255,
+            "transparent": true
+          }
+        }
+      ],
+      "totalMs": 1918
+    },
+    "webpStatic": {
+      "loadMs": 5,
+      "q90": {
+        "ms": 161,
+        "kb": 17.3,
+        "fitsTelegram": true,
+        "fitsWhatsApp": true,
+        "info": {
+          "bytes": 17702,
+          "width": 512,
+          "height": 512,
+          "animated": false,
+          "alpha": true,
+          "lossless": false,
+          "frames": 1,
+          "durationMs": 0,
+          "minFrameMs": 0,
+          "loop": -1,
+          "chunks": [
+            "VP8X",
+            "ALPH",
+            "VP8 "
+          ]
+        }
+      },
+      "q75": {
+        "ms": 68,
+        "kb": 13.9,
+        "fitsTelegram": true,
+        "fitsWhatsApp": true,
+        "info": {
+          "bytes": 14192,
+          "width": 512,
+          "height": 512,
+          "animated": false,
+          "alpha": true,
+          "lossless": false,
+          "frames": 1,
+          "durationMs": 0,
+          "minFrameMs": 0,
+          "loop": -1,
+          "chunks": [
+            "VP8X",
+            "ALPH",
+            "VP8 "
+          ]
+        }
+      },
+      "q50": {
+        "ms": 73,
+        "kb": 12.8,
+        "fitsTelegram": true,
+        "fitsWhatsApp": true,
+        "info": {
+          "bytes": 13060,
+          "width": 512,
+          "height": 512,
+          "animated": false,
+          "alpha": true,
+          "lossless": false,
+          "frames": 1,
+          "durationMs": 0,
+          "minFrameMs": 0,
+          "loop": -1,
+          "chunks": [
+            "VP8X",
+            "ALPH",
+            "VP8 "
+          ]
+        }
+      },
+      "lossless": {
+        "ms": 239,
+        "kb": 33.6,
+        "info": {
+          "bytes": 34396,
+          "width": 512,
+          "height": 512,
+          "animated": false,
+          "alpha": true,
+          "lossless": true,
+          "frames": 1,
+          "durationMs": 0,
+          "minFrameMs": 0,
+          "loop": -1,
+          "chunks": [
+            "VP8L"
+          ]
+        }
+      },
+      "canvasToBlob": {
+        "type": "image/webp",
+        "kb": 16.1
+      },
+      "totalMs": 611
+    },
+    "webpAnimated": {
+      "runs": [
+        {
+          "seconds": 3,
+          "fps": 15,
+          "quality": 60,
+          "frames": 45,
+          "encodeMs": 1093,
+          "heapDeltaMB": 0,
+          "kb": 685.6,
+          "fitsWhatsApp": false,
+          "info": {
+            "bytes": 702078,
+            "width": 512,
+            "height": 512,
+            "animated": true,
+            "alpha": true,
+            "lossless": false,
+            "frames": 45,
+            "durationMs": 3015,
+            "minFrameMs": 67,
+            "loop": 0
+          }
+        },
+        {
+          "seconds": 6,
+          "fps": 12,
+          "quality": 50,
+          "frames": 72,
+          "encodeMs": 1865,
+          "heapDeltaMB": 0,
+          "kb": 1065.6,
+          "fitsWhatsApp": false,
+          "info": {
+            "bytes": 1091210,
+            "width": 512,
+            "height": 512,
+            "animated": true,
+            "alpha": true,
+            "lossless": false,
+            "frames": 72,
+            "durationMs": 5976,
+            "minFrameMs": 83,
+            "loop": 0
+          }
+        },
+        {
+          "seconds": 10,
+          "fps": 10,
+          "quality": 45,
+          "frames": 100,
+          "encodeMs": 1996,
+          "heapDeltaMB": 0,
+          "kb": 1453.2,
+          "fitsWhatsApp": false,
+          "info": {
+            "bytes": 1488038,
+            "width": 512,
+            "height": 512,
+            "animated": true,
+            "alpha": true,
+            "lossless": false,
+            "frames": 100,
+            "durationMs": 10000,
+            "minFrameMs": 100,
+            "loop": 0
+          }
+        }
+      ],
+      "totalMs": 4967
+    },
+    "webpAnimLibwebp": {
+      "libwebp": "1.3.2",
+      "loadMs": 27,
+      "runs": [
+        {
+          "seconds": 3,
+          "fps": 15,
+          "quality": 60,
+          "frames": 45,
+          "encodeMs": 1811,
+          "kb": 371.6,
+          "fitsWhatsApp": true,
+          "info": {
+            "bytes": 380508,
+            "width": 512,
+            "height": 512,
+            "animated": true,
+            "alpha": true,
+            "lossless": false,
+            "frames": 45,
+            "durationMs": 3015,
+            "minFrameMs": 67,
+            "loop": 0
+          }
+        },
+        {
+          "seconds": 3,
+          "fps": 10,
+          "quality": 45,
+          "frames": 30,
+          "encodeMs": 1275,
+          "kb": 232.9,
+          "fitsWhatsApp": true,
+          "info": {
+            "bytes": 238440,
+            "width": 512,
+            "height": 512,
+            "animated": true,
+            "alpha": true,
+            "lossless": false,
+            "frames": 30,
+            "durationMs": 3000,
+            "minFrameMs": 100,
+            "loop": 0
+          }
+        },
+        {
+          "seconds": 6,
+          "fps": 12,
+          "quality": 50,
+          "frames": 72,
+          "encodeMs": 3294,
+          "kb": 570.2,
+          "fitsWhatsApp": false,
+          "info": {
+            "bytes": 583840,
+            "width": 512,
+            "height": 512,
+            "animated": true,
+            "alpha": true,
+            "lossless": false,
+            "frames": 72,
+            "durationMs": 5976,
+            "minFrameMs": 83,
+            "loop": 0
+          }
+        },
+        {
+          "seconds": 10,
+          "fps": 10,
+          "quality": 45,
+          "frames": 100,
+          "encodeMs": 4047,
+          "kb": 775.9,
+          "fitsWhatsApp": false,
+          "info": {
+            "bytes": 794530,
+            "width": 512,
+            "height": 512,
+            "animated": true,
+            "alpha": true,
+            "lossless": false,
+            "frames": 100,
+            "durationMs": 10000,
+            "minFrameMs": 100,
+            "loop": 0
+          }
+        },
+        {
+          "seconds": 10,
+          "fps": 8,
+          "quality": 30,
+          "frames": 80,
+          "encodeMs": 3226,
+          "kb": 579.9,
+          "fitsWhatsApp": false,
+          "info": {
+            "bytes": 593824,
+            "width": 512,
+            "height": 512,
+            "animated": true,
+            "alpha": true,
+            "lossless": false,
+            "frames": 80,
+            "durationMs": 10000,
+            "minFrameMs": 125,
+            "loop": 0
+          }
+        }
+      ],
+      "totalMs": 14734
+    },
+    "persianText": {
+      "family": "Vazirmatn",
+      "direction": "rtl",
+      "note": "Check by eye: letters joined, ZWNJ in «می‌خواهم», Latin and digits in the right place.",
+      "totalMs": 21
+    },
+    "segU2netp": {
+      "model": "u2netp",
+      "modelMB": 4.4,
+      "downloadMs": 37,
+      "sessionMs": 633,
+      "inferMs": 1937,
+      "inputSize": 320,
+      "threads": 1,
+      "heapDeltaMB": 0,
+      "maskRange": [
+        9.5367431640625e-7,
+        0.9999963045120239
+      ],
+      "userPhoto": false,
+      "totalMs": 2713
+    },
+    "segModnet": {
+      "model": "modnet_q8",
+      "modelMB": 6.3,
+      "downloadMs": 555,
+      "sessionMs": 791,
+      "inferMs": 1568,
+      "inputSize": 512,
+      "threads": 1,
+      "heapDeltaMB": 0,
+      "maskRange": [
+        0,
+        0.9999902844429016
+      ],
+      "userPhoto": false,
+      "totalMs": 3011
+    },
+    "ffmpeg": {
+      "crashed": "page.evaluate: Target crashed ",
+      "ms": 2063
+    },
+    "endpoint": {
+      "skipped": "open the page inside Telegram (the endpoints need init data)",
+      "totalMs": 1
+    },
+    "static": {
+      "files": [
+        {
+          "mb": 1,
+          "status": 200,
+          "ok": true,
+          "ms": 11,
+          "mbps": 727
+        },
+        {
+          "mb": 5,
+          "status": 200,
+          "ok": true,
+          "ms": 29,
+          "mbps": 1379
+        },
+        {
+          "mb": 10,
+          "status": 200,
+          "ok": true,
+          "ms": 50,
+          "mbps": 1600
+        },
+        {
+          "mb": 20,
+          "status": 200,
+          "ok": true,
+          "ms": 133,
+          "mbps": 1203
+        }
+      ],
+      "totalMs": 227
+    }
+  },
+  "device": {
+    "platform": "unknown",
+    "version": "6.0",
+    "colorScheme": "light",
+    "inside": false
+  },
+  "harness": {
+    "runner": "scripts/spike-local.mjs",
+    "browser": "153.0.8010.12",
+    "totalMs": 40916,
+    "note": "local headless Chromium in a cloud container: NOT a Telegram webview, NOT a phone"
+  }
+}
