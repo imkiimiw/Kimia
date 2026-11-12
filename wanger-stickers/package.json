@@ -15,7 +15,8 @@
     "deploy": "node scripts/tg.mjs deploy",
     "probe": "node scripts/probe.mjs",
     "spike:local": "node scripts/spike-local.mjs",
-    "studio:local": "node scripts/studio-local.mjs"
+    "studio:local": "node scripts/studio-local.mjs",
+    "engine:local": "node scripts/engine-local.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",

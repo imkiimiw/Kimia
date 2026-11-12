@@ -1,0 +1,155 @@
+{
+  "at": "2026-11-12T14:30:21.194Z",
+  "browser": "153.0.8010.12",
+  "checks": {
+    "mp4_1080p_10s_to_vp9_sticker": {
+      "pass": true,
+      "source": {
+        "w": 720,
+        "h": 405,
+        "durationMs": 10000
+      },
+      "violations": [],
+      "kb": 154.9,
+      "fps": 30,
+      "frames": 90,
+      "durationMs": 3000,
+      "side": "512x288",
+      "bitrate": 570425,
+      "encodes": 1,
+      "alpha": false,
+      "timings": {
+        "openMs": 77,
+        "prepareMs": 3405,
+        "renderMs": 3527,
+        "encodeMs": 250,
+        "wallMs": 3887
+      },
+      "ffprobe": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "vp9",
+            "codec_type": "video",
+            "width": 512,
+            "height": 288,
+            "r_frame_rate": "30/1"
+          }
+        ],
+        "format": {
+          "duration": "3.000000"
+        }
+      }
+    },
+    "round_video_sticker_with_alpha": {
+      "pass": true,
+      "violations": [],
+      "kb": 188,
+      "alphaTrack": true
+    },
+    "mp4_to_gif": {
+      "pass": true,
+      "violations": [],
+      "kb": 473,
+      "frames": 57,
+      "durationMs": 3990,
+      "size": "360x203",
+      "encodeMs": 4899,
+      "ffprobe": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "gif",
+            "codec_type": "video",
+            "width": 360,
+            "height": 203,
+            "r_frame_rate": "100/7",
+            "nb_frames": "57"
+          }
+        ],
+        "format": {
+          "duration": "3.990000"
+        }
+      }
+    },
+    "gif_to_mp4": {
+      "pass": true,
+      "violations": [],
+      "kb": 140,
+      "encodeMs": 57,
+      "ffprobe": {
+        "programs": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "codec_type": "video",
+            "width": 360,
+            "height": 204,
+            "r_frame_rate": "14/1",
+            "nb_frames": "55"
+          }
+        ],
+        "format": {
+          "duration": "3.928571"
+        }
+      }
+    },
+    "ffmpeg_gif_to_mp4": {
+      "pass": true,
+      "violations": [],
+      "kb": 112
+    },
+    "whatsapp_animated_3s": {
+      "pass": true,
+      "violations": [],
+      "trayViolations": [],
+      "kb": 273,
+      "fps": 15,
+      "quality": 70,
+      "encodes": 1,
+      "frames": 45,
+      "durationMs": 2999,
+      "encodeMs": 1255
+    },
+    "frames_zip": {
+      "pass": true,
+      "entries": 10,
+      "error": null
+    },
+    "tgs_to_video_sticker": {
+      "pass": true,
+      "violations": [],
+      "kb": 48,
+      "sourceMs": 1000,
+      "sourceFps": 60,
+      "alpha": true,
+      "alphaDiff": 7506814,
+      "corner": 0,
+      "opaque": [
+        6348,
+        35780,
+        84589
+      ],
+      "centre": [
+        255,
+        76,
+        51,
+        255
+      ],
+      "size": [
+        512,
+        512
+      ]
+    },
+    "whatsapp_canvas_512": {
+      "pass": true,
+      "w": 512,
+      "h": 512
+    }
+  },
+  "logs": [
+    "debug: [vite] connecting...",
+    "debug: [vite] connected."
+  ],
+  "files": "/tmp/ws-engine-WSkBfV"
+}
