@@ -30,3 +30,4 @@ dist-ssr
 docs/probe-results.json.tmp
 docs/spike-results/*.png
 tgcloud/endpoints/zz_probe.js
+public/assets/models/

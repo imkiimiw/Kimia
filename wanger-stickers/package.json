@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/fetch-models.mjs && tsc -b && vite build",
     "build:spike": "npm run build && node scripts/spike-assets.mjs",
     "lint": "oxlint",
     "preview": "vite preview",
@@ -14,11 +14,14 @@
     "status": "node scripts/tg.mjs status",
     "deploy": "node scripts/tg.mjs deploy",
     "probe": "node scripts/probe.mjs",
-    "spike:local": "node scripts/spike-local.mjs"
+    "spike:local": "node scripts/spike-local.mjs",
+    "studio:local": "node scripts/studio-local.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/lalezar": "^5.3.0",
     "@fontsource/vazirmatn": "^5.3.0",
     "@jsquash/webp": "^1.5.0",
     "onnxruntime-web": "^1.31.1",
