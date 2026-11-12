@@ -1,0 +1,43 @@
+/* The Studio: Telegram theme colours, touch targets ≥ 44 px, layouts from 360 px. */
+.studio { padding: 12px; max-width: 560px; margin: 0 auto; }
+.studio.center, .center { min-height: 70vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
+.studio h2 { font-size: 19px; margin: 4px 0; }
+.studio .hint { color: var(--muted); font-size: 13px; margin: 0; }
+.studio .note { color: #d33; font-size: 14px; }
+.studio .big { font-size: 18px; }
+.studio button, .studio .file, .studio select, .studio input:not([type]), .studio textarea { font: inherit; }
+.studio button.wide { width: 100%; max-width: 360px; }
+.studio .primary { background: var(--btn); color: var(--btn-fg); border-radius: 12px; min-height: 48px; padding: 0 18px; border: 0; display: inline-flex; align-items: center; justify-content: center; width: 100%; max-width: 420px; font-weight: 600; margin-top: 8px; }
+.studio .primary:disabled { opacity: .45; }
+.studio .file { position: relative; overflow: hidden; cursor: pointer; }
+.studio .file input { position: absolute; inset: 0; opacity: 0; }
+.spinner { width: 36px; height: 36px; border-radius: 50%; border: 4px solid var(--card); border-top-color: var(--btn); animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.checker { background: repeating-conic-gradient(#d9d9de 0 25%, #fff 0 50%) 0 0 / 18px 18px; }
+.editor { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.editor .view { position: relative; border-radius: 14px; overflow: hidden; line-height: 0; }
+.editor .busy { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); color: #fff; line-height: 1.4; font-size: 15px; }
+.editor .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; }
+.editor .tabs button { background: var(--card); color: var(--fg); }
+.editor .tabs button.on, .editor .row button.on { outline: 2px solid var(--btn); }
+.editor .panel { width: 100%; display: flex; flex-direction: column; gap: 8px; background: var(--card); padding: 10px; border-radius: 12px; }
+.editor .row { display: flex; gap: 6px; flex-wrap: wrap; }
+.editor .row button { flex: 1; background: var(--bg); color: var(--fg); border: 1px solid var(--card); }
+.editor .undo { align-self: stretch; justify-content: center; }
+.editor .undo button { flex: 0 0 56px; }
+.editor label { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.editor label input[type=range] { flex: 1; min-height: 32px; }
+.editor .check { gap: 10px; }
+.editor textarea { width: 100%; border-radius: 10px; border: 1px solid var(--muted); padding: 8px; background: var(--bg); color: var(--fg); font-size: 16px; }
+.editor select { min-height: 40px; border-radius: 8px; background: var(--bg); color: var(--fg); }
+.editor .danger { background: #d33; }
+.export { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+.export .preview { align-self: center; width: 256px; height: 256px; border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+.export .preview img { max-width: 100%; max-height: 100%; }
+.export fieldset { border: 1px solid var(--card); border-radius: 12px; display: flex; flex-direction: column; gap: 6px; }
+.export .opt { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.export .opt.off { opacity: .5; }
+.export .opt small { color: var(--muted); margin-inline-start: auto; }
+.export input:not([type=radio]) { min-height: 44px; border-radius: 10px; border: 1px solid var(--muted); padding: 0 10px; background: var(--bg); color: var(--fg); font-size: 16px; }
+.export label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.export .opt { flex-direction: row; }

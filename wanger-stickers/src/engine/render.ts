@@ -66,6 +66,17 @@ function roundRect(x: CanvasRenderingContext2D | OffscreenCanvasRenderingContext
   x.closePath();
 }
 
+/** The subject cropped to its shape, cached until the mask or the geometry changes. */
+const cache = new WeakMap<StickerDoc, { key: string; subject: Canvas | null }>();
+function shapedCached(doc: StickerDoc): Canvas | null {
+  const key = `${doc.mask.version}|${doc.rotate}|${doc.flip}|${doc.shape}|${doc.adjust.brightness},${doc.adjust.contrast},${doc.adjust.saturation}`;
+  const hit = cache.get(doc);
+  if (hit && hit.key === key) return hit.subject;
+  const subject = shaped(doc);
+  cache.set(doc, { key, subject });
+  return subject;
+}
+
 /** The subject cropped to its shape (no outline yet), at source resolution. */
 function shaped(doc: StickerDoc): Canvas | null {
   const c = cutout(doc);
@@ -127,7 +138,7 @@ export interface Rendered {
  * `side` can be smaller for a fast preview (same geometry, scaled).
  */
 export function renderSticker(doc: StickerDoc, side: number = TELEGRAM.static.side): Rendered | null {
-  const subject = shaped(doc);
+  const subject = shapedCached(doc);
   if (!subject) return null;
   const scale512 = side / TELEGRAM.static.side;
   const outlineW = doc.outline.on ? doc.outline.width * scale512 : 0;

@@ -308,9 +308,9 @@ export async function ffmpegWasm(preview: Preview): Promise<Result> {
 
 export const MODELS = {
   // Apache-2.0 (Hugging Face model card). Portrait matting.
-  modnet_q8: { url: 'https://huggingface.co/Xenova/modnet/resolve/main/onnx/model_quantized.onnx', size: 512, norm: 'modnet' as const },
+  modnet_q8: { url: '/assets/models/modnet-q8-v1.onnx', size: 512, norm: 'modnet' as const },
   // U²-Netp, Apache-2.0 weights (xuebinqin/U-2-Net); self-hosted in the static build by `npm run spike:assets`.
-  u2netp: { url: '/spike/models/u2netp.onnx', size: 320, norm: 'imagenet' as const },
+  u2netp: { url: '/assets/models/u2netp-v1.onnx', size: 320, norm: 'imagenet' as const },
 };
 
 export async function segmentation(preview: Preview, model: keyof typeof MODELS, file?: File | null): Promise<Result> {

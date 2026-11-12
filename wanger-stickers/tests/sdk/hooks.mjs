@@ -4,6 +4,17 @@
 const MODULES = { sdk: 'index.mjs', 'sdk/db': 'db.mjs', 'sdk/api': 'api.mjs', 'sdk/fetch': 'fetch.mjs' };
 
 export async function resolve(specifier, context, next) {
+  // the Mini App's sources (src/) use Vite's extensionless imports: try .ts, .tsx
+  const parentUrl = context.parentURL || '';
+  if (/\/src\//.test(parentUrl) && (specifier.startsWith('./') || specifier.startsWith('../')) && !/\.[a-z]+$/i.test(specifier)) {
+    for (const ext of ['.ts', '.tsx']) {
+      try {
+        return await next(specifier + ext, context);
+      } catch {
+        /* try the next extension */
+      }
+    }
+  }
   if (specifier in MODULES) return { url: new URL(MODULES[specifier], import.meta.url).href, shortCircuit: true };
   const parent = context.parentURL || '';
   const m = /^(file:\/\/.*\/tgcloud\/)/.exec(parent);

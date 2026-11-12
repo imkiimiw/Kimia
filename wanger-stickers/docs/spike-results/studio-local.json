@@ -1,0 +1,27 @@
+{
+  "at": "2026-11-12T13:49:34.121Z",
+  "photo": "photo2.jpg",
+  "photoBytes": 67659,
+  "openMs": 871,
+  "autoRemoveMs": 1999,
+  "exportMs": 320,
+  "exportLine": "اندازه: ۳۴۲×۵۱۲ · ۳۹ کیلوبایت · WEBP",
+  "totalMs": 3952,
+  "upload": {
+    "action": "new",
+    "title": "استودیوی من",
+    "emojis": "😀",
+    "format": "webp",
+    "bytes": 39932,
+    "sha256ok": true,
+    "valid": true,
+    "violations": [],
+    "width": 342,
+    "height": 512
+  },
+  "quickToExportMs": 2852,
+  "gate": {
+    "opened": "https://t.me/HIDE_i_SEEK"
+  },
+  "browser": "headless Chromium (container) — not a phone"
+}

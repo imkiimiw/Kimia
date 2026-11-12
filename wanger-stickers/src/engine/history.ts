@@ -58,5 +58,5 @@ function apply(d: StickerDoc, s: Snap) {
   d.shadow = s.shadow;
   d.adjust = { ...s.adjust };
   d.texts = s.texts.map((t) => ({ ...t }));
-  d.mask.data.set(s.mask);
+  d.mask.set(s.mask);
 }

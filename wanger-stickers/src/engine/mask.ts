@@ -6,6 +6,8 @@ export class Mask {
   readonly w: number;
   readonly h: number;
   data: Uint8ClampedArray;
+  /** Bumped on every change, so renderers can cache work that depends on the mask. */
+  version = 0;
 
   constructor(w: number, h: number, fill = 255) {
     this.w = w;
@@ -56,6 +58,7 @@ export class Mask {
    * mode erase → towards 0, restore → towards 255; softness 0 (hard) … 1 (very soft).
    */
   stroke(x0: number, y0: number, x1: number, y1: number, radius: number, softness: number, mode: 'erase' | 'restore'): void {
+    this.version++;
     const steps = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / Math.max(1, radius / 3)));
     for (let s = 0; s <= steps; s++) this.dab(x0 + ((x1 - x0) * s) / steps, y0 + ((y1 - y0) * s) / steps, radius, softness, mode);
   }
@@ -78,6 +81,18 @@ export class Mask {
         this.data[i] = mode === 'erase' ? v * (1 - k) : v + (255 - v) * k;
       }
     }
+  }
+
+  /** Replaces all values (automatic removal, reset, undo). */
+  set(values: Uint8ClampedArray): void {
+    this.data.set(values);
+    this.version++;
+  }
+
+  /** Is anything of the subject left? (sampled, cheap) */
+  get hasContent(): boolean {
+    for (let i = 0; i < this.data.length; i += 13) if (this.data[i] > 8) return true;
+    return false;
   }
 
   /** The mask as an alpha-only canvas (for destination-in compositing). */

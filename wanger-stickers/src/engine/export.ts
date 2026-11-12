@@ -23,7 +23,8 @@ export async function toTelegramStatic(doc: StickerDoc): Promise<ExportResult> {
   const max = TELEGRAM.static.maxBytes;
   let encode: ((d: ImageData, o: Record<string, number>) => Promise<ArrayBuffer>) | null = null;
   try {
-    encode = (await import('@jsquash/webp/encode')).default as never;
+    const mod = await import('@jsquash/webp/encode');
+    encode = mod.default as unknown as (d: ImageData, o: Record<string, number>) => Promise<ArrayBuffer>;
   } catch {
     encode = null;
   }
