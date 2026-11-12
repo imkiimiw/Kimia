@@ -51,6 +51,7 @@ export const system = {
     const values = pairs.reduce((acc, [m, v], i) => (i ? sql`${acc}, (${day}, ${m}, ${v})` : sql`(${day}, ${m}, ${v})`), sql``);
     return db.run(sql`INSERT INTO stats_daily (day, metric, value) VALUES ${values} ON CONFLICT (day, metric) DO UPDATE SET value = value + excluded.value`);
   },
+  statsOfDay: (day) => db.all(sql`SELECT metric, value FROM stats_daily WHERE day = ${day} LIMIT 200`),
   statsSince: (fromDay) => db.all(sql`SELECT metric, sum(value) AS n FROM stats_daily WHERE day >= ${fromDay} GROUP BY metric LIMIT 200`),
 
   /* ---- rate limits (token bucket, read-then-write; a lost race only lets one extra event through) ---- */
@@ -89,6 +90,7 @@ export const system = {
     const a = await db.run(sql`DELETE FROM user_state WHERE tg_id IN (SELECT tg_id FROM user_state WHERE expires_at <= ${now} LIMIT 5000)`);
     const b = await db.run(sql`DELETE FROM pending_actions WHERE tg_id IN (SELECT tg_id FROM pending_actions WHERE expires_at <= ${now} LIMIT 5000)`);
     const c = await db.run(sql`DELETE FROM membership_cache WHERE tg_id IN (SELECT tg_id FROM membership_cache WHERE ok_until <= ${now} LIMIT 5000)`);
-    return a.rowsAffected + b.rowsAffected + c.rowsAffected;
+    const d = await db.run(sql`DELETE FROM alerts WHERE key IN (SELECT key FROM alerts WHERE key GLOB 'flood:*' AND last_sent_at < ${now - 3600} LIMIT 5000)`);
+    return a.rowsAffected + b.rowsAffected + c.rowsAffected + d.rowsAffected;
   },
 };

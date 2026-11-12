@@ -40,6 +40,8 @@ export const packs = {
     return db.run(sql`INSERT INTO pack_items (pack_id, position, file_id, file_unique_id, format, emojis, keywords, origin) VALUES ${commaJoin(rows)}
       ON CONFLICT (pack_id, file_unique_id) DO NOTHING`).then((r) => r.rowsAffected);
   },
+  /** Removes a noted origin that never became a sticker (the add failed). */
+  dropPlaceholder: (packId, fuid) => db.run(sql`DELETE FROM pack_items WHERE pack_id = ${packId} AND file_unique_id = ${fuid} AND position = 100000`),
   originCount: (packId) => db.get(sql`SELECT count(*) AS total, sum(origin != 'made') AS foreign_n FROM pack_items WHERE pack_id = ${packId}`),
   setItemEmojis: (packId, fuid, list) => db.run(sql`UPDATE pack_items SET emojis = ${JSON.stringify(list)} WHERE pack_id = ${packId} AND file_unique_id = ${fuid}`),
   setItemKeywords: (packId, fuid, list) => db.run(sql`UPDATE pack_items SET keywords = ${JSON.stringify(list)} WHERE pack_id = ${packId} AND file_unique_id = ${fuid}`),

@@ -44,5 +44,7 @@ export const broadcasts = {
   skipInflight: (id) => db.run(sql`
     UPDATE broadcasts SET cursor_tg_id = max(cursor_tg_id, inflight_tg_id), uncertain = uncertain + 1, inflight_tg_id = NULL
     WHERE id = ${id} AND inflight_tg_id IS NOT NULL RETURNING inflight_tg_id`).then((r) => r.rows.length > 0),
+  /** The send did not happen (429): clear the mark, cursor unchanged, the recipient comes again. */
+  skipInflightUnsent: (id, tgId) => db.run(sql`UPDATE broadcasts SET inflight_tg_id = NULL WHERE id = ${id} AND inflight_tg_id = ${tgId}`),
   deleteDraft: (id) => db.run(sql`DELETE FROM broadcasts WHERE id = ${id} AND status = 'draft'`).then((r) => r.rowsAffected),
 };

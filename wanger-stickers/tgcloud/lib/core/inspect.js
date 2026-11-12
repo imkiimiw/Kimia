@@ -80,6 +80,20 @@ export function inspectWebP(b) {
   return out;
 }
 
+/**
+ * PNG: signature + IHDR (width, height, colour type → alpha).
+ * @param {Uint8Array} b
+ */
+export function inspectPng(b) {
+  const bytes = b.length;
+  const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (bytes < 33 || sig.some((v, i) => b[i] !== v)) return { error: 'NOT_PNG', bytes };
+  if (fourcc(b, 12) !== 'IHDR') return { error: 'BAD_IHDR', bytes };
+  const be32 = (o) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
+  const colorType = b[25];
+  return { bytes, width: be32(16), height: be32(20), bitDepth: b[24], alpha: colorType === 4 || colorType === 6 };
+}
+
 /* ---------------- WebM (EBML) ---------------- */
 
 const ID = {
