@@ -51,7 +51,7 @@ test('owner check is numeric and exact', () => {
   assert.equal(isOwner('5557901897'), false);
   assert.equal(isOwner(5557901898), false);
   assert.equal(isOwner(undefined), false);
-  assert.deepEqual(SEED_CHANNELS, ['@HIDE_i_SEEK', '@Nepenthw_ir', '@wangerBots']);
+  assert.deepEqual(SEED_CHANNELS.map((c) => c.username), ['HIDE_i_SEEK', 'Nepenthw_ir', 'wangerBots']);
   assert.equal(MAX_GATE_CHANNELS, 10);
 });
 
