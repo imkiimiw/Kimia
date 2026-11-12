@@ -1,5 +1,27 @@
 # Changelog
 
+## Phase 2 — Studio MVP: static stickers (2026-11-12)
+
+- The Mini App is now the **Studio**: a photo sent in chat (or a static sticker) becomes a job with
+  «🎨 باز کردن در استودیو» and «⚡️ استیکر سریع»; the Studio also opens from the menu button and
+  /studio, where the user picks a photo on the device (nothing leaves the device until saving).
+- Editor: automatic background removal on the device (U²-Netp; «حالت آدم» = MODNet), erase / restore
+  brush with size, softness, zoom and pan; shapes (free trim, square, circle, rounded), rotate,
+  mirror; white (any colour) outline with width, drop shadow, brightness / contrast / saturation;
+  text layers in Persian and English (Vazirmatn, Lalezar, Inter; outline, shadow, size, colour,
+  drag to move; base direction per layer); undo / redo (60 steps).
+- Export: Telegram static sticker (long side exactly 512) as WebP via libwebp WASM with bounded
+  size targeting; checked by the shared validator before upload; saved to an existing pack, a new
+  pack, or sent to the chat.
+- Backend: `jobs`, `job_chunks`, `uploads`, `upload_chunks` (4 safe new tables); endpoints
+  `studio_boot`, `studio_job`, `studio_media`, `upload_begin`, `upload_chunk`, `upload_commit` —
+  each runs the gate (JOIN_REQUIRED with the channels), maintenance, ban, rate limit and strict
+  input checks; commit verifies size + SHA-256 and re-validates before `uploadStickerFile`.
+- Models self-hosted under `/assets/models/` with pinned SHA-256 (`scripts/fetch-models.mjs`).
+- The Phase 0 device spike stays reachable from the owner panel («🧪 تست دستگاه», `?spike=1`).
+- Tests: 71 (adds the Studio backend and pure engine tests); `npm run studio:local` drives the real
+  Studio in a local Chromium.
+
 ## Phase 1 — core bot (2026-11-12, not deployed yet)
 
 - Schema: 20 tables (users, quotas, forced join, conversation state and pending actions, packs and

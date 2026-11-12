@@ -7,6 +7,7 @@ Read `docs/BRIEF.md` (the owner's brief; §1 rules apply to every session), then
 phase: tests green, docs updated (CHANGELOG, DECISIONS, SPIKE_REPORT/QA as needed), a short report in
 Persian (what was built, how to test, known gaps, decisions needed), then STOP.
 
-Current state: **Phase 0 done and approved (2026-11-12). Phase 1 built and tested; waiting for
-Kimi's OK to deploy (migrate --safe + push).** Phase 2 starts only on her explicit command. The
-device spike (docs/QA.md Phase 0) is still to be run by Kimi on her phones.
+Current state: **Phases 0–1 done and deployed; Phase 2 (Studio, static stickers) built — Kimi
+approved Phase 2 in advance on 2026-11-12 ("بعدشم بلافاصله فاز دوم رو شروع کن اجازه اونم الان
+دادم").** Phase 3 starts only on her explicit command. Device checks (docs/QA.md Phase 0 and 2) are
+Kimi's to run on her phones.

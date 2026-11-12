@@ -4,6 +4,19 @@ Every library, WASM build, model and font this project ships or loads. Before ad
 AGPL or non-commercial: ask Kimi (brief §4). Checked 2026-11-11 (npm registry / Hugging Face model
 cards / upstream repositories).
 
+## Phase 2 (shipped in the Studio)
+
+| Component | Version | Licence | Used for | Shipped how |
+|---|---|---|---|---|
+| React, React DOM | 19.3 | MIT | Studio UI | bundled |
+| onnxruntime-web | 1.31.1 | MIT | background removal | lazy chunk + 14.2 MiB wasm (self-hosted) |
+| @jsquash/webp (libwebp) | 1.5.0 | Apache-2.0 (libwebp BSD-3-Clause) | WebP export | lazy chunk + wasm |
+| U²-Netp ONNX (`u2netp-v1.onnx`) | — | Apache-2.0 weights (xuebinqin/U-2-Net); file from rembg (MIT) | general cut-out | `/assets/models/`, sha256 `309c8469…f4ddd8` |
+| MODNet q8 ONNX (`modnet-q8-v1.onnx`, Xenova/modnet) | — | Apache-2.0 | person cut-out | `/assets/models/`, sha256 `92e49898…fee3a` |
+| Vazirmatn | 5.3.0 | OFL-1.1 | text | woff2 (Arabic + Latin, 700) |
+| Lalezar | 5.3.0 | OFL-1.1 | text | woff2 (Arabic + Latin, 400) |
+| Inter | 5.3.0 | OFL-1.1 | text | woff2 (Latin, 800) |
+
 ## Phase 0 (spike build only)
 
 | Component | Version | Licence | Used for | Shipped how |

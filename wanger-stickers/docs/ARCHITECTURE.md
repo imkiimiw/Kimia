@@ -1,4 +1,4 @@
-# Architecture — Wanger Stickers (Phase 1)
+# Architecture — Wanger Stickers (Phases 1–2)
 
 One tgcloud project (@Wanger_Motionbot, app9292593567): a thin Serverless backend in `tgcloud/`,
 the Mini App in `src/` (Phase 0–1: the device spike page; the Studio from Phase 2), and the media
@@ -38,12 +38,27 @@ handlers/{message,callback_query,my_chat_member}.js   (thin: one line each)
 | `lib/admin/{panel,channels_ui,broadcast_ui,publish_ui}.js` | Owner panel; reviewers reach only `a:home`, `a:q`, `a:qv` and `pr:*`. |
 | `endpoints/spike_*.js` | Phase 0 spike tools (owner only), removed when the Studio arrives. |
 
-## Data (schema.js, 20 tables)
+## The Studio (Phase 2)
+
+```
+chat photo → handlers/message → jobs row → «🎨 باز کردن در استودیو» (web_app ?job=<id>)
+Mini App: src/studio/Studio.tsx → studio_boot (gate) → studio_media (chunks) → src/engine/*
+  image (decode ≤ 1024 px) → segment (ONNX, on device) → mask (brush) → render (shape, outline,
+  shadow, text) → export (libwebp, ≤ 6 encodes, validate) → upload_commit (inline ≤ 256 KB)
+server: lib/endpoint.js (gate …) → lib/studio/transfer.js (size, SHA-256, validate again)
+  → uploadStickerFile → packs.add / packs.create / sendSticker
+```
+
+`src/engine/` never imports React, Telegram or i18n (reusable). Shared pure modules from
+`tgcloud/lib/core/` (limits, validate, inspect, bytes) are imported by the engine, so the client
+and the server check files with the same code.
+
+## Data (schema.js, 24 tables)
 
 users · usage_daily · channels · membership_cache · user_state · pending_actions · packs ·
 pack_items · pack_posts · staff · pack_ops · broadcasts · settings · secrets · rate_limits · errors ·
-stats_daily · processed_updates · alerts · audit_log. No foreign keys; children deleted before
-parents in code; timestamps are unix seconds; jobs/uploads tables come with Phase 2.
+stats_daily · processed_updates · alerts · audit_log · jobs · job_chunks · uploads · upload_chunks. No foreign keys; children deleted before
+parents in code; timestamps are unix seconds; jobs and uploads expire after 30 minutes (housekeeping).
 
 ## Platform rules the code follows (measured, SPIKE_REPORT §3a)
 

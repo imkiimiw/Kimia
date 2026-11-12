@@ -161,8 +161,14 @@ owner addenda at the end); decisions (approved 2026-11-12) in [docs/DECISIONS.md
 — read its §A first; platform facts in [docs/SPIKE_REPORT.md](docs/SPIKE_REPORT.md) §3a; the code
 map is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-- **State: Phase 1 (core bot) built and tested, waiting for Kimi's OK to deploy.** The Mini App is
-  still the Phase 0 device spike page; its two endpoints `spike_echo`/`spike_report` are owner-only.
+- **State: Phase 1 deployed (2026-11-12); Phase 2 (Studio, static stickers) built** — the Mini App
+  is the Studio (`src/studio/`, engine in `src/engine/`); `?spike=1` keeps the Phase 0 device page,
+  whose endpoints `spike_echo`/`spike_report` stay owner-only.
+- **Studio ↔ bot:** endpoints `studio_*` / `upload_*` all go through `lib/endpoint.js` (verified
+  init data → maintenance → ban → flag → rate limit → gate → strict input). Transfer protocol in
+  `lib/studio/transfer.js` (256 KB chunks; one SQL value < 1 MB); validators in `lib/core/validate.js`
+  are shared with the engine (`src/engine/export.ts`). Models in `public/assets/models/` are fetched
+  with pinned hashes by `scripts/fetch-models.mjs` (part of `npm run build`), never committed.
 - **This folder is its own tgcloud project.** Run the CLI only as `npm run tg -- <command>` from
   `wanger-stickers/`: the token comes from `WangerStickers_BOT_TGCLOUD_TOKEN` or (Kimi's setup)
   `Motion_BOT_TGCLOUD_TOKEN`, and a token for any other app is refused. Never bare `npx tgcloud`.
@@ -182,7 +188,7 @@ map is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - Pure modules (`tgcloud/lib/core/*`, `config.js`, `i18n/*`) never import `sdk`; no dynamic `import()`.
 - Handlers return `{ ok, result, tick, trace }`.
 - Tests: `npm test` (SDK emulation in `tests/sdk/`, strict fake Bot API with sticker sets in
-  `tests/helpers/`). Device spike: `npm run build:spike && npm run spike:local`.
+  `tests/helpers/`). Studio in a browser: `npm run build && npm run studio:local -- <photo.jpg>`.
 - Ask Kimi before: `push`, `migrate`, BotFather changes, deleting data, anything that messages real
   users or posts to a channel, adding GPL/AGPL/non-commercial components. Talk to Kimi in Persian;
   code, comments, commits and docs in English.

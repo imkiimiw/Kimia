@@ -51,3 +51,16 @@ Owner:
     ends with the report.
 12. ☐ Forced join: disable a channel, re-enable it, preview the gate; maintenance mode on → the second
     account sees the maintenance text → off again.
+
+## Phase 2 — Studio (Android mid-range phone, iPhone, Telegram Desktop)
+
+1. ☐ Send a photo to the bot → «🎨 باز کردن در استودیو» → the photo opens in the Studio.
+2. ☐ «✨ حذف خودکار» → note the time (target: the whole flow, step 1 to 6, under 60 s on a mid-range Android).
+3. ☐ Erase a bit with «🧽 پاک کن», bring it back with «🖌 برگردان»; zoom in and pan with «✋».
+4. ☐ «متن» → «➕ متن تازه» → type `سلام Wanger ۱۲۳` → letters joined, order right; drag it.
+5. ☐ «شکل» → دایره, then آزاد; «ظاهر» → outline colour and width, shadow off/on; undo ↶ and redo ↷.
+6. ☐ «ذخیره‌ی استیکر» → the size line shows ≤ 512 px and < 512 KB → «➕ پک جدید» + a name →
+   «✅ ذخیره» → the bot messages the pack link; open it in Telegram: the sticker is there.
+7. ☐ Send another photo → «⚡️ استیکر سریع» → goes straight to saving → add to the same pack.
+8. ☐ Menu button «🎨 استودیو» → «📂 انتخاب عکس» → a photo from the gallery (try a HEIC photo on iPhone).
+9. ☐ A second account that is not a member opens the Studio → the join screen → join → «✅ عضو شدم».
