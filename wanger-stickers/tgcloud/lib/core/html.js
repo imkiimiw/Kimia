@@ -6,7 +6,7 @@ export function esc(v) {
 }
 
 /** Escaped text in a bidi isolate (FSI…PDI), so a Latin name inside Persian text stays readable. */
-export const bidi = (v) => '⁨' + esc(v) + '⁩';
+export const bidi = (v) => '\u2068' + esc(v) + '\u2069';
 
 /** @param {any} v */
 export const code = (v) => `<code>${esc(v)}</code>`;

@@ -109,7 +109,7 @@ function settingsView(app) {
 }
 
 function flagsView(app) {
-  const rows = FEATURES.map((f, i) => [btn(`${app.flag(f) ? '✅' : '⬜️'} ${app.tp(`flag.${f}`)}`, 'a', 'flag', i)]);
+  const rows = FEATURES.map((f, i) => [btn(`${app.flag(f) ? '✅' : '⬜\ufe0f'} ${app.tp(`flag.${f}`)}`, 'a', 'flag', i)]);
   rows.push([back(app, 'set')]);
   return { text: app.t('adm.flags_text'), keyboard: markup(rows) };
 }
@@ -121,7 +121,7 @@ function textsView(app) {
 }
 
 function notifyView(app) {
-  const rows = NOTIFY_KEYS.map((k, i) => [btn(`${app.settings.get(k) ? '✅' : '⬜️'} ${app.tp(`set.${k}`)}`, 'a', 'ntog', i)]);
+  const rows = NOTIFY_KEYS.map((k, i) => [btn(`${app.settings.get(k) ? '✅' : '⬜\ufe0f'} ${app.tp(`set.${k}`)}`, 'a', 'ntog', i)]);
   rows.push([back(app)]);
   return { text: app.t('adm.notify_text'), keyboard: markup(rows) };
 }

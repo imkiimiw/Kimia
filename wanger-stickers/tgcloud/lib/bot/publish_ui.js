@@ -12,7 +12,7 @@ const has = (flags, bit) => (flags & bit) === bit;
 
 async function confirmView(app, pack, flags) {
   const user = app.user;
-  const preview = postKeyboard({ id: 0, show_name: has(flags, 1), show_username: has(flags, 2) }, pack, user, 'fa').inline_keyboard.map((r) => `▫️ ${r[0].text}`).join('\n');
+  const preview = postKeyboard({ id: 0, show_name: has(flags, 1), show_username: has(flags, 2) }, pack, user, 'fa').inline_keyboard.map((r) => `▫\ufe0f ${r[0].text}`).join('\n');
   const toggle = (bit, key) => btn(app.tp(key, { state: app.tp(has(flags, bit) ? 'common.on' : 'common.off') }), 'pb', 'opt', pack.id, flags ^ bit);
   const rows = [[toggle(1, 'pub.toggle_name')]];
   if (user.username) rows.push([toggle(2, 'pub.toggle_username')]);

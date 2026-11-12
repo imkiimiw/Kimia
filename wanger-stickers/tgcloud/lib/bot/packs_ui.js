@@ -62,10 +62,10 @@ function itemKeyboard(app, pack, it, total) {
   const id = pack.id;
   const f = it.file_unique_id;
   return markup([
-    [btn('⬆️', 'pk', 'up', id, f), btn(app.tp('pk.pos', { i: it.position + 1, n: total }), 'pk', 'it', id, it.position), btn('⬇️', 'pk', 'dn', id, f)],
+    [btn('⬆\ufe0f', 'pk', 'up', id, f), btn(app.tp('pk.pos', { i: it.position + 1, n: total }), 'pk', 'it', id, it.position), btn('⬇\ufe0f', 'pk', 'dn', id, f)],
     [btn(app.tp('pk.btn_emoji'), 'pk', 'emo', id, f), btn(app.tp('pk.btn_keywords'), 'pk', 'kw', id, f)],
     [btn(app.tp('pk.btn_replace'), 'pk', 'rep', id, f), btn(app.tp('pk.btn_del_sticker'), 'pk', 'del', id, f)],
-    [btn('◀️', 'pk', 'it', id, Math.max(0, it.position - 1)), btn(app.tp('pk.btn_back_pack'), 'pk', 'open', id), btn('▶️', 'pk', 'it', id, Math.min(total - 1, it.position + 1))],
+    [btn('◀\ufe0f', 'pk', 'it', id, Math.max(0, it.position - 1)), btn(app.tp('pk.btn_back_pack'), 'pk', 'open', id), btn('▶\ufe0f', 'pk', 'it', id, Math.min(total - 1, it.position + 1))],
   ]);
 }
 

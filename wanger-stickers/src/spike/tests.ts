@@ -391,14 +391,14 @@ export async function persianText(preview: Preview): Promise<Result> {
   x.fillRect(0, 0, 512, 220);
   x.fillStyle = '#111';
   x.textAlign = 'right';
-  const lines = ['می‌خواهم استیکر بسازم', 'پک «گربه‌های Wanger» ۲۰۲۶', 'English + فارسی 123 ۴۵۶'];
+  const lines = ['می\u200cخواهم استیکر بسازم', 'پک «گربه\u200cهای Wanger» ۲۰۲۶', 'English + فارسی 123 ۴۵۶'];
   lines.forEach((t, i) => {
     x.direction = 'rtl';
     x.font = `700 34px ${family}`;
     x.fillText(t, 496, 60 + i * 64);
   });
   preview('Persian text (check joining and order by eye)', await new Promise<Blob>((r) => c.toBlob((b) => r(b!), 'image/png')));
-  return { family, direction: x.direction, note: 'Check by eye: letters joined, ZWNJ in «می‌خواهم», Latin and digits in the right place.' };
+  return { family, direction: x.direction, note: 'Check by eye: letters joined, ZWNJ in «می\u200cخواهم», Latin and digits in the right place.' };
 }
 
 /* ---------- 7. Endpoint request / response sizes (inside Telegram only) ---------- */

@@ -33,7 +33,7 @@ export function cleanTitle(text) {
 }
 
 // Emoji sequences: flags, keycaps, and pictographs with optional VS16 / skin tone / ZWJ joins.
-const EMOJI_RE = /\p{Regional_Indicator}\p{Regional_Indicator}|[#*0-9]️?⃣|\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})?(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})?)*/gu;
+const EMOJI_RE = /\p{Regional_Indicator}\p{Regional_Indicator}|[#*0-9]\ufe0f?\u20e3|\p{Extended_Pictographic}(?:\ufe0f|\p{Emoji_Modifier})?(?:\u200d\p{Extended_Pictographic}(?:\ufe0f|\p{Emoji_Modifier})?)*/gu;
 
 /** All emojis in a text, in order, without duplicates. */
 export function extractEmojis(text) {

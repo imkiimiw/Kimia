@@ -9,7 +9,7 @@ import { assertOwner } from './panel.js';
 import { MAX_GATE_CHANNELS } from '../config.js';
 
 const show = (app, cq, view, name) => app.tg.show(app.user.tg_id, cq && cq.message ? cq.message.message_id : null, view, name);
-const HEALTH = { ok: '✅', bot_not_admin: '⚠️', not_found: '❌', error: '❔' };
+const HEALTH = { ok: '✅', bot_not_admin: '⚠\ufe0f', not_found: '❌', error: '❔' };
 
 async function listView(app) {
   const rows = await app.gate.list();
@@ -31,7 +31,7 @@ async function channelView(app, id) {
       health: app.tp(`gm.health.${ch.health}`), enabled: app.tp(ch.enabled ? 'common.on' : 'common.off'), link: ch.invite_link || joinUrl(ch) || '—',
     }),
     keyboard: markup([
-      [btn('⬆️', 'a', 'chup', id), btn('⬇️', 'a', 'chdn', id), btn(app.tp(ch.enabled ? 'gm.btn_disable' : 'gm.btn_enable'), 'a', 'chtog', id)],
+      [btn('⬆\ufe0f', 'a', 'chup', id), btn('⬇\ufe0f', 'a', 'chdn', id), btn(app.tp(ch.enabled ? 'gm.btn_disable' : 'gm.btn_enable'), 'a', 'chtog', id)],
       [btn(app.tp('gm.btn_link'), 'a', 'chlnk', id), ch.invite_link ? btn(app.tp('gm.btn_unlink'), 'a', 'chnol', id) : null],
       [btn(app.tp('gm.btn_remove'), 'a', 'chdel', id)],
       [btn(app.tp('common.back'), 'a', 'ch')],
