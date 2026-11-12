@@ -10,7 +10,7 @@ import { classify } from '../core/errors.js';
 import { stickerInput } from '../packs/service.js';
 import { posts as postDb, ops as opsTable } from '../db/packs.js';
 import { TELEGRAM } from '../core/limits.js';
-import { T, BOT_USERNAME } from '../config.js';
+import { T, BOT_USERNAME, APP_URL } from '../config.js';
 
 const MAX = TELEGRAM.set.maxStickersRegular;
 const u = (app) => app.user;
@@ -107,6 +107,7 @@ export async function onSticker(app, message) {
   await app.state.set(chat, 'st_pick', { si, set: s.set_name || null });
   const rows = await packPicker(app, 'st', 'add');
   rows.push([btn(app.tp('st.btn_new'), 'st', 'new')]);
+  if (app.flag('studio') && !s.is_animated && !s.is_video) rows.push([btn(app.tp('st.btn_edit'), 'st', 'edit')]);
   const foreign = s.set_name && !String(s.set_name).toLowerCase().endsWith(`_by_${BOT_USERNAME.toLowerCase()}`);
   if (foreign && app.flag('pack_import')) rows.push([btn(app.tp('st.btn_import_set'), 'st', 'imp')]);
   rows.push([btn(app.tp('common.cancel'), 'm', 'home')]);
@@ -114,16 +115,41 @@ export async function onSticker(app, message) {
   return 'sticker_pick';
 }
 
-/** Photos, videos, GIFs, round videos, files: the Studio comes in Phase 2. */
+/** The Studio link for a job (Mini App URL with ?job=<id>; quick = good defaults, straight to export). */
+const studioUrl = (job, quick = false) => `${APP_URL}?job=${job.id}${quick ? '&quick=1' : ''}`;
+const studioButtons = (app, job) => markup([
+  [{ text: app.tp('media.btn_open'), web_app: { url: studioUrl(job) } }],
+  [{ text: app.tp('media.btn_quick'), web_app: { url: studioUrl(job, true) } }],
+]);
+
+/** Photos and image files → a job for the Studio; videos, GIFs, round videos come in Phase 3. */
 export async function onOtherMedia(app, message) {
   const chat = u(app).tg_id;
-  const doc = message.document;
-  if (doc && /^image\/(png|webp)$/.test(doc.mime_type || '') && (doc.file_size || 0) <= TELEGRAM.static.maxBytes) {
-    await app.tg.send(chat, { text: app.t('media.ready_file_hint') }, 'media_hint');
-    return 'media_hint';
+  if (!app.flag('studio')) {
+    await app.tg.send(chat, { text: app.t('media.studio_soon') }, 'media_soon');
+    return 'media_soon';
   }
-  await app.tg.send(chat, { text: app.t(app.flag('studio') ? 'media.open_studio' : 'media.studio_soon') }, 'media_soon');
-  return 'media_soon';
+  let src = null;
+  if (message.photo && message.photo.length) {
+    const p = message.photo[message.photo.length - 1];
+    src = { file_id: p.file_id, kind: 'photo', mime: 'image/jpeg', size: p.file_size || 0 };
+  } else if (message.document && /^image\/(jpeg|png|webp|heic|heif|gif)$/.test(message.document.mime_type || '')) {
+    const d = message.document;
+    if (d.mime_type === 'image/gif') src = null;
+    else src = { file_id: d.file_id, kind: 'image', mime: d.mime_type, size: d.file_size || 0 };
+  }
+  if (!src) {
+    await app.tg.send(chat, { text: app.t('media.video_soon') }, 'media_video_soon');
+    return 'media_video_soon';
+  }
+  if (src.size > TELEGRAM.files.downloadMaxBytes) {
+    await app.tg.send(chat, { text: app.t('media.too_big', { mb: TELEGRAM.files.downloadMaxBytes / 1048576 }), keyboard: markup([[{ text: app.tp('media.btn_pick'), web_app: { url: `${APP_URL}?mode=sticker` } }]]) }, 'media_too_big');
+    return 'media_too_big';
+  }
+  const job = await app.transfer.createJob(u(app), src);
+  await app.tg.send(chat, { text: app.t('media.open_job'), keyboard: studioButtons(app, job) }, 'media_job');
+  app.stats.count(`studio.job.${src.kind}`);
+  return 'media_job';
 }
 
 /* ------------------------------------------------------------------ callbacks */
@@ -154,6 +180,15 @@ export const routes = {
       const { si } = await stickerFromState(app);
       await app.state.set(u(app).tg_id, 'pk_title', { si });
       await show(app, cq, { text: app.t('pk.ask_title') }, 'ask_title');
+    },
+  },
+  'st:edit': {
+    args: [],
+    run: async (app) => {
+      const { si } = await stickerFromState(app);
+      if (si.format !== 'static') throw new UserError('st.not_regular');
+      const job = await app.transfer.createJob(u(app), { file_id: si.file_id, kind: 'sticker', mime: 'image/webp', size: 0 });
+      await app.tg.send(u(app).tg_id, { text: app.t('media.open_job'), keyboard: studioButtons(app, job) }, 'media_job');
     },
   },
   'st:imp': {

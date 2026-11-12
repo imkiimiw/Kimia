@@ -5,6 +5,7 @@
 import { system } from './db/system.js';
 import { users } from './db/users.js';
 import { ops as opsDb } from './db/packs.js';
+import { transfer as tdb } from './db/transfer.js';
 import { dayKey, dayStart } from './core/util.js';
 import { t, dateText } from './i18n/index.js';
 import { T, OWNER_ID } from './config.js';
@@ -23,6 +24,7 @@ async function housekeeping(app) {
     buckets: await system.pruneBuckets(now - 86400),
     usage: await users.pruneUsage(dayKey(now - 40 * 86400)),
     ops: await opsDb.pruneOld(now - 7 * 86400),
+    transfer: await tdb.pruneExpired(now),
     audit: await system.pruneAudit(20000),
   };
   app.log.info('housekeeping', { count: Object.values(out).reduce((a, b) => a + b, 0) });

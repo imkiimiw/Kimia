@@ -10,7 +10,7 @@ import { packs as pdb, posts as postDb } from '../db/packs.js';
 import { system } from '../db/system.js';
 import { dateText } from '../i18n/index.js';
 import { utf8 } from '../core/bytes.js';
-import { OWNER_ID, FEATURES, SETTING_RANGES, QUOTA_FEATURES, T } from '../config.js';
+import { OWNER_ID, FEATURES, SETTING_RANGES, QUOTA_FEATURES, T, APP_URL } from '../config.js';
 
 export const assertOwner = (app) => {
   if (app.user.tg_id !== OWNER_ID) throw new PermissionError('admin');
@@ -35,7 +35,7 @@ export async function homeView(app) {
       [btn(app.tp('adm.publish'), 'a', 'pub'), btn(app.tp('adm.queue'), 'a', 'q')],
       [btn(app.tp('adm.settings'), 'a', 'set'), btn(app.tp('adm.notify'), 'a', 'nt')],
       [btn(app.tp('adm.errors'), 'a', 'err'), btn(app.tp('adm.secrets'), 'a', 'sec')],
-      [btn(app.tp('adm.backup'), 'a', 'bk')],
+      [btn(app.tp('adm.backup'), 'a', 'bk'), { text: app.tp('adm.spike'), web_app: { url: `${APP_URL}?spike=1` } }],
       [btn(app.tp('common.menu'), 'm', 'home')],
     ]),
   };
@@ -268,7 +268,7 @@ export const routes = {
 };
 
 /** Features whose code exists (a flag can be turned on). */
-const BUILT = new Set(['packs', 'pack_import', 'pack_publish']);
+const BUILT = new Set(['packs', 'pack_import', 'pack_publish', 'studio']);
 
 /** Owner text steps of this module. @returns {Promise<string|null>} */
 export async function onAdminStep(app, step, payload, message) {

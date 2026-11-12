@@ -21,7 +21,8 @@ import * as panel from '../admin/panel.js';
 import * as channelsUi from '../admin/channels_ui.js';
 import * as broadcastUi from '../admin/broadcast_ui.js';
 import * as publishAdmin from '../admin/publish_ui.js';
-import { OWNER_ID, T, LANGS } from '../config.js';
+import { OWNER_ID, T, LANGS, APP_URL } from '../config.js';
+import { markup } from '../core/codec.js';
 import { tp } from '../i18n/index.js';
 
 /* ------------------------------------------------------------------ routes */
@@ -90,16 +91,21 @@ async function keepPending(app, action) {
 }
 
 /** Registers the command lists once per version (default per language + the owner's chat with /admin). */
-const COMMANDS_VERSION = 1;
+const COMMANDS_VERSION = 2; // 2: the Studio menu button (Phase 2)
 async function ensureCommands(app) {
   if (Number(app.settings.get('boot.commands') || 0) >= COMMANDS_VERSION) return;
   if (!(await system.claimSetting(`boot.commands.${COMMANDS_VERSION}`, 1, app.clock.now()))) return;
-  const list = (lang) => ['start', 'menu', 'packs', 'lang', 'help', 'cancel', 'deletemydata'].map((c) => ({ command: c, description: tp(lang, `cmd.${c}`) }));
+  const list = (lang) => ['start', 'menu', ...(app.flag('studio') ? ['studio'] : []), 'packs', 'lang', 'help', 'cancel', 'deletemydata'].map((c) => ({ command: c, description: tp(lang, `cmd.${c}`) }));
   try {
     await app.tg.call('setMyCommands', { commands: list('fa') }, 'commands');
     await app.tg.call('setMyCommands', { commands: list('fa'), language_code: 'fa' }, 'commands');
     await app.tg.call('setMyCommands', { commands: list('en'), language_code: 'en' }, 'commands');
     await app.tg.call('setMyCommands', { commands: [...list('fa'), { command: 'admin', description: tp('fa', 'cmd.admin') }], scope: { type: 'chat', chat_id: OWNER_ID } }, 'commands');
+    if (app.flag('studio')) {
+      // the persistent chat menu button opens the Studio (brief §8); the owner's Phase 0 «Spike» button goes
+      await app.tg.call('setChatMenuButton', { menu_button: { type: 'web_app', text: tp('fa', 'menu.button'), web_app: { url: `${APP_URL}?mode=sticker` } } }, 'menu_button');
+      await app.tg.call('setChatMenuButton', { chat_id: OWNER_ID, menu_button: { type: 'default' } }, 'menu_button');
+    }
     await app.settings.set(0, 'boot.commands', COMMANDS_VERSION);
   } catch (e) {
     app.log.warn('set_commands_failed', { error: String(e && e.description).slice(0, 120) });
@@ -218,7 +224,11 @@ async function handleMessage(app, message, { resumed = false } = {}) {
         await send(app, await packsUi.listView(app, 0), 'packs');
         return 'packs';
       case 'studio':
-        await send(app, { text: app.t(app.flag('studio') ? 'media.open_studio' : 'media.studio_soon') }, 'studio');
+        if (!app.flag('studio')) {
+          await send(app, { text: app.t('media.studio_soon') }, 'studio');
+          return 'studio';
+        }
+        await send(app, { text: app.t('media.open_studio'), keyboard: markup([[{ text: app.tp('menu.studio'), web_app: { url: `${APP_URL}?mode=sticker` } }]]) }, 'studio');
         return 'studio';
       case 'lang':
         await send(app, langView(app, app.lang), 'lang');

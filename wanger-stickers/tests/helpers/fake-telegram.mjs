@@ -169,6 +169,28 @@ export function createFakeTelegram({ now = () => Math.floor(Date.now() / 1000) }
       if (!f || !f.bytes) fail(400, 'Bad Request: wrong file_id or the file is temporarily unavailable', m);
       return f.bytes;
     },
+    /** Like the SDK's api.getFileStream: the file in 64 KB pieces. */
+    getFileStream(p, m) {
+      const f = files.get(p.file_id);
+      if (!f || !f.bytes) fail(400, 'Bad Request: wrong file_id or the file is temporarily unavailable', m);
+      if (f.bytes.length > 20 * 1024 * 1024) fail(400, 'Bad Request: file is too big', m);
+      const bytes = f.bytes;
+      return {
+        file: { file_id: p.file_id, file_size: bytes.length },
+        body: (async function* () { for (let i = 0; i < bytes.length; i += 65536) yield bytes.subarray(i, i + 65536); })(),
+      };
+    },
+    uploadStickerFile(p, m) {
+      const f = p.sticker;
+      if (!f || !(f.bytes instanceof Uint8Array)) fail(400, 'Bad Request: there is no sticker in the request', m);
+      if (p.sticker_format !== 'static') fail(400, 'Bad Request: invalid sticker_format', m);
+      if (f.bytes.length > 512 * 1024) fail(400, 'Bad Request: file is too big', m);
+      const n = nextFile++;
+      const s = { file_id: `UPL${n}`, file_unique_id: `UPU${n}abcdef`, type: 'regular', width: 512, height: 512, is_animated: false, is_video: false, emoji: '⭐' };
+      files.set(s.file_id, { sticker: s, bytes: f.bytes });
+      return { file_id: s.file_id, file_unique_id: s.file_unique_id, file_size: f.bytes.length };
+    },
+    setChatMenuButton: () => true,
     getChat(p, m) {
       const c = findChannel(p.chat_id);
       if (!c) fail(400, 'Bad Request: chat not found', m);
@@ -280,6 +302,12 @@ export function createFakeTelegram({ now = () => Math.floor(Date.now() / 1000) }
     handler, calls, files, channels, blocked, messages, sets,
     sticker,
     addForeignSet,
+    /** A photo the user "sends": bytes stored, PhotoSize list returned. */
+    photo(bytes) {
+      const file_id = `PH${++nextMessageId}`;
+      files.set(file_id, { bytes });
+      return [{ file_id: `${file_id}s`, file_unique_id: `${file_id}su`, width: 90, height: 90 }, { file_id, file_unique_id: `${file_id}u`, width: 1280, height: 960, file_size: bytes.length }];
+    },
     document(bytes, { mime = 'image/png', name = 'x.png' } = {}) {
       const file_id = `DOC${++nextMessageId}`;
       files.set(file_id, { bytes });

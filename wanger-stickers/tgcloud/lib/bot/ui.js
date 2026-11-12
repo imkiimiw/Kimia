@@ -6,6 +6,7 @@ import { dayKey } from '../core/util.js';
 import { users } from '../db/users.js';
 import { packs as pdb, ops as opsDb } from '../db/packs.js';
 import { system } from '../db/system.js';
+import { transfer as tdb } from '../db/transfer.js';
 import { QUOTA_FEATURES, APP_URL } from '../config.js';
 
 /** First start / change: Persian and English, the suggested one marked. */
@@ -85,6 +86,7 @@ export async function deleteMyData(app) {
   await opsDb.cancelOfUser(id, app.clock.now());
   for (const packId of await pdb.idsByUser(id)) await pdb.remove(packId);
   await opsDb.deleteOfUser(id);
+  await tdb.deleteOfUser(id);
   await users.deleteUsage(id);
   await system.clearState(id);
   await system.clearPending(id);

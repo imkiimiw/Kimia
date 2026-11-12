@@ -99,7 +99,7 @@ test('the owner panel works: stats, settings, flags, maintenance, user ban/pro/p
   assert.equal(JSON.parse(h.one("SELECT value FROM settings WHERE key = 'gate.cache_sec'").value), 120);
   // a flag for an unbuilt feature can't be turned on
   await h.press(OWNER, 'a:flags');
-  const studio = h.lastButtons(OWNER).find((b) => /استودیو \(/.test(b.text)).callback_data;
+  const studio = h.lastButtons(OWNER).find((b) => /GIF/.test(b.text)).callback_data;
   const r = await h.tap(OWNER, studio);
   assert.equal(r.result, 'refused:adm.err.not_built');
   // maintenance on → users get the maintenance text, the owner doesn't

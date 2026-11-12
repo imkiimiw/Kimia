@@ -79,7 +79,7 @@ export default {
   'cmd.admin': 'Admin panel',
 
   'media.studio_soon': '🎨 Making stickers from photos, videos and GIFs is coming soon in the bot’s Studio.\nFor now you can send ready stickers and build packs.',
-  'media.open_studio': '🎨 To make a sticker from this file, open the Studio from the menu.',
+  'media.open_studio': '🎨 Open the Studio: pick a photo from your phone, or edit one you sent here.',
   'media.ready_file_hint': 'Send this file as a sticker and I’ll add it to your pack. Making stickers from files is coming soon in the Studio.',
 
   'st.pick': '📥 Which pack should this sticker go to?',
@@ -474,4 +474,28 @@ export default {
   'alert.pub_channel': '⚠️ The bot can’t post in the publishing channel “{title}”. Publications stay in the queue.',
   'alert.pub_uncertain': '⚠️ It is unknown whether publication #{id} reached the channel (the task was cut off). It won’t be sent again; please check the channel.',
   'alert.daily': '📊 <b>Report for {day}</b>\nUsers: {users} (active 7 days: {active})\nNew packs: {packs} · stickers added: {stickers}\nPublishing requests: {requests} · published: {published}\nStopped by forced join: {blocked}',
+
+  // Phase 2: the Studio
+  'cmd.studio': 'Studio',
+  'menu.button': '🎨 Studio',
+  'adm.spike': '🧪 Device test',
+  'st.btn_edit': '🎨 Edit in the Studio',
+  'media.open_job': '🎨 Open this file in the Studio: remove the background, add text and an outline, and make it a sticker.\n“⚡️ Quick sticker” goes straight to saving with good defaults.',
+  'media.btn_open': '🎨 Open in the Studio',
+  'media.btn_quick': '⚡️ Quick sticker',
+  'media.btn_pick': '📂 Pick the file in the Studio',
+  'media.too_big': '📦 This file is larger than {mb} MB, so the bot can’t fetch it from Telegram. Pick it from your phone right in the Studio instead.',
+  'media.video_soon': '🎞 Stickers and GIFs from videos, GIFs and round videos come in the next phase. For now, send a photo.',
+  'studio.err.too_big': 'The file is larger than {mb} MB.',
+  'studio.err.job_gone': 'This file is no longer available; send it in the chat again.',
+  'studio.err.bad_input': 'The request was not valid.',
+  'studio.err.too_big_export': 'The final sticker must be at most {kb} KB.',
+  'studio.err.busy': 'You have unfinished uploads; try again in a few minutes.',
+  'studio.err.upload_gone': 'This upload has expired; save again.',
+  'studio.err.missing_chunks': 'Not all parts of the file arrived; try again.',
+  'studio.err.already': 'This file has already been saved.',
+  'studio.err.corrupt': 'The file got damaged on the way; try again.',
+  'studio.err.invalid': 'The sticker doesn’t meet Telegram’s rules ({why}).',
+  'studio.n_new_pack': '🎉 The pack “{title}” was created with your first sticker!\n{link}',
+  'studio.n_added': '✅ Sticker added to “{title}” ({n} stickers).\n{link}',
 };

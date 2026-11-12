@@ -48,7 +48,7 @@ test('every text key written in the code exists (literal keys and the dynamic fa
     ...['ok', 'bot_not_admin', 'not_found', 'error'].map((s) => `gm.health.${s}`),
     ...['ok', 'bot_not_admin', 'not_found', 'error'].map((s) => `alert.reason.${s}`),
     ...['posted', 'waiting', 'failed', 'skipped', 'none'].map((s) => `pq.drain.${s}`),
-    ...['start', 'menu', 'packs', 'lang', 'help', 'cancel', 'deletemydata', 'admin'].map((s) => `cmd.${s}`),
+    ...['start', 'menu', 'studio', 'packs', 'lang', 'help', 'cancel', 'deletemydata', 'admin'].map((s) => `cmd.${s}`),
     ...FEATURES.map((f) => `flag.${f}`),
     ...QUOTA_FEATURES.map((f) => `feature.${f}`),
     ...Object.keys(SETTING_RANGES).map((k) => `set.${k}`),

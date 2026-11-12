@@ -44,7 +44,7 @@ export const DEFAULTS = Object.freeze({
   'flags.packs': true,
   'flags.pack_import': true,
   'flags.pack_publish': true,
-  'flags.studio': false,
+  'flags.studio': true,
   'flags.gif_studio': false,
   'flags.convert': false,
   'flags.whatsapp': false,

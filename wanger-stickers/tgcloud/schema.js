@@ -1,8 +1,9 @@
 // Wanger Stickers database schema (Phase 1). Brief §11 plus docs/DECISIONS.md D11/D13.
 // No foreign keys (the platform forbids them): parent ids are plain columns, integrity is kept in
 // code. Timestamps are unix seconds. Every lookup column has an index; every query is LIMITed.
-// Phase 2+ tables (jobs, uploads, upload_chunks, job_chunks, payments, gallery) come with their phase.
-import { table, integer, text, real, index, uniqueIndex, primaryKey, sql } from 'sdk/db';
+// Phase 2 adds jobs, job_chunks, uploads, upload_chunks (the Studio's transfer protocol). Later phases
+// add payments and the gallery.
+import { table, integer, text, real, blob, index, uniqueIndex, primaryKey, sql } from 'sdk/db';
 
 export const users = table('users', {
   tg_id: integer('tg_id').primaryKey(),
@@ -260,3 +261,56 @@ export const audit_log = table('audit_log', {
   target: text('target'),
   details: text('details'),
 });
+
+/* ---------------- Phase 2: the Studio's transfer protocol (DECISIONS D5) ---------------- */
+
+/** A file the user sent in chat, handed to the Studio (?job=<id>); expires after 30 minutes. */
+export const jobs = table('jobs', {
+  id: text('id').primaryKey(), // random token
+  tg_id: integer('tg_id').notNull(),
+  source_file_id: text('source_file_id').notNull(),
+  source_kind: text('source_kind').notNull(), // photo | image | sticker
+  mime: text('mime'),
+  size: integer('size').notNull().default(0),
+  chunks: integer('chunks').notNull().default(0), // stored raw chunks once downloaded
+  status: text('status').notNull(), // new | ready | used
+  created_at: integer('created_at').notNull(),
+  expires_at: integer('expires_at').notNull(),
+}, (t) => ({
+  userIdx: index('idx_jobs_user').on(t.tg_id, t.created_at),
+  expIdx: index('idx_jobs_expires').on(t.expires_at),
+}));
+
+/** The job's file bytes in raw chunks (each < 1 MB: one SQL value must stay under 1 MB). */
+export const job_chunks = table('job_chunks', {
+  job_id: text('job_id').notNull(),
+  idx: integer('idx').notNull(),
+  data: blob('data').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.job_id, t.idx] }),
+})).withoutRowid();
+
+/** An export on its way up from the Studio (begin → chunks → commit); expires after 30 minutes. */
+export const uploads = table('uploads', {
+  upload_id: text('upload_id').primaryKey(),
+  tg_id: integer('tg_id').notNull(),
+  kind: text('kind').notNull(), // telegram_static (Phase 2)
+  format: text('format').notNull(), // webp | png
+  total_size: integer('total_size').notNull(),
+  sha256: text('sha256').notNull(),
+  chunks: integer('chunks').notNull(),
+  status: text('status').notNull(), // open | committed | failed
+  created_at: integer('created_at').notNull(),
+  expires_at: integer('expires_at').notNull(),
+}, (t) => ({
+  userIdx: index('idx_uploads_user').on(t.tg_id, t.created_at),
+  expIdx: index('idx_uploads_expires').on(t.expires_at),
+}));
+
+export const upload_chunks = table('upload_chunks', {
+  upload_id: text('upload_id').notNull(),
+  idx: integer('idx').notNull(),
+  data: blob('data').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.upload_id, t.idx] }),
+})).withoutRowid();
