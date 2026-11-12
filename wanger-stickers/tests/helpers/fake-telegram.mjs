@@ -159,10 +159,31 @@ export function createFakeTelegram({ now = () => Math.floor(Date.now() / 1000) }
     sendDocument(p, m) {
       toChat(p, m);
       const d = p.document;
+      if (typeof d === 'string') {
+        if (!files.has(d)) fail(400, 'Bad Request: wrong file identifier/HTTP URL specified', m);
+        return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, document: { file_id: d, file_unique_id: `${d}u` } });
+      }
       if (!d || !(d.bytes instanceof Uint8Array)) fail(400, 'Bad Request: there is no document in the request', m);
+      if (d.bytes.length > 50 * 1024 * 1024) fail(400, 'Bad Request: file is too big', m);
       const file_id = `DOC${++nextMessageId}`;
       files.set(file_id, { bytes: d.bytes });
-      return store(p.chat_id, { message_id: nextMessageId, chat: { id: p.chat_id }, document: { file_id, file_name: d.name, mime_type: d.type, file_size: d.bytes.length } });
+      return store(p.chat_id, { message_id: nextMessageId, chat: { id: p.chat_id }, document: { file_id, file_unique_id: `${file_id}u`, file_name: d.name, mime_type: d.type, file_size: d.bytes.length }, disable_content_type_detection: !!p.disable_content_type_detection });
+    },
+    sendAnimation(p, m) {
+      toChat(p, m);
+      const a = p.animation;
+      if (!a || !(a.bytes instanceof Uint8Array)) fail(400, 'Bad Request: there is no animation in the request', m);
+      const file_id = `ANI${++nextMessageId}`;
+      files.set(file_id, { bytes: a.bytes });
+      return store(p.chat_id, { message_id: nextMessageId, chat: { id: p.chat_id }, animation: { file_id, file_name: a.name, mime_type: a.type, width: p.width, height: p.height, duration: p.duration, file_size: a.bytes.length } });
+    },
+    sendMediaGroup(p, m) {
+      toChat(p, m);
+      if (!Array.isArray(p.media) || p.media.length < 2 || p.media.length > 10) fail(400, 'Bad Request: wrong number of media in the album', m);
+      return p.media.map((it) => {
+        if (it.type !== 'document' || typeof it.media !== 'string' || !files.has(it.media)) fail(400, 'Bad Request: wrong file identifier/HTTP URL specified', m);
+        return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, document: { file_id: it.media }, caption: it.caption });
+      });
     },
     getFileContent(p, m) {
       const f = files.get(p.file_id);
@@ -183,10 +204,19 @@ export function createFakeTelegram({ now = () => Math.floor(Date.now() / 1000) }
     uploadStickerFile(p, m) {
       const f = p.sticker;
       if (!f || !(f.bytes instanceof Uint8Array)) fail(400, 'Bad Request: there is no sticker in the request', m);
-      if (p.sticker_format !== 'static') fail(400, 'Bad Request: invalid sticker_format', m);
-      if (f.bytes.length > 512 * 1024) fail(400, 'Bad Request: file is too big', m);
+      const b = f.bytes;
+      const isWebm = b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3;
+      const isImg = (b[0] === 0x89 && b[1] === 0x50) || (b[0] === 0x52 && b[1] === 0x49 && b[8] === 0x57);
+      if (p.sticker_format === 'static') {
+        if (!isImg) fail(400, 'Bad Request: STICKER_PNG_NOPNG', m);
+        if (b.length > 512 * 1024) fail(400, 'Bad Request: file is too big', m);
+      } else if (p.sticker_format === 'video') {
+        if (!isWebm) fail(400, 'Bad Request: STICKER_VIDEO_NOWEBM', m);
+        if (b.length > 256 * 1024) fail(400, 'Bad Request: STICKER_VIDEO_BIG', m);
+      } else fail(400, 'Bad Request: invalid sticker_format', m);
       const n = nextFile++;
-      const s = { file_id: `UPL${n}`, file_unique_id: `UPU${n}abcdef`, type: 'regular', width: 512, height: 512, is_animated: false, is_video: false, emoji: '⭐' };
+      const video = p.sticker_format === 'video';
+      const s = { file_id: `UPL${n}`, file_unique_id: `UPU${n}abcdef`, type: 'regular', width: 512, height: 512, is_animated: false, is_video: video, emoji: '⭐' };
       files.set(s.file_id, { sticker: s, bytes: f.bytes });
       return { file_id: s.file_id, file_unique_id: s.file_unique_id, file_size: f.bytes.length };
     },

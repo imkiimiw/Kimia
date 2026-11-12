@@ -1,8 +1,9 @@
 // Wanger Stickers database schema (Phase 1). Brief §11 plus docs/DECISIONS.md D11/D13.
 // No foreign keys (the platform forbids them): parent ids are plain columns, integrity is kept in
 // code. Timestamps are unix seconds. Every lookup column has an index; every query is LIMITed.
-// Phase 2 adds jobs, job_chunks, uploads, upload_chunks (the Studio's transfer protocol). Later phases
-// add payments and the gallery.
+// Phase 2 adds jobs, job_chunks, uploads, upload_chunks (the Studio's transfer protocol). Phase 3 adds
+// packs.tray_file_id (WhatsApp packs live in `packs` with platform = 'whatsapp'). Later phases add
+// payments and the gallery.
 import { table, integer, text, real, blob, index, uniqueIndex, primaryKey, sql } from 'sdk/db';
 
 export const users = table('users', {
@@ -93,6 +94,7 @@ export const packs = table('packs', {
   is_public: integer('is_public').notNull().default(0),
   created_at: integer('created_at').notNull().default(0),
   updated_at: integer('updated_at').notNull().default(0),
+  tray_file_id: text('tray_file_id'), // Phase 3: WhatsApp tray icon (96×96 PNG) in the storage channel
 }, (t) => ({
   userIdx: index('idx_packs_user').on(t.tg_id, t.id),
   nameIdx: uniqueIndex('uidx_packs_name').on(t.tg_name),
@@ -104,7 +106,7 @@ export const pack_items = table('pack_items', {
   position: integer('position').notNull().default(0),
   file_id: text('file_id').notNull(),
   file_unique_id: text('file_unique_id').notNull(),
-  format: text('format').notNull(), // static | video | animated
+  format: text('format').notNull(), // static | video | animated; WhatsApp: wa_static | wa_animated
   emojis: text('emojis'), // JSON array
   keywords: text('keywords'), // JSON array
   origin: text('origin').notNull().default('made'), // made | import | copy (D11: shown to reviewers)
@@ -269,7 +271,7 @@ export const jobs = table('jobs', {
   id: text('id').primaryKey(), // random token
   tg_id: integer('tg_id').notNull(),
   source_file_id: text('source_file_id').notNull(),
-  source_kind: text('source_kind').notNull(), // photo | image | sticker
+  source_kind: text('source_kind').notNull(), // photo | image | sticker | video | animation | video_note | gif | video_sticker | tgs
   mime: text('mime'),
   size: integer('size').notNull().default(0),
   chunks: integer('chunks').notNull().default(0), // stored raw chunks once downloaded
@@ -294,8 +296,8 @@ export const job_chunks = table('job_chunks', {
 export const uploads = table('uploads', {
   upload_id: text('upload_id').primaryKey(),
   tg_id: integer('tg_id').notNull(),
-  kind: text('kind').notNull(), // telegram_static (Phase 2)
-  format: text('format').notNull(), // webp | png
+  kind: text('kind').notNull(), // core/validate.js UPLOAD_KINDS (telegram_static, telegram_video, gif, whatsapp_static, …)
+  format: text('format').notNull(), // webp | png | webm | mp4 | gif | zip
   total_size: integer('total_size').notNull(),
   sha256: text('sha256').notNull(),
   chunks: integer('chunks').notNull(),

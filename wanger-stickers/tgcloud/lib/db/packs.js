@@ -13,11 +13,11 @@ export const packs = {
     VALUES (${p.tg_id}, 'telegram', ${p.tg_name}, ${p.title}, 'mixed', ${p.sticker_count}, ${now}, ${now})
     ON CONFLICT (tg_name) DO NOTHING RETURNING *`).then(first),
   get: (id) => db.get(sql`SELECT * FROM packs WHERE id = ${id}`),
-  /** A pack of this user (ownership check in the query itself). */
-  getOwned: (id, userId) => db.get(sql`SELECT * FROM packs WHERE id = ${id} AND tg_id = ${userId}`),
+  /** A Telegram pack of this user (ownership check in the query itself). */
+  getOwned: (id, userId) => db.get(sql`SELECT * FROM packs WHERE id = ${id} AND tg_id = ${userId} AND platform = 'telegram'`),
   getByName: (name) => db.get(sql`SELECT * FROM packs WHERE tg_name = ${name}`),
-  listByUser: (userId, offset, n) => db.all(sql`SELECT * FROM packs WHERE tg_id = ${userId} ORDER BY id DESC LIMIT ${n} OFFSET ${offset}`),
-  countByUser: (userId) => db.get(sql`SELECT count(*) AS n FROM packs WHERE tg_id = ${userId}`).then((r) => (r ? r.n : 0)),
+  listByUser: (userId, offset, n) => db.all(sql`SELECT * FROM packs WHERE tg_id = ${userId} AND platform = 'telegram' ORDER BY id DESC LIMIT ${n} OFFSET ${offset}`),
+  countByUser: (userId) => db.get(sql`SELECT count(*) AS n FROM packs WHERE tg_id = ${userId} AND platform = 'telegram'`).then((r) => (r ? r.n : 0)),
   setTitle: (id, title, now) => db.run(sql`UPDATE packs SET title = ${title}, updated_at = ${now} WHERE id = ${id}`),
   setCount: (id, n, now) => db.run(sql`UPDATE packs SET sticker_count = ${n}, updated_at = ${now} WHERE id = ${id}`),
   setPublic: (id, flag) => db.run(sql`UPDATE packs SET is_public = ${flag ? 1 : 0} WHERE id = ${id}`),
@@ -50,6 +50,42 @@ export const packs = {
     INSERT INTO pack_items (pack_id, position, file_id, file_unique_id, format, emojis, keywords, origin)
     VALUES (${packId}, 100000, ${fileId}, ${fuid}, ${format}, '[]', '[]', ${origin})
     ON CONFLICT (pack_id, file_unique_id) DO UPDATE SET origin = excluded.origin`),
+};
+
+/** WhatsApp packs (platform = 'whatsapp'): files live in the storage channel, only file_ids here. */
+export const wa = {
+  create: (p, now) => db.run(sql`
+    INSERT INTO packs (tg_id, platform, tg_name, title, kind, publisher, wa_identifier, sticker_count, created_at, updated_at)
+    VALUES (${p.tg_id}, 'whatsapp', NULL, ${p.title}, ${p.kind}, ${p.publisher}, ${p.wa_identifier}, 0, ${now}, ${now})
+    RETURNING *`).then(first),
+  getOwned: (id, userId) => db.get(sql`SELECT * FROM packs WHERE id = ${id} AND tg_id = ${userId} AND platform = 'whatsapp'`),
+  list: (userId, offset, n) => db.all(sql`SELECT * FROM packs WHERE tg_id = ${userId} AND platform = 'whatsapp' ORDER BY id DESC LIMIT ${n} OFFSET ${offset}`),
+  count: (userId) => db.get(sql`SELECT count(*) AS n FROM packs WHERE tg_id = ${userId} AND platform = 'whatsapp'`).then((r) => (r ? r.n : 0)),
+  setTray: (id, fileId, now) => db.run(sql`UPDATE packs SET tray_file_id = ${fileId}, updated_at = ${now} WHERE id = ${id}`),
+  setMeta: (id, title, publisher, now) => db.run(sql`UPDATE packs SET title = ${title}, publisher = ${publisher}, updated_at = ${now} WHERE id = ${id}`),
+  /** Adds an item only while the pack has room (one statement: no race past the maximum). */
+  addItem: (packId, max, it) => db.run(sql`
+    INSERT INTO pack_items (pack_id, position, file_id, file_unique_id, format, emojis, keywords, origin)
+    SELECT ${packId}, coalesce((SELECT max(position) + 1 FROM pack_items WHERE pack_id = ${packId}), 0), ${it.file_id}, ${it.file_unique_id}, ${it.format}, ${JSON.stringify(it.emojis)}, '[]', 'made'
+    WHERE (SELECT count(*) FROM pack_items WHERE pack_id = ${packId}) < ${max}
+    ON CONFLICT (pack_id, file_unique_id) DO NOTHING RETURNING *`).then(first),
+  item: (packId, itemId) => db.get(sql`SELECT * FROM pack_items WHERE pack_id = ${packId} AND id = ${itemId}`),
+  removeItem: (packId, itemId) => db.run(sql`DELETE FROM pack_items WHERE pack_id = ${packId} AND id = ${itemId}`).then((r) => r.rowsAffected),
+  setItemEmojis: (packId, itemId, list) => db.run(sql`UPDATE pack_items SET emojis = ${JSON.stringify(list)} WHERE pack_id = ${packId} AND id = ${itemId}`).then((r) => r.rowsAffected),
+  /** Swaps an item with its neighbour (dir -1 / +1) by position: two statements, both conditional. */
+  async move(packId, itemId, dir) {
+    const it = await db.get(sql`SELECT id, position FROM pack_items WHERE pack_id = ${packId} AND id = ${itemId}`);
+    if (!it) return false;
+    const other = dir < 0
+      ? await db.get(sql`SELECT id, position FROM pack_items WHERE pack_id = ${packId} AND position < ${it.position} ORDER BY position DESC LIMIT 1`)
+      : await db.get(sql`SELECT id, position FROM pack_items WHERE pack_id = ${packId} AND position > ${it.position} ORDER BY position LIMIT 1`);
+    if (!other) return false;
+    await db.run(sql`UPDATE pack_items SET position = ${other.position} WHERE id = ${it.id} AND position = ${it.position}`);
+    await db.run(sql`UPDATE pack_items SET position = ${it.position} WHERE id = ${other.id} AND position = ${other.position}`);
+    return true;
+  },
+  /** sticker_count from the items themselves (one statement). */
+  recount: (packId, now) => db.run(sql`UPDATE packs SET sticker_count = (SELECT count(*) FROM pack_items WHERE pack_id = ${packId}), updated_at = ${now} WHERE id = ${packId} RETURNING sticker_count`).then((r) => (first(r) ? first(r).sticker_count : 0)),
 };
 
 export const ops = {

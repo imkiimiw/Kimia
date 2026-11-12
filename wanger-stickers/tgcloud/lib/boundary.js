@@ -11,6 +11,7 @@ import { createPacks } from './packs/service.js';
 import { createOps } from './packs/ops.js';
 import { createPublish } from './packs/publish.js';
 import { createTransfer } from './studio/transfer.js';
+import { createWhatsApp } from './packs/whatsapp.js';
 import { runTick } from './jobs.js';
 import { system } from './db/system.js';
 import { users } from './db/users.js';
@@ -30,6 +31,7 @@ export async function buildApp(kind, updateId = null) {
   app.ops = createOps(app, app.packs);
   app.publish = createPublish(app);
   app.transfer = createTransfer(app);
+  app.whatsapp = createWhatsApp(app, app.packs);
   app.broadcast = createBroadcast(app, { notify: (b, info) => notifyBroadcast(app, b, info) });
   app.opsNotify = (op, stopped) => notifyOp(app, op, stopped);
   return app;

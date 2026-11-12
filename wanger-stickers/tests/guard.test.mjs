@@ -28,7 +28,7 @@ test('fa and en have exactly the same keys and the same {vars}', () => {
 });
 
 test('every text key written in the code exists (literal keys and the dynamic families)', () => {
-  const NS = /^(common|lang|gate|menu|help|acct|feature|dm|cmd|media|st|pk|imp|cp|dup|mg|op|err|pub|adm|set|flag|gm|bc|pc|pq|alert)\./;
+  const NS = /^(common|lang|gate|menu|help|acct|feature|dm|cmd|media|st|pk|imp|cp|dup|mg|op|err|pub|adm|set|flag|gm|bc|pc|pq|alert|wa|studio)\./;
   const missing = new Set();
   for (const f of code.filter((f) => !f.includes(`${path.sep}i18n${path.sep}`))) {
     const src = fs.readFileSync(f, 'utf8');
@@ -54,6 +54,8 @@ test('every text key written in the code exists (literal keys and the dynamic fa
     ...Object.keys(SETTING_RANGES).map((k) => `set.${k}`),
     ...['text.start.fa', 'text.start.en', 'text.help.fa', 'text.help.en', 'maintenance.text', 'notify.gate', 'notify.errors', 'notify.daily'].map((k) => `set.${k}`),
     'lang.name.fa', 'lang.name.en',
+    ...['static', 'animated'].flatMap((k) => [`wa.kind.${k}`, `wa.kind_icon.${k}`]),
+    ...['TOO_FEW', 'TOO_MANY', 'KIND', 'MIXED', 'EMOJIS', 'NAME', 'PUBLISHER', 'IDENTIFIER', 'NO_TRAY'].map((r) => `wa.rule.${r}`),
   ];
   for (const k of families) if (!(k in fa)) missing.add(k);
   assert.deepEqual([...missing], []);

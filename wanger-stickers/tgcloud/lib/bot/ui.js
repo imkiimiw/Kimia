@@ -25,6 +25,7 @@ export function menuKeyboard(app) {
   if (app.flag('studio')) rows.push([web('menu.studio', 'sticker')]);
   if (app.flag('gif_studio')) rows.push([web('menu.gif', 'gif')]);
   if (app.flag('packs')) rows.push([btn(app.tp('menu.packs'), 'm', 'packs', 0)]);
+  if (app.flag('whatsapp')) rows.push([web('menu.whatsapp', 'wa')]);
   if (app.flag('convert')) rows.push([web('menu.convert', 'convert')]);
   rows.push([btn(app.tp('menu.account'), 'm', 'acct'), btn(app.tp('menu.help'), 'm', 'help')]);
   if (app.can('panel.open')) rows.push([btn(app.tp('menu.admin'), 'a', 'home')]);

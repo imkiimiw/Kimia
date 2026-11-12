@@ -2,24 +2,27 @@
 // - chat → Studio: a `jobs` row for a file the user sent; the first studio_media call streams it
 //   (getFileStream, ≤ 20 MB) into raw chunks, later calls return one chunk as base64;
 // - Studio → bot: upload_begin → upload_chunk… → upload_commit, or one call with `inline` for a
-//   file that fits a single chunk (every static sticker ≤ 256 KB). Commit checks size + SHA-256,
-//   runs the validator again, then acts (add to a pack, new pack, send to chat).
+//   file that fits a single chunk (every sticker ≤ 256 KB). Commit checks size + SHA-256, runs the
+//   kind's validator again (core/validate.js UPLOAD_KINDS), then acts: add to a Telegram pack, new
+//   pack, send a sticker / animation / file to the chat, or add to a WhatsApp pack (Phase 3).
 // Ownership: every job/upload query includes the caller's id from the verified init data.
 import { transfer as tdb } from '../db/transfer.js';
 import { packs as pdb } from '../db/packs.js';
 import { UserError, randomId } from '../core/util.js';
 import { toBase64, fromBase64, sha256Hex, concatBytes } from '../core/bytes.js';
-import { validateTelegramStatic, sniffImage } from '../core/validate.js';
-import { cleanTitle, parseEmojiList } from '../core/packs.js';
+import { UPLOAD_KINDS, sniffImage } from '../core/validate.js';
+import { cleanTitle, parseEmojiList, cleanWaText, parseWaEmojis } from '../core/packs.js';
 import { classify, friendlyKey } from '../core/errors.js';
-import { TELEGRAM } from '../core/limits.js';
+import { makeZip, readZip } from '../core/zip.js';
+import { TELEGRAM, WHATSAPP, OUTPUT } from '../core/limits.js';
 import { InputFile } from 'sdk';
+
+const MIME = Object.freeze({ webp: 'image/webp', png: 'image/png', webm: 'video/webm' });
 
 export const TRANSFER = Object.freeze({
   chunkBytes: 256 * 1024, // raw bytes per chunk (≈ 342 KB base64 per request); one SQL value < 1 MB (measured)
   jobTtlSec: 30 * 60,
   uploadTtlSec: 30 * 60,
-  maxStaticBytes: TELEGRAM.static.maxBytes,
   maxOpenUploads: 3,
   jobMaxBytes: TELEGRAM.files.downloadMaxBytes,
 });
@@ -85,9 +88,9 @@ export function createTransfer(app) {
     },
 
     async begin(user, { kind, format, size, sha256 }) {
-      if (kind !== 'telegram_static') throw new UserError('studio.err.bad_input');
-      if (format !== 'webp' && format !== 'png') throw new UserError('studio.err.bad_input');
-      if (!Number.isInteger(size) || size < 1 || size > TRANSFER.maxStaticBytes) throw new UserError('studio.err.too_big_export', { kb: TRANSFER.maxStaticBytes / 1024 });
+      const K = kindOf(app, user, kind);
+      if (!K.formats.includes(format)) throw new UserError('studio.err.bad_input');
+      if (!Number.isInteger(size) || size < 1 || size > K.maxBytes) throw new UserError('studio.err.too_big_export', { kb: Math.round(K.maxBytes / 1024) });
       if (!/^[0-9a-f]{64}$/.test(String(sha256))) throw new UserError('studio.err.bad_input');
       const now = clock.now();
       if ((await tdb.openUploadsOf(user.tg_id, now)) >= TRANSFER.maxOpenUploads) throw new UserError('studio.err.busy');
@@ -107,9 +110,9 @@ export function createTransfer(app) {
     },
 
     /**
-     * Reassembles (or takes `inline`), checks size + SHA-256 + the platform rules, then acts.
+     * Reassembles (or takes `inline`), checks size + SHA-256 + the target's rules, then acts.
      * @param {any} user
-     * @param {{uploadId?: string, inline?: string, format: string, size: number, sha256: string, action: 'add'|'new'|'send', packId?: number, title?: string, emojis?: string}} o
+     * @param {{uploadId?: string, inline?: string, kind?: string, format: string, size: number, sha256: string, action: string, packId?: number, title?: string, publisher?: string, emojis?: string}} o
      */
     async commit(user, o) {
       let bytes;
@@ -117,6 +120,7 @@ export function createTransfer(app) {
       if (o.inline !== undefined) {
         bytes = fromBase64(o.inline);
         if (!bytes || bytes.length > TRANSFER.chunkBytes) throw new UserError('studio.err.bad_input');
+        o = { ...o, kind: o.kind || 'telegram_static' };
       } else {
         up = await tdb.getUpload(String(o.uploadId || ''), user.tg_id, clock.now());
         if (!up) throw new UserError('studio.err.upload_gone');
@@ -126,19 +130,21 @@ export function createTransfer(app) {
         const parts = [];
         for (let i = 0; i < up.chunks; i++) parts.push(await tdb.uploadChunk(up.upload_id, i));
         bytes = concatBytes(parts);
-        o = { ...o, format: up.format, size: up.total_size, sha256: up.sha256 };
+        o = { ...o, kind: up.kind, format: up.format, size: up.total_size, sha256: up.sha256 };
       }
       try {
-        if (bytes.length !== o.size) throw new UserError('studio.err.corrupt');
+        const K = kindOf(app, user, o.kind);
+        if (!ACTIONS[o.kind].includes(o.action)) throw new UserError('studio.err.bad_input');
+        if (bytes.length !== o.size || bytes.length > K.maxBytes) throw new UserError('studio.err.corrupt');
         if ((await sha256Hex(bytes)) !== o.sha256) throw new UserError('studio.err.corrupt');
         const format = sniffImage(bytes);
-        if (format !== o.format) throw new UserError('studio.err.invalid', { why: 'FORMAT' });
-        const check = validateTelegramStatic(bytes, format);
+        if (format !== o.format || !K.formats.includes(format)) throw new UserError('studio.err.invalid', { why: 'FORMAT' });
+        const check = K.check(bytes, format);
         if (!check.ok) throw new UserError('studio.err.invalid', { why: check.violations.join(', ') });
-        const emojis = parseEmojiList(o.emojis || '') || ['⭐'];
-        const result = await act(app, user, bytes, format, emojis, o);
+        if (o.kind === 'frames_zip') checkFramesZip(bytes);
+        const result = await ACT[o.kind](app, user, bytes, format, o, check.info);
         if (up) await tdb.dropUploadChunks(up.upload_id);
-        app.stats.count('studio.export.static');
+        app.stats.count(`studio.export.${o.kind.replace(/^telegram_/, '')}`);
         return result;
       } catch (e) {
         if (up) await tdb.reopen(up.upload_id); // the user may retry the same upload
@@ -148,8 +154,110 @@ export function createTransfer(app) {
   };
 }
 
+/** Which actions each upload kind allows. */
+export const ACTIONS = Object.freeze({
+  telegram_static: ['add', 'new', 'send'],
+  telegram_video: ['add', 'new', 'send'],
+  animation: ['send'],
+  gif: ['send', 'file'],
+  webp_file: ['file'],
+  frames_zip: ['file'],
+  whatsapp_static: ['wa_add', 'wa_new'],
+  whatsapp_animated: ['wa_add', 'wa_new'],
+  whatsapp_tray: ['wa_tray'],
+});
+
+/** The feature flag that switches each kind on (the owner may always test). */
+const KIND_FLAG = Object.freeze({
+  telegram_static: 'studio',
+  telegram_video: 'video',
+  animation: 'gif_studio',
+  gif: 'gif_studio',
+  webp_file: 'convert',
+  frames_zip: 'convert',
+  whatsapp_static: 'whatsapp',
+  whatsapp_animated: 'whatsapp',
+  whatsapp_tray: 'whatsapp',
+});
+
+function kindOf(app, user, kind) {
+  const K = Object.prototype.hasOwnProperty.call(UPLOAD_KINDS, kind) ? UPLOAD_KINDS[kind] : null;
+  if (!K) throw new UserError('studio.err.bad_input');
+  if (!app.flag(KIND_FLAG[kind]) && app.role !== 'owner') throw new UserError('common.feature_off');
+  return K;
+}
+
+/** A frames ZIP from the Studio: stored entries, PNG only, at most OUTPUT.zip.maxEntries. */
+function checkFramesZip(bytes) {
+  const z = readZip(bytes);
+  if (z.error) throw new UserError('studio.err.invalid', { why: z.error });
+  if (!z.entries.length || z.entries.length > OUTPUT.zip.maxEntries) throw new UserError('studio.err.invalid', { why: 'ENTRIES' });
+  if (z.entries.some((e) => !/^[A-Za-z0-9_.-]{1,64}\.png$/.test(e.name) || sniffImage(e.data) !== 'png')) throw new UserError('studio.err.invalid', { why: 'NOT_PNG' });
+}
+
+/** Media deliveries share one daily quota ('media_send'), counted after the send. */
+async function deliver(app, user, send) {
+  await app.packs.checkQuota(user.tg_id, 'media_send');
+  try {
+    await send();
+  } catch (e) {
+    const key = friendlyKey(e);
+    if (key !== 'err.generic') throw new UserError(key, { s: classify(e).retryAfter || 1 });
+    throw e;
+  }
+  await app.packs.countUsage(user.tg_id, 'media_send');
+  return { action: 'send' };
+}
+
+const stamp = (app) => new Date(app.clock.now() * 1000).toISOString().slice(0, 10).replace(/-/g, '');
+const FILE_EXTRA = { disable_content_type_detection: true };
+
+const ACT = {
+  telegram_static: (app, user, bytes, format, o) => act(app, user, bytes, format, 'static', o),
+  telegram_video: (app, user, bytes, format, o) => act(app, user, bytes, format, 'video', o),
+  animation: (app, user, bytes, format, o, info) => {
+    const v = info.tracks.find((t) => t.type === 'vide');
+    return deliver(app, user, () => app.tg.sendAnimation(user.tg_id, bytes, `wanger_${stamp(app)}.mp4`, { width: Math.round(v.width), height: Math.round(v.height), duration: Math.max(1, Math.round(info.durationMs / 1000)) }, 'studio_animation'));
+  },
+  gif: (app, user, bytes, format, o, info) => {
+    if (o.action === 'send') return deliver(app, user, () => app.tg.sendAnimation(user.tg_id, bytes, `wanger_${stamp(app)}.gif`, { type: 'image/gif', width: info.width, height: info.height }, 'studio_gif'));
+    // a real .gif file; if Telegram still turns it into an animation, the owner turns on flags.gif_zip
+    if (app.flag('gif_zip')) {
+      const zip = makeZip([{ name: `wanger_${stamp(app)}.gif`, data: bytes }], app.clock.now());
+      return deliver(app, user, () => app.tg.sendDocument(user.tg_id, zip, `wanger_${stamp(app)}_gif.zip`, { type: 'application/zip', extra: FILE_EXTRA }, 'studio_gif_zip'));
+    }
+    return deliver(app, user, () => app.tg.sendDocument(user.tg_id, bytes, `wanger_${stamp(app)}.gif`, { type: 'image/gif', extra: FILE_EXTRA }, 'studio_gif_file'));
+  },
+  webp_file: (app, user, bytes) => deliver(app, user, () => app.tg.sendDocument(user.tg_id, bytes, `wanger_${stamp(app)}.webp`, { type: 'image/webp', extra: FILE_EXTRA }, 'studio_webp_file')),
+  frames_zip: (app, user, bytes) => deliver(app, user, () => app.tg.sendDocument(user.tg_id, bytes, `wanger_frames_${stamp(app)}.zip`, { type: 'application/zip', extra: FILE_EXTRA }, 'studio_frames_zip')),
+  whatsapp_static: (app, user, bytes, format, o) => waAct(app, user, bytes, 'static', o),
+  whatsapp_animated: (app, user, bytes, format, o) => waAct(app, user, bytes, 'animated', o),
+  whatsapp_tray: async (app, user, bytes, format, o) => {
+    const pack = await app.whatsapp.own(user.tg_id, o.packId);
+    await app.whatsapp.setTray(user, pack, bytes);
+    return { action: 'wa_tray', packId: pack.id };
+  },
+};
+
+/** WhatsApp: new pack (name + publisher) or an existing one of this user, then add. */
+async function waAct(app, user, bytes, kind, o) {
+  const emojis = parseWaEmojis(o.emojis || '');
+  if (!emojis) throw new UserError('wa.err.emojis', { max: WHATSAPP.pack.emojiPerStickerMax });
+  let pack;
+  if (o.action === 'wa_new') {
+    const title = cleanWaText(o.title);
+    const publisher = cleanWaText(o.publisher, WHATSAPP.pack.publisherMaxChars);
+    if (!title || !publisher) throw new UserError('wa.err.meta', { max: WHATSAPP.pack.nameMaxChars });
+    pack = await app.whatsapp.create(user, { title, publisher, kind });
+  } else pack = await app.whatsapp.own(user.tg_id, o.packId);
+  const after = await app.whatsapp.add(user, pack, bytes, kind, emojis);
+  const left = Math.max(0, WHATSAPP.pack.minStickers - after.sticker_count);
+  return { action: o.action, packId: pack.id, count: after.sticker_count, needTray: !after.tray_file_id, left };
+}
+
 /** Checks the target first, then uploadStickerFile, then add / create / send. */
-async function act(app, user, bytes, format, emojis, o) {
+async function act(app, user, bytes, format, stickerFormat, o) {
+  const emojis = parseEmojiList(o.emojis || '') || ['⭐'];
   // nothing reaches Telegram unless the target is valid and the caller's own
   let target = null;
   let title = null;
@@ -167,28 +275,29 @@ async function act(app, user, bytes, format, emojis, o) {
   try {
     file = await app.tg.call('uploadStickerFile', {
       user_id: user.tg_id,
-      sticker: new InputFile(bytes, `sticker.${format}`, { type: format === 'png' ? 'image/png' : 'image/webp' }),
-      sticker_format: 'static',
+      sticker: new InputFile(bytes, `sticker.${format}`, { type: MIME[format] }),
+      sticker_format: stickerFormat,
     }, 'sticker_upload');
   } catch (e) {
     const key = friendlyKey(e);
     if (key !== 'err.generic') throw new UserError(key, { s: classify(e).retryAfter || 1 });
     throw e;
   }
-  const si = { file_id: file.file_id, file_unique_id: file.file_unique_id, format: 'static', emojis };
+  const si = { file_id: file.file_id, file_unique_id: file.file_unique_id, format: stickerFormat, emojis };
   if (o.action === 'send') {
     await app.tg.sticker(user.tg_id, file.file_id, null, 'studio_sticker');
     return { action: 'send' };
   }
   if (o.action === 'new') {
     const pack = await app.packs.create(user, title, si, 'made');
-    await app.tg.send(user.tg_id, { text: app.t('studio.n_new_pack', { title: pack.title, link: `https://t.me/addstickers/${pack.tg_name}` }) }, 'studio_done');
+    if (!o.quiet) await app.tg.send(user.tg_id, { text: app.t('studio.n_new_pack', { title: pack.title, link: `https://t.me/addstickers/${pack.tg_name}` }) }, 'studio_done');
     return { action: 'new', packId: pack.id, name: pack.tg_name, count: 1 };
   }
   if (o.action === 'add') {
     const pack = target;
     await app.packs.add(user, pack, si, 'made');
-    await app.tg.send(user.tg_id, { text: app.t('studio.n_added', { title: pack.title, n: pack.sticker_count, link: `https://t.me/addstickers/${pack.tg_name}` }) }, 'studio_done');
+    // batch mode sets quiet on every sticker but the last, so the chat gets one confirmation
+    if (!o.quiet) await app.tg.send(user.tg_id, { text: app.t('studio.n_added', { title: pack.title, n: pack.sticker_count, link: `https://t.me/addstickers/${pack.tg_name}` }) }, 'studio_done');
     return { action: 'add', packId: pack.id, name: pack.tg_name, count: pack.sticker_count };
   }
   throw new UserError('studio.err.bad_input');

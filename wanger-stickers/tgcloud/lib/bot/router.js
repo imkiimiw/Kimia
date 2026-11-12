@@ -8,6 +8,7 @@
 // callback_data table (ns:action:args, ≤ 64 bytes; see each module):
 //   m:*  menu         l:set  language     fj:check  gate        dm:*  delete my data
 //   st:* a sticker the user sent          pk:* packs  imp:* import  cp:* copy  mg:* merge  op:* bulk ops
+//   w:*  WhatsApp packs (lib/bot/wa_ui.js)
 //   pb:* publishing (creator)             pr:* review (owner + reviewers)
 //   a:*  admin panel (owner; a:home and a:q/a:qv also reviewers)
 import { decode, parseArgs } from '../core/codec.js';
@@ -17,6 +18,7 @@ import { system } from '../db/system.js';
 import { menuView, helpView, accountView, langView, deleteAskView, deleteMyData } from './ui.js';
 import * as packsUi from './packs_ui.js';
 import * as publishUi from './publish_ui.js';
+import * as waUi from './wa_ui.js';
 import * as panel from '../admin/panel.js';
 import * as channelsUi from '../admin/channels_ui.js';
 import * as broadcastUi from '../admin/broadcast_ui.js';
@@ -52,13 +54,14 @@ export const ROUTES = Object.freeze({
   ...coreRoutes,
   ...packsUi.routes,
   ...publishUi.routes,
+  ...waUi.routes,
   ...panel.routes,
   ...channelsUi.routes,
   ...broadcastUi.routes,
   ...publishAdmin.routes,
 });
 
-const STEP_HANDLERS = [packsUi.onStep, publishUi.onReviewStep, panel.onAdminStep, channelsUi.onChannelStep, broadcastUi.onBroadcastStep, publishAdmin.onPublishAdminStep];
+const STEP_HANDLERS = [packsUi.onStep, waUi.onWaStep, publishUi.onReviewStep, panel.onAdminStep, channelsUi.onChannelStep, broadcastUi.onBroadcastStep, publishAdmin.onPublishAdminStep];
 
 /* ------------------------------------------------------------------ helpers */
 

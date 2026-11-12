@@ -75,8 +75,12 @@ export function createTelegram({ log, onBlocked, api = sdkApi }) {
     editMarkup: (chatId, messageId, keyboard, view) => call('editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, reply_markup: keyboard || { inline_keyboard: [] } }, view),
     copy: (chatId, fromChatId, messageId, view) => call('copyMessage', { chat_id: chatId, from_chat_id: fromChatId, message_id: messageId }, view),
     forward: (chatId, fromChatId, messageId, view) => call('forwardMessage', { chat_id: chatId, from_chat_id: fromChatId, message_id: messageId }, view),
-    sendDocument: (chatId, bytes, filename, { type = 'application/octet-stream', caption = '' } = {}, view = 'document') => call('sendDocument', {
-      chat_id: chatId, document: new InputFile(bytes, filename, { type }), ...(caption ? { caption, parse_mode: 'HTML' } : {}),
+    /** extra: e.g. { disable_content_type_detection: true, disable_notification: true, reply_markup }. */
+    sendDocument: (chatId, bytes, filename, { type = 'application/octet-stream', caption = '', extra = {} } = {}, view = 'document') => call('sendDocument', {
+      chat_id: chatId, document: new InputFile(bytes, filename, { type }), ...(caption ? { caption, parse_mode: 'HTML' } : {}), ...extra,
+    }, view),
+    sendAnimation: (chatId, bytes, filename, { type = 'video/mp4', width, height, duration, caption = '' } = {}, view = 'animation') => call('sendAnimation', {
+      chat_id: chatId, animation: new InputFile(bytes, filename, { type }), ...(width ? { width, height } : {}), ...(duration ? { duration } : {}), ...(caption ? { caption, parse_mode: 'HTML' } : {}),
     }, view),
     fileContent: (fileId) => call('getFileContent', { file_id: fileId }, 'file'),
     getChat: (chatId) => call('getChat', { chat_id: chatId }, 'inspect'),

@@ -11,6 +11,7 @@ import media from '../tgcloud/endpoints/studio_media.js';
 import begin from '../tgcloud/endpoints/upload_begin.js';
 import chunk from '../tgcloud/endpoints/upload_chunk.js';
 import commit from '../tgcloud/endpoints/upload_commit.js';
+import { APP_URL as APP } from '../tgcloud/lib/config.js';
 
 const U = 750001;
 const V = 750002;
@@ -151,13 +152,18 @@ test('housekeeping removes expired jobs, uploads and their chunks', async () => 
   for (const t of ['jobs', 'job_chunks', 'uploads', 'upload_chunks']) assert.equal(h.one(`SELECT count(*) AS n FROM ${t}`).n, 0, t);
 });
 
-test('a static sticker can be opened in the Studio; videos are explained, not accepted', async () => {
+test('a static sticker can be opened in the Studio; a video gets the animated buttons', async () => {
   const h = setup();
   await h.ready(U);
   await h.sendSticker(U, h.tg.sticker());
   await h.tap(U, 'st:edit');
   assert.equal(h.one('SELECT source_kind FROM jobs').source_kind, 'sticker');
-  const mark = h.mark();
-  await h.send(U, null, { video: { file_id: 'V1', file_unique_id: 'VU1', width: 10, height: 10, duration: 3 } });
-  assert.ok(h.texts(U, mark).some((t) => /فاز بعد/.test(t)));
+  await h.send(U, null, { video: { file_id: 'V1', file_unique_id: 'VU1', width: 10, height: 10, duration: 3, mime_type: 'video/mp4', file_size: 5000 } });
+  const job = h.one("SELECT * FROM jobs WHERE source_kind = 'video'");
+  assert.ok(job);
+  const urls = h.lastButtons(U).map((b) => b.web_app && b.web_app.url);
+  assert.ok(urls.includes(`${APP}?job=${job.id}&mode=video`));
+  assert.ok(urls.includes(`${APP}?job=${job.id}&mode=video&quick=1`));
+  assert.ok(urls.includes(`${APP}?job=${job.id}&mode=gif`));
+  assert.ok(urls.includes(`${APP}?job=${job.id}&mode=wa`));
 });

@@ -2,10 +2,11 @@
  * Telegram sticker-pack rules (pure): names, titles, emojis, keywords, links, number lists.
  * Every number comes from limits.js.
  */
-import { TELEGRAM } from './limits.js';
+import { TELEGRAM, WHATSAPP } from './limits.js';
 import { base36, asciiDigits, tgLength } from './util.js';
 
 const SET = TELEGRAM.set;
+const WA = WHATSAPP.pack;
 
 /**
  * ws_<base36 user id>_<n>_by_<bot> — ASCII, starts with a letter, no "__", ≤ 64 chars.
@@ -107,3 +108,28 @@ export function parseNumberList(text, max) {
   }
   return [...set].sort((x, y) => x - y);
 }
+
+/* ---------------- WhatsApp packs ---------------- */
+
+/** ws_<base36 user id>_w<n>: matches WhatsApp's identifier rule (a-z A-Z 0-9 _ - . space, < 128). */
+export function makeWaIdentifier(userId, n) {
+  const id = `ws_${base36(userId)}_w${n}`;
+  if (!new RegExp(WA.identifierPattern).test(id)) throw new Error(`bad identifier ${id}`);
+  return id;
+}
+
+/** Pack name or publisher for WhatsApp: one line, 1–128 characters. */
+export function cleanWaText(text, max = WA.nameMaxChars) {
+  const s = String(text ?? '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  if (!s || [...s].length > max) return null;
+  return s;
+}
+
+/** 1–3 emojis for a WhatsApp sticker (null when none or too many). */
+export const parseWaEmojis = (text) => parseEmojiList(text, WA.emojiPerStickerMax);
+
+/** File names inside the ZIP: 01.webp … 30.webp (ASCII; importers sort by name). */
+export const waFileName = (i) => `${String(i + 1).padStart(2, '0')}.webp`;
+
+/** A safe ASCII file name for the pack's ZIP from its identifier. */
+export const waZipName = (identifier, ext = 'zip') => `${String(identifier).replace(/[^A-Za-z0-9_.-]+/g, '_')}.${ext}`;

@@ -31,9 +31,10 @@ export const LANGS = Object.freeze(['fa', 'en']);
 export const DEFAULT_LANG = 'fa';
 
 /** Features with a flag; a button is shown only when its flag is on (brief §1 rule 7). */
-export const FEATURES = Object.freeze(['packs', 'pack_import', 'pack_publish', 'studio', 'gif_studio', 'convert', 'whatsapp', 'ai', 'gallery', 'payments']);
+// Append only: the admin panel addresses flags by their index in this list.
+export const FEATURES = Object.freeze(['packs', 'pack_import', 'pack_publish', 'studio', 'gif_studio', 'convert', 'whatsapp', 'ai', 'gallery', 'payments', 'video', 'wastickers', 'gif_zip']);
 /** Features with a daily free quota (counted only after success). */
-export const QUOTA_FEATURES = Object.freeze(['pack_create', 'sticker_add', 'pack_import', 'publish']);
+export const QUOTA_FEATURES = Object.freeze(['pack_create', 'sticker_add', 'pack_import', 'publish', 'media_send', 'wa_export']);
 
 /** Starting values of the owner-editable settings (key → value). */
 export const DEFAULTS = Object.freeze({
@@ -45,9 +46,12 @@ export const DEFAULTS = Object.freeze({
   'flags.pack_import': true,
   'flags.pack_publish': true,
   'flags.studio': true,
-  'flags.gif_studio': false,
-  'flags.convert': false,
-  'flags.whatsapp': false,
+  'flags.gif_studio': true, // Phase 3: GIF / MP4 making and sending
+  'flags.convert': true, // Phase 3: video → animated WebP, frames → ZIP
+  'flags.whatsapp': true, // Phase 3: WhatsApp packs
+  'flags.video': true, // Phase 3: Telegram video stickers (and animated inputs in the Studio)
+  'flags.wastickers': false, // .wastickers package: off until its format is checked with importer apps
+  'flags.gif_zip': false, // send the ".gif file" inside a ZIP (if Telegram turns the document into an animation)
   'flags.ai': false,
   'flags.gallery': false,
   'flags.payments': false,
@@ -55,6 +59,8 @@ export const DEFAULTS = Object.freeze({
   'quota.sticker_add': 300,
   'quota.pack_import': 20,
   'quota.publish': 2,
+  'quota.media_send': 100, // GIF / MP4 / files sent from the Studio to the chat
+  'quota.wa_export': 20, // WhatsApp ZIP exports
   'limits.packs_per_user': 50,
   'text.start.fa': '',
   'text.start.en': '',
@@ -84,6 +90,9 @@ export const SETTING_RANGES = Object.freeze({
   'publish.min_stickers': [1, 120],
   'publish.gap_sec': [3, 3600],
   'publish.republish_days': [0, 365],
+  // append only (the panel addresses these by index)
+  'quota.media_send': [0, 10000],
+  'quota.wa_export': [0, 1000],
 });
 
 /** Internal timings and caps (not owner-editable). */

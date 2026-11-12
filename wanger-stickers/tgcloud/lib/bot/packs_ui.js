@@ -29,6 +29,7 @@ export async function listView(app, page = 0) {
   rows.push(nav);
   rows.push([btn(app.tp('pk.btn_new'), 'pk', 'new')]);
   if (app.flag('pack_import')) rows.push([btn(app.tp('pk.btn_import'), 'pk', 'imp')]);
+  if (app.flag('whatsapp')) rows.push([btn(app.tp('wa.btn_list', { n: await app.whatsapp.count(u(app).tg_id) }), 'w', 'list', 0)]);
   rows.push([btn(app.tp('common.menu'), 'm', 'home')]);
   return { text: total ? app.t('pk.list', { n: total }) : app.t('pk.list_empty'), keyboard: markup(rows) };
 }
@@ -107,7 +108,7 @@ export async function onSticker(app, message) {
   await app.state.set(chat, 'st_pick', { si, set: s.set_name || null });
   const rows = await packPicker(app, 'st', 'add');
   rows.push([btn(app.tp('st.btn_new'), 'st', 'new')]);
-  if (app.flag('studio') && !s.is_animated && !s.is_video) rows.push([btn(app.tp('st.btn_edit'), 'st', 'edit')]);
+  if (app.flag('studio') && (!(s.is_animated || s.is_video) || app.flag('video') || app.flag('gif_studio'))) rows.push([btn(app.tp('st.btn_edit'), 'st', 'edit')]);
   const foreign = s.set_name && !String(s.set_name).toLowerCase().endsWith(`_by_${BOT_USERNAME.toLowerCase()}`);
   if (foreign && app.flag('pack_import')) rows.push([btn(app.tp('st.btn_import_set'), 'st', 'imp')]);
   rows.push([btn(app.tp('common.cancel'), 'm', 'home')]);
@@ -116,38 +117,69 @@ export async function onSticker(app, message) {
 }
 
 /** The Studio link for a job (Mini App URL with ?job=<id>; quick = good defaults, straight to export). */
-const studioUrl = (job, quick = false) => `${APP_URL}?job=${job.id}${quick ? '&quick=1' : ''}`;
-const studioButtons = (app, job) => markup([
-  [{ text: app.tp('media.btn_open'), web_app: { url: studioUrl(job) } }],
-  [{ text: app.tp('media.btn_quick'), web_app: { url: studioUrl(job, true) } }],
-]);
+const studioUrl = (job, quick = false, mode = '') => `${APP_URL}?job=${job.id}${mode ? `&mode=${mode}` : ''}${quick ? '&quick=1' : ''}`;
+const wa = (text, url) => [{ text, web_app: { url } }];
 
-/** Photos and image files → a job for the Studio; videos, GIFs, round videos come in Phase 3. */
+/** Buttons that fit the job's kind; only features whose flag is on (brief §1 rule 7). */
+export function studioButtons(app, job) {
+  const rows = [];
+  if (!ANIMATED_KINDS.has(job.source_kind)) {
+    rows.push(wa(app.tp('media.btn_open'), studioUrl(job)));
+    rows.push(wa(app.tp('media.btn_quick'), studioUrl(job, true)));
+    if (app.flag('whatsapp')) rows.push(wa(app.tp('media.btn_wa'), studioUrl(job, false, 'wa')));
+    return markup(rows);
+  }
+  if (app.flag('video')) {
+    rows.push(wa(app.tp('media.btn_video'), studioUrl(job, false, 'video')));
+    rows.push(wa(app.tp('media.btn_video_quick'), studioUrl(job, true, 'video')));
+  }
+  if (app.flag('gif_studio')) rows.push(wa(app.tp('media.btn_gif'), studioUrl(job, false, 'gif')));
+  if (app.flag('whatsapp')) rows.push(wa(app.tp('media.btn_wa_anim'), studioUrl(job, false, 'wa')));
+  return markup(rows);
+}
+
+const ANIMATED_KINDS = new Set(['video', 'animation', 'video_note', 'gif', 'video_sticker', 'tgs']);
+const VIDEO_MIME = /^video\/(mp4|webm|quicktime|x-matroska)$/;
+
+/** What a chat message carries, as a job source (null = nothing the Studio opens). */
+export function mediaSource(message) {
+  if (message.photo && message.photo.length) {
+    const p = message.photo[message.photo.length - 1];
+    return { file_id: p.file_id, kind: 'photo', mime: 'image/jpeg', size: p.file_size || 0 };
+  }
+  if (message.video_note) return { file_id: message.video_note.file_id, kind: 'video_note', mime: 'video/mp4', size: message.video_note.file_size || 0 };
+  if (message.animation) return { file_id: message.animation.file_id, kind: 'animation', mime: message.animation.mime_type || 'video/mp4', size: message.animation.file_size || 0 };
+  if (message.video) return { file_id: message.video.file_id, kind: 'video', mime: message.video.mime_type || 'video/mp4', size: message.video.file_size || 0 };
+  const d = message.document;
+  if (d) {
+    const mime = d.mime_type || '';
+    if (mime === 'image/gif') return { file_id: d.file_id, kind: 'gif', mime, size: d.file_size || 0 };
+    if (/^image\/(jpeg|png|webp|heic|heif)$/.test(mime)) return { file_id: d.file_id, kind: 'image', mime, size: d.file_size || 0 };
+    if (VIDEO_MIME.test(mime)) return { file_id: d.file_id, kind: 'video', mime, size: d.file_size || 0 };
+  }
+  return null;
+}
+
+/** Photos, images, videos, GIFs and round videos → a job for the Studio, with buttons for its kind. */
 export async function onOtherMedia(app, message) {
   const chat = u(app).tg_id;
-  if (!app.flag('studio')) {
+  const src = mediaSource(message);
+  const animated = src && ANIMATED_KINDS.has(src.kind);
+  const on = animated ? app.flag('video') || app.flag('gif_studio') || app.flag('whatsapp') : app.flag('studio');
+  if (!app.flag('studio') || !on) {
     await app.tg.send(chat, { text: app.t('media.studio_soon') }, 'media_soon');
     return 'media_soon';
   }
-  let src = null;
-  if (message.photo && message.photo.length) {
-    const p = message.photo[message.photo.length - 1];
-    src = { file_id: p.file_id, kind: 'photo', mime: 'image/jpeg', size: p.file_size || 0 };
-  } else if (message.document && /^image\/(jpeg|png|webp|heic|heif|gif)$/.test(message.document.mime_type || '')) {
-    const d = message.document;
-    if (d.mime_type === 'image/gif') src = null;
-    else src = { file_id: d.file_id, kind: 'image', mime: d.mime_type, size: d.file_size || 0 };
-  }
   if (!src) {
-    await app.tg.send(chat, { text: app.t('media.video_soon') }, 'media_video_soon');
-    return 'media_video_soon';
+    await app.tg.send(chat, { text: app.t('media.unsupported') }, 'media_unsupported');
+    return 'media_unsupported';
   }
   if (src.size > TELEGRAM.files.downloadMaxBytes) {
-    await app.tg.send(chat, { text: app.t('media.too_big', { mb: TELEGRAM.files.downloadMaxBytes / 1048576 }), keyboard: markup([[{ text: app.tp('media.btn_pick'), web_app: { url: `${APP_URL}?mode=sticker` } }]]) }, 'media_too_big');
+    await app.tg.send(chat, { text: app.t('media.too_big', { mb: TELEGRAM.files.downloadMaxBytes / 1048576 }), keyboard: markup([wa(app.tp('media.btn_pick'), `${APP_URL}?mode=${animated ? 'video' : 'sticker'}`)]) }, 'media_too_big');
     return 'media_too_big';
   }
   const job = await app.transfer.createJob(u(app), src);
-  await app.tg.send(chat, { text: app.t('media.open_job'), keyboard: studioButtons(app, job) }, 'media_job');
+  await app.tg.send(chat, { text: app.t(animated ? `media.open_${src.kind === 'video_note' ? 'round' : 'anim'}` : 'media.open_job'), keyboard: studioButtons(app, job) }, 'media_job');
   app.stats.count(`studio.job.${src.kind}`);
   return 'media_job';
 }
@@ -186,9 +218,10 @@ export const routes = {
     args: [],
     run: async (app) => {
       const { si } = await stickerFromState(app);
-      if (si.format !== 'static') throw new UserError('st.not_regular');
-      const job = await app.transfer.createJob(u(app), { file_id: si.file_id, kind: 'sticker', mime: 'image/webp', size: 0 });
-      await app.tg.send(u(app).tg_id, { text: app.t('media.open_job'), keyboard: studioButtons(app, job) }, 'media_job');
+      const kind = si.format === 'video' ? 'video_sticker' : si.format === 'animated' ? 'tgs' : 'sticker';
+      const mime = { sticker: 'image/webp', video_sticker: 'video/webm', tgs: 'application/x-tgsticker' }[kind];
+      const job = await app.transfer.createJob(u(app), { file_id: si.file_id, kind, mime, size: 0 });
+      await app.tg.send(u(app).tg_id, { text: app.t(kind === 'sticker' ? 'media.open_job' : 'media.open_anim'), keyboard: studioButtons(app, job) }, 'media_job');
     },
   },
   'st:imp': {

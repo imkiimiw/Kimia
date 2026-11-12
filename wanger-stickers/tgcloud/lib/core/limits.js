@@ -144,7 +144,26 @@ export const PLATFORM = Object.freeze({
 export const SIZE_TARGETING = Object.freeze({
   maxQualitySearchEncodes: 6,
   fpsLadder: Object.freeze([30, 24, 20, 15]),
+  /** WhatsApp animated starts lower (10 s of frames must fit 500 KB; DECISIONS D2 measured 10 fps for 3 s). */
+  waFpsLadder: Object.freeze([15, 12, 10, 8]),
 });
 
-export const LIMITS = Object.freeze({ TELEGRAM, WHATSAPP, PLATFORM, SIZE_TARGETING, CHECKED_ON, SOURCES });
+/**
+ * OUR caps for files the Studio sends to the user's chat (not Telegram rules: Telegram allows 50 MB
+ * uploads). Kept below the 20 MB the transfer protocol was sized for (DECISIONS D5).
+ */
+export const OUTPUT = Object.freeze({
+  /** H.264 MP4 without sound → sendAnimation (Telegram shows it as a GIF). */
+  animation: Object.freeze({ format: 'mp4', codec: 'avc1', maxBytes: 20 * MB, maxSide: 1280, maxDurationMs: 60000 }),
+  /** A real .gif (sendAnimation converts it; sendDocument keeps the file). */
+  gif: Object.freeze({ format: 'gif', maxBytes: 20 * MB, maxSide: 800, maxDurationMs: 30000, minDelayMs: 20 }),
+  /** Animated WebP sent as a file (video → animated WebP). */
+  webp: Object.freeze({ format: 'webp', maxBytes: 20 * MB, maxSide: 1024 }),
+  /** ZIP of PNG frames. */
+  zip: Object.freeze({ format: 'zip', maxBytes: 20 * MB, maxEntries: 300 }),
+  /** Telegram video sticker / WhatsApp clip windows the timeline offers. */
+  clip: Object.freeze({ telegramMaxMs: TELEGRAM.video.maxDurationMs, whatsappMaxMs: WHATSAPP.animated.maxDurationMs }),
+});
+
+export const LIMITS = Object.freeze({ TELEGRAM, WHATSAPP, PLATFORM, SIZE_TARGETING, OUTPUT, CHECKED_ON, SOURCES });
 export default LIMITS;
