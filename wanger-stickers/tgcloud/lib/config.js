@@ -16,10 +16,10 @@ export const OWNER_ID = 5557901897;
 export const SPIKE_TESTER_IDS = /** @type {number[]} */ ([]);
 
 /**
- * The bot's username, read from getMe in Phase 0 (see docs/SPIKE_REPORT.md). Pack names end in
- * `_by_<BOT_USERNAME>`. `null` until the bot is linked; Phase 1 also caches getMe in settings.
+ * The bot's username (getMe in Phase 0, see docs/SPIKE_REPORT.md). Pack names end in
+ * `_by_<BOT_USERNAME>`; Phase 1 re-reads getMe once and warns the owner if it ever differs.
  */
-export const BOT_USERNAME = /** @type {string | null} */ (null);
+export const BOT_USERNAME = 'Wanger_Motionbot'; // getMe, measured 2026-11-12 (id 9292593567)
 
 /** Forced-join channels seeded on first run, as data (the owner edits them in the admin panel). */
 export const SEED_CHANNELS = ['@HIDE_i_SEEK', '@Nepenthw_ir', '@wangerBots'];

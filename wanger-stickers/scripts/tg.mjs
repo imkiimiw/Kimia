@@ -3,8 +3,9 @@
 //   npm run deploy                   = npm run build, then `tg push` (never migrate)
 //
 // - The CLI access token (app<id>:<secret> from BotFather → the bot → Serverless → CLI Access — NOT
-//   the bot token) comes ONLY from the environment variable WangerStickers_BOT_TGCLOUD_TOKEN and is
-//   handed to the CLI as TGCLOUD_TOKEN for this child process only. It is never printed, logged or
+//   the bot token) comes ONLY from the environment variable WangerStickers_BOT_TGCLOUD_TOKEN or, as the
+//   owner set it up (2026-11-12), Motion_BOT_TGCLOUD_TOKEN (app9292593567), and is handed to the CLI
+//   as TGCLOUD_TOKEN for this child process only. It is never printed, logged or
 //   written to disk. A generic TGCLOUD_TOKEN is ignored on purpose: this repository holds several
 //   bots and that token could belong to any of them.
 // - The CLI acts on the nearest folder with a `.tgcloud/` directory. This script runs from
@@ -18,19 +19,22 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const TOKEN_VAR = 'WangerStickers_BOT_TGCLOUD_TOKEN';
+export const TOKEN_VARS = ['WangerStickers_BOT_TGCLOUD_TOKEN', 'Motion_BOT_TGCLOUD_TOKEN'];
+export const APP_ID = '9292593567'; // this bot's tgcloud app; a token for any other app is refused
 const CLI = path.join(ROOT, 'node_modules/@tgcloud/cli/bin/tgcloud.js');
 
 /** Environment for a CLI child process, or an error message. */
 export function cliEnv() {
-  const token = (process.env[TOKEN_VAR] || '').trim(); // pasted values often carry stray spaces
+  const name = TOKEN_VARS.find((v) => (process.env[v] || '').trim());
+  const token = name ? process.env[name].trim() : ''; // pasted values often carry stray spaces
   if (!fs.existsSync(CLI)) return { error: 'The tgcloud CLI is not installed: run `npm install` in wanger-stickers/ first.' };
   if (!/^app\d+:\S+$/.test(token)) {
-    return { error: `${TOKEN_VAR} is missing or is not a CLI access token (app<id>:<secret>). Get it from BotFather → the bot → Serverless → CLI Access.` };
+    return { error: `${TOKEN_VARS.join(' / ')} is missing or is not a CLI access token (app<id>:<secret>). Get it from BotFather → the bot → Serverless → CLI Access.` };
   }
+  if (!token.startsWith(`app${APP_ID}:`)) return { error: `${name} belongs to another tgcloud app (expected app${APP_ID}); refusing to run.` };
   fs.mkdirSync(path.join(ROOT, '.tgcloud'), { recursive: true });
   const env = { ...process.env, TGCLOUD_TOKEN: token };
-  delete env[TOKEN_VAR];
+  for (const v of TOKEN_VARS) delete env[v];
   if (process.env.HTTPS_PROXY || process.env.https_proxy) env.NODE_USE_ENV_PROXY = '1';
   return { env };
 }

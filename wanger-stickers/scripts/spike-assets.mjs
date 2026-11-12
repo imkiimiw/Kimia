@@ -1,5 +1,7 @@
 // Phase 0: adds the spike's extra static files to dist/ AFTER `vite build`:
-//   dist/spike/blob-<n>mb.bin   random files to find the static hosting per-file limit
+//   dist/spike/blob-<n>mb.json  large valid JSON files to find the static hosting per-file limit
+//                               (random-byte .bin/.wasm files were refused by push with
+//                               "Internal error" on 2026-11-12; real wasm/onnx files were accepted)
 //   dist/spike/blobs.json       the list the spike page reads
 //   dist/spike/models/u2netp.onnx  U²-Netp (Apache-2.0 weights, 4.7 MB) — self-hosted model test
 //
@@ -25,8 +27,11 @@ fs.mkdirSync(CACHE, { recursive: true });
 
 const sizes = (process.env.SPIKE_BLOBS || '1,5,10,20').split(',').map(Number).filter((n) => n > 0 && n <= 64);
 for (const mb of sizes) {
-  const file = path.join(OUT, `blob-${mb}mb.bin`);
-  fs.writeFileSync(file, crypto.randomBytes(mb * 1024 * 1024));
+  const file = path.join(OUT, `blob-${mb}mb.json`);
+  const n = mb * 1024 * 1024;
+  const head = `{"spike":${mb},"pad":"`;
+  const body = crypto.randomBytes(n).toString('base64').slice(0, n - head.length - 2);
+  fs.writeFileSync(file, head + body + '"}'); // exactly n bytes
 }
 fs.writeFileSync(path.join(OUT, 'blobs.json'), JSON.stringify(sizes));
 

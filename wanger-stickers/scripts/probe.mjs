@@ -21,6 +21,13 @@ const CTX = "{ initData: { user: { id: 5557901897 } } }";
 // Ladders: each step is one `tgcloud run`; a ladder stops at its first failure (that is the limit).
 const PLAN = {
   globals: [{}],
+  ownerMenu: [{}],
+  mem: [{ n: 64 }, { n: 128 }, { n: 256 }, { n: 512 }],
+  wasmValidate: [{}],
+  wasmModule: [{}],
+  dbBlobFine: [{ n: 0.375 }, { n: 0.5 }, { n: 0.625 }, { n: 0.75 }, { n: 0.875 }],
+  dbTextFine: [{ n: 1.5 }, { n: 2 }, { n: 2.5 }, { n: 3 }],
+  dbBlobResultFine: [{ n: 1.25 }, { n: 1.5 }, { n: 1.75 }],
   wasm: [{}],
   me: [{}],
   sha256: [{ n: 1 }, { n: 8 }, { n: 20 }],
@@ -59,7 +66,8 @@ try {
     }
     results[name] = [];
     for (const params of steps) {
-      const input = JSON.stringify({ test: name, ...params });
+      const alias = { dbBlobFine: 'dbBlobParam', dbTextFine: 'dbTextParam', dbBlobResultFine: 'dbBlobResult' };
+      const input = JSON.stringify({ test: alias[name] || name, ...params });
       const t0 = Date.now();
       const r = runCli(['run', 'endpoints/zz_probe', input, '--ctx', CTX], { capture: true });
       const entry = { params, code: r.code, wallMs: Date.now() - t0, stdout: r.stdout.slice(-4000), stderr: r.stderr.slice(-2000) };

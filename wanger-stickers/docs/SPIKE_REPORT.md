@@ -14,8 +14,8 @@ Legend: **Official** = stated on an official page today · **Measured** = observ
 | Read docs and the other Wanger bots | ✅ done | §2, §6. Reuse map in DECISIONS D7. |
 | Look for Wanger Account | ✅ done | **Nothing exists** in the repository (no hub, contract or notes) → local provider only (§5). |
 | Re-check every Telegram / WhatsApp number | ✅ done | All in `tgcloud/lib/core/limits.js`; 6 additions/corrections vs the brief (§2). |
-| tgcloud measurements on this bot | ⏳ **pending** | No `WangerStickers_BOT_TGCLOUD_TOKEN` in this session. `npm run probe` is ready (read-only, deploys nothing). Facts measured by the other bots: §3. |
-| Device spikes inside Telegram (Android, iOS, Desktop) | ⏳ **pending** | Needs one push to a test bot (your OK). The spike page is built and was run in a local headless Chromium as a baseline (§4). |
+| tgcloud measurements on this bot | ✅ 2026-11-12 | **§3a**. Bot = **@Wanger_Motionbot** (id 9292593567). CPU 3 s, wall ≈ 30 s, ≥ 512 MB, one SQL value < 1 MB, static files served only < 16 MiB. |
+| Device spikes inside Telegram (Android, iOS, Desktop) | ⏳ waiting for Kimi | Spike pushed (revision 1–5, approved 2026-11-12) to https://app9292593567.tgcloud.ai/; menu button «Spike» in the owner's chat. Local headless Chromium baseline: §4. |
 | VP9 + alpha with WebCodecs | ✅ baseline | Chromium's WebCodecs **refuses alpha** for VP9; **two encoders (colour + alpha plane) + our own WebM muxer** give a transparent VP9 sticker: 96–161 KB, ≈ 0.5 s for 3 s / 512 px / 30 fps; plays with transparency in Chromium and decodes with alpha in ffmpeg. |
 | VP9 + alpha with ffmpeg.wasm (single-thread) | ❌ baseline | The GPL 0.12.10 core crashed Chromium while loading (headless shell) / `memory access out of bounds` (full Chromium). Not needed on the Chromium path; iOS decides whether we need any fallback. |
 | Animated WebP | ✅ baseline | libwebp's own WebPAnimEncoder (WASM): 233 KB for 3 s at 10 fps. 10 s clips need ≤ 8 fps or simpler art for WhatsApp's 500 KB (§4.3). |
@@ -61,6 +61,34 @@ button press with a message only that user sees, even in place of the original m
 keep chats clean later; nothing changed for stickers. The Serverless page still documents no cron,
 no runtime environment variables, no secrets store and **no static hosting size limits**; it does
 not mention WebAssembly or Web Crypto.
+
+## 3a. Measured on this bot (@Wanger_Motionbot, app9292593567) — 2026-11-12
+
+Token: the owner put this bot's CLI token in `Motion_BOT_TGCLOUD_TOKEN`; `scripts/tg.mjs` accepts it
+and refuses any token of another app. Raw output: [probe-results.json](probe-results.json).
+
+| Area | Result |
+|---|---|
+| Bot | `getMe` → id 9292593567, **@Wanger_Motionbot**, "Wanger Motion", `can_join_groups: true`, inline mode off, no Main Mini App yet. Cloud project was empty (revision 0). |
+| CPU | 5·10⁸ loop iterations OK (1.8 s); 10·10⁸ → `Terminated: CPU timer exceeded` at **3006 ms** |
+| Wall clock | 3 chained 9 s HTTP waits OK (27.8 s); 4 → HTTP 500 at 31 s → **≈ 30 s** |
+| Memory | 512 MB of typed arrays OK; building a 21 MB base64 *string* from 16 MB → `Terminated: Memory limit exceeded` (strings are the risk, not typed arrays) |
+| Globals | present: `WebAssembly`, `crypto` (`subtle`, `randomUUID`, `getRandomValues`), `TextEncoder/Decoder`, `Intl`, **`SharedArrayBuffer`, `Atomics`**, `WeakRef`. Absent: `URL`, `atob/btoa`, `structuredClone`, `CompressionStream`, `DecompressionStream`, `ReadableStream`, `Blob`, `Response`, `Headers`, `AbortController`, timers, `performance`, `Buffer`, `process` |
+| WebAssembly | `validate` and `new WebAssembly.Module` work; the combined instantiate + 64 MB `Memory` test hung until the 30 s limit (not needed: no media server-side) |
+| SHA-256 (`crypto.subtle`) | 1 MB 2 ms, 8 MB 6 ms; 20 MB → `data is too large` |
+| Pure-JS base64 | encode 1 MB 29 ms · 8 MB 339 ms; decode 1 MB 6 ms · 8 MB 28 ms |
+| **One SQL parameter** | blob ≤ 896 KB OK, **1 MB blob → `Max serialized size reached`**; text 1 MB OK, 1.5 MB → `Sqlite error`, 4 MB → `Max serialized size reached` |
+| One SQL result | a 1.75 MB blob comes back fine; 2 MB → HTTP 500 after 30 s |
+| `tgcloud run` output | 8 MB fine |
+| Gate channels | the three channels exist (@HIDE_i_SEEK −1002407928564, @Nepenthw_ir −1001816009903, @wangerBots −1001910797391), but **@Wanger_Motionbot is not an admin in any of them** (`getChatMember` → "member list is inaccessible") → must be added as admin before the gate works |
+| **Static hosting: push** | accepts files of 30 MB; **refuses random-byte files** (`.bin` and `.wasm` of random bytes → `Internal error`; real `.wasm`/`.onnx`/`.json` files go through). A failed push is atomic (nothing deployed), already-uploaded files are reused on the next push |
+| **Static hosting: serving** | 15 MiB → 200; **16 MiB and more → HTTP 500** (although push accepted them). The ORT wasm (14.8 MB) is served; hashed assets get `cache-control: public, max-age=31536000, immutable`, `index.html` `max-age=0, must-revalidate`; no `X-Frame-Options`/COOP/COEP headers; `spa` fallback works; `/api/*` needs valid init data (401 otherwise) |
+| Endpoint HTTP request/response size | still pending: needs the device run inside Telegram (signed init data) |
+
+Consequences: upload chunks are stored as blobs **≤ 512 KB** (D5); every static file must stay
+**< 15 MiB** (a build guard in Phase 2); the bot must be made admin in the gate channels; the
+platform now has `SharedArrayBuffer`, but the Mini App's browser side still isn't cross-origin
+isolated (that is a browser property, not a platform one).
 
 ## 3. Telegram Serverless facts
 

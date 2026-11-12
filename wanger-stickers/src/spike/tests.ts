@@ -444,7 +444,7 @@ export async function staticHosting(): Promise<Result> {
   for (const mb of list) {
     const t0 = now();
     try {
-      const r = await fetch(`/spike/blob-${mb}mb.bin`, { cache: 'no-store' });
+      const r = await fetch(`/spike/blob-${mb}mb.json`, { cache: 'no-store' });
       const n = r.ok ? (await r.arrayBuffer()).byteLength : 0;
       out.push({ mb, status: r.status, ok: n === mb * 1048576, ms: ms(t0), mbps: n ? Math.round((n * 8) / 1048.576 / Math.max(1, ms(t0))) / 1 : 0 });
     } catch (e) {

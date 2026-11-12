@@ -90,6 +90,33 @@ const TESTS = {
     };
   },
 
+  /* One typed array of n MB, touched (memory cap). */
+  async mem({ n = 64 }) {
+    const parts = [];
+    for (let i = 0; i < n / 16; i++) {
+      const a = new Uint8Array(16 * 1024 * 1024);
+      a[a.length - 1] = 1;
+      parts.push(a);
+    }
+    return { mb: n, chunks: parts.length };
+  },
+
+  /* Phase 0 helper: a menu button that opens the spike page, in the OWNER's chat only. */
+  async ownerMenu({ url = 'https://app9292593567.tgcloud.ai/', text = 'Spike' }) {
+    const ok = await api.setChatMenuButton({ chat_id: 5557901897, menu_button: { type: 'web_app', text, web_app: { url } } });
+    const now = await api.getChatMenuButton({ chat_id: 5557901897 });
+    return { ok, now };
+  },
+
+  async wasmValidate() {
+    return { validate: WebAssembly.validate(WASM_ADD) };
+  },
+
+  async wasmModule() {
+    const m = new WebAssembly.Module(WASM_ADD);
+    return { exports: WebAssembly.Module.exports(m).map((e) => e.name) };
+  },
+
   async wasm() {
     if (!has('WebAssembly')) return { available: false };
     const out = { available: true, validate: WebAssembly.validate(WASM_ADD) };

@@ -1,0 +1,452 @@
+{
+  "globals": [
+    {
+      "params": {},
+      "code": 0,
+      "wallMs": 1102,
+      "stdout": "> zz_probe({test:'globals'})\n< {present:['WebAssembly','crypto','TextEncoder','TextDecoder','Intl','SharedArrayBuffer','Atomics','WeakRef','FinalizationRegistry'],absent:['URL','URLSearchParams','atob','btoa','structuredClone','CompressionStream','DecompressionStream','ReadableStream','Blob','Response','Headers','AbortController','setTimeout','setInterval','queueMicrotask','performance','Buffer','process'],subtle:true,randomUUID:true,getRandomValues:true}  4ms\n",
+      "stderr": "(node:392) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "globals:at": "2026-11-12T03:07:00.897Z",
+  "wasm": [
+    {
+      "params": {},
+      "code": 1,
+      "wallMs": 31098,
+      "stdout": "> zz_probe({test:'wasm'})\n✗ Invalid response from server (not JSON). HTTP 500\n",
+      "stderr": "(node:403) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "wasm:at": "2026-11-12T03:07:31.995Z",
+  "me": [
+    {
+      "params": {},
+      "code": 0,
+      "wallMs": 1112,
+      "stdout": "> zz_probe({test:'me'})\n< {id:9292593567,username:'Wanger_Motionbot',first_name:'Wanger Motion',can_join_groups:true,supports_inline_queries:false,has_main_web_app:false}  30ms\n",
+      "stderr": "(node:420) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "me:at": "2026-11-12T03:07:33.107Z",
+  "sha256": [
+    {
+      "params": {
+        "n": 1
+      },
+      "code": 0,
+      "wallMs": 1128,
+      "stdout": "> zz_probe({test:'sha256',n:1})\n< {available:true,mb:1,ms:2,hex:'79741912'}  13ms\n",
+      "stderr": "(node:432) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 8
+      },
+      "code": 0,
+      "wallMs": 1133,
+      "stdout": "> zz_probe({test:'sha256',n:8})\n< {available:true,mb:8,ms:6,hex:'8c602537'}  26ms\n",
+      "stderr": "(node:443) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 20
+      },
+      "code": 1,
+      "wallMs": 1167,
+      "stdout": "> zz_probe({test:'sha256',n:20})\n✗ Uncaught exception: Error: Error: data is too large [endpoints/zz_probe:121:50]  at sha256 (endpoints/zz_probe:121:50)  39ms\n",
+      "stderr": "(node:454) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "sha256:at": "2026-11-12T03:07:36.536Z",
+  "base64": [
+    {
+      "params": {
+        "n": 1
+      },
+      "code": 0,
+      "wallMs": 1168,
+      "stdout": "> zz_probe({test:'base64',n:1})\n< {mb:1,encodeMs:29,decodeMs:6,ok:true}  44ms\n",
+      "stderr": "(node:466) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 2
+      },
+      "code": 0,
+      "wallMs": 1283,
+      "stdout": "> zz_probe({test:'base64',n:2})\n< {mb:2,encodeMs:51,decodeMs:9,ok:true}  71ms\n",
+      "stderr": "(node:477) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 4
+      },
+      "code": 0,
+      "wallMs": 1293,
+      "stdout": "> zz_probe({test:'base64',n:4})\n< {mb:4,encodeMs:135,decodeMs:18,ok:true}  169ms\n",
+      "stderr": "(node:488) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 8
+      },
+      "code": 0,
+      "wallMs": 1501,
+      "stdout": "> zz_probe({test:'base64',n:8})\n< {mb:8,encodeMs:339,decodeMs:28,ok:true}  390ms\n",
+      "stderr": "(node:499) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 16
+      },
+      "code": 1,
+      "wallMs": 2219,
+      "stdout": "> zz_probe({test:'base64',n:16})\n✗ Terminated: Memory limit exceeded  1127ms\n",
+      "stderr": "(node:510) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "base64:at": "2026-11-12T03:07:44.001Z",
+  "cpu": [
+    {
+      "params": {
+        "n": 5
+      },
+      "code": 0,
+      "wallMs": 2979,
+      "stdout": "> zz_probe({test:'cpu',n:5})\n< {units:5,x:1711656320}  1841ms\n",
+      "stderr": "(node:521) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 10
+      },
+      "code": 1,
+      "wallMs": 4080,
+      "stdout": "> zz_probe({test:'cpu',n:10})\n✗ Terminated: CPU timer exceeded  3006ms\n",
+      "stderr": "(node:532) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "cpu:at": "2026-11-12T03:07:51.060Z",
+  "dbBlobParam": [
+    {
+      "params": {
+        "n": 0.25
+      },
+      "code": 0,
+      "wallMs": 1098,
+      "stdout": "> zz_probe({test:'dbBlobParam',n:0.25})\n< {mb:0.25,row:{len:262144,t:'blob'},ms:8}  15ms\n",
+      "stderr": "(node:543) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 1
+      },
+      "code": 1,
+      "wallMs": 1184,
+      "stdout": "> zz_probe({test:'dbBlobParam',n:1})\n✗ Uncaught exception: Error: Max serialized size reached  10ms\n",
+      "stderr": "(node:554) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "dbBlobParam:at": "2026-11-12T03:07:53.342Z",
+  "dbBlobResult": [
+    {
+      "params": {
+        "n": 0.25
+      },
+      "code": 0,
+      "wallMs": 1184,
+      "stdout": "> zz_probe({test:'dbBlobResult',n:0.25})\n< {mb:0.25,type:'Uint8Array',len:262144,ms:6}  12ms\n",
+      "stderr": "(node:565) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 1
+      },
+      "code": 0,
+      "wallMs": 1204,
+      "stdout": "> zz_probe({test:'dbBlobResult',n:1})\n< {mb:1,type:'Uint8Array',len:1048576,ms:12}  19ms\n",
+      "stderr": "(node:576) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 2
+      },
+      "code": 1,
+      "wallMs": 31075,
+      "stdout": "> zz_probe({test:'dbBlobResult',n:2})\n✗ Invalid response from server (not JSON). HTTP 500\n",
+      "stderr": "(node:587) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "dbBlobResult:at": "2026-11-12T03:08:26.806Z",
+  "dbTextParam": [
+    {
+      "params": {
+        "n": 1
+      },
+      "code": 0,
+      "wallMs": 1147,
+      "stdout": "> zz_probe({test:'dbTextParam',n:1})\n< {mb:1,row:{len:1048576}}  15ms\n",
+      "stderr": "(node:602) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 4
+      },
+      "code": 1,
+      "wallMs": 1069,
+      "stdout": "> zz_probe({test:'dbTextParam',n:4})\n✗ Uncaught exception: Error: Max serialized size reached  7ms\n",
+      "stderr": "(node:614) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "dbTextParam:at": "2026-11-12T03:08:29.022Z",
+  "output": [
+    {
+      "params": {
+        "n": 1
+      },
+      "code": 0,
+      "wallMs": 1093,
+      "stdout": "> zz_probe({test:'output',n:1})\n< {mb:1,s:1048576}  4ms\n",
+      "stderr": "(node:625) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 4
+      },
+      "code": 0,
+      "wallMs": 1084,
+      "stdout": "> zz_probe({test:'output',n:4})\n< {mb:4,s:4194304}  4ms\n",
+      "stderr": "(node:637) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 8
+      },
+      "code": 0,
+      "wallMs": 1099,
+      "stdout": "> zz_probe({test:'output',n:8})\n< {mb:8,s:8388608}  4ms\n",
+      "stderr": "(node:648) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "output:at": "2026-11-12T03:08:32.299Z",
+  "chat": [
+    {
+      "params": {
+        "chat": "@HIDE_i_SEEK"
+      },
+      "code": 0,
+      "wallMs": 1245,
+      "stdout": "> zz_probe({test:'chat',chat:'@HIDE_i_SEEK'})\n< {id:-1002407928564,type:'channel',title:'HIDE & SEEK',username:'HIDE_i_SEEK',member:{error:400,description:'Bad Request: member list is inaccessible'}}  110ms\n",
+      "stderr": "(node:662) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "chat": "@Nepenthw_ir"
+      },
+      "code": 0,
+      "wallMs": 1351,
+      "stdout": "> zz_probe({test:'chat',chat:'@Nepenthw_ir'})\n< {id:-1001816009903,type:'channel',title:'\"Nepenthe',username:'Nepenthw_ir',member:{error:400,description:'Bad Request: member list is inaccessible'}}  223ms\n",
+      "stderr": "(node:673) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "chat": "@wangerBots"
+      },
+      "code": 0,
+      "wallMs": 1144,
+      "stdout": "> zz_probe({test:'chat',chat:'@wangerBots'})\n< {id:-1001910797391,type:'channel',title:'Wanger bots',username:'wangerBots',member:{error:400,description:'Bad Request: member list is inaccessible'}}  78ms\n",
+      "stderr": "(node:684) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "chat:at": "2026-11-12T03:08:36.039Z",
+  "wall": [
+    {
+      "params": {
+        "n": 2
+      },
+      "code": 0,
+      "wallMs": 19646,
+      "stdout": "> zz_probe({test:'wall',n:2})\n< {n:2,ms:18505}  18506ms\n",
+      "stderr": "(node:695) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 3
+      },
+      "code": 0,
+      "wallMs": 28833,
+      "stdout": "> zz_probe({test:'wall',n:3})\n< {n:3,ms:27759}  27760ms\n",
+      "stderr": "(node:707) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 4
+      },
+      "code": 1,
+      "wallMs": 31167,
+      "stdout": "> zz_probe({test:'wall',n:4})\n✗ Invalid response from server (not JSON). HTTP 500\n",
+      "stderr": "(node:723) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "wall:at": "2026-11-12T03:09:55.686Z",
+  "mem": [
+    {
+      "params": {
+        "n": 64
+      },
+      "code": 0,
+      "wallMs": 1108,
+      "stdout": "> zz_probe({test:'mem',n:64})\n< {mb:64,chunks:4}  5ms\n",
+      "stderr": "(node:780) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 128
+      },
+      "code": 0,
+      "wallMs": 1147,
+      "stdout": "> zz_probe({test:'mem',n:128})\n< {mb:128,chunks:8}  6ms\n",
+      "stderr": "(node:794) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 256
+      },
+      "code": 0,
+      "wallMs": 1092,
+      "stdout": "> zz_probe({test:'mem',n:256})\n< {mb:256,chunks:16}  8ms\n",
+      "stderr": "(node:805) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 512
+      },
+      "code": 0,
+      "wallMs": 1109,
+      "stdout": "> zz_probe({test:'mem',n:512})\n< {mb:512,chunks:32}  16ms\n",
+      "stderr": "(node:816) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "mem:at": "2026-11-12T03:10:33.280Z",
+  "wasmValidate": [
+    {
+      "params": {},
+      "code": 0,
+      "wallMs": 1071,
+      "stdout": "> zz_probe({test:'wasmValidate'})\n< {validate:true}  4ms\n",
+      "stderr": "(node:827) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "wasmValidate:at": "2026-11-12T03:10:34.352Z",
+  "wasmModule": [
+    {
+      "params": {},
+      "code": 0,
+      "wallMs": 1087,
+      "stdout": "> zz_probe({test:'wasmModule'})\n< {exports:['add']}  4ms\n",
+      "stderr": "(node:838) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "wasmModule:at": "2026-11-12T03:10:35.439Z",
+  "dbBlobFine": [
+    {
+      "params": {
+        "n": 0.375
+      },
+      "code": 0,
+      "wallMs": 1101,
+      "stdout": "> zz_probe({test:'dbBlobParam',n:0.375})\n< {mb:0.375,row:{len:393216,t:'blob'},ms:9}  17ms\n",
+      "stderr": "(node:849) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 0.5
+      },
+      "code": 0,
+      "wallMs": 1135,
+      "stdout": "> zz_probe({test:'dbBlobParam',n:0.5})\n< {mb:0.5,row:{len:524288,t:'blob'},ms:11}  18ms\n",
+      "stderr": "(node:860) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 0.625
+      },
+      "code": 0,
+      "wallMs": 1095,
+      "stdout": "> zz_probe({test:'dbBlobParam',n:0.625})\n< {mb:0.625,row:{len:655360,t:'blob'},ms:13}  21ms\n",
+      "stderr": "(node:871) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 0.75
+      },
+      "code": 0,
+      "wallMs": 1115,
+      "stdout": "> zz_probe({test:'dbBlobParam',n:0.75})\n< {mb:0.75,row:{len:786432,t:'blob'},ms:14}  22ms\n",
+      "stderr": "(node:882) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 0.875
+      },
+      "code": 0,
+      "wallMs": 1142,
+      "stdout": "> zz_probe({test:'dbBlobParam',n:0.875})\n< {mb:0.875,row:{len:917504,t:'blob'},ms:16}  25ms\n",
+      "stderr": "(node:893) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "dbBlobFine:at": "2026-11-12T03:10:41.029Z",
+  "dbTextFine": [
+    {
+      "params": {
+        "n": 1.5
+      },
+      "code": 1,
+      "wallMs": 1178,
+      "stdout": "> zz_probe({test:'dbTextParam',n:1.5})\n✗ Uncaught exception: Error: Sqlite error  18ms\n",
+      "stderr": "(node:904) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "dbTextFine:at": "2026-11-12T03:10:42.207Z",
+  "dbBlobResultFine": [
+    {
+      "params": {
+        "n": 1.25
+      },
+      "code": 0,
+      "wallMs": 1120,
+      "stdout": "> zz_probe({test:'dbBlobResult',n:1.25})\n< {mb:1.25,type:'Uint8Array',len:1310720,ms:15}  22ms\n",
+      "stderr": "(node:915) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 1.5
+      },
+      "code": 0,
+      "wallMs": 1142,
+      "stdout": "> zz_probe({test:'dbBlobResult',n:1.5})\n< {mb:1.5,type:'Uint8Array',len:1572864,ms:15}  20ms\n",
+      "stderr": "(node:926) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    },
+    {
+      "params": {
+        "n": 1.75
+      },
+      "code": 0,
+      "wallMs": 1094,
+      "stdout": "> zz_probe({test:'dbBlobResult',n:1.75})\n< {mb:1.75,type:'Uint8Array',len:1835008,ms:16}  21ms\n",
+      "stderr": "(node:937) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "dbBlobResultFine:at": "2026-11-12T03:10:45.563Z",
+  "ownerMenu": [
+    {
+      "params": {},
+      "code": 0,
+      "wallMs": 1246,
+      "stdout": "> zz_probe({test:'ownerMenu'})\n< {ok:true,now:{type:'web_app',text:'Spike',web_app:{url:'https://app9292593567.tgcloud.ai/'}}}  64ms\n",
+      "stderr": "(node:1700) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.\n(Use `node --trace-warnings ...` to show where the warning was created)\n- Running...\n"
+    }
+  ],
+  "ownerMenu:at": "2026-11-12T03:13:40.515Z"
+}
