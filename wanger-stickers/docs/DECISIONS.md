@@ -1,8 +1,24 @@
 # Decisions — Wanger Stickers
 
-**Status: PROPOSED (Phase 0, 2026-11-11) — waiting for Kimi's approval.** Nothing here is final
-until approved; open questions are marked ❓ and collected in §Q at the end. Evidence is in
+**Status: APPROVED by Kimi on 2026-11-12** ("تایید میکنم"), with her answers to §Q recorded in
+§A below — where §A differs from a section, §A wins. Evidence is in
 [SPIKE_REPORT.md](SPIKE_REPORT.md); the brief is [BRIEF.md](BRIEF.md).
+
+## A — Kimi's answers (2026-11-12)
+
+| Question | Answer | Effect |
+|---|---|---|
+| Q1 CLI token | Put in `Motion_BOT_TGCLOUD_TOKEN` | `scripts/tg.mjs` reads it (and `WangerStickers_BOT_TGCLOUD_TOKEN`), and refuses any token not for app9292593567 (@Wanger_Motionbot). |
+| Q2 Test push | Allowed | Spike pushed (revisions 1–5); a menu button «Spike» in the owner's chat only. |
+| Q3 Publish channel | **A new channel, set in the admin panel** (section «📢 کانال انتشار») | `publish.chat` setting; the bot must be an admin that can post (checked). |
+| Q3 Approval | **Manual** | Always; no auto mode in Phase 1. |
+| Q3 Who approves | **The owner, plus admins she adds** ("ادمین هم بتونم بیارم تایید کنه") | New role **reviewer** (`staff` table, `core/roles.js`): may approve / reject / remove publications and see the queue — nothing else. Banning from publishing stays owner-only. |
+| Q3 Creator credit | **The creator's name and @username are optional toggles** — shown only if the creator turns them on | Two toggles on the confirm screen, both off by default; stored per post (`show_name`, `show_username`). |
+| Q3 Post format | (not changed) | Format A: the pack's first sticker + URL buttons. |
+| Q4 iOS fallback | **Build a libvpx WASM encoder** (BSD) | Planned for Phase 3 (video stickers), only if the iPhone spike shows no VP9 `VideoEncoder`. |
+| Q5 GitHub Actions tick | **No** | Only piggyback, owner buttons and the Mini App tick (D8). |
+| Q6 Decisions | **Approved** | — |
+| Wanger Account / mother bot | (no answer) | Local provider only (D6). |
 
 ---
 
@@ -229,7 +245,7 @@ From the other bots' experience: `processed_updates` (update_id de-duplication),
 | — | sets have max 120 stickers (200 for emoji) | Bot API |
 | Phase 0 has no endpoints | two owner-only spike endpoints (`spike_echo`, `spike_report`), deleted in Phase 1 | measuring HTTP limits needs them |
 
-## Q — Questions for Kimi before Phase 1
+## Q — Questions for Kimi before Phase 1 (answered on 2026-11-12, see §A)
 
 1. **CLI token**: set `WangerStickers_BOT_TGCLOUD_TOKEN` (BotFather → the bot → Serverless → CLI
    Access) so I can run `npm run probe` and read the bot's username. Is `Motion_BOT_TGCLOUD_TOKEN`

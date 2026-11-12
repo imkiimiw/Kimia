@@ -155,31 +155,34 @@ The platform manages the bot's webhook for you, derived from your deployed
 
 ## This bot — Wanger Stickers
 
-A Telegram + WhatsApp sticker and GIF studio (bot + Mini App), part of Kimi's Wanger bots.
-The plan is [docs/BRIEF.md](docs/BRIEF.md) (phases in §14, owner addenda at the end); platform and
-device findings in [docs/SPIKE_REPORT.md](docs/SPIKE_REPORT.md); choices in
-[docs/DECISIONS.md](docs/DECISIONS.md) (PROPOSED until Kimi approves).
+A Telegram + WhatsApp sticker and GIF studio (bot + Mini App), part of Kimi's Wanger bots, on
+**@Wanger_Motionbot** (app9292593567). The plan is [docs/BRIEF.md](docs/BRIEF.md) (phases in §14,
+owner addenda at the end); decisions (approved 2026-11-12) in [docs/DECISIONS.md](docs/DECISIONS.md)
+— read its §A first; platform facts in [docs/SPIKE_REPORT.md](docs/SPIKE_REPORT.md) §3a; the code
+map is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-- **Phase 0 (discovery and spike) — no user features.** The Mini App is only the device spike page
-  (`src/spike/`); the two endpoints `spike_echo`/`spike_report` are owner-only spike tools and are
-  deleted in Phase 1. There are no handlers and no tables yet.
-- **This folder is its own tgcloud project** inside a repository with other bots. Run the CLI only
-  as `npm run tg -- <command>` from `wanger-stickers/`: it passes the CLI token from
-  `WangerStickers_BOT_TGCLOUD_TOKEN` and can't reach another bot. Never bare `npx tgcloud`.
+- **State: Phase 1 (core bot) built and tested, waiting for Kimi's OK to deploy.** The Mini App is
+  still the Phase 0 device spike page; its two endpoints `spike_echo`/`spike_report` are owner-only.
+- **This folder is its own tgcloud project.** Run the CLI only as `npm run tg -- <command>` from
+  `wanger-stickers/`: the token comes from `WangerStickers_BOT_TGCLOUD_TOKEN` or (Kimi's setup)
+  `Motion_BOT_TGCLOUD_TOKEN`, and a token for any other app is refused. Never bare `npx tgcloud`.
   Nothing outside `wanger-stickers/` changes without Kimi's OK.
-- **Owner = numeric id `5557901897`** (`tgcloud/lib/config.js`, `isOwner()`); check it on every admin
-  command, callback and endpoint.
-- **All Telegram/WhatsApp numbers live in `tgcloud/lib/core/limits.js`** (frozen, pure);
-  `src/engine/limits.ts` re-exports it. Never hard-code a limit elsewhere.
-- Pure modules (`tgcloud/lib/core/*`, `tgcloud/lib/config.js`) never import `sdk`; no dynamic
-  `import()` in `tgcloud/` — `tests/core.test.mjs` enforces both.
-- `src/engine/` (media engine) never imports React, Telegram or i18n. Heavy libraries are loaded
-  with `import()` inside the feature that needs them.
-- Measured platform facts (other Wanger bots, 2026-11-05/06): CPU ≈ 3 s per invocation; no
-  transactions, no scheduler, no module state between invocations; ≤ 4096 bound values and
-  ≤ 10 000 rows written per statement; `getChatMember` answers 400 "member not found" for
-  non-members. Re-measure here with `npm run probe`.
+- **Code map:** `handlers/*` (one line) → `lib/boundary.js` → `lib/bot/router.js` (order of checks
+  and the callback_data table) → `lib/bot/*_ui.js`, `lib/admin/*_ui.js` → services in
+  `lib/wanger/` and `lib/packs/` → SQL only in `lib/db/` → `sdk`. Bot API calls only through `lib/tg.js`.
+- **Owner = numeric id `5557901897`**; roles only in `lib/core/roles.js` (owner; reviewer = may
+  review publications, nothing else). Admin routes declare `perm` and also call `assertOwner`.
+- **All Telegram/WhatsApp numbers live in `tgcloud/lib/core/limits.js`**; owner-editable values in
+  `config.js` DEFAULTS (stored in `settings`); internal timings in `config.js` `T`.
+- Texts only in `lib/i18n/{fa,en}.js` (same keys; `t()` escapes, `tp()` plain); invisible characters
+  as `\u200c` escapes — `tests/guard.test.mjs` checks parity, coverage, escapes, callback sizes and
+  the ≤ 85 module budget.
+- No transactions, no scheduler: one statement per state change; background work in `lib/jobs.js`
+  (piggyback after the reply, owner buttons). Broadcasts and channel posts are at-most-once.
+- Pure modules (`tgcloud/lib/core/*`, `config.js`, `i18n/*`) never import `sdk`; no dynamic `import()`.
+- Handlers return `{ ok, result, tick, trace }`.
+- Tests: `npm test` (SDK emulation in `tests/sdk/`, strict fake Bot API with sticker sets in
+  `tests/helpers/`). Device spike: `npm run build:spike && npm run spike:local`.
 - Ask Kimi before: `push`, `migrate`, BotFather changes, deleting data, anything that messages real
   users or posts to a channel, adding GPL/AGPL/non-commercial components. Talk to Kimi in Persian;
   code, comments, commits and docs in English.
-- Tests: `npm test`. Device spike: `npm run build:spike && npm run spike:local` (local baseline).

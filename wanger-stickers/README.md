@@ -5,9 +5,15 @@ stickers into Telegram and WhatsApp stickers and GIFs. Runs entirely on
 [Telegram Serverless](https://core.telegram.org/bots/serverless); all media processing happens on
 the user's device inside the Mini App.
 
-> **Status: Phase 0 (discovery and spike).** No user features yet, nothing deployed. Read
-> [docs/SPIKE_REPORT.md](docs/SPIKE_REPORT.md) and the proposed [docs/DECISIONS.md](docs/DECISIONS.md).
-> The plan is [docs/BRIEF.md](docs/BRIEF.md).
+> **Status: Phase 1 (core bot) built and tested — not deployed yet.** Bot: @Wanger_Motionbot.
+> Owner's guide (Persian): [docs/ADMIN_GUIDE.fa.md](docs/ADMIN_GUIDE.fa.md) · code map:
+> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · decisions (approved): [docs/DECISIONS.md](docs/DECISIONS.md)
+> · platform facts: [docs/SPIKE_REPORT.md](docs/SPIKE_REPORT.md) · plan: [docs/BRIEF.md](docs/BRIEF.md).
+
+Phase 1 features: language choice (fa/en), forced join with resume, pack management by file_id
+(add, browse, reorder, emojis, keywords, replace, rename, icon, backup, import, copy, duplicate,
+merge, delete), publishing a pack to the community channel with manual review, and the owner panel
+(stats, broadcast, forced join, users, settings, flags, texts, maintenance, errors, keys, backup).
 
 ## Setup
 
@@ -16,7 +22,7 @@ Node.js ≥ 18 (tests use Node 22's TypeScript stripping).
 ```bash
 cd wanger-stickers
 npm install
-export WangerStickers_BOT_TGCLOUD_TOKEN='app<id>:<secret>'   # BotFather → bot → Serverless → CLI Access
+export WangerStickers_BOT_TGCLOUD_TOKEN='app<id>:<secret>'   # or Motion_BOT_TGCLOUD_TOKEN (BotFather → bot → Serverless → CLI Access)
 npm run tg -- status
 ```
 
@@ -35,7 +41,8 @@ in this repository. Never commit the token or put it in a file inside the repo.
 | `npm run build:spike` | build + the spike's large test files and the U²-Netp model in `dist/spike/` |
 | `npm run spike:local` | run the spike page in a local headless Chromium (baseline only) |
 | `npm run deploy` | build, then `tg push` — **ask Kimi first**; never migrates |
-| `npm run tg -- migrate` | apply `tgcloud/schema.js` (interactive; **ask Kimi first**; never `--yes` on warnings) |
+| `npm run tg -- migrate --local --dry-run` | show what the database would change (applies nothing) |
+| `npm run tg -- migrate --local --safe` | apply additive schema changes (**ask Kimi first**; never `--yes` on warnings) |
 
 ## BotFather (when Phase 1 starts)
 

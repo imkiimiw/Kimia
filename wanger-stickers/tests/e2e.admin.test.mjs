@@ -3,7 +3,7 @@
 // duplicates". Plus the owner's panel actually working.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, OWNER, SEED, advance } from './helpers/harness.mjs';
+import { setup, OWNER, advance } from './helpers/harness.mjs';
 import { ROUTES } from '../tgcloud/lib/bot/router.js';
 import { ADMIN_STEPS } from '../tgcloud/lib/admin/panel.js';
 
