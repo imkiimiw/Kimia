@@ -480,6 +480,39 @@
   margin-top: 4px;
 }
 
+.bot-note {
+  margin: -4px 0 0;
+  font-size: 12px;
+}
+
+.invite-sheet h2 {
+  margin-bottom: 4px;
+}
+
+.invite-sheet .hint {
+  margin: 0 0 16px;
+}
+
+.invite-link {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 12.5px;
+  direction: ltr;
+  word-break: break-all;
+  user-select: all;
+  -webkit-user-select: all;
+  display: grid;
+  place-items: center;
+  min-height: 40px;
+}
+
+.invite-link .spinner {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+}
+
 /* ---------- room chrome ---------- */
 
 .room {

@@ -101,7 +101,9 @@ export function startParam(): string {
   const p = W?.initDataUnsafe?.start_param;
   if (p) return String(p);
   try {
-    return new URLSearchParams(location.search).get('tgWebAppStartParam') || '';
+    /* ?sp=: the bot's own "open the game" buttons (web_app buttons carry no start_param) */
+    const q = new URLSearchParams(location.search);
+    return q.get('tgWebAppStartParam') || q.get('sp') || '';
   } catch {
     return '';
   }
@@ -120,20 +122,56 @@ export function openLink(url: string) {
 
 /*
  * Telegram's share dialog for a message the bot prepared with savePreparedInlineMessage (Bot API
- * 8.0+). Resolves with whether it was sent; rejects where the method isn't available.
+ * 8.0+). Resolves with { sent, error }: error is the client's reason when it wasn't sent
+ * (USER_DECLINED when the user closed the dialog; UNSUPPORTED, MESSAGE_EXPIRED, … otherwise).
+ * Rejects where the method isn't available at all.
  */
-export function shareMessage(id: string): Promise<boolean> {
+export function shareMessage(id: string): Promise<{ sent: boolean; error: string }> {
   return new Promise((resolve, reject) => {
     if (!W || !supports('8.0')) {
       reject(new Error('unsupported'));
       return;
     }
+    let error = '';
+    const onFail = (e: any) => {
+      error = String(e?.error || 'UNKNOWN_ERROR');
+    };
+    W.onEvent('shareMessageFailed', onFail);
     try {
-      W.shareMessage(id, (sent: boolean) => resolve(!!sent));
+      /* the callback runs just before the shareMessageFailed event: read the error a moment later */
+      W.shareMessage(id, (sent: boolean) => window.setTimeout(() => {
+        W.offEvent('shareMessageFailed', onFail);
+        resolve({ sent: !!sent, error });
+      }, 0));
     } catch (e) {
+      W.offEvent('shareMessageFailed', onFail);
       reject(e);
     }
   });
+}
+
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* not allowed in this webview: the old way below */
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch {
+    return false;
+  }
 }
 
 /*
@@ -178,6 +216,21 @@ export class ApiError extends Error {
   }
 }
 
+/*
+ * Reports a launch or a client-side failure to the server (the client_log table, shown in the owner
+ * panel): the only way to see what really happens inside Telegram's webviews. At most 25 a session.
+ */
+let logged = 0;
+export function logEvent(kind: string, data: Record<string, unknown> = {}) {
+  if (!W?.Serverless?.call || logged >= 25) return;
+  logged += 1;
+  try {
+    W.Serverless.call('clientLog', { kind, data: { ...data, p: W.platform, v: W.version } }, () => {});
+  } catch {
+    /* nothing to do */
+  }
+}
+
 /* Called when any endpoint says the user must join the channels first (the App shows the gate). */
 let notJoined: (channels: any[]) => void = () => {};
 export const onNotJoined = (cb: (channels: any[]) => void) => {
@@ -197,6 +250,8 @@ export function call<T = any>(name: string, input: Record<string, unknown> = {})
       }
       const e = new ApiError(err);
       if (e.code === 'NOT_JOINED') notJoined(e.params.channels || []);
+      /* the platform's own failures (not a game's refusals): unreachable, unauthorized, crashed */
+      if (err.type !== 'ENDPOINT_ERROR') logEvent('api-error', { name, type: String(err.type || ''), status: e.status, msg: String(err.message || '').slice(0, 120) });
       reject(e);
     });
   });

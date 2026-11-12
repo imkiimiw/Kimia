@@ -83,10 +83,13 @@ export async function joinStatus(ctx, userId, { force = false } = {}) {
   return { ok: false, missing };
 }
 
-/* The "join these channels" keyboard: one button per missing channel, then "I've joined". */
-export function joinKeyboard(lang, missing) {
+/*
+ * The "join these channels" keyboard: one button per missing channel, then "I've joined".
+ * `payload`: the game the user was on their way to (/start <payload>); it rides along in the button.
+ */
+export function joinKeyboard(lang, missing, payload = '') {
   const rows = missing.filter((m) => m.url).map((m) => [{ text: `📢 ${m.title}`, url: m.url }]);
-  rows.push([{ text: t(lang, 'join_check'), callback_data: 'jc' }]);
+  rows.push([{ text: t(lang, 'join_check'), callback_data: payload ? `jc:${payload}` : 'jc' }]);
   return rows;
 }
 

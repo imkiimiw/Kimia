@@ -54,6 +54,17 @@ export async function setSetting(key, value) {
     ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
 }
 
+/* Several settings in one statement. */
+export async function setSettings(obj) {
+  let values = null;
+  for (const [key, value] of Object.entries(obj)) {
+    const v = sql`(${key}, ${value === null ? null : String(value)})`;
+    values = values ? sql`${values}, ${v}` : v;
+  }
+  if (!values) return;
+  await db.run(sql`INSERT INTO settings (key, value) VALUES ${values} ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
+}
+
 /* ---------- forced-join channels ---------- */
 
 export async function listChannels() {
@@ -152,6 +163,19 @@ export async function leaderboard(game, userId, chat = null) {
     ? Number((await db.get(sql`SELECT count(*) AS n FROM stats WHERE game = ${game} AND score > ${me.score}`)).n) + 1
     : 0;
   return { top, me: me ? Number(me.score) : 0, rank };
+}
+
+/* ---------- the Mini App's own log ---------- */
+
+export async function addClientLog(userId, kind, data) {
+  const r = await db.run(sql`INSERT INTO client_log (user_id, at, kind, data) VALUES (${userId}, ${nowSec()}, ${kind}, ${data}) RETURNING id`);
+  const id = Number(r.rows[0].id);
+  if (id % 50 === 0) await db.run(sql`DELETE FROM client_log WHERE id <= ${id - 1000}`);
+}
+
+export async function recentClientLog(limit = 15) {
+  return db.all(sql`SELECT l.id, l.user_id, l.at, l.kind, l.data, u.first_name FROM client_log l
+    LEFT JOIN users u ON u.user_id = l.user_id ORDER BY l.id DESC LIMIT ${limit}`);
 }
 
 /* ---------- owner stats ---------- */

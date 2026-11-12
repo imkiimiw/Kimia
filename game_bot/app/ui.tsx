@@ -21,6 +21,7 @@ const ICONS: Record<string, string> = {
   backspace: 'M22 5H9l-6 7 6 7h13zM12 9l6 6M18 9l-6 6',
   undo: 'M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3',
   leave: 'M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l-5-5 5-5M5 12h11',
+  link: 'M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2',
 };
 
 export function Icon({ name, size = 22, fill = false }: { name: string; size?: number; fill?: boolean }) {

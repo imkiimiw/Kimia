@@ -61,11 +61,24 @@ export function act(state, seat, action) {
   return { state: s };
 }
 
-/* The move made for a player who ran out of time: a random free cell. */
+/*
+ * The bot's move (also made for a player who ran out of time): win if it can, else block, else the
+ * centre, a corner, anything — and one move in five is random, so it can be beaten.
+ */
 export function auto(state, seat, rng) {
   const free = [];
   for (let i = 0; i < 9; i += 1) if (state.b[i] === '.') free.push(i);
-  return { type: 'mark', cell: free[randInt(free.length, rng)] };
+  const completes = (mark) => free.find((i) => winLine(state.b.slice(0, i) + mark + state.b.slice(i + 1)));
+  let cell = completes(MARK[seat]);
+  if (cell === undefined && rng() < 0.2) cell = free[randInt(free.length, rng)];
+  if (cell === undefined) cell = completes(MARK[1 - seat]);
+  if (cell === undefined && state.b[4] === '.') cell = 4;
+  if (cell === undefined) {
+    const corners = free.filter((i) => i === 0 || i === 2 || i === 6 || i === 8);
+    const pool = corners.length ? corners : free;
+    cell = pool[randInt(pool.length, rng)];
+  }
+  return { type: 'mark', cell };
 }
 
 /* null while playing; else { winners: [seat], draw } for this round. */

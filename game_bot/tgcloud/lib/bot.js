@@ -5,16 +5,20 @@
  * Private messages: /start (welcome with the Play button, or the forced-join screen), /language,
  * /help, /admin (owner only — anyone else gets no response). The owner's next message may be an
  * input the panel asked for (a channel, a broadcast). Groups and channels are ignored.
- * Buttons: lg:<lang> (language), jc (re-check forced join), ad… / bc… (owner panel, owner only).
+ * /start <payload> is where an invitation link lands when the bot has no Main Mini App
+ * (links.js): the answer is a button that opens that game — after the forced-join screen if needed.
+ * Buttons: lg:<lang> (language), jc / jc:<payload> (re-check forced join), ad… / bc… (owner panel).
  * my_chat_member: a user blocking / unblocking the bot in private.
+ * The bot sets its own menu button and command list (ensureSetup), so BotFather isn't needed for them.
  */
 import { APP_URL, OWNER_ID } from './config.js';
 import { isAdminData, ownerCallback, ownerMessage, panel } from './admin.js';
 import { LANGS, t } from './i18n/index.js';
 import { joinKeyboard, joinStatus } from './join.js';
-import { appLink, botUsername } from './links.js';
+import { botInfo, openButton, parsePayload } from './links.js';
+import { loadRoom } from './rooms.js';
 import * as store from './store.js';
-import { answer, appBtn, btn, createCtx, edit, esc, send, short } from './tg.js';
+import { answer, btn, createCtx, edit, esc, send, short, tryCall } from './tg.js';
 
 function result(ctx) {
   const out = { trace: ctx.trace };
@@ -34,8 +38,56 @@ function parseCommand(text) {
 
 /* The welcome message's keyboard: Play (the Mini App), play with friends (inline mode), language. */
 async function mainKeyboard(ctx, lang) {
-  const play = APP_URL ? appBtn(t(lang, 'btn_play'), APP_URL) : { text: t(lang, 'btn_play'), url: appLink(await botUsername(ctx), '') };
+  const play = openButton(await botInfo(ctx), t(lang, 'btn_play'));
   return [[play], [{ text: t(lang, 'btn_friends'), switch_inline_query: '' }], [btn(t(lang, 'btn_language'), 'lg')]];
+}
+
+/*
+ * Once per SETUP version: the default menu button (opens the Mini App) and the command list in
+ * every language — set through the Bot API, so nothing has to be done in BotFather for them.
+ */
+const SETUP = '1';
+let setupDone = false;
+export async function ensureSetup(ctx) {
+  if (setupDone || !APP_URL) return;
+  const s = await store.getSettings();
+  if (s.setup === SETUP) {
+    setupDone = true;
+    return;
+  }
+  const commands = (lang) => ['start', 'language', 'help'].map((c) => ({ command: c, description: t(lang, `cmd_${c}`) }));
+  const menu = await tryCall(ctx, 'setChatMenuButton', { menu_button: { type: 'web_app', text: t('en', 'menu_play'), web_app: { url: APP_URL } } }, 'setup-menu');
+  let ok = !!menu;
+  if (!(await tryCall(ctx, 'setMyCommands', { commands: commands('en') }, 'setup-commands'))) ok = false;
+  for (const lang of LANGS.filter((l) => l !== 'en')) {
+    if (!(await tryCall(ctx, 'setMyCommands', { commands: commands(lang), language_code: lang }, 'setup-commands'))) ok = false;
+  }
+  if (ok) await store.setSetting('setup', SETUP);
+  setupDone = ok;
+}
+
+/* The menu button of one user's chat, in their language. */
+async function localMenu(ctx, userId, lang) {
+  if (!APP_URL || lang === 'en') return;
+  await tryCall(ctx, 'setChatMenuButton', { chat_id: userId, menu_button: { type: 'web_app', text: t(lang, 'menu_play'), web_app: { url: APP_URL } } }, 'menu');
+}
+
+/*
+ * The answer to /start <payload>: who invited the user to what, with a button that opens that game.
+ */
+async function openGame(ctx, user, payload, place = null) {
+  const lang = user.lang;
+  const p = parsePayload(payload);
+  const game = t(lang, `game_${p.game}`);
+  let text = t(lang, 'open_game', { game });
+  if (p.room) {
+    const room = await loadRoom(p.room);
+    const host = room && room.game === p.game ? room.seats.find((s) => s && !s.bot && s.id !== user.user_id) : null;
+    if (host) text = t(lang, 'open_invited', { name: esc(short(host.name)), game });
+  }
+  const rows = [[openButton(await botInfo(ctx), t(lang, 'inline_play'), payload)]];
+  if (place) await edit(ctx, place, text, rows, 'open-game');
+  else await send(ctx, user.user_id, text, rows, 'open-game');
 }
 
 function languageKeyboard() {
@@ -52,9 +104,9 @@ async function welcome(ctx, user, place = null) {
   else await send(ctx, user.user_id, text, rows, 'welcome');
 }
 
-async function joinScreen(ctx, lang, chatId, missing, place = null) {
+async function joinScreen(ctx, lang, chatId, missing, place = null, payload = '') {
   const text = t(lang, 'join_required');
-  const rows = joinKeyboard(lang, missing);
+  const rows = joinKeyboard(lang, missing, payload);
   if (place) await edit(ctx, place, text, rows, 'join');
   else await send(ctx, chatId, text, rows, 'join');
 }
@@ -78,6 +130,7 @@ async function handleMessage(ctx, message) {
   const lang = user.lang;
   const command = parseCommand(message.text);
   const isOwner = from.id === OWNER_ID;
+  await ensureSetup(ctx);
   if (isOwner && (await ownerMessage(ctx, lang, message, command && command.cmd))) return;
   if (command && command.cmd === 'admin') {
     if (isOwner) await panel(ctx, lang);
@@ -87,15 +140,22 @@ async function handleMessage(ctx, message) {
     await send(ctx, from.id, t(lang, 'choose_language'), languageKeyboard(), 'language');
     return;
   }
+  /* /start <payload>: an invitation link (or a solo game's link) brought the user here */
+  const payload = command && command.cmd === 'start' && parsePayload(command.args) ? command.args : '';
   const join = await joinStatus(ctx, from.id);
   if (!join.ok) {
-    await joinScreen(ctx, lang, from.id, join.missing);
+    await joinScreen(ctx, lang, from.id, join.missing, null, payload);
+    return;
+  }
+  if (payload) {
+    await openGame(ctx, user, payload);
     return;
   }
   if (command && command.cmd === 'help') {
     await send(ctx, from.id, t(lang, 'help'), await mainKeyboard(ctx, lang), 'help');
     return;
   }
+  if (command && command.cmd === 'start') await localMenu(ctx, from.id, lang);
   await welcome(ctx, user);
 }
 
@@ -131,18 +191,21 @@ async function handleCallback(ctx, cq) {
     if (!LANGS.includes(lang)) return;
     await store.setLang(cq.from.id, lang);
     await answer(ctx, t(lang, 'language_set'));
+    await tryCall(ctx, 'setChatMenuButton', { chat_id: cq.from.id, menu_button: { type: 'web_app', text: t(lang, 'menu_play'), web_app: { url: APP_URL } } }, 'menu');
     await welcome(ctx, { ...user, lang }, place);
     return;
   }
-  if (data === 'jc') {
+  if (data === 'jc' || data.startsWith('jc:')) {
+    const payload = parsePayload(data.slice(3)) ? data.slice(3) : '';
     const join = await joinStatus(ctx, cq.from.id, { force: true });
     if (!join.ok) {
       await answer(ctx, t(user.lang, 'join_missing'), true);
-      await joinScreen(ctx, user.lang, cq.from.id, join.missing, place);
+      await joinScreen(ctx, user.lang, cq.from.id, join.missing, place, payload);
       return;
     }
     await answer(ctx, t(user.lang, 'join_done'));
-    await welcome(ctx, user, place);
+    if (payload) await openGame(ctx, user, payload, place);
+    else await welcome(ctx, user, place);
   }
 }
 

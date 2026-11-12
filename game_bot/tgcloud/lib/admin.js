@@ -2,7 +2,7 @@
  * The owner panel, in the bot's private chat only (/admin and its buttons). bot.js lets only
  * OWNER_ID reach these functions; everyone else gets no response at all.
  *
- * callback_data: ad (panel) · ad:st (stats) · ad:bc (broadcast) · ad:ch (channels) · ad:ca (add a
+ * callback_data: ad (panel) · ad:st (stats) · ad:lg (the Mini App's log) · ad:bc (broadcast) · ad:ch (channels) · ad:ca (add a
  * channel) · ad:cr:<id> (remove?) · ad:cy:<id> (remove!) · ad:ct (forced join on/off) · ad:x (cancel
  * an input) · bc:ok:<id> (send the draft) · bc:no:<id> (drop it) · bc:nx:<id> (next batch) ·
  * bc:r:<id> (refresh) · bc:x:<id> (stop).
@@ -13,7 +13,7 @@ import { cancelBroadcast, createDraft, currentBroadcast, getBroadcast, progress,
 import { GAME_ICONS, num, t } from './i18n/index.js';
 import { bumpJoinRev, channelRef, channelTitle } from './join.js';
 import * as store from './store.js';
-import { answer, appBtn, btn, call, edit, esc, send, tryCall } from './tg.js';
+import { answer, appBtn, btn, call, edit, esc, send, short, tryCall } from './tg.js';
 
 const back = (lang) => [btn(t(lang, 'admin_back'), 'ad')];
 
@@ -30,7 +30,7 @@ async function screen(ctx, place, text, rows, view) {
 
 export async function panel(ctx, lang, place = null) {
   await store.setSetting('owner_state', '');
-  const rows = [[btn(t(lang, 'admin_stats'), 'ad:st')], [btn(t(lang, 'admin_broadcast'), 'ad:bc')], [btn(t(lang, 'admin_channels'), 'ad:ch')]];
+  const rows = [[btn(t(lang, 'admin_stats'), 'ad:st')], [btn(t(lang, 'admin_broadcast'), 'ad:bc')], [btn(t(lang, 'admin_channels'), 'ad:ch')], [btn(t(lang, 'admin_log'), 'ad:lg')]];
   await screen(ctx, place, t(lang, 'admin_title'), rows, 'admin');
 }
 
@@ -41,6 +41,16 @@ async function stats(ctx, lang, place) {
   const games = GAMES.map((g) => `${GAME_ICONS[g]} ${t(lang, `game_${g}`)}: ${num(lang, counts[`played_${g}`] || 0)}`).join('\n');
   const text = t(lang, 'admin_stats_text', { users: s.users, d7: s.d7, d30: s.d30, blocked: s.blocked, rooms: s.rooms, games });
   await screen(ctx, place, text, [[btn(t(lang, 'admin_stats'), 'ad:st')], back(lang)], 'admin-stats');
+}
+
+/* The Mini App's last reports: launches and client-side failures (client_log). */
+async function clientLogScreen(ctx, lang, place) {
+  const rows = await store.recentClientLog(15);
+  const now = store.nowSec();
+  const ago = (s) => (s < 90 ? `${s}s` : s < 5400 ? `${Math.round(s / 60)}m` : s < 129600 ? `${Math.round(s / 3600)}h` : `${Math.round(s / 86400)}d`);
+  const lines = rows.map((r) => `<code>${ago(now - Number(r.at))}</code> ${esc(short(r.first_name || String(r.user_id), 12))} <b>${esc(r.kind)}</b> ${esc(short(r.data || '', 110))}`);
+  const text = `${t(lang, 'admin_log_title')}\n\n${lines.length ? lines.join('\n') : '—'}`;
+  await screen(ctx, place, text, [[btn(t(lang, 'admin_bc_refresh'), 'ad:lg')], back(lang)], 'admin-log');
 }
 
 /* ---------- broadcast ---------- */
@@ -219,6 +229,7 @@ export async function ownerCallback(ctx, lang, data, place) {
     else if (action === 'st') await stats(ctx, lang, place);
     else if (action === 'bc') await broadcastMenu(ctx, lang, place);
     else if (action === 'ch') await channelsScreen(ctx, lang, place);
+    else if (action === 'lg') await clientLogScreen(ctx, lang, place);
     else if (action === 'x') await panel(ctx, lang, place);
     else if (action === 'ca') {
       if (await store.countChannels() >= MAX_CHANNELS) {

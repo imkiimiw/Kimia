@@ -56,9 +56,10 @@ function checkMarkup(markup, { inline = false } = {}) {
       if (b.callback_data !== undefined && (!b.callback_data || Buffer.byteLength(b.callback_data, 'utf8') > 64)) return 'BUTTON_DATA_INVALID';
       if (b.web_app && inline) return 'BUTTON_TYPE_INVALID'; // web_app buttons can't be sent in inline messages
       if (b.url !== undefined && !/^(https?|tg):\/\//.test(b.url)) return 'BUTTON_URL_INVALID';
-      if (b.url && /startapp=/.test(b.url)) {
-        const p = /startapp=([^&]*)/.exec(b.url)[1];
-        if (!/^[A-Za-z0-9_-]{1,64}$/.test(p)) return 'bad startapp parameter';
+      if (b.web_app && !/^https:\/\//.test(b.web_app.url || '')) return 'BUTTON_URL_INVALID';
+      if (b.url && /[?&]start(app)?=/.test(b.url)) {
+        const p = /[?&]start(?:app)?=([^&]*)/.exec(b.url)[1];
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(p)) return 'bad start parameter';
       }
     }
   }
@@ -78,6 +79,8 @@ export function createMockTelegram({ botId, botUsername = 'game_test_bot' }) {
     inlineAnswers: new Map(),
     nextInline: 1,
     floodAfter: Infinity, // copyMessage calls allowed before a 429
+    menuButtons: new Map(), // 'default' or chat id -> the menu button set with setChatMenuButton
+    commands: new Map(), // 'default' or language code -> commands
   };
   const k = (chat, id) => `${Number(chat)}:${Number(id)}`;
   const ok = (result) => ({ ok: true, result });
@@ -177,6 +180,21 @@ export function createMockTelegram({ botId, botUsername = 'game_test_bot' }) {
         if (m) return err(400, `Bad Request: ${m}`);
       }
       state.inlineAnswers.set(p.inline_query_id, p);
+      return ok(true);
+    },
+    setChatMenuButton: (p) => {
+      const b = p.menu_button;
+      if (!b || b.type !== 'web_app' || !b.text || !b.web_app || !/^https:\/\//.test(b.web_app.url || '')) return err(400, 'Bad Request: bad menu button');
+      if (p.chat_id !== undefined && !state.started.has(Number(p.chat_id))) return err(400, 'Bad Request: chat not found');
+      state.menuButtons.set(p.chat_id === undefined ? 'default' : Number(p.chat_id), b);
+      return ok(true);
+    },
+    setMyCommands: (p) => {
+      if (!Array.isArray(p.commands) || !p.commands.length) return err(400, 'Bad Request: commands are empty');
+      for (const c of p.commands) {
+        if (!/^[a-z0-9_]{1,32}$/.test(c.command) || !c.description || c.description.length > 256) return err(400, 'Bad Request: BOT_COMMAND_INVALID');
+      }
+      state.commands.set(p.language_code || 'default', p.commands);
       return ok(true);
     },
     savePreparedInlineMessage: (p) => {

@@ -107,6 +107,19 @@ export const fusionRuns = table('fusion_runs', {
   byCreated: index('idx_fusion_created').on(t.status, t.createdAt),
 }));
 
+/*
+ * What the Mini App reports about itself: one row per launch (platform, client version, how it was
+ * opened) and per client-side failure (an endpoint that couldn't be reached, a share dialog the
+ * client refused, a script error). The newest 1000 rows are kept. Shown in the owner panel.
+ */
+export const clientLog = table('client_log', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  at: integer('at').notNull(),
+  kind: text('kind').notNull(),
+  data: text('data'),
+});
+
 /* Forced-join channels (at most 10, managed from /admin). */
 export const channels = table('channels', {
   id: integer('id').primaryKey({ autoIncrement: true }),

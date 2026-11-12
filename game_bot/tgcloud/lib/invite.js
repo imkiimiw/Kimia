@@ -4,7 +4,7 @@
  * opening the room (where the players can rematch); once the room has closed, a new room.
  */
 import { GAME_ICONS, t } from './i18n/index.js';
-import { appLink, botUsername, payloadFor } from './links.js';
+import { botInfo, gameLink, payloadFor } from './links.js';
 import { newRoomId } from './rooms.js';
 import { edit, esc } from './tg.js';
 
@@ -27,6 +27,6 @@ export async function updateInvite(ctx, room) {
     payload = payloadFor(room.game, newRoomId());
     label = t(lang, 'inline_play_again');
   } else return;
-  const username = await botUsername(ctx);
-  await edit(ctx, { inline_message_id: room.inlineId }, text, [[{ text: label, url: appLink(username, payload) }]], `invite-${room.status}`);
+  const info = await botInfo(ctx);
+  await edit(ctx, { inline_message_id: room.inlineId }, text, [[{ text: label, url: gameLink(info, payload) }]], `invite-${room.status}`);
 }

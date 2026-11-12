@@ -71,7 +71,6 @@ const THEMES = {
   dark: { bg_color: '#17212b', secondary_bg_color: '#0e1621', section_bg_color: '#17212b', text_color: '#f5f5f5', hint_color: '#708499', link_color: '#73b9f5', button_color: '#5288c1', button_text_color: '#ffffff' },
 };
 
-/** Opens the Mini App as `user` (optionally with a startapp payload and a chat). */
 // Telegram's real telegram-web-app.js, so its own checks run in the tests: a method called with a
 // wrong argument throws here exactly as it does inside Telegram (a stand-in once hid such a bug).
 const TG_JS_FILE = path.join(OUT, 'telegram-web-app.js');
@@ -85,9 +84,12 @@ assert.ok(TG_JS.includes('Serverless') && TG_JS.includes('switchInlineQuery'), '
  * records what the app asks of the client (page.events). Endpoint calls arrive as Telegram's script
  * sends them (POST /api/<name>, "Authorization: TMA <base64 init data>") and are answered with the
  * platform's envelope. `version` / `inline` mimic older clients and launches without inline mode.
+ * `via`: 'link' = a direct link (start_param and the chat in the init data); 'button' = the bot's own
+ * web_app button (APP_URL?sp=<payload>: no start_param, no chat) — how invitations open when the bot
+ * has no Main Mini App.
  */
-async function open(user, { start = '', chat = 'chat-1', scheme = 'light', page: pageParam = '', version = '9.1', inline = false } = {}) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
+async function open(user, { start = '', chat = 'chat-1', scheme = 'light', page: pageParam = '', version = '9.1', inline = false, via = 'link' } = {}) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, permissions: ['clipboard-read', 'clipboard-write'] });
   await ctx.route('https://telegram.org/**', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: TG_JS }));
   await ctx.route('**/api/*', async (route) => {
     const req = route.request();
@@ -116,12 +118,18 @@ async function open(user, { start = '', chat = 'chat-1', scheme = 'light', page:
   await page.addInitScript(() => {
     window.TelegramWebviewProxy = { postEvent: (type, data) => window.__event(type, data) };
   });
-  const init = new URLSearchParams({ user: JSON.stringify(user), chat_instance: chat, chat_type: 'group', auth_date: '1700000000', hash: 'test' });
-  if (start) init.set('start_param', start);
+  const init = new URLSearchParams({ user: JSON.stringify(user), auth_date: '1700000000', hash: 'test' });
+  if (via === 'link') {
+    init.set('chat_instance', chat);
+    init.set('chat_type', 'group');
+    if (start) init.set('start_param', start);
+  } else {
+    init.set('query_id', 'AAtest');
+  }
   const launch = new URLSearchParams({ tgWebAppData: init.toString(), tgWebAppVersion: version, tgWebAppPlatform: 'android', tgWebAppThemeParams: JSON.stringify(THEMES[scheme]) });
   if (inline) launch.set('tgWebAppBotInline', '1');
   const search = new URLSearchParams();
-  if (start) search.set('tgWebAppStartParam', start);
+  if (start) search.set(via === 'link' ? 'tgWebAppStartParam' : 'sp', start);
   if (pageParam) search.set('page', pageParam);
   await page.goto(`${BASE}${search.toString() ? `?${search}` : ''}#${launch}`);
   page.events = events;
@@ -130,6 +138,12 @@ async function open(user, { start = '', chat = 'chat-1', scheme = 'light', page:
 
 /** The client answering an event, e.g. the share dialog reporting that the message was sent. */
 const clientSays = (page, type, data = {}) => page.evaluate(([t, d]) => window.Telegram.WebView.receiveEvent(t, d), [type, data]);
+
+/** Waits (up to 3 s) until `fn` is true. */
+async function until(fn) {
+  for (let i = 0; i < 30 && !fn(); i += 1) await new Promise((r) => setTimeout(r, 100));
+  assert.ok(fn(), `timed out waiting for: ${fn}`);
+}
 
 const shot = (page, name) => page.screenshot({ path: path.join(OUT, `${name}.png`) });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -179,16 +193,24 @@ await scenario('tic-tac-toe: two accounts play through the UI; the winner sees t
   const id = 'TttRoomAAAA1';
   const a = await open(users.sam, { start: `t_${id}` });
   await a.waitForSelector('.lobby');
-  await a.click('.lobby .btn.primary');
-  await a.waitForFunction(() => true);
-  for (let i = 0; i < 20 && !a.events.some((e) => e.type === 'web_app_send_prepared_message'); i += 1) await wait(100);
-  const share = a.events.find((e) => e.type === 'web_app_send_prepared_message');
-  assert.ok(share, `Invite opens Telegram's share dialog (events: ${a.events.map((e) => e.type).join(', ')})`);
-  const card = mock.state.prepared.find((x) => x.id === share.data.id);
-  assert.equal(card.result.reply_markup.inline_keyboard[0][0].url, `https://t.me/game_test_bot?startapp=t_${id}`);
-  await clientSays(a, 'prepared_message_sent');
-  await a.waitForSelector('.toast.good');
   await shot(a, '04-ttt-lobby');
+  // Invite: a sheet with "send in a chat" and "copy the link"
+  await a.click('.lobby .btn.primary');
+  await a.waitForSelector('.invite-sheet .invite-link:not(:has(.spinner))');
+  const link = `https://t.me/game_test_bot?start=t_${id}`;
+  assert.equal(await a.locator('.invite-link').textContent(), link);
+  await wait(500);
+  await shot(a, '04a-invite-sheet');
+  await a.click('.invite-sheet .btn.secondary');
+  await a.waitForSelector('.toast.good');
+  assert.equal(await a.evaluate(() => navigator.clipboard.readText()), link, 'the link is on the clipboard');
+  await a.click('.invite-sheet .btn.primary');
+  await until(() => a.events.some((e) => e.type === 'web_app_send_prepared_message'));
+  const share = a.events.find((e) => e.type === 'web_app_send_prepared_message');
+  const card = mock.state.prepared.find((x) => x.id === share.data.id);
+  assert.equal(card.result.reply_markup.inline_keyboard[0][0].url, link);
+  await clientSays(a, 'prepared_message_sent');
+  await a.waitForFunction(() => !document.querySelector('.invite-sheet'));
   const b = await open(users.nina, { start: `t_${id}` });
   await b.waitForSelector('.ttt-board');
   await a.waitForSelector('.ttt-board', { timeout: 5000 });
@@ -220,38 +242,66 @@ await scenario('invitation as people send it: the inviter only sends it; the fri
   await H.message({ message_id: 1, from: users.ali, chat: { id: users.ali.id, type: 'private' }, date: 0, text: '/start' });
   await H.inline_query({ id: 'iq-ui', from: users.ali, query: '', offset: '' });
   const url = mock.state.inlineAnswers.get('iq-ui').results[0].reply_markup.inline_keyboard[0][0].url;
-  const start = /startapp=(t_[A-Za-z0-9]{12})$/.exec(url)[1];
-  const friend = await open(users.nina, { start });
+  const start = /\?start=(t_[A-Za-z0-9]{12})$/.exec(url)[1];
+  // the friend's tap went through the bot chat (/start <payload>) and its "open the game" button
+  const friend = await open(users.nina, { start, via: 'button' });
   await friend.waitForSelector('.seat.away');
   assert.match(await friend.locator('.waiting').textContent(), /علی/);
   await wait(400);
   await shot(friend, '04b-invite-friend-waiting');
   const ping = mock.state.calls.find((c) => c.method === 'sendMessage' && c.params.chat_id === users.ali.id && /Nina/.test(c.params.text));
   assert.ok(ping, 'the inviter got a message that Nina is waiting');
-  const inviter = await open(users.ali, { start: /startapp=(.*)$/.exec(ping.params.reply_markup.inline_keyboard[0][0].url)[1] });
+  const inviter = await open(users.ali, { start: /\?sp=(.*)$/.exec(ping.params.reply_markup.inline_keyboard[0][0].web_app.url)[1], via: 'button' });
   await inviter.waitForSelector('.ttt-board');
   await friend.waitForSelector('.ttt-board', { timeout: 6000 });
   await friend.context().close();
   await inviter.context().close();
 });
 
-await scenario('Invite on older clients: the inline chat picker (with valid chat types), else Telegram\'s share sheet', async () => {
-  const id = 'TttRoomOld001';
-  const inl = await open(users.sam, { start: `t_${id.slice(0, 12)}`, version: '7.0', inline: true });
-  await inl.waitForSelector('.lobby');
-  await inl.click('.lobby .btn.primary');
-  for (let i = 0; i < 20 && !inl.events.some((e) => e.type === 'web_app_switch_inline_query'); i += 1) await wait(100);
-  const sw = inl.events.find((e) => e.type === 'web_app_switch_inline_query');
-  assert.deepEqual(sw && sw.data, { query: `room ${id.slice(0, 12)}`, chat_types: ['users', 'groups'] });
-  await inl.context().close();
-  const old = await open(users.sam, { start: `t_${id.slice(0, 12)}`, version: '7.0' });
-  await old.waitForSelector('.lobby');
-  await old.click('.lobby .btn.primary');
-  for (let i = 0; i < 20 && !old.events.some((e) => e.type === 'web_app_open_tg_link'); i += 1) await wait(100);
+await scenario('Invite when the share dialog fails or is missing: the client\'s refusal falls back to the chat picker, old clients to the share sheet', async () => {
+  const id = 'TttRoomOld01';
+  const send = async (p) => {
+    await p.waitForSelector('.lobby');
+    await p.click('.lobby .btn.primary');
+    await p.waitForSelector('.invite-sheet .invite-link:not(:has(.spinner))');
+    await p.click('.invite-sheet .btn.primary');
+  };
+  // a client that has the share dialog but refuses the message
+  const cur = await open(users.sam, { start: `t_${id}`, inline: true });
+  await send(cur);
+  await until(() => cur.events.some((e) => e.type === 'web_app_send_prepared_message'));
+  await clientSays(cur, 'prepared_message_failed', { error: 'UNSUPPORTED' });
+  await until(() => cur.events.some((e) => e.type === 'web_app_switch_inline_query'));
+  assert.deepEqual(cur.events.find((e) => e.type === 'web_app_switch_inline_query').data, { query: `room ${id}`, chat_types: ['users', 'groups'] });
+  // the refusal was reported to the server, where the owner can read it
+  await until(() => rawDatabase().prepare("SELECT count(*) AS n FROM client_log WHERE kind = 'invite' AND data LIKE '%UNSUPPORTED%'").get().n === 1);
+  await cur.context().close();
+  // the user closing the dialog is not a failure: nothing else opens
+  const dec = await open(users.sam, { start: `t_${id}`, inline: true });
+  await send(dec);
+  await until(() => dec.events.some((e) => e.type === 'web_app_send_prepared_message'));
+  await clientSays(dec, 'prepared_message_failed', { error: 'USER_DECLINED' });
+  await wait(400);
+  assert.ok(!dec.events.some((e) => e.type === 'web_app_switch_inline_query' || e.type === 'web_app_open_tg_link'));
+  await dec.context().close();
+  // an old client without the dialog, opened without inline mode: Telegram's share sheet with the link
+  const old = await open(users.sam, { start: `t_${id}`, version: '7.0' });
+  await send(old);
+  await until(() => old.events.some((e) => e.type === 'web_app_open_tg_link'));
   const link = old.events.find((e) => e.type === 'web_app_open_tg_link');
-  assert.ok(link, 'falls back to the share sheet');
-  assert.match(decodeURIComponent(link.data.path_full), new RegExp(`^/share/url\\?url=https://t\\.me/game_test_bot\\?startapp=t_${id.slice(0, 12)}`));
+  assert.match(decodeURIComponent(link.data.path_full), new RegExp(`^/share/url\\?url=https://t\\.me/game_test_bot\\?start=t_${id}`));
   await old.context().close();
+});
+
+await scenario('play against a bot from the lobby', async () => {
+  const p = await open(users.nina, { start: 't_BotRoom00001', via: 'button' });
+  await p.waitForSelector('.lobby');
+  await p.click('.lobby .btn.secondary');
+  await p.waitForSelector('.ttt-board');
+  await p.waitForSelector('.turn-banner.mine');
+  await p.locator('.ttt-cell').nth(4).click();
+  await p.waitForFunction(() => document.querySelectorAll('.ttt-cell .mark').length >= 2, null, { timeout: 6000 });
+  await p.context().close();
 });
 
 await scenario('backgammon: the board, dice and a turn played through the UI', async () => {
@@ -412,6 +462,8 @@ await scenario('no page errors, no server errors', async () => {
   // Telegram's script logs this when the fallback test tries the inline chat picker on a launch without inline mode.
   const expected = /Inline mode is disabled for this bot/;
   assert.deepEqual(pageErrors.filter((e) => !expected.test(e)), []);
+  const boots = rawDatabase().prepare("SELECT data FROM client_log WHERE kind = 'boot' ORDER BY id LIMIT 1").get();
+  assert.match(boots.data, /"p":"android"/, 'every launch is reported with the client\'s platform and version');
   assert.deepEqual(errors, []);
 });
 

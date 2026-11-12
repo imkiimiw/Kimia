@@ -140,9 +140,11 @@ function dropStale(room, t) {
   return changed;
 }
 
+/* Starts the game for the seats that are taken (a game with MIN_SEATS may start with some empty). */
 function start(room, rng, t) {
   const mod = MODS[room.game];
-  room.state = mod.create(room.opts, rng);
+  const seats = room.seats.map((s, i) => (s ? i : -1)).filter((i) => i >= 0);
+  room.state = mod.create({ ...room.opts, seats }, rng);
   room.status = 'playing';
   room.meta = { timeouts: new Array(mod.SEATS).fill(0), rematch: [], result: null, started: t };
   room.deadline = t + mod.TURN_SEC;
@@ -156,42 +158,58 @@ function finish(room, result) {
   room.meta.recorded = false;
 }
 
-/* The winners when `seat` leaves or times out once too often: the other side. */
+/*
+ * `seat` leaves or times out once too often. In a game for several players (LEAVER_BECOMES_BOT) a
+ * bot takes over and the others play on — unless nobody human is left, then the room closes.
+ * Otherwise the other side wins.
+ */
 function forfeit(room, seat) {
+  const mod = MODS[room.game];
+  if (mod.LEAVER_BECOMES_BOT) {
+    room.seats[seat] = { id: -(seat + 1), name: room.seats[seat].name, bot: true, left: true };
+    room.meta.timeouts[seat] = 0;
+    if (!humans(room).length) {
+      room.status = 'expired';
+      room.deadline = 0;
+    }
+    return;
+  }
   const winners = room.game === 'hokm'
     ? [0, 1, 2, 3].filter((i) => i % 2 !== seat % 2)
     : [1 - seat];
   finish(room, { winners, draw: false, forfeit: seat });
 }
 
-/* Bots, timeouts and the end of the game, as of now. Mutates `room`; true if anything changed. */
+/*
+ * Bots, timeouts and the end of the game, as of now. Mutates `room`; true if anything changed.
+ * A game where several players act at once (waiting(state): rock-paper-scissors) is handled seat
+ * by seat: bots first, then — once the deadline has passed — whoever still hasn't acted.
+ */
 export function advance(room, t, rng = Math.random) {
   if (room.status !== 'playing') return false;
   const mod = MODS[room.game];
   let changed = false;
-  for (let i = 0; i < 300; i += 1) {
+  for (let i = 0; i < 400; i += 1) {
     const out = mod.outcome(room.state);
     if (out) {
       finish(room, out);
       return true;
     }
-    const seat = mod.turn(room.state);
-    if (seat < 0) break;
-    const occupant = room.seats[seat];
-    let action;
-    if (occupant && occupant.bot) {
-      action = mod.auto(room.state, seat, rng);
-    } else if (room.deadline && t > room.deadline + GRACE_SEC) {
+    const seats = mod.waiting ? mod.waiting(room.state) : [mod.turn(room.state)].filter((x) => x >= 0);
+    if (!seats.length) break;
+    let seat = seats.find((x) => room.seats[x] && room.seats[x].bot);
+    if (seat === undefined) {
+      if (!(room.deadline && t > room.deadline + GRACE_SEC)) break;
+      seat = seats[0];
       room.meta.timeouts[seat] = (room.meta.timeouts[seat] || 0) + 1;
       if (room.meta.timeouts[seat] >= MAX_TIMEOUTS) {
         forfeit(room, seat);
-        return true;
+        if (room.status !== 'playing') return true;
+        changed = true;
+        continue; /* a bot sits there now */
       }
-      action = mod.auto(room.state, seat, rng);
-    } else {
-      break;
     }
-    const r = mod.act(room.state, seat, action, rng);
+    const r = mod.act(room.state, seat, mod.auto(room.state, seat, rng), rng);
     if (r.error) {
       console.error(`advance: ${room.game} auto action refused: ${r.error}`);
       break;
@@ -203,14 +221,24 @@ export function advance(room, t, rng = Math.random) {
   return changed;
 }
 
-/* Stats, counters and leaderboard points for a finished game (once: only the save that finished it calls this). */
+/*
+ * Stats, counters and leaderboard points for a finished game (once: only the save that finished it
+ * calls this). A game counts for the players only if people played against people: a win needs a
+ * human on the losing side too (so beating bots is practice, and gives no points).
+ */
 async function record(room) {
   const res = room.meta.result;
   if (!res) return;
-  for (const i of humans(room)) {
-    const won = res.winners.includes(i);
-    const add = { played: 1, wins: won ? 1 : 0, losses: !won && !res.draw ? 1 : 0, draws: res.draw ? 1 : 0, score: won ? POINTS.win : (res.draw ? POINTS.draw : 0) };
-    await recordResult(room.seats[i].id, room.game, add, room.chat);
+  const hs = humans(room);
+  const rated = res.draw
+    ? hs.length >= 2
+    : res.winners.some((i) => hs.includes(i)) && hs.some((i) => !res.winners.includes(i));
+  if (rated) {
+    for (const i of hs) {
+      const won = res.winners.includes(i);
+      const add = { played: 1, wins: won ? 1 : 0, losses: !won && !res.draw ? 1 : 0, draws: res.draw ? 1 : 0, score: won ? POINTS.win : (res.draw ? POINTS.draw : 0) };
+      await recordResult(room.seats[i].id, room.game, add, room.chat);
+    }
   }
   await bumpCounter(`played_${room.game}`);
 }
@@ -248,7 +276,11 @@ export function view(room, userId, t) {
     rematch: { votes: (meta.rematch || []).length, needed: humans(room).length, mine: (meta.rematch || []).includes(userId) },
     state: room.state ? mod.view(room.state, seat) : null,
   };
-  if (room.game === 'hokm' && room.status === 'waiting') out.botsIn = Math.max(0, room.createdAt + HOKM_BOTS_AFTER_SEC - t);
+  if (room.status === 'waiting') {
+    const here = room.seats.filter(present).length;
+    out.botsIn = room.game === 'hokm' ? Math.max(0, room.createdAt + HOKM_BOTS_AFTER_SEC - t) : 0;
+    out.canStart = !!mod.MIN_SEATS && here >= mod.MIN_SEATS && here < mod.SEATS;
+  }
   return out;
 }
 
@@ -336,7 +368,7 @@ export function tickChange(rng, t) {
   };
 }
 
-/* Lobby and end-of-game actions: leave, seat, opts, bots, rematch. */
+/* Lobby and end-of-game actions: leave, seat, opts, start, bots, rematch. */
 export function actionChange(userId, input, rng, t) {
   return (room) => {
     const seat = seatOf(room, userId);
@@ -354,6 +386,7 @@ export function actionChange(userId, input, rng, t) {
         }
         if (room.status === 'playing') {
           forfeit(room, seat);
+          advance(room, t, rng);
           return true;
         }
         return false;
@@ -371,10 +404,21 @@ export function actionChange(userId, input, rng, t) {
         room.opts = { ...room.opts, target: input.target };
         return true;
       }
-      case 'bots': {
-        if (room.game !== 'hokm' || room.status !== 'waiting') throw new RoomError('BAD_ACTION');
+      case 'start': {
+        /* a game for 2 to N players: start with those who are here */
+        if (room.status !== 'waiting' || !mod.MIN_SEATS) throw new RoomError('BAD_ACTION');
         if (leader(room) !== userId || seat < 0) throw new RoomError('NOT_CREATOR');
-        if (t < room.createdAt + HOKM_BOTS_AFTER_SEC) throw new RoomError('TOO_EARLY');
+        if (room.seats.filter(present).length < mod.MIN_SEATS) throw new RoomError('NEED_PLAYERS');
+        room.seats = room.seats.map((s) => (present(s) ? s : null));
+        start(room, rng, t);
+        advance(room, t, rng);
+        return true;
+      }
+      case 'bots': {
+        /* bots take every seat nobody has opened; in Hokm only after the wait for real players */
+        if (room.status !== 'waiting') throw new RoomError('BAD_ACTION');
+        if (leader(room) !== userId || seat < 0) throw new RoomError('NOT_CREATOR');
+        if (room.game === 'hokm' && t < room.createdAt + HOKM_BOTS_AFTER_SEC) throw new RoomError('TOO_EARLY');
         let k = 0;
         room.seats = room.seats.map((s) => {
           if (present(s)) return s; /* empty seats and reservations nobody opened get bots */

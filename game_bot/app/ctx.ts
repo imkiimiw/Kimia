@@ -28,5 +28,7 @@ export const SOLO_GAMES = ['codeword', 'fusion'];
 /* A seat's display name: bots are "Bot 1", "Bot 2" in the user's language. */
 export function seatName(seat: { name: string; bot?: boolean } | null | undefined, t: (k: string) => string, n: (x: number | string) => string) {
   if (!seat) return '';
-  return seat.bot ? `${t('lobby_bot')} ${n(seat.name)}` : seat.name;
+  if (!seat.bot) return seat.name;
+  /* a bot that took over from a player who left keeps that player's name */
+  return /^\d+$/.test(seat.name) ? `${t('lobby_bot')} ${n(seat.name)}` : `🤖 ${seat.name}`;
 }

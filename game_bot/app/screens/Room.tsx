@@ -4,7 +4,7 @@ import type { ComponentType } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { seatName, useApp } from '../ctx';
 import { n, rtl, t } from '../i18n';
-import { call, haptic, openLink, shareMessage, switchInline } from '../tg';
+import { call, copyText, haptic, logEvent, openLink, shareMessage, switchInline } from '../tg';
 import { Avatar, Button, GameArt, Icon, Overlay, Segmented, Spinner, TimerRing, toast } from '../ui';
 import { myTurn, type RoomView, useRoom } from '../useRoom';
 
@@ -44,6 +44,72 @@ function Seat({ seat, i, room, onSit }: { seat: RoomView; i: number; room: RoomV
   );
 }
 
+type Invite = { id: string | null; link: string; text: string };
+
+/*
+ * The invitation sheet: send it in a chat, or copy the link. "Send" tries Telegram's share dialog
+ * with the bot's invitation card, then the inline-mode chat picker, then the plain share sheet —
+ * and every step is reported (logEvent), so a client where one of them fails can be seen.
+ */
+function InviteSheet({ roomId, onClose }: { roomId: string; onClose: () => void }) {
+  const [inv, setInv] = useState<Invite | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    call<Invite>('prepareInvite', { room: roomId }).then(setInv).catch(() => setFailed(true));
+  }, []);
+
+  const send = async () => {
+    haptic.medium();
+    if (inv?.id) {
+      try {
+        const r = await shareMessage(inv.id);
+        if (r.sent) {
+          logEvent('invite', { step: 'sent' });
+          toast(t('lobby_invite_sent'), 'good');
+          onClose();
+          return;
+        }
+        if (!r.error || r.error === 'USER_DECLINED') return;
+        logEvent('invite', { step: 'share-failed', error: r.error });
+      } catch (e) {
+        logEvent('invite', { step: 'share-unavailable', error: String((e as Error)?.message || e) });
+      }
+    }
+    try {
+      switchInline(`room ${roomId}`);
+      logEvent('invite', { step: 'inline' });
+      return;
+    } catch (e) {
+      logEvent('invite', { step: 'inline-unavailable', error: String((e as Error)?.message || e) });
+    }
+    if (inv) openLink(`https://t.me/share/url?url=${encodeURIComponent(inv.link)}&text=${encodeURIComponent(inv.text)}`);
+    else toast(t('error_generic'), 'bad');
+  };
+
+  const copy = async () => {
+    if (!inv) return;
+    const ok = await copyText(inv.link);
+    if (ok) haptic.success();
+    logEvent('invite', { step: ok ? 'copied' : 'copy-failed' });
+    toast(t(ok ? 'invite_copied' : 'invite_copy_failed'), ok ? 'good' : 'bad');
+  };
+
+  return (
+    <div class="overlay" onClick={onClose}>
+      <div class="sheet invite-sheet" onClick={(e) => e.stopPropagation()}>
+        <h2>{t('lobby_invite')}</h2>
+        <p class="hint">{t('invite_how')}</p>
+        <div class="stack">
+          <Button block disabled={!inv && !failed} onClick={send}><Icon name="share" size={18} />{t('invite_send')}</Button>
+          <Button kind="secondary" block disabled={!inv} onClick={copy}><Icon name="link" size={18} />{t('invite_copy')}</Button>
+          {inv ? <div class="invite-link">{inv.link}</div> : !failed && <div class="invite-link"><Spinner /></div>}
+          <Button kind="ghost" block onClick={onClose}>{t('close')}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Lobby({ room, act, busy }: { room: RoomView; act: (i: Record<string, unknown>) => Promise<boolean>; busy: boolean }) {
   const { back } = useApp();
   const filled = room.seats.filter(Boolean).length;
@@ -58,38 +124,7 @@ function Lobby({ room, act, busy }: { room: RoomView; act: (i: Record<string, un
     return () => window.clearInterval(id);
   }, [room.ver, room.botsIn]);
 
-  /*
-   * Three ways to send the invitation, best first: Telegram's share dialog with the bot's card,
-   * the inline-mode chat picker, Telegram's plain share sheet with the link.
-   */
-  const invite = async () => {
-    haptic.medium();
-    let link = '';
-    let text = '';
-    try {
-      const r = await call('prepareInvite', { room: room.id });
-      link = r.link;
-      text = r.text;
-      if (r.id) {
-        try {
-          if (await shareMessage(r.id)) toast(t('lobby_invite_sent'), 'good');
-          return;
-        } catch {
-          /* not available here: next way */
-        }
-      }
-    } catch {
-      /* next way */
-    }
-    try {
-      switchInline(`room ${room.id}`);
-      return;
-    } catch {
-      /* next way */
-    }
-    if (link) openLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
-    else toast(t('error_generic'), 'bad');
-  };
+  const [inviting, setInviting] = useState(false);
   const sit = (i: number) => act({ action: 'seat', seat: i });
 
   return (
@@ -135,18 +170,26 @@ function Lobby({ room, act, busy }: { room: RoomView; act: (i: Record<string, un
 
       <div class="stack lobby-actions">
         {room.you >= 0 && (
-          <Button block onClick={invite}><Icon name="share" size={18} />{t('lobby_invite')}</Button>
+          <Button block onClick={() => { haptic.medium(); setInviting(true); }}><Icon name="share" size={18} />{t('lobby_invite')}</Button>
         )}
-        {room.game === 'hokm' && room.creator && room.you >= 0 && (
-          <Button kind="secondary" block disabled={busy || botsIn > 0} onClick={() => act({ action: 'bots' })}>
-            <Icon name="bot" size={18} />
-            {botsIn > 0 ? t('lobby_fill_in', { s: botsIn }) : t('lobby_fill_bots')}
+        {room.canStart && room.creator && room.you >= 0 && (
+          <Button kind="secondary" block disabled={busy} onClick={() => act({ action: 'start' })}>
+            <Icon name="play" size={16} fill />
+            {t('lobby_start_now', { n: room.seats.filter((s: RoomView) => s && s.here !== false).length })}
           </Button>
         )}
+        {room.creator && room.you >= 0 && (
+          <Button kind="secondary" block disabled={busy || botsIn > 0} onClick={() => act({ action: 'bots' })}>
+            <Icon name="bot" size={18} />
+            {botsIn > 0 ? t('lobby_fill_in', { s: botsIn }) : room.seats.length > 2 ? t('lobby_fill_bots') : t('lobby_play_bot')}
+          </Button>
+        )}
+        {room.creator && room.you >= 0 && <p class="hint center bot-note">{t('lobby_bot_note')}</p>}
         {room.you >= 0 && (
           <Button kind="ghost" block onClick={async () => { if (await act({ action: 'leave' })) back(); }}>{t('lobby_leave')}</Button>
         )}
       </div>
+      {inviting && <InviteSheet roomId={room.id} onClose={() => setInviting(false)} />}
     </div>
   );
 }

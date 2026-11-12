@@ -13,7 +13,7 @@ import { Ranks } from './screens/Ranks';
 import { Room } from './screens/Room';
 import { Settings } from './screens/Settings';
 import { Solo } from './screens/Solo';
-import { call, inTelegram, launchLang, onNotJoined, setBack, setSwipes, startParam } from './tg';
+import { call, inTelegram, launchLang, logEvent, onNotJoined, setBack, setSwipes, startParam, webApp } from './tg';
 import { Icon, Spinner, Toasts } from './ui';
 
 type Boot = { me: Me; join: { ok: boolean; missing?: { title: string; url: string | null }[] } };
@@ -58,6 +58,8 @@ export function App() {
         setMe(b.me);
         if (!b.join.ok) setMissing(b.join.missing || []);
         setStack(firstRoute(b.me));
+        const d = webApp?.initDataUnsafe || {};
+        logEvent('boot', { start: startParam(), via: d.chat_type ? `link:${d.chat_type}` : d.query_id ? 'button' : 'other', joined: b.join.ok });
       })
       .catch(() => setFailed('error'));
   }, []);

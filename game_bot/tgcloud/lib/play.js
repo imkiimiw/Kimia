@@ -8,7 +8,7 @@ import { fail } from './endpoint.js';
 import { t } from './i18n/index.js';
 import { updateInvite } from './invite.js';
 import { article } from './inline.js';
-import { appLink, botUsername, payloadFor } from './links.js';
+import { botInfo, gameLink, openButton, payloadFor } from './links.js';
 import { getUser } from './store.js';
 import { esc, send, tryCall } from './tg.js';
 import { actionChange, ensureRoom, joinChange, loadRoom, moveChange, mutate, newRoomId, tickChange, validRoomId, view } from './rooms.js';
@@ -27,12 +27,12 @@ export async function createRoom(input, env) {
 
 /* Tells invited players who haven't opened the room yet that someone is waiting for them there. */
 async function pingAbsent(env, room, out) {
-  const username = await botUsername(env.tg);
+  const info = await botInfo(env.tg);
   for (const id of out.ping) {
     const u = await getUser(id);
     if (!u || !u.started || u.blocked) continue;
     const text = t(u.lang, 'invite_ping', { name: esc(out.by), game: t(u.lang, `game_${room.game}`) });
-    await send(env.tg, id, text, [[{ text: t(u.lang, 'inline_play'), url: appLink(username, payloadFor(room.game, room.id)) }]], 'invite-ping');
+    await send(env.tg, id, text, [[openButton(info, t(u.lang, 'inline_play'), payloadFor(room.game, room.id))]], 'invite-ping');
   }
 }
 
@@ -54,9 +54,9 @@ export async function joinRoom(input, env) {
 export async function prepareInvite(input, env) {
   const room = await loadRoom(input.room);
   if (!room) throw fail('NO_ROOM');
-  const username = await botUsername(env.tg);
-  const link = appLink(username, payloadFor(room.game, room.id));
-  const result = article(env.user.lang, username, room.game, room.id, env.from);
+  const info = await botInfo(env.tg);
+  const link = gameLink(info, payloadFor(room.game, room.id));
+  const result = article(env.user.lang, info, room.game, room.id, env.from);
   const prepared = await tryCall(env.tg, 'savePreparedInlineMessage', {
     user_id: env.user.user_id, result, allow_user_chats: true, allow_group_chats: true, allow_bot_chats: false, allow_channel_chats: false,
   }, 'prepare-invite');

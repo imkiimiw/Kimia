@@ -10,7 +10,9 @@ import './styles/screens.css';
 import './styles/games.css';
 import { render } from 'preact';
 import { App } from './App';
-import { initTelegram } from './tg';
+import { initTelegram, logEvent } from './tg';
 
 initTelegram();
+window.addEventListener('error', (e) => logEvent('js-error', { msg: String(e.message).slice(0, 160), at: `${String(e.filename || '').split('/').pop()}:${e.lineno}` }));
+window.addEventListener('unhandledrejection', (e) => logEvent('js-reject', { msg: String((e.reason && e.reason.message) || e.reason).slice(0, 160) }));
 render(<App />, document.getElementById('app')!);

@@ -1,18 +1,18 @@
 /*
- * Inline mode, the main way in: typing @bot in any chat lists the five games in the user's
- * language. Each result posts a message with a URL button to the Direct Link Mini App
- * (web_app buttons aren't allowed in inline messages): t.me/<bot>/<short>?startapp=<payload>.
+ * Inline mode, the main way in: typing @bot in any chat lists the games in the user's language.
+ * Each result posts a message with a URL button that leads to the game (web_app buttons aren't
+ * allowed in inline messages; links.js picks the link that works for how the bot is set up).
  * Room games get a fresh random room id per result, reserved right away with the inviter already
  * seated (rooms.reserveRooms), so a friend who opens the link finds them there and the inviter is
  * messaged to come and play. chosen_inline_result (inline feedback on) adds the inline_message_id,
  * so the message can be edited with the game's progress and result.
- * "room <id>" (from the Mini App's invite button) lists just that room.
+ * "room <id>" (from the Mini App's invite sheet) lists just that room.
  * Users who haven't joined the forced-join channels get no games, only a button to the bot's chat.
  */
 import { APP_URL, ROOM_GAMES } from './config.js';
 import { GAME_ICONS, t } from './i18n/index.js';
 import { joinStatus } from './join.js';
-import { appLink, botUsername, payloadFor } from './links.js';
+import { botInfo, gameLink, payloadFor } from './links.js';
 import { ensureRoom, loadRoom, newRoomId, playerName, reserveRooms } from './rooms.js';
 import * as store from './store.js';
 import { call, createCtx, esc, short } from './tg.js';
@@ -20,7 +20,7 @@ import { call, createCtx, esc, short } from './tg.js';
 const ORDER = ['ttt', 'bg', 'hokm', 'codeword', 'fusion'];
 const SEATS = { ttt: 2, bg: 2, hokm: 4 };
 
-export function article(lang, username, game, roomId, from) {
+export function article(lang, info, game, roomId, from) {
   const room = ROOM_GAMES.includes(game);
   const name = esc(short(from.first_name || 'A friend'));
   const vars = { icon: GAME_ICONS[game], game: t(lang, `game_${game}`), name };
@@ -31,7 +31,7 @@ export function article(lang, username, game, roomId, from) {
     title: `${GAME_ICONS[game]} ${t(lang, `game_${game}`)}`,
     description: desc,
     input_message_content: { message_text: t(lang, room ? 'inline_invite' : 'inline_solo', vars), parse_mode: 'HTML' },
-    reply_markup: { inline_keyboard: [[{ text: t(lang, 'inline_play'), url: appLink(username, payloadFor(game, roomId)) }]] },
+    reply_markup: { inline_keyboard: [[{ text: t(lang, 'inline_play'), url: gameLink(info, payloadFor(game, roomId)) }]] },
   };
   if (APP_URL) {
     r.thumbnail_url = `${APP_URL}thumbs/${game}.png`;
@@ -54,18 +54,18 @@ export async function onInlineQuery(iq) {
       }, 'inline-join');
       return { trace: ctx.trace };
     }
-    const username = await botUsername(ctx);
+    const info = await botInfo(ctx);
     const m = /^room\s+([A-Za-z0-9]{12})$/.exec(String(iq.query || '').trim());
     let results;
     if (m) {
       const room = await loadRoom(m[1]);
-      results = room && room.status !== 'expired' ? [article(lang, username, room.game, room.id, iq.from)] : [];
+      results = room && room.status !== 'expired' ? [article(lang, info, room.game, room.id, iq.from)] : [];
       if (results.length) results[0].title = `${GAME_ICONS[room.game]} ${t(lang, 'inline_room_title', { game: t(lang, `game_${room.game}`) })}`;
     } else {
       const ids = {};
       for (const g of ROOM_GAMES) ids[g] = newRoomId();
       await reserveRooms(ROOM_GAMES.map((g) => ({ id: ids[g], game: g })), { id: iq.from.id, name: playerName(iq.from) }, lang);
-      results = ORDER.map((g) => article(lang, username, g, ids[g] || null, iq.from));
+      results = ORDER.map((g) => article(lang, info, g, ids[g] || null, iq.from));
     }
     await call(ctx, 'answerInlineQuery', { inline_query_id: iq.id, results, cache_time: 0, is_personal: true }, 'inline');
   } catch (err) {

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createMockTelegram } from './mock-telegram.mjs';
 import { rawDatabase, setupDatabase } from './sdk/db.mjs';
 import * as schema from '../tgcloud/schema.js';
-import { APP_URL } from '../tgcloud/lib/config.js';
+import { APP_URL, GAMES } from '../tgcloud/lib/config.js';
 import * as bgRules from '../tgcloud/lib/games/backgammon.js';
 import * as hokmRules from '../tgcloud/lib/games/hokm.js';
 import * as fusionRules from '../tgcloud/lib/games/fusion.js';
@@ -93,6 +93,10 @@ const ok = (r) => {
   return r.result;
 };
 const sent = (calls, m = 'sendMessage') => calls.filter((c) => c.method === m);
+/** The button of an inline result (by game) / of a message. */
+const resultOf = (answer, game) => answer.params.results.find((r) => r.id.split('.')[0] === game);
+const urlOf = (answer, game) => resultOf(answer, game).reply_markup.inline_keyboard[0][0].url;
+const buttonOf = (call) => call.params.reply_markup.inline_keyboard[0][0];
 const row = (q, ...p) => rawDatabase().prepare(q).get(...p);
 const stat = (u, g) => row('SELECT * FROM stats WHERE user_id = ? AND game = ?', u.id, g);
 
@@ -137,7 +141,7 @@ await scenario('"I\'ve joined": still missing → alert; joined → welcome with
   const welcome = mock.get(U.bea.id, s.result.result.message_id);
   assert.match(welcome.plain, /Bienvenue/);
   const kb = welcome.markup.inline_keyboard.flat();
-  assert.ok(APP_URL ? kb.some((b) => b.web_app && b.web_app.url === APP_URL) : kb.some((b) => b.url === 'https://t.me/game_test_bot?startapp'), 'Play opens the Mini App');
+  assert.ok(APP_URL ? kb.some((b) => b.web_app && b.web_app.url === APP_URL) : kb.some((b) => b.url === 'https://t.me/game_test_bot'), 'Play opens the Mini App');
   assert.ok(kb.some((b) => b.switch_inline_query === ''));
   const checks = (await dm(U.bea, '/start')).filter((c) => c.method === 'getChatMember');
   assert.equal(checks.length, 0, 'membership is cached');
@@ -183,14 +187,15 @@ await scenario('inline: not joined → no games, a button to the bot; joined →
   join(U.ali, -1001, -1002);
   const yes = (await run(H.inline_query, { id: 'q2', from: U.ali, query: '', offset: '' })).find((c) => c.method === 'answerInlineQuery');
   assert.ok(yes.result.ok, JSON.stringify(yes.result));
-  assert.deepEqual(yes.params.results.map((r) => r.id.split('.')[0]), ['ttt', 'bg', 'hokm', 'codeword', 'fusion']);
-  assert.match(yes.params.results[0].title, /دوز/);
-  if (APP_URL) assert.equal(yes.params.results[1].thumbnail_url, `${APP_URL}thumbs/bg.png`);
-  const url = yes.params.results[0].reply_markup.inline_keyboard[0][0].url;
-  const m = /^https:\/\/t\.me\/game_test_bot\?startapp=t_([A-Za-z0-9]{12})$/.exec(url);
+  const offered = yes.params.results.map((r) => r.id.split('.')[0]);
+  assert.deepEqual(offered.slice().sort(), GAMES.slice().sort(), 'every game is offered');
+  assert.match(resultOf(yes, 'ttt').title, /دوز/);
+  if (APP_URL) assert.equal(resultOf(yes, 'bg').thumbnail_url, `${APP_URL}thumbs/bg.png`);
+  const url = urlOf(yes, 'ttt');
+  const m = /^https:\/\/t\.me\/game_test_bot\?start=t_([A-Za-z0-9]{12})$/.exec(url);
   assert.ok(m, url);
   tttRoom = m[1];
-  assert.equal(yes.params.results[3].reply_markup.inline_keyboard[0][0].url, 'https://t.me/game_test_bot?startapp=c');
+  assert.equal(urlOf(yes, 'codeword'), 'https://t.me/game_test_bot?start=c');
   inlineTtt = mock.chooseInline('q2', `ttt.${tttRoom}`);
   await run(H.chosen_inline_result, { result_id: `ttt.${tttRoom}`, from: U.ali, query: '', inline_message_id: inlineTtt });
   const r = row('SELECT * FROM rooms WHERE id = ?', tttRoom);
@@ -223,7 +228,7 @@ await scenario('tic-tac-toe: two players join from the link, turns are enforced,
   assert.equal(row('SELECT score FROM chat_stats WHERE chat = ? AND user_id = ?', 'chatA', U.ali.id).score, 3);
   const inline = mock.getInline(inlineTtt);
   assert.match(inline.plain, /علی برد/);
-  assert.match(inline.markup.inline_keyboard[0][0].url, new RegExp(`startapp=t_${tttRoom}$`));
+  assert.match(inline.markup.inline_keyboard[0][0].url, new RegExp(`start=t_${tttRoom}$`));
   const r1 = ok(await api('roomAction', U.dan, { room: tttRoom, action: 'rematch' }));
   assert.equal(r1.status, 'finished');
   assert.deepEqual([r1.rematch.votes, r1.rematch.needed], [1, 2]);
@@ -256,8 +261,8 @@ await scenario('turn timers: a timeout plays for the player; three in a row forf
 await scenario('invitation, the way people use it: the inviter only sends it, the friend opens it first — the inviter is already seated, is messaged, and the game starts when they open it', async () => {
   await dm(U.bea, '/start'); // the inviter has a private chat with the bot
   const q = (await run(H.inline_query, { id: 'q-inv', from: U.bea, query: '', offset: '' })).find((c) => c.method === 'answerInlineQuery');
-  const url = q.params.results[0].reply_markup.inline_keyboard[0][0].url;
-  const room = /startapp=t_([A-Za-z0-9]{12})$/.exec(url)[1];
+  const url = urlOf(q, 'ttt');
+  const room = /start=t_([A-Za-z0-9]{12})$/.exec(url)[1];
   const reserved = row('SELECT * FROM rooms WHERE id = ?', room);
   assert.ok(reserved, 'the room exists as soon as the invitation is offered (no inline feedback needed)');
   assert.deepEqual(JSON.parse(reserved.seats)[0], { id: U.bea.id, name: 'Béa', here: false, at: Math.floor(clock / 1000) });
@@ -271,7 +276,7 @@ await scenario('invitation, the way people use it: the inviter only sends it, th
   assert.equal(ping.length, 1, 'the inviter is told someone is waiting');
   assert.match(ping[0].params.text, /Иван/);
   assert.match(ping[0].params.text, /vous attend/);
-  assert.equal(ping[0].params.reply_markup.inline_keyboard[0][0].url, url);
+  assert.deepEqual(buttonOf(ping[0]).web_app, { url: `${APP_URL}?sp=t_${room}` }, 'a button that opens the room directly');
   const again = mock.state.calls.length;
   ok(await api('joinRoom', U.ivan, { room, game: 'ttt' }, 'chatI'));
   assert.equal(mock.state.calls.slice(again).filter((c) => c.method === 'sendMessage').length, 0, 'told once');
@@ -281,11 +286,67 @@ await scenario('invitation, the way people use it: the inviter only sends it, th
   assert.equal(ok(await api('getState', U.ivan, { room })).status, 'playing');
 });
 
+await scenario('zero setup (no Main Mini App): the invitation link lands in the bot chat, /start <payload> answers with a button that opens that room; both players end up playing', async () => {
+  assert.equal(mock.bot.has_main_web_app, undefined, 'this bot has no Main Mini App, like the real one');
+  await dm(U.ali, '/start'); // the inviter has started the bot, so it can message them
+  const q = (await run(H.inline_query, { id: 'q-zero', from: U.ali, query: '', offset: '' })).find((c) => c.method === 'answerInlineQuery');
+  const url = urlOf(q, 'bg');
+  const payload = /^https:\/\/t\.me\/game_test_bot\?start=(b_[A-Za-z0-9]{12})$/.exec(url)[1];
+  // Dan taps the button: Telegram opens the bot chat and sends /start <payload>
+  const s = sent(await dm(U.dan, `/start ${payload}`));
+  assert.equal(s.length, 1);
+  assert.match(s[0].params.text, /علی<\/b> invited you to play <b>Backgammon/);
+  assert.deepEqual(buttonOf(s[0]).web_app, { url: `${APP_URL}?sp=${payload}` });
+  // Dan opens the Mini App from that button: the room is the one in the link, the inviter is seated
+  const room = payload.slice(2);
+  const before = mock.state.calls.length;
+  const d = ok(await api('joinRoom', U.dan, { room, game: 'bg' }));
+  assert.deepEqual([d.status, d.you, d.seats[0].name, d.seats[0].here], ['waiting', 1, 'علی', false]);
+  const ping = mock.state.calls.slice(before).find((c) => c.method === 'sendMessage' && c.params.chat_id === U.ali.id);
+  assert.match(ping.params.text, /منتظر توست/);
+  assert.deepEqual(buttonOf(ping).web_app, { url: `${APP_URL}?sp=${payload}` });
+  const a = ok(await api('joinRoom', U.ali, { room, game: 'bg' }));
+  assert.equal(a.status, 'playing');
+  assert.equal(ok(await api('getState', U.dan, { room })).status, 'playing');
+  // a solo game's link works the same way
+  const solo = sent(await dm(U.dan, '/start c'));
+  assert.deepEqual(buttonOf(solo[0]).web_app, { url: `${APP_URL}?sp=c` });
+  assert.match(sent(await dm(U.dan, '/start nonsense'))[0].params.text, /Welcome/, 'an unknown payload is a plain /start');
+});
+
+await scenario('an invited user who hasn\'t joined the channels: the join screen keeps the invitation, and "I\'ve joined" leads to the room', async () => {
+  const newbie = person(800000009, 'Zed');
+  const s = sent(await dm(newbie, '/start t_AbCdEfGh1234'))[0];
+  assert.match(s.params.text, /Join our channels/);
+  const kb = s.params.reply_markup.inline_keyboard.flat();
+  assert.equal(kb[kb.length - 1].callback_data, 'jc:t_AbCdEfGh1234');
+  join(newbie, ...[...mock.state.channels.keys()]);
+  await press(newbie, 'jc:t_AbCdEfGh1234', s.result.result.message_id);
+  const opened = mock.get(newbie.id, s.result.result.message_id);
+  assert.match(opened.plain, /Tic-tac-toe/);
+  assert.deepEqual(opened.markup.inline_keyboard[0][0].web_app, { url: `${APP_URL}?sp=t_AbCdEfGh1234` });
+});
+
+await scenario('the bot sets itself up (menu button, commands) once; when a Main Mini App appears, links switch to the one-tap form', async () => {
+  assert.equal(mock.state.menuButtons.get('default').web_app.url, APP_URL);
+  assert.deepEqual([...mock.state.commands.keys()].sort(), ['default', 'fa', 'fr', 'ru']);
+  assert.equal(mock.state.calls.filter((c) => c.method === 'setMyCommands').length, 4, 'only once');
+  assert.equal(mock.state.menuButtons.get(U.bea.id).text, 'Jouer', 'the menu button in a user\'s chat is in their language');
+  mock.bot.has_main_web_app = true;
+  tick(601);
+  const q = (await run(H.inline_query, { id: 'q-main', from: U.ali, query: '', offset: '' })).find((c) => c.method === 'answerInlineQuery');
+  assert.match(urlOf(q, 'ttt'), /^https:\/\/t\.me\/game_test_bot\?startapp=t_[A-Za-z0-9]{12}$/);
+  delete mock.bot.has_main_web_app;
+  tick(601);
+  const back = (await run(H.inline_query, { id: 'q-main2', from: U.ali, query: '', offset: '' })).find((c) => c.method === 'answerInlineQuery');
+  assert.match(urlOf(back, 'ttt'), /\?start=t_/);
+});
+
 await scenario('"Invite friends" in the lobby: the invitation card is prepared for Telegram\'s share dialog, with the room\'s link', async () => {
   const r = ok(await api('createRoom', U.dan, { game: 'bg' }));
   const p = ok(await api('prepareInvite', U.dan, { room: r.id }));
   assert.match(p.id, /^prep\d+$/);
-  assert.equal(p.link, `https://t.me/game_test_bot?startapp=b_${r.id}`);
+  assert.equal(p.link, `https://t.me/game_test_bot?start=b_${r.id}`);
   assert.match(p.text, /Backgammon/);
   const prepared = mock.state.prepared.find((x) => x.id === p.id);
   assert.equal(prepared.user, U.dan.id);
@@ -296,7 +357,7 @@ await scenario('"Invite friends" in the lobby: the invitation card is prepared f
 
 await scenario('a reservation nobody opens is released after 3 minutes; lobby actions pass to the player who is there', async () => {
   const q = (await run(H.inline_query, { id: 'q-inv2', from: U.bea, query: '', offset: '' })).find((c) => c.method === 'answerInlineQuery');
-  const hokmRoom = /startapp=h_([A-Za-z0-9]{12})$/.exec(q.params.results[2].reply_markup.inline_keyboard[0][0].url)[1];
+  const hokmRoom = /start=h_([A-Za-z0-9]{12})$/.exec(urlOf(q, 'hokm'))[1];
   const a = ok(await api('joinRoom', U.ivan, { room: hokmRoom, game: 'hokm' }));
   assert.equal(a.you, 1);
   assert.equal(a.creator, true, 'the inviter is away, so the friend runs the lobby');
@@ -352,16 +413,16 @@ await scenario('hokm: bots only after the wait, by the creator; hands are hidden
   ok(await api('joinRoom', U.dan, { room: a.id, game: 'hokm' }));
   assert.equal((await api('roomAction', U.ali, { room: a.id, action: 'bots' })).code, 'TOO_EARLY');
   assert.ok(ok(await api('getState', U.ali, { room: a.id })).botsIn > 0);
-  ok(await api('roomAction', U.dan, { room: a.id, action: 'seat', seat: 2 })); // Dan moves to be Ali's partner
+  ok(await api('roomAction', U.dan, { room: a.id, action: 'seat', seat: 3 })); // Dan picks another seat, still on the other team
   tick(61);
   assert.equal((await api('roomAction', U.dan, { room: a.id, action: 'bots' })).code, 'NOT_CREATOR');
   let s = ok(await api('roomAction', U.ali, { room: a.id, action: 'bots' }));
   assert.equal(s.status, 'playing');
-  assert.deepEqual(s.seats.map((x) => !!(x && x.bot)), [false, true, false, true]);
+  assert.deepEqual(s.seats.map((x) => !!(x && x.bot)), [false, true, true, false]);
   const spect = ok(await api('getState', U.eve, { room: a.id }));
   assert.ok(spect.state.hands.every((h) => h.length === 0), 'a spectator sees no hand');
   assert.equal(s.state.hands.filter((h) => h.length).length, 1, 'only your own hand');
-  const users = { 0: U.ali, 2: U.dan };
+  const users = { 0: U.ali, 3: U.dan }; // a human in each team: the match counts
   let followChecked = false;
   for (let i = 0; i < 2000 && s.status === 'playing'; i += 1) {
     const seat = s.state.turn;
@@ -385,7 +446,28 @@ await scenario('hokm: bots only after the wait, by the creator; hands are hidden
   const winners = s.result.winners;
   assert.equal(stat(U.ali, 'hokm').played, 1);
   assert.equal(stat(U.ali, 'hokm').wins, winners.includes(0) ? 1 : 0);
-  assert.equal(stat(U.dan, 'hokm').wins, winners.includes(2) ? 1 : 0);
+  assert.equal(stat(U.dan, 'hokm').wins, winners.includes(3) ? 1 : 0);
+});
+
+await scenario('play with a bot: any game starts at once against a bot; it is practice — no stats, no points', async () => {
+  const before = stat(U.eve, 'ttt');
+  const r = ok(await api('createRoom', U.eve, { game: 'ttt' }));
+  let s = ok(await api('roomAction', U.eve, { room: r.id, action: 'bots' }));
+  assert.equal(s.status, 'playing');
+  assert.deepEqual(s.seats.map((x) => x.bot), [false, true]);
+  for (let i = 0; i < 6 && s.status === 'playing'; i += 1) {
+    assert.equal(s.state.turn, 0, 'the bot has already answered');
+    s = ok(await api('move', U.eve, { room: r.id, ver: s.ver, action: { type: 'mark', cell: s.state.b.indexOf('.') } }));
+  }
+  assert.equal(s.status, 'finished');
+  assert.deepEqual(stat(U.eve, 'ttt'), before, 'nothing recorded against a bot');
+  assert.ok(row("SELECT n FROM counters WHERE key = 'played_ttt'").n >= 1, 'the game is still counted for the owner\'s stats');
+  const again = ok(await api('roomAction', U.eve, { room: r.id, action: 'rematch' }));
+  assert.equal(again.status, 'playing', 'a rematch needs only the human');
+  const bg = ok(await api('createRoom', U.eve, { game: 'bg' }));
+  const b = ok(await api('roomAction', U.eve, { room: bg.id, action: 'bots' }));
+  assert.equal(b.status, 'playing');
+  assert.equal(b.state.turn, 0, 'whoever won the opening roll, it is the human\'s turn again (the bot has played)');
 });
 
 // ---------- codeword ----------
