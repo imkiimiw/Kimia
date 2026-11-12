@@ -9,7 +9,7 @@
     "build:spike": "npm run build && node scripts/spike-assets.mjs",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node --test tests/*.test.mjs",
+    "test": "node --no-warnings --import ./tests/sdk/register.mjs --test tests/*.test.mjs",
     "tg": "node scripts/tg.mjs",
     "status": "node scripts/tg.mjs status",
     "deploy": "node scripts/tg.mjs deploy",
