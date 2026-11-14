@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A sticker with a peeled corner and a "W" (Wanger). 108dp adaptive-icon canvas, art in the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,30 L70,30 Q78,30 78,38 L78,62 L62,78 L38,78 Q30,78 30,70 L30,38 Q30,30 38,30 Z" />
+    <path
+        android:fillColor="#C9B8FF"
+        android:pathData="M78,62 L66,65 L62,78 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M38,41 L44.5,61 L54,47 L63.5,61 L70,41"
+        android:strokeColor="#6F42F5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="6" />
+</vector>

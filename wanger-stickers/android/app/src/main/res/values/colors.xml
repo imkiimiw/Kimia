@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#6F42F5</color>
+    <color name="brand_soft">#E9E2FF</color>
+    <color name="on_brand">#FFFFFF</color>
+    <color name="bg">#F6F4FB</color>
+    <color name="card">#FFFFFF</color>
+    <color name="text">#1C1B1F</color>
+    <color name="text2">#625B71</color>
+    <color name="icon_bg">#6F42F5</color>
+</resources>

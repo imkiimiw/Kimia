@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="subtitle">پک\u200cهای استیکر واتس\u200cاپ تو از \u200e@Wanger_Motionbot</string>
+    <string name="open_file">باز کردن فایل پک</string>
+    <string name="open_bot">ساخت استیکر در ربات</string>
+    <string name="empty_title">هنوز پکی نداری</string>
+    <string name="empty_steps">۱. در \u200e@Wanger_Motionbot یک پک واتس\u200cاپ بساز (دست\u200cکم ۳ استیکر).\n۲. «📦 گرفتن فایل ZIP» را بزن تا ربات فایل ZIP را برایت بفرستد.\n۳. آن فایل را با Wanger Stickers باز کن (یا بالا «باز کردن فایل پک» را بزن).\n۴. «افزودن به واتس\u200cاپ» را بزن.</string>
+    <string name="footer">پک\u200cها فقط روی همین گوشی می\u200cمانند. Wanger Stickers ساخته\u200cی واتس\u200cاپ نیست و وابسته به آن هم نیست.</string>
+    <string name="add_now_q">همین حالا به واتس\u200cاپ اضافه شود؟</string>
+    <string name="later">بعداً</string>
+    <string name="ok">باشه</string>
+    <string name="cancel">انصراف</string>
+
+    <string name="add">افزودن به واتس\u200cاپ</string>
+    <string name="in_whatsapp">✓ در واتس\u200cاپ هست</string>
+    <string name="add_to">افزودن پک به</string>
+    <string name="delete">حذف</string>
+    <string name="delete_q">«%1$s» از این گوشی حذف شود؟ ممکن است از واتس\u200cاپ هم برداشته شود.</string>
+    <string name="deleted">حذف شد.</string>
+
+    <string name="no_whatsapp">واتس\u200cاپ روی این گوشی نصب نیست.</string>
+    <string name="wa_too_old">این نسخه\u200cی واتس\u200cاپ نمی\u200cتواند پک استیکر را از برنامه\u200cها اضافه کند. واتس\u200cاپ را به\u200cروز کن و دوباره امتحان کن.</string>
+    <string name="wa_refused">واتس\u200cاپ پک را نپذیرفت:\n%1$s</string>
+    <string name="added_ok">به واتس\u200cاپ اضافه شد ✓</string>
+    <string name="already_added">این پک از قبل در واتس\u200cاپ هست.</string>
+    <string name="full">این برنامه حداکثر ۱۰ پک نگه می\u200cدارد (محدودیت واتس\u200cاپ). یکی را حذف کن و دوباره امتحان کن.</string>
+    <string name="cant_open">این فایل باز نشد.</string>
+    <string name="title_error">این فایل قابل استفاده نیست</string>
+
+    <string name="err_not_zip">این فایل ZIP نیست. همان فایل ZIP را که ربات فرستاده («📦 گرفتن فایل ZIP») باز کن.</string>
+    <string name="err_too_big">این فایل برای یک پک استیکر بیش از حد بزرگ است.</string>
+    <string name="err_no_pack">این ZIP پک واتس\u200cاپ ربات نیست (pack.json ندارد).</string>
+    <string name="err_bad_meta">مشخصات پک (pack.json) خراب است. دوباره ZIP را از ربات بگیر.</string>
+    <string name="err_identifier">شناسه\u200cی پک برای واتس\u200cاپ معتبر نیست.</string>
+    <string name="err_name">پک نام ندارد.</string>
+    <string name="err_publisher">پک نام ناشر (سازنده) ندارد.</string>
+    <string name="err_no_tray">آیکون پک (tray.png) در فایل نیست.</string>
+    <string name="err_bad_tray">آیکون پک باید PNG و حداکثر ۵۰ کیلوبایت باشد.</string>
+    <string name="err_sticker_missing" tools:ignore="PluralsCandidate">استیکر %1$d در فایل ZIP نیست.</string>
+    <string name="err_sticker_not_webp" tools:ignore="PluralsCandidate">استیکر %1$d تصویر WebP نیست.</string>
+    <string name="err_sticker_not_512" tools:ignore="PluralsCandidate">استیکر %1$d اندازه\u200cی ۵۱۲×۵۱۲ پیکسل ندارد.</string>
+    <string name="err_sticker_mixed" tools:ignore="PluralsCandidate">استیکر %1$d با پک جور نیست: پک یا همه متحرک است یا همه ثابت.</string>
+    <string name="err_sticker_too_big" tools:ignore="PluralsCandidate">استیکر %1$d بیش از حد بزرگ است (ثابت: ۱۰۰ کیلوبایت، متحرک: ۵۰۰ کیلوبایت).</string>
+    <string name="err_sticker_too_long" tools:ignore="PluralsCandidate">استیکر %1$d بیشتر از ۱۰ ثانیه طول می\u200cکشد.</string>
+    <string name="err_sticker_frame" tools:ignore="PluralsCandidate">استیکر %1$d فریم\u200cهای کوتاه\u200cتر از ۸ میلی\u200cثانیه دارد.</string>
+    <plurals name="imported">
+        <item quantity="one">«%1$s» آماده است: %2$d استیکر.</item>
+        <item quantity="other">«%1$s» آماده است: %2$d استیکر.</item>
+    </plurals>
+    <plurals name="updated">
+        <item quantity="one">«%1$s» به\u200cروز شد: %2$d استیکر.</item>
+        <item quantity="other">«%1$s» به\u200cروز شد: %2$d استیکر.</item>
+    </plurals>
+    <plurals name="details">
+        <item quantity="one">%2$d استیکر از %1$s</item>
+        <item quantity="other">%2$d استیکر از %1$s</item>
+    </plurals>
+    <plurals name="details_animated">
+        <item quantity="one">%2$d استیکر متحرک از %1$s</item>
+        <item quantity="other">%2$d استیکر متحرک از %1$s</item>
+    </plurals>
+    <plurals name="err_too_few">
+        <item quantity="one">این پک %1$d استیکر دارد؛ واتس\u200cاپ دست\u200cکم ۳ تا می\u200cخواهد.</item>
+        <item quantity="other">این پک %1$d استیکر دارد؛ واتس\u200cاپ دست\u200cکم ۳ تا می\u200cخواهد.</item>
+    </plurals>
+    <plurals name="err_too_many">
+        <item quantity="one">این پک %1$d استیکر دارد؛ واتس\u200cاپ حداکثر ۳۰ تا می\u200cپذیرد.</item>
+        <item quantity="other">این پک %1$d استیکر دارد؛ واتس\u200cاپ حداکثر ۳۰ تا می\u200cپذیرد.</item>
+    </plurals>
+</resources>

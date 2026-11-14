@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="app_name" translatable="false">Wanger Stickers</string>
+    <string name="bot_url" translatable="false">https://t.me/Wanger_Motionbot</string>
+    <!-- Set to the app's Google Play page once it is published (WhatsApp shows it to people who receive a sticker). -->
+    <string name="play_store_url" translatable="false"></string>
+
+    <string name="subtitle">Your WhatsApp sticker packs from @Wanger_Motionbot</string>
+    <string name="open_file">Open a pack file</string>
+    <string name="open_bot">Make stickers in the bot</string>
+    <string name="empty_title">No packs yet</string>
+    <string name="empty_steps">1. In @Wanger_Motionbot, make a WhatsApp pack (at least 3 stickers).\n2. Tap “📦 Get the ZIP”: the bot sends you a ZIP file.\n3. Open that file with Wanger Stickers (or tap “Open a pack file” above).\n4. Tap “Add to WhatsApp”.</string>
+    <string name="footer">Packs stay on this phone. Wanger Stickers isn’t made by or affiliated with WhatsApp.</string>
+    <string name="add_now_q">Add it to WhatsApp now?</string>
+    <string name="later">Later</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+
+    <string name="add">Add to WhatsApp</string>
+    <string name="in_whatsapp">✓ In WhatsApp</string>
+    <string name="add_to">Add the pack to</string>
+    <string name="delete">Delete</string>
+    <string name="delete_q">Delete “%1$s” from this phone? WhatsApp may remove it too.</string>
+    <string name="deleted">Deleted.</string>
+
+    <string name="no_whatsapp">WhatsApp isn’t installed on this phone.</string>
+    <string name="wa_too_old">This WhatsApp can’t add sticker packs from apps. Update WhatsApp and try again.</string>
+    <string name="wa_refused">WhatsApp didn’t accept the pack:\n%1$s</string>
+    <string name="added_ok">Added to WhatsApp ✓</string>
+    <string name="already_added">This pack is already in WhatsApp.</string>
+    <string name="full">This app can hold 10 packs (WhatsApp’s limit). Delete one and try again.</string>
+    <string name="cant_open">Couldn’t open this file.</string>
+    <string name="title_error">Can’t use this file</string>
+
+    <string name="err_not_zip">This isn’t a ZIP file. Use the ZIP the bot sent you (“📦 Get the ZIP”).</string>
+    <string name="err_too_big">This file is too big to be a sticker pack.</string>
+    <string name="err_no_pack">This ZIP isn’t a WhatsApp pack from the bot (pack.json is missing).</string>
+    <string name="err_bad_meta">The pack details (pack.json) are damaged. Ask the bot for the ZIP again.</string>
+    <string name="err_identifier">The pack id isn’t valid for WhatsApp.</string>
+    <string name="err_name">The pack has no name.</string>
+    <string name="err_publisher">The pack has no publisher (author) name.</string>
+    <string name="err_no_tray">The pack icon (tray.png) is missing.</string>
+    <string name="err_bad_tray">The pack icon must be a PNG of at most 50 KB.</string>
+    <string name="err_sticker_missing" tools:ignore="PluralsCandidate">Sticker %1$d is missing from the ZIP.</string>
+    <string name="err_sticker_not_webp" tools:ignore="PluralsCandidate">Sticker %1$d isn’t a WebP image.</string>
+    <string name="err_sticker_not_512" tools:ignore="PluralsCandidate">Sticker %1$d isn’t 512×512 pixels.</string>
+    <string name="err_sticker_mixed" tools:ignore="PluralsCandidate">Sticker %1$d doesn’t match the pack: a pack is either all animated or all still.</string>
+    <string name="err_sticker_too_big" tools:ignore="PluralsCandidate">Sticker %1$d is too big (still: 100 KB, animated: 500 KB).</string>
+    <string name="err_sticker_too_long" tools:ignore="PluralsCandidate">Sticker %1$d plays longer than 10 seconds.</string>
+    <string name="err_sticker_frame" tools:ignore="PluralsCandidate">Sticker %1$d has frames shorter than 8 ms.</string>
+    <plurals name="imported">
+        <item quantity="one">“%1$s” is ready: %2$d sticker.</item>
+        <item quantity="other">“%1$s” is ready: %2$d stickers.</item>
+    </plurals>
+    <plurals name="updated">
+        <item quantity="one">“%1$s” was updated: %2$d sticker.</item>
+        <item quantity="other">“%1$s” was updated: %2$d stickers.</item>
+    </plurals>
+    <plurals name="details">
+        <item quantity="one">%1$s · %2$d sticker</item>
+        <item quantity="other">%1$s · %2$d stickers</item>
+    </plurals>
+    <plurals name="details_animated">
+        <item quantity="one">%1$s · %2$d animated sticker</item>
+        <item quantity="other">%1$s · %2$d animated stickers</item>
+    </plurals>
+    <plurals name="err_too_few">
+        <item quantity="one">The pack has %1$d sticker; WhatsApp needs at least 3.</item>
+        <item quantity="other">The pack has %1$d stickers; WhatsApp needs at least 3.</item>
+    </plurals>
+    <plurals name="err_too_many">
+        <item quantity="one">The pack has %1$d sticker; WhatsApp allows at most 30.</item>
+        <item quantity="other">The pack has %1$d stickers; WhatsApp allows at most 30.</item>
+    </plurals>
+</resources>
