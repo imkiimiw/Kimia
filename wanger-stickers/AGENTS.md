@@ -164,9 +164,14 @@ map is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - **State: Phases 1–2 deployed (2026-11-12); Phase 3 (video stickers, GIF, WhatsApp, screenshot to
   pack, batch) and Phase 4 (custom emoji, share links + QR, templates, motion effects, meme, text
   animation, slideshow / join, video background removal, drafts) and Phase 5 (points, gallery, Stars
-  Pro — off until Kimi prices it —, local AiProvider) deployed 2026-11-14.** The Mini App is the Studio (`src/studio/`, engine in
+  Pro — off until Kimi prices it —, local AiProvider) deployed 2026-11-14; Phase 6 (Android companion
+  app in `android/`, APK handed out by the bot) built 2026-11-14.** The Mini App is the Studio (`src/studio/`, engine in
   `src/engine/`, animated parts in `src/engine/anim/` and the lazy `AnimStudio.tsx`); `?spike=1` keeps
   the Phase 0 device page, whose endpoints `spike_echo`/`spike_report` stay owner-only.
+- **Android app (`android/`, Phase 6):** its own Gradle project (`cd android && ./gradlew
+  testDebugUnitTest`), never deployed by tgcloud. Its only input is the bot's WhatsApp ZIP; its WhatsApp
+  numbers mirror `limits.js` and its test fixtures come from `scripts/android-fixtures.mjs` —
+  `tests/android.test.mjs` fails when either drifts. Signing keys never go into git (README there).
 - **Studio ↔ bot:** endpoints `studio_*` / `upload_*` all go through `lib/endpoint.js` (verified
   init data → maintenance → ban → flag → rate limit → gate → strict input). Transfer protocol in
   `lib/studio/transfer.js` (256 KB chunks; one SQL value < 1 MB); validators in `lib/core/validate.js`

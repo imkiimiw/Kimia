@@ -30,6 +30,7 @@ export default function (input, ctx) {
       quota: { pack_create: await left('pack_create'), sticker_add: await left('sticker_add'), media_send: await left('media_send'), wa_export: await left('wa_export') },
       limits: { static: TELEGRAM.static, video: TELEGRAM.video, set: TELEGRAM.set, customEmoji: TELEGRAM.customEmoji, whatsapp: WHATSAPP, output: OUTPUT, sizeTargeting: SIZE_TARGETING, chunkBytes: TRANSFER.chunkBytes },
       bot: BOT_USERNAME,
+      androidApp: !!app.settings.get('android.apk'), // Phase 6: the ZIP guide in the chat offers the Android app
     };
   });
 }

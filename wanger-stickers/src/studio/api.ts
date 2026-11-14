@@ -49,6 +49,7 @@ export interface Boot {
   role: string;
   packs: { id: number; title: string; count: number; name: string; kind?: 'sticker' | 'emoji' }[];
   wa: WaPack[];
+  androidApp?: boolean; // the owner set the Android app's APK: the ZIP guide in the chat offers it
   flags: { studio: boolean; video: boolean; gif_studio: boolean; convert: boolean; whatsapp: boolean; emoji?: boolean; anim_bg?: boolean };
   quota: { pack_create: number; sticker_add: number; media_send: number; wa_export: number };
   limits: {

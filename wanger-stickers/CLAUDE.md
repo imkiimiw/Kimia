@@ -18,8 +18,9 @@ report in Persian. Still never: destructive migrations (drops, type changes), `p
 real broadcasts or channel posts, BotFather changes, anything that costs money or needs Kimi's
 accounts (Apple developer account, payment provider setup) — list those in the report instead.
 
-Current state: **Phases 0–5 built and deployed (Phases 3–5 on 2026-11-14).** Waiting on Kimi: the Pro
-price in Stars, an AI provider + key (image generation, character studio), the device checks.
-Phase 6 (companion app) is optional and outside this repository's Serverless scope — only with
-Kimi's explicit go-ahead (Android needs no paid account; iOS needs an Apple developer account).
+Current state: **Phases 0–5 built and deployed (Phases 3–5 on 2026-11-14); Phase 6 (Android
+companion app, `android/`) built on Kimi's go-ahead ("اره شروع کن", 2026-11-14) and its bot side
+deployed.** Waiting on Kimi: the Pro price in Stars, an AI provider + key (image generation, character
+studio), the Android signing decision (Google Play $25 or her own key — android/README.md), iOS
+(Apple developer account), where the Wanger mother bot / hub runs, the device checks.
 Device checks (docs/QA.md) are Kimi's to run on her phones.

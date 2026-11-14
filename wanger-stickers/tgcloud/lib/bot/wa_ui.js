@@ -53,6 +53,15 @@ async function numberedList(app, pack) {
   return { items, text: items.map((it, i) => `${i + 1}. ${parseJson(it.emojis, []).join('')}`).join('\n') };
 }
 
+/**
+ * The guide sent after a WhatsApp ZIP. While the owner has set the Android app's APK (Phase 6), it
+ * explains the app and carries the button that sends it; otherwise the generic guide.
+ */
+export function zipHelpView(app) {
+  if (!app.settings.get('android.apk')) return { text: app.t('wa.zip_help') };
+  return { text: app.t('wa.zip_help_app'), keyboard: markup([[btn(app.tp('wa.btn_app'), 'w', 'apk')]]) };
+}
+
 export const routes = {
   'w:list': { args: ['uint'], run: async (app, [page], cq) => { await show(app, cq, await waListView(app, page), 'wa_list'); } },
   'w:open': { args: ['uint'], run: async (app, [id], cq) => { await show(app, cq, await waPackView(app, await own(app, id)), 'wa_pack'); } },
@@ -61,8 +70,17 @@ export const routes = {
     run: async (app, [id]) => {
       const pack = await own(app, id);
       const r = await app.whatsapp.exportZip(u(app), pack);
-      await app.tg.send(u(app).tg_id, { text: app.t('wa.zip_help') }, 'wa_zip_help');
+      await app.tg.send(u(app).tg_id, zipHelpView(app), 'wa_zip_help');
       return { toast: app.tp('wa.zip_sent', { n: r.count }) };
+    },
+  },
+  'w:apk': {
+    args: [],
+    run: async (app) => {
+      const apk = app.settings.get('android.apk');
+      if (!apk || !apk.file_id) throw new UserError('wa.err.no_app');
+      await app.tg.documentById(u(app).tg_id, apk.file_id, { caption: app.t('wa.app_caption') }, 'wa_apk');
+      app.stats.count('android.apk_sent');
     },
   },
   'w:prev': {

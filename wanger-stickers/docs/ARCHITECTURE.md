@@ -1,8 +1,9 @@
-# Architecture — Wanger Stickers (Phases 1–5)
+# Architecture — Wanger Stickers (Phases 1–6)
 
 One tgcloud project (@Wanger_Motionbot, app9292593567): a thin Serverless backend in `tgcloud/`,
 the Mini App in `src/` (Phase 0–1: the device spike page; the Studio from Phase 2), and the media
-engine in `src/engine/`. Brief: [BRIEF.md](BRIEF.md); choices: [DECISIONS.md](DECISIONS.md).
+engine in `src/engine/`; Phase 6 adds the Android companion app in `android/` (not deployed by
+tgcloud; see [android/README.md](../android/README.md)). Brief: [BRIEF.md](BRIEF.md); choices: [DECISIONS.md](DECISIONS.md).
 
 ## Request flow (chat)
 
@@ -124,3 +125,14 @@ QR decoded by jsQR), `e2e.community` (points, gallery, Stars payments, suggestio
 splitter, ZIP, validators, effect loops).
 In a browser: `npm run engine:local` (encoders + validators + ffprobe) and `npm run studio:local`
 (the real Studio UI with a mock Telegram bridge).
+`android` checks the app against the bot (numbers, provider contract, fixtures, the APK flow); the app's
+own 40 tests run with `cd android && ./gradlew testDebugUnitTest`.
+
+## Android companion app (Phase 6)
+
+`android/` is a separate Gradle project. The bot's WhatsApp ZIP is its only input: `PackReader`
+(checks) → `PackStore` (app-private, hashed folders) → `StickerContentProvider` (WhatsApp's contract:
+`metadata`, `stickers`, `stickers_asset`, read permission `com.whatsapp.sticker.READ`) and the
+`ENABLE_STICKER_PACK` intent. The bot's side is one setting (`android.apk`), the admin screen
+«📱 برنامه‌ی اندروید» (`a:apk*`, step `a_apk`) and the `w:apk` button under the ZIP guide
+(`wa_ui.zipHelpView`, used by `w:zip` and the `wa_export` endpoint).

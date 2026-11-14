@@ -107,9 +107,19 @@ function settingsView(app) {
   const rows = NUM_KEYS.map((k, i) => [btn(app.tp('adm.set_item', { name: app.tp(`set.${k}`), value: String(app.settings.get(k)) }), 'a', 'setv', i)]);
   rows.push([btn(app.tp('adm.flags'), 'a', 'flags'), btn(app.tp('adm.texts'), 'a', 'texts')]);
   rows.push([btn(app.tp(app.settings.get('maintenance.on') ? 'adm.maint_off' : 'adm.maint_on'), 'a', 'maint')]);
-  rows.push([btn(app.tp('adm.storage'), 'a', 'stor')]);
+  rows.push([btn(app.tp('adm.storage'), 'a', 'stor'), btn(app.tp('adm.apk'), 'a', 'apk')]);
   rows.push([back(app)]);
   return { text: app.t('adm.settings_text', { quotas: QUOTA_FEATURES.map((f) => `${app.tp(`feature.${f}`)}: ${app.settings.get(`quota.${f}`)}`).join('، ') }), keyboard: markup(rows) };
+}
+
+/** Phase 6: the companion app's APK that the bot hands to users under the WhatsApp ZIP guide. */
+function apkView(app) {
+  const apk = app.settings.get('android.apk');
+  const status = apk ? app.t('adm.apk_status', { name: apk.name || 'app.apk', size: Math.max(1, Math.round((apk.size || 0) / 1024)), date: dateText(apk.at, app.lang) }) : app.t('adm.apk_none');
+  const rows = [[btn(app.tp('adm.btn_apk_set'), 'a', 'apkset')]];
+  if (apk) rows.push([btn(app.tp('adm.btn_apk_test'), 'a', 'apktest'), btn(app.tp('adm.btn_apk_del'), 'a', 'apkdel')]);
+  rows.push([back(app, 'set')]);
+  return { text: app.t('adm.apk_view', { status }), keyboard: markup(rows) };
 }
 
 function flagsView(app) {
@@ -258,6 +268,25 @@ export const routes = {
       await setStorage(app, info);
       await show(app, cq, { text: app.t('adm.storage_set', { title: info.chat.title || '' }) }, 'storage_set');
       return { toast: app.tp('adm.storage_set_toast') };
+    }),
+  },
+
+  'a:apk': { args: [], perm: 'admin', run: owner(async (app, _a, cq) => show(app, cq, apkView(app), 'admin_apk')) },
+  'a:apkset': { args: [], perm: 'admin', run: owner(async (app) => { await app.state.set(app.user.tg_id, 'a_apk', {}); await app.tg.send(app.user.tg_id, { text: app.t('adm.ask_apk') }, 'ask_apk'); }) },
+  'a:apktest': {
+    args: [], perm: 'admin',
+    run: owner(async (app) => {
+      const apk = app.settings.get('android.apk');
+      if (!apk) throw new UserError('wa.err.no_app');
+      await app.tg.send(app.user.tg_id, { text: app.t('wa.zip_help_app'), keyboard: markup([[btn(app.tp('wa.btn_app'), 'w', 'apk')]]) }, 'wa_zip_help');
+    }),
+  },
+  'a:apkdel': {
+    args: [], perm: 'admin',
+    run: owner(async (app, _a, cq) => {
+      await app.settings.set(app.user.tg_id, 'android.apk', null);
+      await show(app, cq, apkView(app), 'admin_apk');
+      return { toast: app.tp('adm.apk_removed') };
     }),
   },
 
@@ -413,6 +442,18 @@ export async function onAdminStep(app, step, payload, message) {
       await setStorage(app, info);
       return done(settingsView(app));
     }
+    case 'a_apk': {
+      assertOwner(app);
+      if (text === '-') {
+        await app.settings.set(me, 'android.apk', null);
+        return done(apkView(app));
+      }
+      const d = message.document;
+      const name = d ? String(d.file_name || '') : '';
+      if (!d || !d.file_id || !(/\.apk$/i.test(name) || d.mime_type === 'application/vnd.android.package-archive')) throw new UserError('adm.err.apk');
+      await app.settings.set(me, 'android.apk', { file_id: d.file_id, name: truncate(name || 'WangerStickers.apk', 64), size: Number(d.file_size) || 0, at: app.clock.now() });
+      return done(apkView(app));
+    }
     case 'a_secset': {
       assertOwner(app);
       const m = /^([A-Z][A-Z0-9_]{1,40})\s+(\S[\s\S]{0,2000})$/.exec(text);
@@ -428,4 +469,4 @@ export async function onAdminStep(app, step, payload, message) {
   }
 }
 
-export const ADMIN_STEPS = Object.freeze(['a_us', 'a_uban', 'a_upro', 'a_upts', 'a_umsg', 'a_setv', 'a_text', 'a_storage', 'a_secset']);
+export const ADMIN_STEPS = Object.freeze(['a_us', 'a_uban', 'a_upro', 'a_upts', 'a_umsg', 'a_setv', 'a_text', 'a_storage', 'a_secset', 'a_apk']);

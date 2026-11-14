@@ -4,6 +4,22 @@ Every library, WASM build, model and font this project ships or loads. Before ad
 AGPL or non-commercial: ask Kimi (brief §4). Checked 2026-11-11, Phase 3 additions 2026-11-12 (npm registry / Hugging Face model
 cards / upstream repositories).
 
+## Phase 6 — Android app (`android/`, checked 2026-11-14 on Maven Central / Google Maven)
+
+| Component | Version | Licence | Used for | Shipped how |
+|---|---|---|---|---|
+| Kotlin standard library | 2.2.21 | Apache-2.0 | app code | in the APK (R8-shrunk) |
+| Android Gradle Plugin | 8.13.2 | Apache-2.0 | build | build only |
+| Gradle wrapper | 8.14.7 | Apache-2.0 | build (`gradlew`, `gradle/wrapper/gradle-wrapper.jar`) | in git, not in the APK |
+| JUnit | 4.13.2 | EPL-1.0 | tests | test only |
+| Robolectric | 4.18 | MIT | tests (Android framework on the JVM) | test only |
+| org.json | 20250107 | Public Domain | tests (Android ships its own) | test only |
+
+WhatsApp's sticker sample app (github.com/WhatsApp/stickers, BSD-3-Clause): we follow its documented
+contract (provider paths, column names, intent extras, limits) — no code copied. Its licence forbids
+using WhatsApp's name to endorse a derived product: the app says "Add to WhatsApp" as a function and
+states it isn't made by or affiliated with WhatsApp.
+
 ## Phase 3 (shipped in the Studio, each in a lazy chunk)
 
 | Component | Version | Licence | Used for | Shipped how |

@@ -1,5 +1,23 @@
 # Changelog
 
+## Phase 6 — Android companion app (2026-11-14)
+
+- **`android/`: Wanger Stickers for Android** (Kotlin, no AndroidX, Android 6.0+, targets 16): opens
+  the bot's WhatsApp ZIP (or a `.wastickers`) from Telegram's "Open with" / "Share" or the file
+  picker, checks every WhatsApp rule with a precise message per sticker, keeps up to 10 packs and adds
+  them with **WhatsApp's official integration** (ContentProvider + `ENABLE_STICKER_PACK`, consumer and
+  Business, whitelist status, WhatsApp's refusal reason shown). No permissions at all (no internet).
+  Persian / English, RTL, dark mode. Release APK ≈ 80 KB.
+- **Bot:** `/admin` → ⚙️ → «📱 برنامه‌ی اندروید»: the owner sends the APK once; from then on the guide
+  after every WhatsApp ZIP has a «📱 برنامه‌ی اندروید» button that sends it (by file_id), with install
+  steps; remove it and the button disappears. The Studio's "ZIP sent" screen points to the button.
+  Setting `android.apk` (no schema change).
+- **Tests:** 40 Android tests (JVM + Robolectric: the provider exactly as WhatsApp queries it, import →
+  add → WhatsApp's answer on API 24 and 36, Persian, screenshots) on fixtures exported by the bot's own
+  endpoints (`scripts/android-fixtures.mjs`); bot: 104 (adds `android`: numbers in sync with
+  `limits.js`, provider contract, fixtures still current, the APK flow and its owner-only screens).
+- Not done (Kimi's decisions): the release signing key, Google Play ($25), iOS (Apple account).
+
 ## Phase 5 — community, points, payments, suggestions (2026-11-14)
 
 - **Wanger Points** (local provider): earned for a new pack (+2), each new person from a pack's share

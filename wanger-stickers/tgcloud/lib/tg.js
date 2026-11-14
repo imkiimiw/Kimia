@@ -79,6 +79,10 @@ export function createTelegram({ log, onBlocked, api = sdkApi }) {
     sendDocument: (chatId, bytes, filename, { type = 'application/octet-stream', caption = '', extra = {} } = {}, view = 'document') => call('sendDocument', {
       chat_id: chatId, document: new InputFile(bytes, filename, { type }), ...(caption ? { caption, parse_mode: 'HTML' } : {}), ...extra,
     }, view),
+    /** Re-sends a document Telegram already has (by file_id), optionally with buttons. */
+    documentById: (chatId, fileId, { caption = '', keyboard = null } = {}, view = 'document') => call('sendDocument', {
+      chat_id: chatId, document: fileId, ...(caption ? { caption, parse_mode: 'HTML' } : {}), ...(keyboard ? { reply_markup: keyboard } : {}),
+    }, view),
     sendAnimation: (chatId, bytes, filename, { type = 'video/mp4', width, height, duration, caption = '' } = {}, view = 'animation') => call('sendAnimation', {
       chat_id: chatId, animation: new InputFile(bytes, filename, { type }), ...(width ? { width, height } : {}), ...(duration ? { duration } : {}), ...(caption ? { caption, parse_mode: 'HTML' } : {}),
     }, view),

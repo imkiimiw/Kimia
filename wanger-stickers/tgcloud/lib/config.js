@@ -93,6 +93,8 @@ export const DEFAULTS = Object.freeze({
   'points.cost_pro_week': 150, // points for 7 days of Pro
   'gallery.hide_reports': 3, // open reports that hide a pack until a moderator looks
   'pro.price_stars': 0, // Stars per month; 0 = not for sale yet (the owner sets it)
+  // Phase 6
+  'android.apk': null, // { file_id, name, size, at } of the companion app's APK (owner-set); null = no button
 });
 
 /**

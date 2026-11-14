@@ -381,6 +381,30 @@ provider and its key), HubAccountProvider (no hub exists).
   plug in behind it once Kimi picks one and adds its key in 🔑; until then flags.ai stays off and
   `generateSticker` refuses.
 
+## D29 — Phase 6: the Android companion app
+
+- Started on Kimi's go-ahead (2026-11-14, "اره شروع کن"); lives in `android/`, needs no paid account.
+- **Input = the bot's existing ZIP** (stickers + `tray.png` + `pack.json` in `contents.json` shape),
+  so no new server API, no account linking and no network permission: the user opens the file the
+  bot already sends. `.wastickers` is read too (identifier = hash of name + publisher, emoji 😀).
+- The app re-checks WhatsApp's rules before storing (same numbers as `limits.js`, guarded by
+  `tests/android.test.mjs`); the tray accepts WhatsApp's own 24–512 px range (the bot writes 96×96).
+- Storage: app-private, one folder per pack named by a SHA-256 of the identifier, swapped in
+  atomically; re-import bumps `image_data_version`. Max 10 packs (WhatsApp's per-app limit).
+- Kotlin + framework widgets only (no AndroidX / Material libraries): ≈ 80 KB release APK, nothing
+  to keep updated. minSdk 23, target 36 (Google Play's current requirement).
+- `applicationId` = `com.wanger.stickers` — permanent once published on Play; change it before the
+  first publication if Kimi prefers another.
+
+## D30 — Phase 6: handing the APK out
+
+- Through the bot: the owner uploads the APK in the panel (`android.apk` = file_id, name, size, date)
+  and the ZIP guide shows the «📱» button only while one is set (no half-built button, brief §1).
+- **Signing is Kimi's decision** (android/README.md): Google Play with Play App Signing ($25 once), or
+  a key she keeps herself for direct APKs. A signing key is a secret, so it is never created into
+  git or chat; the test APK from this phase is a debug build for her own phone only.
+- iOS needs a paid Apple developer account: not started.
+
 ## Q — Questions for Kimi before Phase 1 (answered on 2026-11-12, see §A)
 
 1. **CLI token**: set `WangerStickers_BOT_TGCLOUD_TOKEN` (BotFather → the bot → Serverless → CLI

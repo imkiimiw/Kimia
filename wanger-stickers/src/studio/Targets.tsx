@@ -174,7 +174,7 @@ export function WaSaved({ info, t, lang, result, title, onAgain }: { info: Boot;
       <p className="big">{t('wa_saved', { title, n: num(lang, n), max: num(lang, P.maxStickers) })}</p>
       {n < P.minStickers && <p className="hint">{t('wa_need_more', { min: num(lang, P.minStickers), left: num(lang, P.minStickers - n) })}</p>}
       {n >= P.minStickers && zip !== 'sent' && <button className="primary" disabled={zip === 'busy'} onClick={() => void send()}>{zip === 'busy' ? t('loading') : t('wa_zip')}</button>}
-      {zip === 'sent' && <p>{t('wa_zip_sent')}</p>}
+      {zip === 'sent' && <p>{t(info.androidApp ? 'wa_zip_sent_app' : 'wa_zip_sent')}</p>}
       {zip !== 'idle' && zip !== 'busy' && zip !== 'sent' && <p className="note">{t('error', { msg: zip })}</p>}
       <button onClick={onAgain}>{t('another')}</button>
       <button onClick={() => tg().close?.()}>{t('close')}</button>

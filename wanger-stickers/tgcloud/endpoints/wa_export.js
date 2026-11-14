@@ -4,6 +4,7 @@ import { EndpointError } from 'sdk';
 import { runEndpoint } from '../lib/endpoint.js';
 import { joinUrl } from '../lib/core/gate.js';
 import { UserError } from '../lib/core/util.js';
+import { zipHelpView } from '../lib/bot/wa_ui.js';
 
 export default function (input, ctx) {
   return runEndpoint('wa_export', input, ctx, { packId: 'int' }, async (app, { packId }) => {
@@ -14,7 +15,7 @@ export default function (input, ctx) {
     }
     const pack = await app.whatsapp.own(app.user.tg_id, packId);
     const r = await app.whatsapp.exportZip(app.user, pack);
-    await app.tg.send(app.user.tg_id, { text: app.t('wa.zip_help') }, 'wa_zip_help');
+    await app.tg.send(app.user.tg_id, zipHelpView(app), 'wa_zip_help');
     return { sent: true, count: r.count, bytes: r.bytes };
   });
 }

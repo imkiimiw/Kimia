@@ -132,3 +132,21 @@ Local baseline green in Chromium (SPIKE_REPORT §10). On the phones:
    Star comes back. (Costs one real Star for a moment.)
 7. ☐ Studio: type a Persian caption → the emoji chips under «ایموجی» suggest fitting emojis;
    «💡 ایده‌ی متن» fills a caption.
+
+## Phase 6 — Android app (an Android phone with WhatsApp; test APK from the Phase 6 report)
+
+1. ☐ Install the test APK (Android asks to allow installs from Telegram/Files → allow). The app opens in
+   Persian on a Persian phone (English otherwise) and shows the 4 steps.
+2. ☐ In the bot make a WhatsApp pack with 3+ stickers → «📦 گرفتن فایل ZIP» → tap the ZIP in Telegram →
+   "Open with" → Wanger Stickers → "«…» آماده است" → «افزودن به واتس‌اپ» → WhatsApp's own dialog → Add.
+3. ☐ In WhatsApp: the pack is in the sticker tray with its icon; send a sticker to a chat; emojis search
+   finds it. The app now shows «✓ در واتس‌اپ هست».
+4. ☐ Same with an **animated** pack (stickers move in the app on Android 9+ and in WhatsApp).
+5. ☐ Add 2 more stickers to the pack in the bot → new ZIP → open it again → "به‌روز شد" → WhatsApp shows
+   the new stickers (it may take a minute or reopening the tray).
+6. ☐ WhatsApp Business too (if installed): the add button offers a choice.
+7. ☐ Long-press a pack → «حذف» → it disappears from the app (WhatsApp may remove it as well).
+8. ☐ Open a random ZIP / a photo with the app → a clear Persian error, nothing stored.
+9. ☐ Bot: `/admin` → ⚙️ → «📱 برنامه‌ی اندروید» → «📤 فرستادن فایل APK» → send the APK file → a second
+   account exports a ZIP → the guide has «📱 برنامه‌ی اندروید» → it receives the APK with the steps.
+   «🗑 برداشتن فایل» → the button is gone.
