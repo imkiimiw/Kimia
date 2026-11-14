@@ -8,12 +8,12 @@ import { TELEGRAM, WHATSAPP, OUTPUT, SIZE_TARGETING } from '../lib/core/limits.j
 import { TRANSFER } from '../lib/studio/transfer.js';
 import { BOT_USERNAME } from '../lib/config.js';
 
-const FLAGS = ['studio', 'video', 'gif_studio', 'convert', 'whatsapp'];
+const FLAGS = ['studio', 'video', 'gif_studio', 'convert', 'whatsapp', 'emoji', 'anim_bg'];
 
 export default function (input, ctx) {
   return runEndpoint('studio_boot', input, ctx, {}, async (app) => {
     const u = app.user;
-    const packs = (await app.packs.list(u.tg_id, 0, 50)).map((p) => ({ id: p.id, title: p.title, count: p.sticker_count, name: p.tg_name }));
+    const packs = (await app.packs.list(u.tg_id, 0, 50)).map((p) => ({ id: p.id, title: p.title, count: p.sticker_count, name: p.tg_name, kind: p.kind === 'emoji' ? 'emoji' : 'sticker' }));
     const wa = app.flag('whatsapp') || app.role === 'owner'
       ? (await app.whatsapp.list(u.tg_id, 0, 50)).map((p) => ({ id: p.id, title: p.title, publisher: p.publisher || '', kind: p.kind, count: p.sticker_count, tray: !!p.tray_file_id }))
       : [];
@@ -28,7 +28,7 @@ export default function (input, ctx) {
       wa,
       flags,
       quota: { pack_create: await left('pack_create'), sticker_add: await left('sticker_add'), media_send: await left('media_send'), wa_export: await left('wa_export') },
-      limits: { static: TELEGRAM.static, video: TELEGRAM.video, set: TELEGRAM.set, whatsapp: WHATSAPP, output: OUTPUT, sizeTargeting: SIZE_TARGETING, chunkBytes: TRANSFER.chunkBytes },
+      limits: { static: TELEGRAM.static, video: TELEGRAM.video, set: TELEGRAM.set, customEmoji: TELEGRAM.customEmoji, whatsapp: WHATSAPP, output: OUTPUT, sizeTargeting: SIZE_TARGETING, chunkBytes: TRANSFER.chunkBytes },
       bot: BOT_USERNAME,
     };
   });

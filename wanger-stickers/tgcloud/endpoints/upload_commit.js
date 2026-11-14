@@ -6,7 +6,7 @@ import { EndpointError } from 'sdk';
 import { runEndpoint } from '../lib/endpoint.js';
 import { joinUrl } from '../lib/core/gate.js';
 
-const SHAPE = { uploadId: 'string?', inline: 'string?', kind: 'string?', format: 'string?', size: 'int?', sha256: 'string?', action: 'string', packId: 'int?', title: 'string?', publisher: 'string?', emojis: 'string?', quiet: 'bool?' };
+const SHAPE = { uploadId: 'string?', inline: 'string?', kind: 'string?', format: 'string?', size: 'int?', sha256: 'string?', action: 'string', packId: 'int?', title: 'string?', publisher: 'string?', emojis: 'string?', quiet: 'bool?', repaint: 'bool?' };
 const ACTIONS = ['add', 'new', 'send', 'file', 'wa_add', 'wa_new', 'wa_tray'];
 
 export default function (input, ctx) {

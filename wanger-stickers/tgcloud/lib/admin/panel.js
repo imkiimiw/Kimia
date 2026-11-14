@@ -268,7 +268,7 @@ export const routes = {
 };
 
 /** Features whose code exists (a flag can be turned on). */
-const BUILT = new Set(['packs', 'pack_import', 'pack_publish', 'studio', 'gif_studio', 'convert', 'whatsapp', 'video', 'wastickers', 'gif_zip']);
+const BUILT = new Set(['packs', 'pack_import', 'pack_publish', 'studio', 'gif_studio', 'convert', 'whatsapp', 'video', 'wastickers', 'gif_zip', 'emoji', 'share', 'anim_bg']);
 
 /** Owner text steps of this module. @returns {Promise<string|null>} */
 export async function onAdminStep(app, step, payload, message) {

@@ -80,6 +80,17 @@ export function isRegularSticker(sticker) {
 }
 
 export const addStickersUrl = (name) => `https://t.me/addstickers/${name}`;
+export const addEmojiUrl = (name) => `https://t.me/addemoji/${name}`;
+
+/** The link that adds a pack in Telegram (custom emoji sets use addemoji). */
+export const packUrl = (pack) => (pack.kind === 'emoji' ? addEmojiUrl(pack.tg_name) : addStickersUrl(pack.tg_name));
+
+/** How many stickers this set may hold (Bot API: 200 custom emoji, 120 otherwise). */
+export const maxStickers = (pack) => (pack && pack.kind === 'emoji' ? SET.maxStickersEmoji : SET.maxStickersRegular);
+
+/** Share links: t.me/<bot>?start=pack_<code> (start parameters allow A-Z a-z 0-9 _ -). */
+export const SHARE_CODE_RE = /^[A-Za-z0-9]{10}$/;
+export const shareLink = (bot, code) => `https://t.me/${bot}?start=pack_${code}`;
 
 /** A set name from "t.me/addstickers/NAME", "tg://addstickers?set=NAME" or a bare name. */
 export function parseSetRef(text) {

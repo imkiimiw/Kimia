@@ -174,6 +174,7 @@ async function startCommand(app, payload) {
     }
   }
   if (/^pub_\d{1,12}$/.test(p)) app.stats.count('pub.deeplink');
+  if (/^pack_[A-Za-z0-9]{10}$/.test(p) && app.flag('share')) return packsUi.onSharedPack(app, p.slice(5));
   await send(app, menuView(app), 'menu');
   return 'start';
 }

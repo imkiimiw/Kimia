@@ -28,6 +28,7 @@ export function createOps(app, packs) {
       if (await opsDb.activeOf(user.tg_id)) throw new UserError('op.err.busy');
       if (o.dstPackId) {
         const dst = await packs.mustOwn(user.tg_id, o.dstPackId);
+        if (dst.kind === 'emoji') throw new UserError('pk.err.emoji_set'); // regular stickers can't go into a custom emoji set
         if (dst.sticker_count + o.items.length > TELEGRAM.set.maxStickersRegular) throw new UserError('op.err.too_many', { free: TELEGRAM.set.maxStickersRegular - dst.sticker_count });
       } else if (o.items.length > TELEGRAM.set.maxStickersRegular) throw new UserError('op.err.too_many', { free: TELEGRAM.set.maxStickersRegular });
       await packs.checkQuota(user.tg_id, 'sticker_add', o.items.length - (o.dstPackId ? 0 : 1));

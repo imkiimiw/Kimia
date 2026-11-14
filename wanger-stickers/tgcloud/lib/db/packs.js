@@ -10,8 +10,19 @@ const inList = (vals) => commaJoin(vals.map((v) => sql`${v}`));
 export const packs = {
   create: (p, now) => db.run(sql`
     INSERT INTO packs (tg_id, platform, tg_name, title, kind, sticker_count, created_at, updated_at)
-    VALUES (${p.tg_id}, 'telegram', ${p.tg_name}, ${p.title}, 'mixed', ${p.sticker_count}, ${now}, ${now})
+    VALUES (${p.tg_id}, 'telegram', ${p.tg_name}, ${p.title}, ${p.kind || 'mixed'}, ${p.sticker_count}, ${now}, ${now})
     ON CONFLICT (tg_name) DO NOTHING RETURNING *`).then(first),
+
+  /* ---- share links (Phase 4) ---- */
+  /** Sets the share code once (a second caller keeps the first code). */
+  setShareCode: (id, code) => db.run(sql`UPDATE packs SET share_code = ${code} WHERE id = ${id} AND share_code IS NULL`),
+  byShareCode: (code) => db.get(sql`SELECT * FROM packs WHERE share_code = ${code} AND platform = 'telegram'`),
+  /** One open of the link; the person is counted once per pack. */
+  async recordOpen(packId, userId, now) {
+    await db.run(sql`INSERT INTO share_visits (pack_id, tg_id, at) VALUES (${packId}, ${userId}, ${now}) ON CONFLICT (pack_id, tg_id) DO NOTHING`);
+    await db.run(sql`UPDATE packs SET share_opens = share_opens + 1 WHERE id = ${packId}`);
+  },
+  sharePeople: (packId) => db.get(sql`SELECT count(*) AS n FROM share_visits WHERE pack_id = ${packId}`).then((r) => (r ? r.n : 0)),
   get: (id) => db.get(sql`SELECT * FROM packs WHERE id = ${id}`),
   /** A Telegram pack of this user (ownership check in the query itself). */
   getOwned: (id, userId) => db.get(sql`SELECT * FROM packs WHERE id = ${id} AND tg_id = ${userId} AND platform = 'telegram'`),
@@ -22,6 +33,7 @@ export const packs = {
   setCount: (id, n, now) => db.run(sql`UPDATE packs SET sticker_count = ${n}, updated_at = ${now} WHERE id = ${id}`),
   setPublic: (id, flag) => db.run(sql`UPDATE packs SET is_public = ${flag ? 1 : 0} WHERE id = ${id}`),
   remove: async (id) => {
+    await db.run(sql`DELETE FROM share_visits WHERE pack_id = ${id}`);
     await db.run(sql`DELETE FROM pack_items WHERE pack_id = ${id}`);
     return db.run(sql`DELETE FROM packs WHERE id = ${id}`).then((r) => r.rowsAffected);
   },

@@ -171,6 +171,17 @@ export function createFakeTelegram({ now = () => Math.floor(Date.now() / 1000) }
       files.set(file_id, { bytes: d.bytes });
       return store(p.chat_id, { message_id: nextMessageId, chat: { id: p.chat_id }, document: { file_id, file_unique_id: `${file_id}u`, file_name: d.name, mime_type: d.type, file_size: d.bytes.length }, disable_content_type_detection: !!p.disable_content_type_detection });
     },
+    sendPhoto(p, m) {
+      toChat(p, m);
+      const ph = p.photo;
+      if (!ph || !(ph.bytes instanceof Uint8Array)) fail(400, 'Bad Request: there is no photo in the request', m);
+      if (ph.bytes.length > 10 * 1024 * 1024) fail(400, 'Bad Request: PHOTO_INVALID_DIMENSIONS', m);
+      if (p.caption && p.caption.length > 1024) fail(400, 'Bad Request: message caption is too long', m);
+      markupOk(p.reply_markup, m);
+      const file_id = `PH${++nextMessageId}`;
+      files.set(file_id, { bytes: ph.bytes });
+      return store(p.chat_id, { message_id: nextMessageId, chat: { id: p.chat_id }, photo: [{ file_id, width: 0, height: 0 }], caption: p.caption, reply_markup: p.reply_markup || null });
+    },
     sendAnimation(p, m) {
       toChat(p, m);
       const a = p.animation;
@@ -246,7 +257,8 @@ export function createFakeTelegram({ now = () => Math.floor(Date.now() / 1000) }
       if (!p.title || p.title.length > 64) fail(400, 'Bad Request: invalid sticker set title', m);
       if (sets.has(name.toLowerCase())) fail(400, 'Bad Request: sticker set name is already occupied', m);
       if (!Array.isArray(p.stickers) || p.stickers.length < 1 || p.stickers.length > 50) fail(400, 'Bad Request: STICKERS_EMPTY', m);
-      const set = { name, title: p.title, owner: p.user_id, sticker_type: p.sticker_type || 'regular', stickers: [], thumb: null };
+      if (p.sticker_type && !['regular', 'mask', 'custom_emoji'].includes(p.sticker_type)) fail(400, 'Bad Request: invalid sticker type', m);
+      const set = { name, title: p.title, owner: p.user_id, sticker_type: p.sticker_type || 'regular', needs_repainting: !!p.needs_repainting, stickers: [], thumb: null };
       for (const inp of p.stickers) set.stickers.push(inputToSticker(inp, set, m));
       sets.set(name.toLowerCase(), set);
       return true;
@@ -254,7 +266,7 @@ export function createFakeTelegram({ now = () => Math.floor(Date.now() / 1000) }
     addStickerToSet(p, m) {
       const set = setOf(p.name, m);
       if (set.owner !== p.user_id) fail(400, 'Bad Request: STICKERSET_INVALID', m);
-      if (set.stickers.length >= 120) fail(400, 'Bad Request: STICKERS_TOO_MUCH', m);
+      if (set.stickers.length >= (set.sticker_type === 'custom_emoji' ? 200 : 120)) fail(400, 'Bad Request: STICKERS_TOO_MUCH', m);
       const s = inputToSticker(p.sticker, set, m);
       if (!set.stickers.some((x) => x.file_unique_id === s.file_unique_id)) set.stickers.push(s);
       return true;

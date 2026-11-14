@@ -11,7 +11,7 @@ import { packs as pdb } from '../db/packs.js';
 import { UserError, randomId } from '../core/util.js';
 import { toBase64, fromBase64, sha256Hex, concatBytes } from '../core/bytes.js';
 import { UPLOAD_KINDS, sniffImage } from '../core/validate.js';
-import { cleanTitle, parseEmojiList, cleanWaText, parseWaEmojis } from '../core/packs.js';
+import { cleanTitle, parseEmojiList, cleanWaText, parseWaEmojis, maxStickers, packUrl } from '../core/packs.js';
 import { classify, friendlyKey } from '../core/errors.js';
 import { makeZip, readZip } from '../core/zip.js';
 import { TELEGRAM, WHATSAPP, OUTPUT } from '../core/limits.js';
@@ -158,6 +158,8 @@ export function createTransfer(app) {
 export const ACTIONS = Object.freeze({
   telegram_static: ['add', 'new', 'send'],
   telegram_video: ['add', 'new', 'send'],
+  emoji_static: ['add', 'new'],
+  emoji_video: ['add', 'new'],
   animation: ['send'],
   gif: ['send', 'file'],
   webp_file: ['file'],
@@ -171,6 +173,8 @@ export const ACTIONS = Object.freeze({
 const KIND_FLAG = Object.freeze({
   telegram_static: 'studio',
   telegram_video: 'video',
+  emoji_static: 'emoji',
+  emoji_video: 'emoji',
   animation: 'gif_studio',
   gif: 'gif_studio',
   webp_file: 'convert',
@@ -215,6 +219,8 @@ const FILE_EXTRA = { disable_content_type_detection: true };
 const ACT = {
   telegram_static: (app, user, bytes, format, o) => act(app, user, bytes, format, 'static', o),
   telegram_video: (app, user, bytes, format, o) => act(app, user, bytes, format, 'video', o),
+  emoji_static: (app, user, bytes, format, o) => act(app, user, bytes, format, 'static', o, true),
+  emoji_video: (app, user, bytes, format, o) => act(app, user, bytes, format, 'video', o, true),
   animation: (app, user, bytes, format, o, info) => {
     const v = info.tracks.find((t) => t.type === 'vide');
     return deliver(app, user, () => app.tg.sendAnimation(user.tg_id, bytes, `wanger_${stamp(app)}.mp4`, { width: Math.round(v.width), height: Math.round(v.height), duration: Math.max(1, Math.round(info.durationMs / 1000)) }, 'studio_animation'));
@@ -255,8 +261,11 @@ async function waAct(app, user, bytes, kind, o) {
   return { action: o.action, packId: pack.id, count: after.sticker_count, needTray: !after.tray_file_id, left };
 }
 
-/** Checks the target first, then uploadStickerFile, then add / create / send. */
-async function act(app, user, bytes, format, stickerFormat, o) {
+/**
+ * Checks the target first, then uploadStickerFile, then add / create / send. `emoji`: the file is
+ * a 100×100 custom emoji, which goes only into custom emoji sets (and regular stickers never do).
+ */
+async function act(app, user, bytes, format, stickerFormat, o, emoji = false) {
   const emojis = parseEmojiList(o.emojis || '') || ['⭐'];
   // nothing reaches Telegram unless the target is valid and the caller's own
   let target = null;
@@ -264,7 +273,8 @@ async function act(app, user, bytes, format, stickerFormat, o) {
   if (o.action === 'add') {
     target = await pdb.getOwned(Number(o.packId), user.tg_id);
     if (!target) throw new UserError('pk.err.gone');
-    if (target.sticker_count >= TELEGRAM.set.maxStickersRegular) throw new UserError('err.set_full');
+    if (emoji !== (target.kind === 'emoji')) throw new UserError(emoji ? 'pk.err.not_emoji_set' : 'pk.err.emoji_set');
+    if (target.sticker_count >= maxStickers(target)) throw new UserError('err.set_full');
     await app.packs.checkQuota(user.tg_id, 'sticker_add');
   } else if (o.action === 'new') {
     title = cleanTitle(o.title);
@@ -289,15 +299,15 @@ async function act(app, user, bytes, format, stickerFormat, o) {
     return { action: 'send' };
   }
   if (o.action === 'new') {
-    const pack = await app.packs.create(user, title, si, 'made');
-    if (!o.quiet) await app.tg.send(user.tg_id, { text: app.t('studio.n_new_pack', { title: pack.title, link: `https://t.me/addstickers/${pack.tg_name}` }) }, 'studio_done');
+    const pack = await app.packs.create(user, title, si, 'made', { emoji, repaint: !!o.repaint });
+    if (!o.quiet) await app.tg.send(user.tg_id, { text: app.t('studio.n_new_pack', { title: pack.title, link: packUrl(pack) }) }, 'studio_done');
     return { action: 'new', packId: pack.id, name: pack.tg_name, count: 1 };
   }
   if (o.action === 'add') {
     const pack = target;
     await app.packs.add(user, pack, si, 'made');
     // batch mode sets quiet on every sticker but the last, so the chat gets one confirmation
-    if (!o.quiet) await app.tg.send(user.tg_id, { text: app.t('studio.n_added', { title: pack.title, n: pack.sticker_count, link: `https://t.me/addstickers/${pack.tg_name}` }) }, 'studio_done');
+    if (!o.quiet) await app.tg.send(user.tg_id, { text: app.t('studio.n_added', { title: pack.title, n: pack.sticker_count, link: packUrl(pack) }) }, 'studio_done');
     return { action: 'add', packId: pack.id, name: pack.tg_name, count: pack.sticker_count };
   }
   throw new UserError('studio.err.bad_input');

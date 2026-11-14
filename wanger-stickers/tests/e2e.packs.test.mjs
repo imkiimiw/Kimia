@@ -101,11 +101,14 @@ test('add stickers, browse, emojis, keywords, reorder, delete, rename, thumbnail
   assert.equal(data.stickers.length, 3);
   assert.equal(data.link, `https://t.me/addstickers/${pack.tg_name}`);
 
-  // share: the pack screen has the addstickers link and a share URL
+  // share: the pack screen has the addstickers link and the share screen (QR + share link)
   await h.press(U, `pk:open:${pack.id}`);
   const urls = h.lastButtons(U).filter((b) => b.url).map((b) => b.url);
   assert.ok(urls.includes(`https://t.me/addstickers/${pack.tg_name}`));
-  assert.ok(urls.some((u) => u.startsWith('https://t.me/share/url?url=')));
+  await h.tap(U, `pk:share:${pack.id}`);
+  const photo = h.tg.callsOf('sendPhoto', U)[0].params;
+  assert.match(photo.caption, /t\.me\/Wanger_Motionbot\?start=pack_[A-Za-z0-9]{10}/);
+  assert.ok(photo.reply_markup.inline_keyboard.flat().some((b) => (b.url || '').startsWith('https://t.me/share/url?url=')));
 });
 
 test('the last sticker cannot be deleted; deleting the pack removes the set and our rows', async () => {

@@ -4,7 +4,10 @@
 // Every pack id from callback_data is re-checked against the user (packs.mustOwn).
 import { btn, urlBtn, markup } from '../core/codec.js';
 import { UserError, parseJson } from '../core/util.js';
-import { cleanTitle, parseEmojiList, parseKeywords, parseSetRef, parseNumberList, isRegularSticker, addStickersUrl } from '../core/packs.js';
+import { cleanTitle, parseEmojiList, parseKeywords, parseSetRef, parseNumberList, isRegularSticker, addStickersUrl, packUrl, maxStickers, shareLink } from '../core/packs.js';
+import { makeQr } from '../core/qr.js';
+import { qrPng } from '../core/png.js';
+import { InputFile } from 'sdk';
 import { inspectWebP, inspectPng } from '../core/inspect.js';
 import { classify } from '../core/errors.js';
 import { stickerInput } from '../packs/service.js';
@@ -22,7 +25,7 @@ export async function listView(app, page = 0) {
   const total = await app.packs.count(u(app).tg_id);
   const per = T.pageSize;
   const p = Math.max(0, Math.min(page, Math.max(0, Math.ceil(total / per) - 1)));
-  const rows = (await app.packs.list(u(app).tg_id, p * per, per)).map((pk) => [btn(app.tp('pk.list_item', { title: pk.title, n: pk.sticker_count }), 'pk', 'open', pk.id)]);
+  const rows = (await app.packs.list(u(app).tg_id, p * per, per)).map((pk) => [btn(`${pk.kind === 'emoji' ? '😀 ' : ''}${app.tp('pk.list_item', { title: pk.title, n: pk.sticker_count })}`, 'pk', 'open', pk.id)]);
   const nav = [];
   if (p > 0) nav.push(btn(app.tp('common.prev'), 'm', 'packs', p - 1));
   if ((p + 1) * per < total) nav.push(btn(app.tp('common.next'), 'm', 'packs', p + 1));
@@ -35,28 +38,60 @@ export async function listView(app, page = 0) {
 }
 
 export async function packView(app, pack) {
-  const live = await postDb.liveOf(pack.id);
+  const emoji = pack.kind === 'emoji';
+  const live = emoji ? null : await postDb.liveOf(pack.id);
   const ch = app.publish.channel();
+  const url = packUrl(pack);
   const rows = [
-    [urlBtn(app.tp('pk.btn_open_tg'), addStickersUrl(pack.tg_name)), urlBtn(app.tp('pk.btn_share'), `https://t.me/share/url?url=${encodeURIComponent(addStickersUrl(pack.tg_name))}`)],
+    app.flag('share') ? [urlBtn(app.tp('pk.btn_open_tg'), url), btn(app.tp('pk.btn_share'), 'pk', 'share', pack.id)] : [urlBtn(app.tp('pk.btn_open_tg'), url), urlBtn(app.tp('pk.btn_share'), `https://t.me/share/url?url=${encodeURIComponent(url)}`)],
     [btn(app.tp('pk.btn_browse'), 'pk', 'it', pack.id, 0)],
-    [btn(app.tp('pk.btn_rename'), 'pk', 'ren', pack.id), btn(app.tp('pk.btn_thumb'), 'pk', 'thumb', pack.id)],
-    [btn(app.tp('pk.btn_copy'), 'pk', 'copy', pack.id), btn(app.tp('pk.btn_dup'), 'pk', 'dup', pack.id), btn(app.tp('pk.btn_merge'), 'pk', 'merge', pack.id)],
+    emoji ? [btn(app.tp('pk.btn_rename'), 'pk', 'ren', pack.id)] : [btn(app.tp('pk.btn_rename'), 'pk', 'ren', pack.id), btn(app.tp('pk.btn_thumb'), 'pk', 'thumb', pack.id)],
+    ...(emoji ? [] : [[btn(app.tp('pk.btn_copy'), 'pk', 'copy', pack.id), btn(app.tp('pk.btn_dup'), 'pk', 'dup', pack.id), btn(app.tp('pk.btn_merge'), 'pk', 'merge', pack.id)]]),
     [btn(app.tp('pk.btn_export'), 'pk', 'exp', pack.id)],
   ];
+  if (app.flag('studio')) rows.splice(2, 0, [{ text: app.tp(emoji ? 'pk.btn_studio_emoji' : 'pk.btn_studio_add'), web_app: { url: `${APP_URL}?mode=${emoji ? 'emoji' : 'sticker'}&pack=${pack.id}` } }]);
   let pubLine = '';
   if (live) {
     pubLine = app.t('pk.pub_line', { status: app.tp(`pub.status.${live.status}`) });
     rows.push([btn(app.tp('pub.btn_withdraw'), 'pb', 'back', live.id)]);
-  } else if (app.flag('pack_publish') && ch) {
+  } else if (!emoji && app.flag('pack_publish') && ch) {
     rows.push([btn(app.tp('pub.btn_publish'), 'pb', 'ask', pack.id)]);
   }
   rows.push([btn(app.tp('pk.btn_delete'), 'pk', 'drop', pack.id)]);
   rows.push([btn(app.tp('pk.btn_back_list'), 'm', 'packs', 0)]);
   return {
-    text: app.t('pk.view', { title: pack.title, n: pack.sticker_count, max: MAX, link: addStickersUrl(pack.tg_name), pub: { __html: pubLine } }),
+    text: app.t(emoji ? 'pk.view_emoji' : 'pk.view', { title: pack.title, n: pack.sticker_count, max: maxStickers(pack), link: url, pub: { __html: pubLine } }),
     keyboard: markup(rows),
   };
+}
+
+/** The share screen: a QR code of the pack's link, both links, how often it was opened. */
+async function shareView(app, pack) {
+  const code = await app.packs.shareCode(pack);
+  const link = shareLink(BOT_USERNAME, code);
+  const stats = await app.packs.shareStats(pack);
+  const share = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(pack.title)}`;
+  return {
+    png: qrPng(makeQr(link), 8),
+    caption: app.t('pk.share_text', { title: pack.title, link, direct: packUrl(pack), opens: stats.opens, people: stats.people }),
+    keyboard: markup([[urlBtn(app.tp('pk.btn_share_send'), share)], [urlBtn(app.tp('pk.btn_open_tg'), packUrl(pack))], [btn(app.tp('pk.btn_back_pack'), 'pk', 'open', pack.id)]]),
+  };
+}
+
+/** Someone opened t.me/<bot>?start=pack_<code>: the pack's first sticker with «add» and «make yours». */
+export async function onSharedPack(app, code) {
+  const pack = await app.packs.openShared(code, u(app).tg_id);
+  if (!pack) {
+    await app.tg.send(u(app).tg_id, { text: app.t('pk.share_gone') }, 'share_gone');
+    return 'share_gone';
+  }
+  const items = await app.packs.items(pack.id);
+  const rows = [[urlBtn(app.tp(pack.kind === 'emoji' ? 'pk.btn_add_emoji' : 'pk.btn_add_pack'), packUrl(pack))]];
+  if (app.flag('studio')) rows.push([{ text: app.tp('pub.post_make'), web_app: { url: APP_URL } }]);
+  const keyboard = markup(rows);
+  if (items.length) await app.tg.sticker(u(app).tg_id, items[0].file_id, keyboard, 'share_sticker');
+  await app.tg.send(u(app).tg_id, { text: app.t('pk.share_open', { title: pack.title, n: pack.sticker_count }), keyboard: items.length ? undefined : keyboard }, 'share_open');
+  return 'share_open';
 }
 
 function itemKeyboard(app, pack, it, total) {
@@ -86,7 +121,8 @@ const show = (app, cq, view, name) => app.tg.show(u(app).tg_id, cq && cq.message
 
 /** Destination picker for "add this sticker" / import / copy. */
 async function packPicker(app, ns, action, extraArgs = [], exceptId = null, room = 1) {
-  const list = (await app.packs.list(u(app).tg_id, 0, 30)).filter((p) => p.id !== exceptId && p.sticker_count + room <= MAX).slice(0, T.pageSize);
+  // custom emoji sets take only 100×100 emoji (made in the Studio), never regular stickers
+  const list = (await app.packs.list(u(app).tg_id, 0, 30)).filter((p) => p.id !== exceptId && p.kind !== 'emoji' && p.sticker_count + room <= MAX).slice(0, T.pageSize);
   return list.map((p) => [btn(app.tp('pk.list_item', { title: p.title, n: p.sticker_count }), ns, action, ...extraArgs, p.id)]);
 }
 
@@ -288,6 +324,15 @@ export const routes = {
     },
   },
   'pk:exp': { args: ['uint'], run: async (app, [id]) => { await app.packs.exportPack(u(app), await own(app, id)); return { toast: app.tp('pk.exported') }; } },
+  'pk:share': {
+    args: ['uint'],
+    run: async (app, [id]) => {
+      if (!app.flag('share')) throw new UserError('common.feature_off');
+      const v = await shareView(app, await own(app, id));
+      await app.tg.call('sendPhoto', { chat_id: u(app).tg_id, photo: new InputFile(v.png, 'qr.png', { type: 'image/png' }), caption: v.caption, parse_mode: 'HTML', reply_markup: v.keyboard }, 'pack_share');
+      app.stats.count('share.qr');
+    },
+  },
   'pk:drop': {
     args: ['uint'],
     run: async (app, [id], cq) => {

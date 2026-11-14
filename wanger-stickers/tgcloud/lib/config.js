@@ -32,7 +32,7 @@ export const DEFAULT_LANG = 'fa';
 
 /** Features with a flag; a button is shown only when its flag is on (brief §1 rule 7). */
 // Append only: the admin panel addresses flags by their index in this list.
-export const FEATURES = Object.freeze(['packs', 'pack_import', 'pack_publish', 'studio', 'gif_studio', 'convert', 'whatsapp', 'ai', 'gallery', 'payments', 'video', 'wastickers', 'gif_zip']);
+export const FEATURES = Object.freeze(['packs', 'pack_import', 'pack_publish', 'studio', 'gif_studio', 'convert', 'whatsapp', 'ai', 'gallery', 'payments', 'video', 'wastickers', 'gif_zip', 'emoji', 'share', 'anim_bg']);
 /** Features with a daily free quota (counted only after success). */
 export const QUOTA_FEATURES = Object.freeze(['pack_create', 'sticker_add', 'pack_import', 'publish', 'media_send', 'wa_export']);
 
@@ -52,6 +52,9 @@ export const DEFAULTS = Object.freeze({
   'flags.video': true, // Phase 3: Telegram video stickers (and animated inputs in the Studio)
   'flags.wastickers': false, // .wastickers package: off until its format is checked with importer apps
   'flags.gif_zip': false, // send the ".gif file" inside a ZIP (if Telegram turns the document into an animation)
+  'flags.emoji': true, // Phase 4: custom emoji packs (100×100)
+  'flags.share': true, // Phase 4: share links with QR and open counts
+  'flags.anim_bg': true, // Phase 4: background removal on videos (experimental, capable devices only)
   'flags.ai': false,
   'flags.gallery': false,
   'flags.payments': false,

@@ -2,8 +2,9 @@
 // No foreign keys (the platform forbids them): parent ids are plain columns, integrity is kept in
 // code. Timestamps are unix seconds. Every lookup column has an index; every query is LIMITed.
 // Phase 2 adds jobs, job_chunks, uploads, upload_chunks (the Studio's transfer protocol). Phase 3 adds
-// packs.tray_file_id (WhatsApp packs live in `packs` with platform = 'whatsapp'). Later phases add
-// payments and the gallery.
+// packs.tray_file_id (WhatsApp packs live in `packs` with platform = 'whatsapp'). Phase 4 adds
+// packs.share_code / share_opens and share_visits (share links). Later phases add payments and the
+// gallery.
 import { table, integer, text, real, blob, index, uniqueIndex, primaryKey, sql } from 'sdk/db';
 
 export const users = table('users', {
@@ -87,7 +88,7 @@ export const packs = table('packs', {
   platform: text('platform').notNull().default('telegram'),
   tg_name: text('tg_name'),
   title: text('title').notNull(),
-  kind: text('kind').notNull().default('mixed'),
+  kind: text('kind').notNull().default('mixed'), // Telegram: mixed | emoji (custom emoji set, Phase 4); WhatsApp: static | animated
   publisher: text('publisher'),
   wa_identifier: text('wa_identifier'),
   sticker_count: integer('sticker_count').notNull().default(0),
@@ -95,10 +96,22 @@ export const packs = table('packs', {
   created_at: integer('created_at').notNull().default(0),
   updated_at: integer('updated_at').notNull().default(0),
   tray_file_id: text('tray_file_id'), // Phase 3: WhatsApp tray icon (96×96 PNG) in the storage channel
+  share_code: text('share_code'), // Phase 4: random code of the share link t.me/<bot>?start=pack_<code>
+  share_opens: integer('share_opens').notNull().default(0), // Phase 4: times the share link was opened
 }, (t) => ({
   userIdx: index('idx_packs_user').on(t.tg_id, t.id),
   nameIdx: uniqueIndex('uidx_packs_name').on(t.tg_name),
+  shareIdx: uniqueIndex('uidx_packs_share').on(t.share_code),
 }));
+
+/** Phase 4: who opened a pack's share link (one row per person: the "people" count). */
+export const share_visits = table('share_visits', {
+  pack_id: integer('pack_id').notNull(),
+  tg_id: integer('tg_id').notNull(),
+  at: integer('at').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.pack_id, t.tg_id] }),
+})).withoutRowid();
 
 export const pack_items = table('pack_items', {
   id: integer('id').primaryKey({ autoIncrement: true }),

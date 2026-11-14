@@ -69,6 +69,29 @@ export function validateTelegramVideo(bytes) {
   return { ok: v.length === 0, violations: v, info };
 }
 
+/** Custom emoji (Phase 4), static: PNG or WEBP, exactly 100×100, not animated, sticker size limit. */
+export function validateCustomEmojiStatic(bytes, format) {
+  const E = TELEGRAM.customEmoji;
+  const v = [];
+  const info = format === 'png' ? inspectPng(bytes) : format === 'webp' ? inspectWebP(bytes) : { error: 'FORMAT' };
+  if (info.error) v.push(info.error === 'FORMAT' ? 'FORMAT' : 'NOT_' + format.toUpperCase());
+  else {
+    if (info.animated) v.push('ANIMATED');
+    if (info.width !== E.width || info.height !== E.height) v.push('NOT_100X100');
+  }
+  if (bytes.length > TELEGRAM.static.maxBytes) v.push('TOO_BIG');
+  return { ok: v.length === 0, violations: v, info };
+}
+
+/** Custom emoji (Phase 4), video: the video-sticker rules at exactly 100×100. */
+export function validateCustomEmojiVideo(bytes) {
+  const r = validateTelegramVideo(bytes);
+  const v = r.violations.filter((x) => x !== 'NO_SIDE_512' && x !== 'TOO_LARGE_DIMENSIONS');
+  const t = r.info.tracks && r.info.tracks.find((x) => x.type === 1);
+  if (t && (t.width !== TELEGRAM.customEmoji.width || t.height !== TELEGRAM.customEmoji.height)) v.push('NOT_100X100');
+  return { ok: v.length === 0, violations: v, info: r.info };
+}
+
 /** WhatsApp static sticker: WebP, exactly 512×512, not animated, ≤ 100 KB. */
 export function validateWhatsAppStatic(bytes) {
   const S = WHATSAPP.static;
@@ -192,6 +215,8 @@ export const UPLOAD_KINDS = Object.freeze({
   gif: { formats: ['gif'], maxBytes: OUTPUT.gif.maxBytes, check: (b) => validateGif(b) },
   webp_file: { formats: ['webp'], maxBytes: OUTPUT.webp.maxBytes, check: (b) => validateWebPFile(b) },
   frames_zip: { formats: ['zip'], maxBytes: OUTPUT.zip.maxBytes, check: () => ({ ok: true, violations: [], info: {} }) }, // checked entry by entry in transfer.js
+  emoji_static: { formats: TELEGRAM.static.formats, maxBytes: TELEGRAM.static.maxBytes, check: (b, f) => validateCustomEmojiStatic(b, f) },
+  emoji_video: { formats: ['webm'], maxBytes: TELEGRAM.video.maxBytes, check: (b) => validateCustomEmojiVideo(b) },
   whatsapp_static: { formats: ['webp'], maxBytes: WHATSAPP.static.maxBytes, check: (b) => validateWhatsAppStatic(b) },
   whatsapp_animated: { formats: ['webp'], maxBytes: WHATSAPP.animated.maxBytes, check: (b) => validateWhatsAppAnimated(b) },
   whatsapp_tray: { formats: ['png'], maxBytes: WHATSAPP.tray.maxBytes, check: (b) => validateWhatsAppTray(b) },

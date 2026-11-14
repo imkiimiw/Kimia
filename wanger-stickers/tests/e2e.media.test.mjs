@@ -281,7 +281,7 @@ test('studio_boot reports WhatsApp packs, flags, every limit the engine needs, a
   const b = await boot({}, ctx(U));
   assert.deepEqual(b.wa, [{ id: r0.packId, title: 'B', publisher: 'p', kind: 'static', count: 1, tray: false }]);
   assert.deepEqual(b.packs, []);
-  assert.deepEqual(b.flags, { studio: true, video: true, gif_studio: true, convert: true, whatsapp: true });
+  assert.deepEqual(b.flags, { studio: true, video: true, gif_studio: true, convert: true, whatsapp: true, emoji: true, anim_bg: true });
   assert.equal(b.limits.video.maxBytes, 256 * 1024);
   assert.equal(b.limits.whatsapp.static.maxBytes, 100 * 1024);
   assert.deepEqual(b.limits.sizeTargeting.waFpsLadder, [15, 12, 10, 8]);

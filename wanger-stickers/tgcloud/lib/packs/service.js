@@ -3,9 +3,9 @@
 // checks ownership (the pack row's tg_id) — ids from callback_data are never trusted.
 import { packs as pdb, posts as postDb } from '../db/packs.js';
 import { users } from '../db/users.js';
-import { makePackName, stickerFormat, isRegularSticker } from '../core/packs.js';
+import { makePackName, stickerFormat, isRegularSticker, maxStickers, packUrl, SHARE_CODE_RE } from '../core/packs.js';
 import { classify, friendlyKey } from '../core/errors.js';
-import { UserError, dayKey, parseJson } from '../core/util.js';
+import { UserError, dayKey, parseJson, randomId } from '../core/util.js';
 import { utf8 } from '../core/bytes.js';
 import { TELEGRAM } from '../core/limits.js';
 import { BOT_USERNAME } from '../config.js';
@@ -111,9 +111,11 @@ export function createPacks(app, account) {
     /**
      * Creates a set with one first sticker. The name is ws_<id>_<n>_by_<bot>; on "name occupied"
      * the next n is tried (n is never reused).
+     * `opts.emoji` makes a custom emoji set (100×100 stickers, up to 200; Phase 4).
      * @param {any} user @param {string} title @param {ReturnType<typeof stickerInput>} first @param {string} origin
+     * @param {{emoji?: boolean, repaint?: boolean}} [opts]
      */
-    async create(user, title, first, origin = 'made') {
+    async create(user, title, first, origin = 'made', opts = {}) {
       await checkQuota(user.tg_id, 'pack_create');
       if ((await pdb.countByUser(user.tg_id)) >= Number(app.settings.get('limits.packs_per_user'))) {
         throw new UserError('pk.err.too_many', { max: Number(app.settings.get('limits.packs_per_user')) });
@@ -123,7 +125,8 @@ export function createPacks(app, account) {
         const n = await users.nextPackNumber(user.tg_id);
         const candidate = makePackName(user.tg_id, n, BOT_USERNAME);
         try {
-          await tg.call('createNewStickerSet', { user_id: user.tg_id, name: candidate, title, stickers: [inputSticker(first)] }, 'pack_create');
+          const type = opts.emoji ? { sticker_type: 'custom_emoji', ...(opts.repaint ? { needs_repainting: true } : {}) } : {};
+          await tg.call('createNewStickerSet', { user_id: user.tg_id, name: candidate, title, stickers: [inputSticker(first)], ...type }, 'pack_create');
           name = candidate;
         } catch (e) {
           if (classify(e).kind === 'set_name_taken') continue;
@@ -133,7 +136,7 @@ export function createPacks(app, account) {
         }
       }
       if (!name) throw new UserError('err.set_name_taken');
-      const pack = await pdb.create({ tg_id: user.tg_id, tg_name: name, title, sticker_count: 1 }, clock.now());
+      const pack = await pdb.create({ tg_id: user.tg_id, tg_name: name, title, sticker_count: 1, kind: opts.emoji ? 'emoji' : 'mixed' }, clock.now());
       await pdb.noteOrigin(pack.id, first.file_unique_id, first.file_id, first.format, origin);
       await sync(pack);
       await countUsage(user.tg_id, 'pack_create');
@@ -144,7 +147,7 @@ export function createPacks(app, account) {
 
     /** Adds one sticker (by file_id). Telegram ignores an exact duplicate. */
     async add(user, pack, si, origin = 'made') {
-      if (pack.sticker_count >= SET.maxStickersRegular) throw new UserError('err.set_full');
+      if (pack.sticker_count >= maxStickers(pack)) throw new UserError('err.set_full');
       await checkQuota(user.tg_id, 'sticker_add');
       await pdb.noteOrigin(pack.id, si.file_unique_id, si.file_id, si.format, origin);
       try {
@@ -224,6 +227,27 @@ export function createPacks(app, account) {
       app.stats.count('pack.deleted');
     },
 
+    /** The pack's share code (made once; Phase 4 share links). */
+    async shareCode(pack) {
+      if (pack.share_code) return pack.share_code;
+      await pdb.setShareCode(pack.id, randomId(10));
+      const fresh = await pdb.get(pack.id);
+      pack.share_code = fresh.share_code;
+      return fresh.share_code;
+    },
+    /** A share link was opened (`pack_<code>`): the pack, or null. The owner's own opens don't count. */
+    async openShared(code, userId) {
+      if (!SHARE_CODE_RE.test(String(code))) return null;
+      const pack = await pdb.byShareCode(code);
+      if (!pack) return null;
+      if (pack.tg_id !== userId) {
+        await pdb.recordOpen(pack.id, userId, clock.now());
+        app.stats.count('share.open');
+      }
+      return pack;
+    },
+    shareStats: async (pack) => ({ opens: (await pdb.get(pack.id)).share_opens, people: await pdb.sharePeople(pack.id) }),
+
     /** A JSON backup of the pack (file_ids, emojis, keywords) as a document to the user. */
     async exportPack(user, pack) {
       const items = await pdb.items(pack.id);
@@ -232,7 +256,8 @@ export function createPacks(app, account) {
         exported_at: clock.now(),
         name: pack.tg_name,
         title: pack.title,
-        link: `https://t.me/addstickers/${pack.tg_name}`,
+        type: pack.kind === 'emoji' ? 'custom_emoji' : 'regular',
+        link: packUrl(pack),
         stickers: items.map((i) => ({ file_id: i.file_id, file_unique_id: i.file_unique_id, format: i.format, emojis: parseJson(i.emojis, []), keywords: parseJson(i.keywords, []) })),
       };
       await tg.sendDocument(user.tg_id, utf8(JSON.stringify(data, null, 2)), `${pack.tg_name}.json`, { type: 'application/json' }, 'pack_export');
