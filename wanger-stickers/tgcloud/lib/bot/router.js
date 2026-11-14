@@ -94,7 +94,7 @@ async function keepPending(app, action) {
 }
 
 /** Registers the command lists once per version (default per language + the owner's chat with /admin). */
-const COMMANDS_VERSION = 2; // 2: the Studio menu button (Phase 2)
+const COMMANDS_VERSION = 3; // 2: the Studio menu button (Phase 2); 3: it opens the Studio's home (Phase 3)
 async function ensureCommands(app) {
   if (Number(app.settings.get('boot.commands') || 0) >= COMMANDS_VERSION) return;
   if (!(await system.claimSetting(`boot.commands.${COMMANDS_VERSION}`, 1, app.clock.now()))) return;
@@ -106,7 +106,7 @@ async function ensureCommands(app) {
     await app.tg.call('setMyCommands', { commands: [...list('fa'), { command: 'admin', description: tp('fa', 'cmd.admin') }], scope: { type: 'chat', chat_id: OWNER_ID } }, 'commands');
     if (app.flag('studio')) {
       // the persistent chat menu button opens the Studio (brief §8); the owner's Phase 0 «Spike» button goes
-      await app.tg.call('setChatMenuButton', { menu_button: { type: 'web_app', text: tp('fa', 'menu.button'), web_app: { url: `${APP_URL}?mode=sticker` } } }, 'menu_button');
+      await app.tg.call('setChatMenuButton', { menu_button: { type: 'web_app', text: tp('fa', 'menu.button'), web_app: { url: APP_URL } } }, 'menu_button');
       await app.tg.call('setChatMenuButton', { chat_id: OWNER_ID, menu_button: { type: 'default' } }, 'menu_button');
     }
     await app.settings.set(0, 'boot.commands', COMMANDS_VERSION);
@@ -231,7 +231,7 @@ async function handleMessage(app, message, { resumed = false } = {}) {
           await send(app, { text: app.t('media.studio_soon') }, 'studio');
           return 'studio';
         }
-        await send(app, { text: app.t('media.open_studio'), keyboard: markup([[{ text: app.tp('menu.studio'), web_app: { url: `${APP_URL}?mode=sticker` } }]]) }, 'studio');
+        await send(app, { text: app.t('media.open_studio'), keyboard: markup([[{ text: app.tp('menu.button'), web_app: { url: APP_URL } }]]) }, 'studio');
         return 'studio';
       case 'lang':
         await send(app, langView(app, app.lang), 'lang');

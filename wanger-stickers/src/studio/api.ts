@@ -35,12 +35,29 @@ export function call<T>(name: string, input: object = {}): Promise<T> {
   });
 }
 
+export interface WaPack {
+  id: number;
+  title: string;
+  publisher: string;
+  kind: 'static' | 'animated';
+  count: number;
+  tray: boolean;
+}
+
 export interface Boot {
-  user: { id: number; first_name: string; lang: 'fa' | 'en' };
+  user: { id: number; first_name: string; username?: string; lang: 'fa' | 'en' };
   role: string;
   packs: { id: number; title: string; count: number; name: string }[];
-  quota: { pack_create: number; sticker_add: number };
-  limits: { static: { side: number; maxBytes: number }; set: { maxStickersRegular: number; titleMaxChars: number }; chunkBytes: number };
+  wa: WaPack[];
+  flags: { studio: boolean; video: boolean; gif_studio: boolean; convert: boolean; whatsapp: boolean };
+  quota: { pack_create: number; sticker_add: number; media_send: number; wa_export: number };
+  limits: {
+    static: { side: number; maxBytes: number };
+    video: { maxBytes: number; maxDurationMs: number; maxFps: number };
+    set: { maxStickersRegular: number; titleMaxChars: number };
+    whatsapp: { pack: { minStickers: number; maxStickers: number; emojiPerStickerMax: number; nameMaxChars: number; publisherMaxChars: number } };
+    chunkBytes: number;
+  };
   bot: string;
 }
 
@@ -61,29 +78,43 @@ export async function downloadJob(job: string, onProgress?: (p: number) => void)
 }
 
 export interface SaveTarget {
-  action: 'add' | 'new' | 'send';
+  action: 'add' | 'new' | 'send' | 'file' | 'wa_add' | 'wa_new' | 'wa_tray';
   packId?: number;
   title?: string;
+  publisher?: string;
   emojis?: string;
+  quiet?: boolean;
 }
 export interface SaveResult {
   action: string;
   packId?: number;
   name?: string;
   count?: number;
+  needTray?: boolean;
+  left?: number;
 }
 
-/** Sends the finished sticker: one call when it fits a chunk, else begin → chunks → commit. */
-export async function saveSticker(bytes: Uint8Array, format: 'webp' | 'png', target: SaveTarget, chunkBytes: number, onProgress?: (p: number) => void): Promise<SaveResult> {
+/** Upload kinds (tgcloud/lib/core/validate.js UPLOAD_KINDS). */
+export type UploadKind = 'telegram_static' | 'telegram_video' | 'animation' | 'gif' | 'webp_file' | 'frames_zip' | 'whatsapp_static' | 'whatsapp_animated' | 'whatsapp_tray';
+export type UploadFormat = 'webp' | 'png' | 'webm' | 'mp4' | 'gif' | 'zip';
+
+/** Any finished file: one call when it fits a chunk, else begin → chunks → commit. */
+export async function saveFile(bytes: Uint8Array, kind: UploadKind, format: UploadFormat, target: SaveTarget, chunkBytes: number, onProgress?: (p: number) => void): Promise<SaveResult> {
   const sha256 = await sha256Hex(bytes);
   if (bytes.length <= chunkBytes) {
     onProgress?.(0.5);
-    return call<SaveResult>('upload_commit', { inline: toBase64(bytes), format, size: bytes.length, sha256, ...target });
+    return call<SaveResult>('upload_commit', { inline: toBase64(bytes), kind, format, size: bytes.length, sha256, ...target });
   }
-  const b = await call<{ uploadId: string; chunkBytes: number; chunks: number }>('upload_begin', { kind: 'telegram_static', format, size: bytes.length, sha256 });
+  const b = await call<{ uploadId: string; chunkBytes: number; chunks: number }>('upload_begin', { kind, format, size: bytes.length, sha256 });
   for (let i = 0; i < b.chunks; i++) {
     await call('upload_chunk', { uploadId: b.uploadId, idx: i, b64: toBase64(bytes.subarray(i * b.chunkBytes, (i + 1) * b.chunkBytes)) });
     onProgress?.((i + 1) / (b.chunks + 1));
   }
   return call<SaveResult>('upload_commit', { uploadId: b.uploadId, ...target });
 }
+
+export const waExport = (packId: number) => call<{ sent: boolean; count: number; bytes: number }>('wa_export', { packId });
+
+/** A Telegram static sticker (Phase 2 API, kept for the static editor). */
+export const saveSticker = (bytes: Uint8Array, format: 'webp' | 'png', target: SaveTarget, chunkBytes: number, onProgress?: (p: number) => void) =>
+  saveFile(bytes, 'telegram_static', format, target, chunkBytes, onProgress);
