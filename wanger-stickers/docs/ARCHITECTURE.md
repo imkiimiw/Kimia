@@ -1,4 +1,4 @@
-# Architecture — Wanger Stickers (Phases 1–2)
+# Architecture — Wanger Stickers (Phases 1–3)
 
 One tgcloud project (@Wanger_Motionbot, app9292593567): a thin Serverless backend in `tgcloud/`,
 the Mini App in `src/` (Phase 0–1: the device spike page; the Studio from Phase 2), and the media
@@ -36,7 +36,11 @@ handlers/{message,callback_query,my_chat_member}.js   (thin: one line each)
 | `lib/jobs.js` | The tick: housekeeping (≤ every 10 min, elected), broadcast slice, one queued post, one bulk-op slice, owner notices. |
 | `lib/bot/{router,ui,packs_ui,publish_ui}.js` | Routing and user screens. |
 | `lib/admin/{panel,channels_ui,broadcast_ui,publish_ui}.js` | Owner panel; reviewers reach only `a:home`, `a:q`, `a:qv` and `pr:*`. |
-| `endpoints/spike_*.js` | Phase 0 spike tools (owner only), removed when the Studio arrives. |
+| `lib/packs/whatsapp.js` | WhatsApp packs (Phase 3): create / add / tray / remove / emojis / rename / delete, storage channel (fallback: the user's chat), rule check, ZIP export (+ `.wastickers` behind a flag). |
+| `lib/bot/wa_ui.js` | «🟢 پک‌های واتس‌اپ» in chat (`w:*`): list, screen with status, preview albums, steps for remove / emojis / rename, ZIP, delete. |
+| `lib/core/zip.js` | Stored-only ZIP writer and reader (CRC-32), shared with the engine. |
+| `endpoints/spike_*.js` | Phase 0 spike tools (owner only). |
+| `endpoints/wa_export.js` | Sends a WhatsApp pack's ZIP (gate re-checked without the cache). |
 
 ## The Studio (Phase 2)
 
@@ -49,15 +53,34 @@ server: lib/endpoint.js (gate …) → lib/studio/transfer.js (size, SHA-256, va
   → uploadStickerFile → packs.add / packs.create / sendSticker
 ```
 
+### Phase 3: animated, GIF, WhatsApp
+
+```
+chat video / GIF / round video / video or TGS sticker → jobs row → buttons per kind (?job=&mode=video|gif|wa)
+Mini App home → mode → src/studio/AnimStudio.tsx (lazy chunk)
+  engine/anim/source   video (<video>, one playback pass via requestVideoFrameCallback, seek fallback),
+                       GIF (omggif), TGS (lottie-web light canvas), still images
+  engine/anim/timeline clip → constant-rate plan (speed, reverse, boomerang, loop cross-fade)
+  engine/anim/compose  crop, shape, background, text overlay rendered once → frames per target size
+  encoders             vp9 (2 WebCodecs encoders + webm/mux, size targeting) · mp4 (avc1 + mp4-muxer)
+                       gif (gifenc) · awebp (WebPAnimEncoder, WhatsApp ladder) · files (frames ZIP)
+  engine/export        WhatsApp static (512×512 + margin) and the tray icon
+  engine/anim/split    screenshot to pack (alpha or border-colour mask → components → boxes)
+upload kinds (core/validate.js UPLOAD_KINDS) → upload_commit → lib/studio/transfer.js ACT[kind]
+  telegram_static|video → uploadStickerFile → pack add/new/send · animation → sendAnimation
+  gif / webp_file / frames_zip → sendDocument · whatsapp_* → lib/packs/whatsapp.js (storage channel)
+```
+
 `src/engine/` never imports React, Telegram or i18n (reusable). Shared pure modules from
 `tgcloud/lib/core/` (limits, validate, inspect, bytes) are imported by the engine, so the client
 and the server check files with the same code.
 
-## Data (schema.js, 24 tables)
+## Data (schema.js, 24 tables; Phase 3 adds the column `packs.tray_file_id`)
 
 users · usage_daily · channels · membership_cache · user_state · pending_actions · packs ·
 pack_items · pack_posts · staff · pack_ops · broadcasts · settings · secrets · rate_limits · errors ·
-stats_daily · processed_updates · alerts · audit_log · jobs · job_chunks · uploads · upload_chunks. No foreign keys; children deleted before
+stats_daily · processed_updates · alerts · audit_log · jobs · job_chunks · uploads · upload_chunks. WhatsApp packs are
+`packs` rows with `platform = 'whatsapp'` (Telegram queries filter on it). No foreign keys; children deleted before
 parents in code; timestamps are unix seconds; jobs and uploads expire after 30 minutes (housekeeping).
 
 ## Platform rules the code follows (measured, SPIKE_REPORT §3a)
@@ -75,4 +98,7 @@ parents in code; timestamps are unix seconds; jobs and uploads expire after 30 m
 `npm test`: unit (`core`, `guard`) + end-to-end on the SDK emulation (`tests/sdk/`, node:sqlite with
 the platform's measured limits) and a strict fake Bot API with sticker-set rules
 (`tests/helpers/fake-telegram.mjs`). Acceptance suites: `e2e.gate`, `e2e.packs`, `e2e.publish`,
-`e2e.admin` (permission matrix over every admin route and step, broadcast interruption).
+`e2e.admin` (permission matrix over every admin route and step, broadcast interruption), `e2e.media`
+(video stickers, deliveries, WhatsApp packs end to end), `anim` (timeline, splitter, ZIP, validators).
+In a browser: `npm run engine:local` (encoders + validators + ffprobe) and `npm run studio:local`
+(the real Studio UI with a mock Telegram bridge).

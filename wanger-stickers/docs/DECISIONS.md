@@ -245,6 +245,59 @@ From the other bots' experience: `processed_updates` (update_id de-duplication),
 | — | sets have max 120 stickers (200 for emoji) | Bot API |
 | Phase 0 has no endpoints | two owner-only spike endpoints (`spike_echo`, `spike_report`), deleted in Phase 1 | measuring HTTP limits needs them |
 
+## D15 — Phase 3: frames from video by one playback pass
+
+Seeking a `<video>` per frame costs up to a keyframe interval of decoding per frame (38 s for 3 s of
+a 1080p clip in Chromium). The engine plays the needed span once (muted, `playsinline`, 1× or 2×)
+and keeps the frames it needs via `requestVideoFrameCallback`; frames that playback dropped are
+fetched by seeking. Video sources are decoded at ≤ 720 px (plenty for 512-px stickers). A WebCodecs
+`VideoDecoder` + MP4 demuxer would be faster still but needs mp4box.js (BSD) and per-container
+work; not needed at these numbers.
+
+## D16 — Phase 3: WhatsApp packs live in `packs` (platform = 'whatsapp')
+
+- Same table as Telegram packs (the brief's schema already had `platform`, `publisher`,
+  `wa_identifier`); `pack_items.format` = `wa_static` / `wa_animated`; one new column
+  `packs.tray_file_id`. Telegram queries filter `platform = 'telegram'`, WhatsApp ones
+  `'whatsapp'`, so a WhatsApp id can never reach a sticker-set call.
+- Files (stickers, tray) are sent as documents to the **storage channel** and only their file_ids
+  are kept (brief §4). **Until the owner sets a storage channel**, they are kept as silent documents
+  in the user's own chat with the bot (the pack still works; the owner gets a reminder at most once a
+  day). If the storage channel breaks, the same fallback applies and the owner is alerted.
+- Export (`wa_export` / «📦 گرفتن فایل ZIP»): the pack must pass `validateWhatsAppPack`; the server
+  downloads the files (6 at a time), writes a stored-only ZIP (`01.webp`…, `tray.png`,
+  `README.txt` in fa + en, `pack.json` in WhatsApp's contents.json shape) and sends it. The README
+  explains importing in general terms and names no app.
+- `.wastickers` (zip with `title.txt`, `author.txt`, tray, stickers — the format importer apps are
+  reported to use) is written only while `flags.wastickers` is on; **off** until Kimi checks it with
+  an importer app (brief §10).
+
+## D17 — Phase 3: deliveries and quotas
+
+- MP4 (H.264, no audio) → `sendAnimation` (Telegram's GIF). A real `.gif` → `sendDocument` with
+  `disable_content_type_detection`; if Telegram still turns it into an animation (QA #4), the owner
+  turns on `flags.gif_zip` and the file goes inside a ZIP. Animated WebP and frames ZIP → `sendDocument`.
+- New quotas (owner-editable): `media_send` 100/day (GIFs, MP4s, files), `wa_export` 20/day. WhatsApp
+  stickers count as `sticker_add`, new WhatsApp packs as `pack_create` (same as Telegram).
+- Batch mode and screenshot-to-pack send one chat confirmation per batch (`quiet` on every sticker
+  but the last).
+- Our caps for chat files (not Telegram rules) live in `limits.js` `OUTPUT`: 20 MB, MP4 ≤ 1280 px and
+  ≤ 60 s, GIF ≤ 800 px and ≤ 30 s (frames ≥ 20 ms), ZIP ≤ 300 frames.
+
+## D18 — Phase 3: feature flags
+
+`video` (Telegram video stickers + animated inputs), `gif_studio` (GIF / MP4), `convert` (WebP file,
+frames ZIP, first frame), `whatsapp` — all **on**; `wastickers` and `gif_zip` **off**. The flags list
+is append-only (the panel addresses flags by index).
+
+## D19 — iOS VP9 fallback (Kimi approved a libvpx WASM build): status
+
+Not built in Phase 3. The only ready-made libvpx WASM (webm-wasm, Apache-2.0) is **VP8-only**
+(libvpx 1.7, `V_VP8`), which Telegram refuses for stickers; a VP9 build means compiling libvpx with
+emscripten (BSD licence; build work of its own). It is needed only if the iPhone check (QA Phase 3
+#3) shows no VP9 `VideoEncoder` in Telegram's iOS webview — on such a device the Studio says so and
+offers GIF / WhatsApp instead of failing silently. Decision after that check.
+
 ## Q — Questions for Kimi before Phase 1 (answered on 2026-11-12, see §A)
 
 1. **CLI token**: set `WangerStickers_BOT_TGCLOUD_TOKEN` (BotFather → the bot → Serverless → CLI

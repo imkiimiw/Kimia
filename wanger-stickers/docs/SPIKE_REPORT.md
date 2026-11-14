@@ -251,3 +251,42 @@ Copied code keeps its origin in a header comment (the brief: copy, never import 
 | Phones take > 10 s for background removal | slow first sticker | smaller input (256 px) for U²-Netp, progress UI, cache the model in the browser cache |
 | WhatsApp 10 s animated stickers over 500 KB | users can't export long clips | fps 12/10/8 ladder, ask to shorten, show the size before export |
 | The runtime changes (globals appeared/disappeared within a week) | code relying on a global breaks | capability checks + fallbacks (pure-JS SHA-256, base64) |
+
+## 9. Phase 3 measurements (2026-11-14)
+
+### 9.1 Engine in a local headless Chromium 153 (container, 4 cores — not a phone)
+
+`npm run engine:local -- clip.mp4 anim.gif` (clip: 10 s, 1920×1080, 30 fps H.264 + AAC from ffmpeg
+`testsrc2` + `sine`). Every output is checked with the **server's own validators** and ffprobe;
+raw numbers in `docs/spike-results/engine-local.json`.
+
+| Check | Result |
+|---|---|
+| **10 s 1080p MP4 → Telegram video sticker** (Phase 3 "Done when") | ✅ VP9, 512×288, 30 fps, 90 frames, **3.000 s**, **no audio track**, **157 KB**, 1 encode at 570 kbps; total **4.2 s** (frame capture 3.5 s = real-time playback, encode 0.4 s) |
+| Round video (square crop + circle) | ✅ 512×512, alpha track (AlphaMode 1), 189 KB |
+| **MP4 → GIF** | ✅ 360×203, 57 frames at 70 ms, 4 s, 473 KB (5.2 s) |
+| **GIF → MP4** (our GIF and an ffmpeg GIF) | ✅ H.264, one video track, 140 KB / 112 KB (< 0.1 s) |
+| WhatsApp animated (3 s, square, circle) + tray | ✅ 512×512, 15 fps, q70 first try, 272 KB, loops forever; tray 96×96 PNG |
+| Frames → ZIP of PNGs | ✅ 10 entries, stored, CRC ok |
+| TGS (Lottie, 60 fps) → video sticker | ✅ 48 KB, transparent corners, frames change |
+
+Lesson: reading a video by **seeking** each frame took 38 s for 3 s of this clip (its keyframes are
+250 frames apart); capturing frames during **one playback pass** (`requestVideoFrameCallback`) takes
+real time (3.5 s). The engine captures by playback and seeks only where playback dropped a frame.
+
+### 9.2 Studio in Chromium (mock Telegram bridge)
+
+`npm run studio:local -- photo.jpg clip.mp4 anim.gif sheet.png` drives the real UI; every upload is
+re-checked with the server validators (`docs/spike-results/studio-local.json`): home (6 tiles); chat
+video → quick video sticker → new pack (156 KB, valid); round video → editor → existing pack (alpha);
+GIF → .gif file + Telegram GIF (MP4); a photo → WhatsApp → new pack (sticker 26 KB + tray, valid);
+screenshot of 3 stickers → 3 boxes → 3 uploads, one chat confirmation.
+
+### 9.3 Telegram platform (this bot, `tgcloud run`, no push)
+
+`uploadStickerFile(sticker_format: 'video')` **accepted** our files *and* a 640×640 VP9 and a VP8
+file: Telegram does not check video-sticker rules at upload time (only when a sticker is added to a
+set). So our validator (`validateTelegramVideo`, run by the Studio and again in `upload_commit`) is
+the gate before any set operation, and the first real "add to pack" on a phone is the acceptance
+test (QA Phase 3 #1). Files larger than ~96 KB can't be passed to `tgcloud run` as an argument
+(`E2BIG`), so the 157–190 KB stickers were not probed that way.

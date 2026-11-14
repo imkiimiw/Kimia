@@ -64,3 +64,37 @@ Owner:
 7. ☐ Send another photo → «⚡️ استیکر سریع» → goes straight to saving → add to the same pack.
 8. ☐ Menu button «🎨 استودیو» → «📂 انتخاب عکس» → a photo from the gallery (try a HEIC photo on iPhone).
 9. ☐ A second account that is not a member opens the Studio → the join screen → join → «✅ عضو شدم».
+
+## Phase 3 — animated, GIF and WhatsApp (Android mid-range phone, iPhone, Telegram Desktop)
+
+Local baseline already green in a container's Chromium (`npm run engine:local`, `npm run
+studio:local`; numbers in [SPIKE_REPORT.md](SPIKE_REPORT.md) §9). On the phones:
+
+1. ☐ Send a **video** (≥ 10 s) to the bot → «⚡️ استیکر ویدیویی سریع» → the Studio goes straight to
+   saving: the line shows `VP9 · 512×… · ≤ 30 · 3 ثانیه · < 256 کیلوبایت` → «➕ پک جدید» → «✅ ذخیره».
+   **This is the real acceptance test of our VP9 file**: Telegram does not check video stickers at
+   upload (§9), only when they go into a pack. ☐ The sticker plays in the pack (Android ☐ iPhone ☐ Desktop ☐).
+2. ☐ Send a **round video** → «🎬 استیکر ویدیویی» → the preview is a circle with transparent
+   corners → «▶ پیش‌نمایش» plays → move «شروع» / «پایان», try ۲× and «⇄ رفت‌وبرگشت» → «ساختن» →
+   add to the same pack → the corners are transparent in the pack.
+3. ☐ On the **iPhone**: does step 1 work at all? If the Studio says «مرورگر این دستگاه نمی‌تواند
+   ویدیوی VP9 بسازد», note the iOS version (that decides the libvpx WASM fallback, D19).
+4. ☐ Send a **GIF** → «🌀 ساخت GIF / تبدیل» → «ساختن» → «🎞 بفرست به‌صورت GIF تلگرام» (it arrives as a
+   GIF) and «📎 فایل .gif» → **does Telegram keep it as a file?** If it turns into an animation,
+   turn on «فایل GIF داخل ZIP» in /admin → ⚙️ → 🚩.
+5. ☐ Send a **sticker from a video pack** and an **animated (TGS) sticker** → «🎨 ویرایش در استودیو» →
+   both open and can be saved as video stickers.
+6. ☐ Menu button «🎨 استودیو» → «🟢 استیکر واتس‌اپ» → a photo → editor → «ذخیره‌ی استیکر» →
+   «واتس‌اپ» → «➕ پک واتس‌اپ جدید» (name + publisher) → «✅ ذخیره». Repeat twice → «📦 گرفتن فایل ZIP»
+   → the ZIP arrives in the chat. Import it on a phone with WhatsApp through an importer app;
+   ☐ the pack shows its 3 stickers and the icon.
+7. ☐ An **animated** WhatsApp pack from a video (3 stickers) → ZIP → import → ☐ they move.
+8. ☐ «✂️ چند استیکر از یک عکس» with a screenshot of a sticker pack → the numbered boxes are right →
+   tap one to leave it out → «ساختن …» into a Telegram pack.
+9. ☐ «📚 چند عکس با هم» → 5 photos → «✨ حذف خودکار پس‌زمینه» → into a new pack; one chat message only.
+10. ☐ «🗂 پک‌های من» → «🟢 پک‌های واتس‌اپ» → the pack → «👁 دیدن استیکرها», remove one by number,
+    change emojis, rename, «📦 گرفتن فایل ZIP».
+11. ☐ Owner: set the **storage channel** (/admin → ⚙️ تنظیمات → 🗄 کانال ذخیره) → new WhatsApp
+    stickers land there as files, not in your chat.
+12. ☐ Write down the times of steps 1, 2, 7 and anything that froze (target: ≤ 60 s each on a
+    mid-range Android).

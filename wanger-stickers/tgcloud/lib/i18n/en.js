@@ -51,7 +51,7 @@ export default {
   'menu.help': '❓ Help & settings',
   'menu.admin': '🛠 Admin panel',
 
-  'help.text': '❓ <b>Help</b>\n\n• Send a sticker → add it to one of your packs or start a new pack with it.\n• “My packs” → edit, reorder, emojis, keywords, copy, merge, backup and publishing to the channel.\n• Send a public pack link to take its stickers into your own pack (for personal use).\n• Making stickers from photos and videos is coming soon in the Studio.\n\nCommands: /menu /packs /lang /cancel /deletemydata',
+  'help.text': '❓ <b>Help</b>\n\n• Send a photo, video, GIF or round video → in the Studio make a static or video sticker, a GIF or a WhatsApp sticker.\n• The «🎨 Studio» menu button: make stickers from your phone, several stickers from one image, or several photos at once.\n• Send a sticker → add it to one of your packs or start a new pack with it.\n• “My packs” → edit, reorder, emojis, keywords, copy, merge, backup and publishing to the channel; plus “WhatsApp packs”.\n• Send a public pack link to take its stickers into your own pack (for personal use).\n• WhatsApp: the bot sends the pack as a ZIP; WhatsApp doesn’t open ZIPs directly, so open it with a WhatsApp sticker importer app you trust.\n\nCommands: /menu /studio /packs /lang /cancel /deletemydata',
   'help.btn_lang': '🌐 Change language',
   'help.btn_delete': '🗑 Delete my data',
 
@@ -79,7 +79,7 @@ export default {
   'cmd.admin': 'Admin panel',
 
   'media.studio_soon': '🎨 Making stickers from photos, videos and GIFs is coming soon in the bot’s Studio.\nFor now you can send ready stickers and build packs.',
-  'media.open_studio': '🎨 Open the Studio: pick a photo from your phone, or edit one you sent here.',
+  'media.open_studio': '🎨 Open the Studio: turn a photo, video or GIF from your phone into a Telegram sticker, a GIF or a WhatsApp sticker.',
   'media.ready_file_hint': 'Send this file as a sticker and I’ll add it to your pack. Making stickers from files is coming soon in the Studio.',
 
   'st.pick': '📥 Which pack should this sticker go to?',

@@ -1,5 +1,39 @@
 # Changelog
 
+## Phase 3 — animated, GIF and WhatsApp (2026-11-14)
+
+- **Inputs:** videos (MP4 / MOV / WebM), GIFs (as Telegram animations or real .gif files), round
+  videos, Telegram video stickers and animated (TGS) stickers — in chat (a job with buttons that fit
+  the kind: video sticker, quick video sticker, GIF, WhatsApp) or picked in the Studio.
+- **Studio home:** tiles for every enabled mode — sticker from a photo, video sticker, GIF & conversion,
+  WhatsApp sticker, several stickers from one image, several photos at once. The menu button now opens
+  the home.
+- **Animated studio** (its own lazy chunk): timeline with frame previews, start / end within the
+  target's limit (3 s Telegram, 10 s WhatsApp, 30 s GIF, 60 s MP4), speed 0.5–2×, reverse,
+  boomerang, smooth loop (cross-fade), original / square frame, no shape / circle / rounded,
+  transparent or colour background, one text layer (Persian shaped by the browser), preview.
+- **Telegram video stickers:** VP9 WebM with alpha (two WebCodecs encoders + our muxer), constant
+  30 fps, long side 512, ≤ 3 s, no audio, size targeting (bitrate search ≤ 6 encodes, then
+  30 → 24 → 20 → 15 fps, then "shorten it"). Round videos keep transparent corners.
+- **GIF & conversions:** MP4 (H.264, sent as a Telegram GIF), real .gif files (gifenc; sendDocument
+  without type detection, optional ZIP wrapper flag), animated WebP files, frames → ZIP of PNGs, first
+  frame → the static editor. TGS → video sticker / GIF via lottie-web.
+- **WhatsApp packs:** static (512×512 with a margin, ≤ 100 KB) and animated (WebPAnimEncoder,
+  ≤ 500 KB, ≤ 10 s, quality search + 15 → 12 → 10 → 8 fps) stickers, 96×96 tray icon made from the
+  first sticker, 3–30 stickers, never mixed, 1–3 emojis, name + publisher. Files are kept in the
+  **storage channel** (until the owner sets one: as silent documents in the user's own chat); the
+  bot sends a ZIP (stickers, tray, README, pack.json); a `.wastickers` package behind a flag (off).
+  In chat: «🟢 پک‌های واتس‌اپ» with preview albums, remove / emojis by number, rename, delete, ZIP.
+- **Screenshot to pack** (connected components on alpha, or a border-colour background estimate +
+  closing) with numbered boxes; **batch mode** (several photos, one setting, one destination; one
+  chat confirmation per batch).
+- **Server:** validators for Telegram video, WhatsApp static / animated / tray / pack, GIF and MP4,
+  shared with the engine; upload kinds with per-kind feature flags and actions; quotas `media_send`
+  and `wa_export`; flags `video`, `wastickers`, `gif_zip`; endpoint `wa_export`. Schema: one new
+  column `packs.tray_file_id` (safe).
+- **Tests:** 88 (adds e2e.media and anim); `npm run engine:local` and `npm run studio:local` drive the
+  engine and the Studio in Chromium (all outputs pass the server's validators).
+
 ## Phase 2 — Studio MVP: static stickers (2026-11-12)
 
 - The Mini App is now the **Studio**: a photo sent in chat (or a static sticker) becomes a job with

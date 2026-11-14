@@ -1,8 +1,23 @@
 # Third-party components
 
 Every library, WASM build, model and font this project ships or loads. Before adding anything GPL,
-AGPL or non-commercial: ask Kimi (brief §4). Checked 2026-11-11 (npm registry / Hugging Face model
+AGPL or non-commercial: ask Kimi (brief §4). Checked 2026-11-11, Phase 3 additions 2026-11-12 (npm registry / Hugging Face model
 cards / upstream repositories).
+
+## Phase 3 (shipped in the Studio, each in a lazy chunk)
+
+| Component | Version | Licence | Used for | Shipped how |
+|---|---|---|---|---|
+| gifenc | 1.0.3 | MIT | GIF encoding | bundled, lazy chunk |
+| omggif | 1.0.10 | MIT | GIF decoding | bundled, lazy chunk |
+| mp4-muxer | 5.2.2 | MIT | H.264 MP4 muxing | bundled, lazy chunk |
+| lottie-web (`lottie_light_canvas` build, no expressions) | 5.13.0 | MIT | TGS (Lottie) rendering | bundled, lazy chunk |
+| fflate | 0.8.3 | MIT | gunzip where `DecompressionStream` is missing | bundled, lazy chunk |
+| wasm-webp (libwebp 1.3.2: WebPAnimEncoder) | 0.1.0 | MIT (libwebp BSD-3-Clause) | WhatsApp animated stickers, animated WebP files | lazy chunk + wasm |
+
+Our own code covers the rest: the WebM muxer with alpha, the animated-WebP muxer, the ZIP writer /
+reader, the screenshot splitter. Evaluated for the iOS VP9 fallback: webm-wasm (Apache-2.0) is
+VP8-only (libvpx 1.7, `V_VP8`), so it can't make Telegram video stickers (D19).
 
 ## Phase 2 (shipped in the Studio)
 
