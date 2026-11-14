@@ -154,7 +154,9 @@ export function createFakeTelegram({ now = () => Math.floor(Date.now() / 1000) }
       toChat(p, m);
       if (typeof p.sticker !== 'string' || !files.has(p.sticker)) fail(400, 'Bad Request: wrong file identifier/HTTP URL specified', m);
       markupOk(p.reply_markup, m);
-      return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, sticker: files.get(p.sticker).sticker, reply_markup: p.reply_markup || null });
+      const ch = Number(p.chat_id) < 0 ? channels.get(Number(p.chat_id)) : null;
+      const chat = ch ? { id: ch.id, type: ch.type, title: ch.title, ...(ch.username ? { username: ch.username } : {}) } : { id: p.chat_id };
+      return store(p.chat_id, { message_id: ++nextMessageId, chat, sticker: files.get(p.sticker).sticker, reply_markup: p.reply_markup || null });
     },
     sendDocument(p, m) {
       toChat(p, m);

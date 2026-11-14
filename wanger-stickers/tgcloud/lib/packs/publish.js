@@ -91,6 +91,14 @@ export function createPublish(app) {
     }
   }
 
+  /** The channel's title / @username change over time: keep the stored record current from a posted message. */
+  async function refreshChannel(ch, chat) {
+    if (!chat || chat.id !== ch.chat_id) return;
+    const username = chat.username || null;
+    const title = String(chat.title || ch.title || '').slice(0, 128);
+    if (username !== ch.username || title !== ch.title) await settings.set(0, 'publish.chat', { ...ch, username, title });
+  }
+
   function postLink(post) {
     const ch = channel();
     return ch && ch.username && post.message_id ? `https://t.me/${ch.username}/${post.message_id}` : null;
@@ -191,6 +199,7 @@ export function createPublish(app) {
       try {
         const m = await tg.sticker(ch.chat_id, items[0].file_id, postKeyboard(post, pack, creator), 'channel_post');
         const done = await postDb.published(post.id, m.message_id, clock.now());
+        await refreshChannel(ch, m.chat);
         await pdb.setPublic(pack.id, true);
         app.stats.count('pub.published');
         const link = postLink(done);

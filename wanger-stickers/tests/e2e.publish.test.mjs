@@ -268,3 +268,27 @@ test('deleting a published pack takes its post down', async () => {
   assert.notEqual(h.one('SELECT status FROM pack_posts').status, 'published');
   assert.equal(h.tg.callsOf('deleteMessage', PUB_CHANNEL).length, 1);
 });
+
+test('a channel set while private that later gets a public @username: the record refreshes on the next post', async () => {
+  const h = setup();
+  await owner(h);
+  const ch = h.tg.addChannel({ id: PUB_CHANNEL, username: null, title: 'VV star' });
+  await h.press(OWNER, 'a:pub');
+  await h.tap(OWNER, 'a:pcset');
+  await h.send(OWNER, String(PUB_CHANNEL));
+  assert.equal(JSON.parse(h.one("SELECT value FROM settings WHERE key = 'publish.chat'").value).username, null);
+  // the owner renames the channel and makes it public
+  ch.username = 'WangerMotion';
+  ch.title = 'Wanger Motion';
+  await h.ready(U);
+  const pack = await packWith(h, U, 3);
+  await h.press(U, `pk:open:${pack.id}`);
+  await h.tap(U, `pb:ask:${pack.id}`);
+  await h.tap(U, `pb:send:${pack.id}:0`);
+  const post = h.one('SELECT * FROM pack_posts');
+  await h.tap(OWNER, `pr:ok:${post.id}`);
+  const saved = JSON.parse(h.one("SELECT value FROM settings WHERE key = 'publish.chat'").value);
+  assert.deepEqual([saved.username, saved.title, saved.chat_id], ['WangerMotion', 'Wanger Motion', PUB_CHANNEL]);
+  const done = h.one('SELECT * FROM pack_posts');
+  assert.ok(h.texts(U).some((t) => t.includes(`https://t.me/WangerMotion/${done.message_id}`)), 'the creator gets the post link');
+});
