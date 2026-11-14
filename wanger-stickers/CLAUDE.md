@@ -18,6 +18,7 @@ report in Persian. Still never: destructive migrations (drops, type changes), `p
 real broadcasts or channel posts, BotFather changes, anything that costs money or needs Kimi's
 accounts (Apple developer account, payment provider setup) — list those in the report instead.
 
-Current state: **Phases 0–3 built and deployed (Phase 3 on 2026-11-14); Phase 4 next** (propose its
-"Done when" in the Phase 3 report, then proceed under the standing approval).
+Current state: **Phases 0–4 built and deployed (Phases 3 and 4 on 2026-11-14); Phase 5 next** (its
+"Done when" is proposed in the Phase 4 report; proceed under the standing approval, but anything
+that needs Kimi's accounts — AI provider keys, payments — waits for her).
 Device checks (docs/QA.md) are Kimi's to run on her phones.

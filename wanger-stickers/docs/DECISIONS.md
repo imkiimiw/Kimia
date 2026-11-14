@@ -298,6 +298,45 @@ emscripten (BSD licence; build work of its own). It is needed only if the iPhone
 #3) shows no VP9 `VideoEncoder` in Telegram's iOS webview — on such a device the Studio says so and
 offers GIF / WhatsApp instead of failing silently. Decision after that check.
 
+## D20 — Phase 4 "Done when" (proposed in the Phase 3 report, approved by the standing instruction)
+
+Custom emoji packs (100×100 static and video) · ≥ 8 templates and ≥ 6 motion effects that turn a
+static sticker into a video sticker / GIF, plus the GIF studio gaps (slideshow, joining, text
+animation) · meme maker · background removal on videos (experimental, ≤ 3 s, capable devices) ·
+share links with QR and share stats · editor polish (several text layers in the animated editor,
+drafts on the device, letter spacing and text box, pen and emoji layers). All met; numbers in
+SPIKE_REPORT §10.
+
+## D21 — Phase 4: custom emoji sets
+
+- A pack row with `kind = 'emoji'` is a `custom_emoji` sticker set (Bot API: up to 200, files exactly
+  100×100). Studio uploads `emoji_static` (WebP/PNG) / `emoji_video` (VP9 WebM, the video-sticker
+  rules at 100×100) go only into emoji sets; regular stickers never do (both refused server-side).
+  Chat screens hide copy / merge / duplicate / publish / thumbnail for emoji packs (Telegram's
+  thumbnail call differs for emoji sets; regular-sticker bulk ops can't target them).
+- "Takes the text colour" (`needs_repainting`) is an option when the pack is created.
+
+## D22 — Phase 4: share links
+
+- `t.me/<bot>?start=pack_<code>` with a random 10-character code per pack (`packs.share_code`,
+  unique), not the pack id — packs can't be enumerated. Opens are counted in `packs.share_opens`;
+  people once per pack in `share_visits`; the owner's own opens don't count. The QR code is drawn on
+  the server (own encoder, level M, versions 1–10; 1-bit PNG with stored deflate — the runtime has no
+  compression API) and sent with `sendPhoto`.
+- The direct `addstickers` / `addemoji` link stays on the pack screen; the share link adds stats and a
+  «🎨 پک خودت را بساز» button for newcomers.
+
+## D23 — Phase 4: effects, templates, drafts
+
+- Effects are pure functions of the loop phase (`src/engine/effects.ts`), periodic by construction —
+  the last frame meets the first (a unit test checks every effect). Templates are vector drawings
+  (`src/engine/decor.ts`): nothing to download, sharp at 100 px and 512 px, Persian text through the
+  same shaped-text renderer.
+- Drafts: one static and one animated draft in the device's IndexedDB (source file + settings; no
+  server copy). Private browsing without IndexedDB simply has no drafts.
+- Video background removal (experimental): 6 masks per second, nearest mask per frame; offered only
+  when `navigator.deviceMemory` ≥ 4 and ≥ 4 cores (unknown counts as capable); clip ≤ 3 s.
+
 ## Q — Questions for Kimi before Phase 1 (answered on 2026-11-12, see §A)
 
 1. **CLI token**: set `WangerStickers_BOT_TGCLOUD_TOKEN` (BotFather → the bot → Serverless → CLI

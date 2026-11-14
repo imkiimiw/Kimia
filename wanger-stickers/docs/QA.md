@@ -98,3 +98,22 @@ studio:local`; numbers in [SPIKE_REPORT.md](SPIKE_REPORT.md) §9). On the phones
     stickers land there as files, not in your chat.
 12. ☐ Write down the times of steps 1, 2, 7 and anything that froze (target: ≤ 60 s each on a
     mid-range Android).
+
+## Phase 4 — Studio Pro (Android mid-range phone, iPhone, Telegram Desktop)
+
+Local baseline green in Chromium (SPIKE_REPORT §10). On the phones:
+
+1. ☐ Studio home → «😀 ایموجی سفارشی» → a photo → save → «➕ پک جدید» → open the link: the emoji
+   appear in Telegram's emoji panel (Premium is needed to *send* custom emoji; anyone can add the pack).
+2. ☐ A chat video → «😀 ایموجی سفارشی» → the export switch shows «ایموجی سفارشی» → add to the same
+   emoji pack → it plays in the emoji panel.
+3. ☐ A photo → editor → «قالب» → «💬 حباب» with a Persian word → save → «🎬 متحرکش کن» → «پرش» →
+   «ساختن» → add to a sticker pack → it bounces and loops without a jump.
+4. ☐ «😂 میم‌ساز» → a photo → change both captions (long Persian text shrinks to fit) → save.
+5. ☐ «✍️ متن متحرک» → type a word → «حرکت متن: تایپ» → make a video sticker.
+6. ☐ «🎞 اسلایدشو / چسباندن» → 4 photos → time per photo → «📎 فایل .gif»; then 2 GIFs → joined.
+7. ☐ A short video → «✨ حذف پس‌زمینه‌ی ویدیو (آزمایشی)» → note the time and the edge quality.
+   (Shown only on phones with ≥ 4 GB and 4 cores.)
+8. ☐ Start a sticker, close the Studio, open it again from the menu → «📝 ادامه‌ی پیش‌نویس».
+9. ☐ «🗂 پک‌های من» → a pack → «📤 اشتراک‌گذاری» → a QR image arrives; scan it with another phone →
+   the bot shows the pack; «📤 اشتراک‌گذاری» again → «👁 ۱ بار · 👤 ۱ نفر».

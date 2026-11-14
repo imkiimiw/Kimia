@@ -1,4 +1,4 @@
-# Architecture — Wanger Stickers (Phases 1–3)
+# Architecture — Wanger Stickers (Phases 1–4)
 
 One tgcloud project (@Wanger_Motionbot, app9292593567): a thin Serverless backend in `tgcloud/`,
 the Mini App in `src/` (Phase 0–1: the device spike page; the Studio from Phase 2), and the media
@@ -39,6 +39,7 @@ handlers/{message,callback_query,my_chat_member}.js   (thin: one line each)
 | `lib/packs/whatsapp.js` | WhatsApp packs (Phase 3): create / add / tray / remove / emojis / rename / delete, storage channel (fallback: the user's chat), rule check, ZIP export (+ `.wastickers` behind a flag). |
 | `lib/bot/wa_ui.js` | «🟢 پک‌های واتس‌اپ» in chat (`w:*`): list, screen with status, preview albums, steps for remove / emojis / rename, ZIP, delete. |
 | `lib/core/zip.js` | Stored-only ZIP writer and reader (CRC-32), shared with the engine. |
+| `lib/core/qr.js`, `lib/core/png.js` | QR encoder (byte mode, level M, versions 1–10) and 1-bit PNG writer — share links (Phase 4). |
 | `endpoints/spike_*.js` | Phase 0 spike tools (owner only). |
 | `endpoints/wa_export.js` | Sends a WhatsApp pack's ZIP (gate re-checked without the cache). |
 
@@ -71,11 +72,26 @@ upload kinds (core/validate.js UPLOAD_KINDS) → upload_commit → lib/studio/tr
   gif / webp_file / frames_zip → sendDocument · whatsapp_* → lib/packs/whatsapp.js (storage channel)
 ```
 
+### Phase 4: Studio Pro
+
+```
+engine/effects.ts   motion effects + text animations, pure functions of the loop phase
+engine/decor.ts     9 vector templates (under / over the art, inset room, Persian text)
+engine/render.ts    + templates, pen strokes          engine/text.ts  + spacing, box, auto-fit, per-frame state
+engine/anim/compose + effect transform, template, animated text, 'emoji' target (100×100), per-frame cut-out
+engine/anim/source  + concatSources (join), blankSource (text animation); slideshow skips bad photos
+engine/anim/cutout  U²-Netp masks at 6 fps for ≤ 3 s clips (experimental)
+engine/export.ts    + toCustomEmojiStatic          engine/anim/vp9.ts  + emoji kind (100×100 validator)
+studio/drafts.ts    IndexedDB drafts (static + animated)
+server              upload kinds emoji_static / emoji_video → custom_emoji sets (lib/studio/transfer.js)
+                    pk:share → QR + stats; /start pack_<code> → packs_ui.onSharedPack (share_visits)
+```
+
 `src/engine/` never imports React, Telegram or i18n (reusable). Shared pure modules from
 `tgcloud/lib/core/` (limits, validate, inspect, bytes) are imported by the engine, so the client
 and the server check files with the same code.
 
-## Data (schema.js, 24 tables; Phase 3 adds the column `packs.tray_file_id`)
+## Data (schema.js, 25 tables; Phase 3 adds `packs.tray_file_id`; Phase 4 adds `packs.share_code`, `packs.share_opens` and `share_visits`)
 
 users · usage_daily · channels · membership_cache · user_state · pending_actions · packs ·
 pack_items · pack_posts · staff · pack_ops · broadcasts · settings · secrets · rate_limits · errors ·
@@ -99,6 +115,7 @@ parents in code; timestamps are unix seconds; jobs and uploads expire after 30 m
 the platform's measured limits) and a strict fake Bot API with sticker-set rules
 (`tests/helpers/fake-telegram.mjs`). Acceptance suites: `e2e.gate`, `e2e.packs`, `e2e.publish`,
 `e2e.admin` (permission matrix over every admin route and step, broadcast interruption), `e2e.media`
-(video stickers, deliveries, WhatsApp packs end to end), `anim` (timeline, splitter, ZIP, validators).
+(video stickers, deliveries, WhatsApp packs end to end), `e2e.pro` (custom emoji packs, share links,
+QR decoded by jsQR), `anim` (timeline, splitter, ZIP, validators, effect loops).
 In a browser: `npm run engine:local` (encoders + validators + ffprobe) and `npm run studio:local`
 (the real Studio UI with a mock Telegram bridge).

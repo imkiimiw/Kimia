@@ -50,7 +50,10 @@ VP8-only (libvpx 1.7, `V_VP8`), so it can't make Telegram video stickers (D19).
 
 ## Dev-only (not shipped)
 
-Vite, @vitejs/plugin-react, TypeScript, oxlint (MIT); @tgcloud/cli; json5 (MIT); Playwright (Apache-2.0, preinstalled; local spike runner).
+Vite, @vitejs/plugin-react, TypeScript, oxlint (MIT); @tgcloud/cli; json5 (MIT); Playwright (Apache-2.0, preinstalled; local spike runner); jsQR 1.4.0 (Apache-2.0; decodes our QR codes in tests).
+
+Phase 4 adds no shipped third-party code: the QR encoder (`tgcloud/lib/core/qr.js`, written after
+Nayuki's reference design, MIT) and the PNG writer are our own.
 
 ## Evaluated and excluded
 

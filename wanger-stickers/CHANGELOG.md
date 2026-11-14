@@ -1,5 +1,35 @@
 # Changelog
 
+## Phase 4 — Studio Pro (2026-11-14)
+
+- **Custom emoji packs:** 100×100 static (WebP) and video (VP9) emoji from photos, videos, GIFs and
+  stickers — in the Studio («😀 ایموجی سفارشی» tile, a sticker ⇄ emoji switch in every Telegram export,
+  «😀 ایموجی سفارشی» on media in chat). Own sets (`custom_emoji`, up to 200, optional "takes the text
+  colour"); never mixed with regular stickers; the pack screen links to `addemoji`.
+- **Share links:** «📤 اشتراک‌گذاری» on a pack sends a **QR code** of a private link
+  `t.me/Wanger_Motionbot?start=pack_<code>` with both links and **stats** (times opened, people);
+  opening it shows the pack with «➕ افزودن» and «🎨 پک خودت را بساز», also for new users after the
+  language choice and the gate. The owner's own opens are not counted.
+- **Templates:** 9 vector templates — speech bubble, thought bubble, banner, frame, polaroid,
+  sparkles, hearts, burst badge, tape — with colour and Persian text, in the static and animated editors.
+- **Motion effects:** 9 loop-exact effects on any sticker (pulse, shake, spin, bounce, wobble, float,
+  heartbeat, glow, swing) with strength; «🎬 متحرکش کن» turns a finished still sticker into a video
+  sticker / GIF / WhatsApp animation.
+- **Animated text:** typewriter, pop, wave, blink; «✍️ متن متحرک» makes a sticker that is only text.
+- **Meme maker:** the whole photo (or GIF / video) with top and bottom captions that size themselves.
+- **GIF studio gaps closed:** slideshow from photos (time per photo), joining GIFs / clips.
+- **Background removal on videos (experimental):** U²-Netp on frames sampled at 6 fps, ≤ 3 s, only on
+  devices with ≥ 4 GB / 4 cores; slow (≈ a minute in a desktop Chromium).
+- **Editor polish:** several text layers in the animated editor, letter spacing, a box behind the
+  text, layer order, quick emoji layers, a pen, drafts autosaved on the device (IndexedDB) with
+  «📝 ادامه‌ی پیش‌نویس» on the home screen.
+- **Server:** upload kinds `emoji_static` / `emoji_video`; flags `emoji`, `share`, `anim_bg` (on);
+  schema: `packs.share_code` (unique), `packs.share_opens`, table `share_visits` (all additive);
+  our own QR encoder and 1-bit PNG writer (pure, decoded by jsQR in tests).
+- **Fix:** the publish channel's stored @username / title refresh from each post (post links to
+  creators were missing after the channel became public).
+- **Tests:** 93; `engine:local` (Phase 4 checks) and `studio:local` (13 flows) pass in Chromium.
+
 ## Phase 3 — animated, GIF and WhatsApp (2026-11-14)
 
 - **Inputs:** videos (MP4 / MOV / WebM), GIFs (as Telegram animations or real .gif files), round

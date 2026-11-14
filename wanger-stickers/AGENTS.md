@@ -162,7 +162,8 @@ owner addenda at the end); decisions (approved 2026-11-12) in [docs/DECISIONS.md
 map is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 - **State: Phases 1–2 deployed (2026-11-12); Phase 3 (video stickers, GIF, WhatsApp, screenshot to
-  pack, batch) built and deployed 2026-11-14.** The Mini App is the Studio (`src/studio/`, engine in
+  pack, batch) and Phase 4 (custom emoji, share links + QR, templates, motion effects, meme, text
+  animation, slideshow / join, video background removal, drafts) deployed 2026-11-14.** The Mini App is the Studio (`src/studio/`, engine in
   `src/engine/`, animated parts in `src/engine/anim/` and the lazy `AnimStudio.tsx`); `?spike=1` keeps
   the Phase 0 device page, whose endpoints `spike_echo`/`spike_report` stay owner-only.
 - **Studio ↔ bot:** endpoints `studio_*` / `upload_*` all go through `lib/endpoint.js` (verified
@@ -192,10 +193,11 @@ map is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
   `tests/helpers/`, media fixtures in `tests/helpers/media.mjs`). In a browser: `npm run engine:local
   -- <clip.mp4> [anim.gif]` (encoders, served by Vite from `tests/browser/`) and `npm run build && npm
   run studio:local -- <photo.jpg> [clip.mp4 anim.gif sheet.png]` (the real UI, mock Telegram bridge).
-- Upload kinds (`telegram_static`, `telegram_video`, `animation`, `gif`, `webp_file`, `frames_zip`,
+- Upload kinds (`telegram_static`, `telegram_video`, `emoji_static`, `emoji_video`, `animation`, `gif`, `webp_file`, `frames_zip`,
   `whatsapp_static|animated|tray`) are declared once in `lib/core/validate.js` `UPLOAD_KINDS`; their
   actions and feature flags in `lib/studio/transfer.js`. WhatsApp packs are `packs` rows with
-  `platform = 'whatsapp'` — Telegram queries must keep their `platform = 'telegram'` filter.
+  `platform = 'whatsapp'` — Telegram queries must keep their `platform = 'telegram'` filter. Custom
+  emoji sets are Telegram packs with `kind = 'emoji'`: emoji and regular stickers never mix.
 - Ask Kimi before: `push`, `migrate`, BotFather changes, deleting data, anything that messages real
   users or posts to a channel, adding GPL/AGPL/non-commercial components. Talk to Kimi in Persian;
   code, comments, commits and docs in English.
