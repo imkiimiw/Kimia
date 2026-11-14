@@ -290,3 +290,25 @@ set). So our validator (`validateTelegramVideo`, run by the Studio and again in 
 the gate before any set operation, and the first real "add to pack" on a phone is the acceptance
 test (QA Phase 3 #1). Files larger than ~96 KB can't be passed to `tgcloud run` as an argument
 (`E2BIG`), so the 157–190 KB stickers were not probed that way.
+
+## 10. Phase 4 measurements (2026-11-14, headless Chromium 153 in the container — not a phone)
+
+`npm run engine:local` (all checks pass, `docs/spike-results/engine-local.json`):
+
+| Check | Result |
+|---|---|
+| Custom emoji, static | ✅ WebP 100×100 (validator: no violations) |
+| Custom emoji, video (round crop of the 1080p clip) | ✅ VP9 100×100, 3 s, ≈ 70 KB |
+| 9 motion effects on a still sticker | ✅ every one moves and gives a valid video sticker (157–195 KB); loop seam ≈ one normal frame step (no jump) |
+| 9 templates | ✅ all render at 512×512; sparkles twinkle in the animated version |
+| Typewriter text on a blank sticker → GIF | ✅ visible text grows 0 → 6.0k → 10.1k → 22.0k px; GIF 121 KB, 42 frames |
+| Slideshow of 3 photos → GIF | ✅ 21 frames, 2.1 s |
+| GIF (3 s) + 2 s of the clip, joined → MP4 | ✅ H.264, 5.000 s |
+| Background removal on a 3 s video (experimental) | ✅ valid VP9 with alpha, 191 KB; **43 s** in total (39 s for 19 masks ≈ 2 s each, single-thread WASM) — slow, hence "experimental" and the device gate |
+
+`npm run studio:local` (13 flows through the real UI, every upload re-validated): Phase 2–3 flows,
+plus custom emoji from a photo (100×100) and from a chat video (100×100 VP9, 75 KB), meme (whole
+photo, auto-fitted captions), a template + «🎬 متحرکش کن» → video sticker 512×512, animated text,
+slideshow of photos → .gif, a draft resumed after closing the Studio.
+
+QR codes: our encoder's output is decoded back by jsQR for versions 1–10 (`tests/e2e.pro.test.mjs`).

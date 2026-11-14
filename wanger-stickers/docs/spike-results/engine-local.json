@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-14T14:27:34.746Z",
+  "at": "2026-11-14T14:47:59.473Z",
   "browser": "153.0.8010.12",
   "checks": {
     "mp4_1080p_10s_to_vp9_sticker": {
@@ -10,7 +10,7 @@
         "durationMs": 10000
       },
       "violations": [],
-      "kb": 154.9,
+      "kb": 154.6,
       "fps": 30,
       "frames": 90,
       "durationMs": 3000,
@@ -19,11 +19,11 @@
       "encodes": 1,
       "alpha": false,
       "timings": {
-        "openMs": 180,
-        "prepareMs": 3484,
-        "renderMs": 3683,
-        "encodeMs": 355,
-        "wallMs": 4288
+        "openMs": 77,
+        "prepareMs": 3419,
+        "renderMs": 3631,
+        "encodeMs": 330,
+        "wallMs": 4088
       },
       "ffprobe": {
         "programs": [],
@@ -44,7 +44,7 @@
     "round_video_sticker_with_alpha": {
       "pass": true,
       "violations": [],
-      "kb": 191,
+      "kb": 188,
       "alphaTrack": true
     },
     "mp4_to_gif": {
@@ -54,7 +54,7 @@
       "frames": 57,
       "durationMs": 3990,
       "size": "360x203",
-      "encodeMs": 5094,
+      "encodeMs": 5126,
       "ffprobe": {
         "programs": [],
         "streams": [
@@ -75,8 +75,8 @@
     "gif_to_mp4": {
       "pass": true,
       "violations": [],
-      "kb": 140,
-      "encodeMs": 95,
+      "kb": 141,
+      "encodeMs": 73,
       "ffprobe": {
         "programs": [],
         "streams": [
@@ -103,13 +103,13 @@
       "pass": true,
       "violations": [],
       "trayViolations": [],
-      "kb": 273,
+      "kb": 253,
       "fps": 15,
       "quality": 70,
       "encodes": 1,
-      "frames": 45,
+      "frames": 42,
       "durationMs": 2999,
-      "encodeMs": 1740
+      "encodeMs": 1717
     },
     "frames_zip": {
       "pass": true,
@@ -154,7 +154,7 @@
     },
     "custom_emoji_video_100": {
       "pass": true,
-      "kb": 72,
+      "kb": 70,
       "size": [
         100,
         100
@@ -201,7 +201,7 @@
       },
       "heartbeat": {
         "moved": true,
-        "seamVsStep": 0.52,
+        "seamVsStep": 0.53,
         "kb": 158,
         "ok": true
       },
@@ -295,10 +295,10 @@
     },
     "video_background_removal_3s": {
       "pass": true,
-      "segMs": 59129,
-      "totalMs": 63401,
+      "segMs": 38952,
+      "totalMs": 43333,
       "transparentShare": 0.51,
-      "kb": 189,
+      "kb": 191,
       "violations": []
     }
   },
@@ -306,5 +306,5 @@
     "debug: [vite] connecting...",
     "debug: [vite] connected."
   ],
-  "files": "/tmp/ws-engine-o9YBej"
+  "files": "/tmp/ws-engine-4MEjyk"
 }
