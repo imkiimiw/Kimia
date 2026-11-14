@@ -1,5 +1,30 @@
 # Changelog
 
+## Phase 5 — community, points, payments, suggestions (2026-11-14)
+
+- **Wanger Points** (local provider): earned for a new pack (+2), each new person from a pack's share
+  link (+1), an approved publication (+5), a gallery like (+1) and a friend who joins with your invite
+  link and makes a first pack (+10) — amounts owner-editable, **daily caps per reason**, every award
+  once per **idempotency key** (`points_ledger`). Spent atomically on «⚡️ سهمیه‌ی امروز» (+50 stickers,
+  +20 GIFs) or «⭐️ ۷ روز Pro». «🎁 امتیازهای من» in the account screen; invite link.
+- **Public gallery** («🖼 گالری پک‌ها»): packs published in the channel, newest or most liked; one
+  like per person; reports with a reason (spam, sexual, hate, violence, copyright, other); at 3 open
+  reports (setting) the pack is hidden and the owner and reviewers get a moderation card (show again /
+  remove; ban from publishing = owner only); «🛡 گزارش‌های گالری» in the panel (reviewers too).
+- **Pro with Telegram Stars**: 30-day subscription invoice (XTR), `pre_checkout_query` answered at once
+  with checks (buyer, price, sale on, ban), `successful_payment` stored once per charge id (also
+  during maintenance) → Pro until the subscription's expiry; refunds from the user's screen
+  (`refundStarPayment` + cancel the subscription); «⭐️ پرداخت‌ها» in the panel. **Hidden until the
+  owner sets a price** (`pro.price_stars`) and turns on «پرداخت».
+- **AiProvider** interface with the **local** provider (no key, no network): emoji suggestions from
+  the sticker's text (chips next to every emoji field in the Studio) and caption ideas (💡 in the text
+  tab); endpoint `ai_suggest`. Image generation and the character studio wait for a provider + key.
+- **Storage channel fix**: forwarded post / id without -100 / @username, specific errors, public
+  channels refused, one-tap offer when the owner makes the bot an admin of a private channel.
+- Schema: `points_ledger`, `gallery_likes`, `gallery_reports`, `payments`; `packs.likes`, `reports`,
+  `gallery_hidden`, `gallery_at` (+ 2 indexes) — all additive. New handler `pre_checkout_query`.
+- Tests: 100 (adds e2e.community).
+
 ## Phase 4 — Studio Pro (2026-11-14)
 
 - **Custom emoji packs:** 100×100 static (WebP) and video (VP9) emoji from photos, videos, GIFs and

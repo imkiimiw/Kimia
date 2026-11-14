@@ -18,7 +18,8 @@ report in Persian. Still never: destructive migrations (drops, type changes), `p
 real broadcasts or channel posts, BotFather changes, anything that costs money or needs Kimi's
 accounts (Apple developer account, payment provider setup) — list those in the report instead.
 
-Current state: **Phases 0–4 built and deployed (Phases 3 and 4 on 2026-11-14); Phase 5 next** (its
-"Done when" is proposed in the Phase 4 report; proceed under the standing approval, but anything
-that needs Kimi's accounts — AI provider keys, payments — waits for her).
+Current state: **Phases 0–5 built and deployed (Phases 3–5 on 2026-11-14).** Waiting on Kimi: the Pro
+price in Stars, an AI provider + key (image generation, character studio), the device checks.
+Phase 6 (companion app) is optional and outside this repository's Serverless scope — only with
+Kimi's explicit go-ahead (Android needs no paid account; iOS needs an Apple developer account).
 Device checks (docs/QA.md) are Kimi's to run on her phones.

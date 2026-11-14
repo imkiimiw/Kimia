@@ -117,3 +117,18 @@ Local baseline green in Chromium (SPIKE_REPORT §10). On the phones:
 8. ☐ Start a sticker, close the Studio, open it again from the menu → «📝 ادامه‌ی پیش‌نویس».
 9. ☐ «🗂 پک‌های من» → a pack → «📤 اشتراک‌گذاری» → a QR image arrives; scan it with another phone →
    the bot shows the pack; «📤 اشتراک‌گذاری» again → «👁 ۱ بار · 👤 ۱ نفر».
+
+## Phase 5 — community, points, payments (two accounts + the owner)
+
+1. ☐ A second account publishes a pack → you approve → «🖼 گالری پک‌ها» shows it; the second account
+   gets +5 points («👤 حساب» ← «🎁 امتیازهای من»).
+2. ☐ A third account likes it (❤️ 1) → the creator +1; unlike and like again → still +1 only.
+3. ☐ Three accounts report it → it disappears from the gallery and you (and reviewers) get the 🛡 card →
+   «✅ نمایش دوباره» brings it back.
+4. ☐ «🔗 لینک دعوت من» → open it with a fresh account → make a pack → the inviter +10.
+5. ☐ «⚡️ سهمیه‌ی امروز» with enough points → the account screen shows the higher quota.
+6. ☐ Pro: `/admin` ← «⭐️ پرداخت‌ها» → set a small price (e.g. 1 Star) → turn on «پرداخت» → a second
+   account pays from «حساب Wanger من» → Pro shows; then refund from its user screen → Pro ends and the
+   Star comes back. (Costs one real Star for a moment.)
+7. ☐ Studio: type a Persian caption → the emoji chips under «ایموجی» suggest fitting emojis;
+   «💡 ایده‌ی متن» fills a caption.

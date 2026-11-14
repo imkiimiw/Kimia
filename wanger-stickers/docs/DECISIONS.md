@@ -337,6 +337,50 @@ SPIKE_REPORT §10.
 - Video background removal (experimental): 6 masks per second, nearest mask per frame; offered only
   when `navigator.deviceMemory` ≥ 4 and ≥ 4 cores (unknown counts as capable); clip ≤ 3 s.
 
+## D24 — Phase 5 "Done when" (proposed in the Phase 4 report)
+
+Gallery with likes, reports and moderation · Wanger Points with caps and idempotency, earn + spend ·
+Stars Pro subscription (built, off until Kimi sets a price) · local suggestions behind the
+AiProvider interface. Not built (need Kimi): AI image generation and the character studio (a
+provider and its key), HubAccountProvider (no hub exists).
+
+## D25 — Phase 5: points
+
+- `points_ledger.key` is the idempotency key (`<reason>:<unique>`, e.g. `like_received:12:7800`): an
+  INSERT … ON CONFLICT DO NOTHING is the claim, so an award is never paid twice, even on retried
+  updates. Daily caps per reason (config `POINTS`) are checked against the ledger. Spends insert a
+  negative row first, then debit with one conditional UPDATE (`points >= cost`); a short balance
+  removes the row again. The callback query id is the spend's key (a double tap costs once).
+- Referral: `users.referrer_id` is set once, for a user who joined in the last 24 h (the `/start ref_…`
+  may wait behind the language choice and the gate); the referrer is paid when that user makes a
+  first pack — "referrals that become active users" (brief §12), not mere visits.
+- Points live in this bot's `users` (LocalAccountProvider) until a Wanger hub exists (D6).
+
+## D26 — Phase 5: gallery
+
+- Only packs whose publication was approved and posted enter (`packs.gallery_at`), so everything in
+  the gallery passed manual review once. Withdrawing the post takes it out; likes are kept for a
+  re-publication. Reports: one per person per pack; at `gallery.hide_reports` (3) open reports the
+  pack is hidden at once (before review), and the owner + reviewers get the card. Reviewers may show
+  again or remove; banning the creator from publishing stays owner-only (D11).
+
+## D27 — Phase 5: Pro with Telegram Stars
+
+- Stars (XTR) need no payment provider and no account of Kimi's; the invoice is a 30-day
+  subscription (`subscription_period` 2592000, Bot API). The price is **Kimi's decision**: until
+  `pro.price_stars` > 0 and flags.payments is on, nothing is offered and pre-checkouts are refused.
+  Pro = 5× daily quotas; basic sticker making stays free (brief §12). Payments are recorded even in
+  maintenance mode (the money moved). Refund = `refundStarPayment` + cancel the subscription; Pro ends.
+- Withdrawing Stars to money happens in BotFather / Fragment, outside the bot.
+
+## D28 — Phase 5: AiProvider
+
+- One interface (`lib/ai/provider.js`): `suggestEmojis`, `captionIdeas`, `generateSticker`. The local
+  provider is rule-based (`lib/core/suggest.js`, shared with the Studio for instant chips). External
+  free-tier providers (and the character studio, own photo only, after explicit consent — brief §13)
+  plug in behind it once Kimi picks one and adds its key in 🔑; until then flags.ai stays off and
+  `generateSticker` refuses.
+
 ## Q — Questions for Kimi before Phase 1 (answered on 2026-11-12, see §A)
 
 1. **CLI token**: set `WangerStickers_BOT_TGCLOUD_TOKEN` (BotFather → the bot → Serverless → CLI

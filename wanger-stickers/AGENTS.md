@@ -163,7 +163,8 @@ map is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 - **State: Phases 1–2 deployed (2026-11-12); Phase 3 (video stickers, GIF, WhatsApp, screenshot to
   pack, batch) and Phase 4 (custom emoji, share links + QR, templates, motion effects, meme, text
-  animation, slideshow / join, video background removal, drafts) deployed 2026-11-14.** The Mini App is the Studio (`src/studio/`, engine in
+  animation, slideshow / join, video background removal, drafts) and Phase 5 (points, gallery, Stars
+  Pro — off until Kimi prices it —, local AiProvider) deployed 2026-11-14.** The Mini App is the Studio (`src/studio/`, engine in
   `src/engine/`, animated parts in `src/engine/anim/` and the lazy `AnimStudio.tsx`); `?spike=1` keeps
   the Phase 0 device page, whose endpoints `spike_echo`/`spike_report` stay owner-only.
 - **Studio ↔ bot:** endpoints `studio_*` / `upload_*` all go through `lib/endpoint.js` (verified
@@ -179,7 +180,7 @@ map is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
   and the callback_data table) → `lib/bot/*_ui.js`, `lib/admin/*_ui.js` → services in
   `lib/wanger/` and `lib/packs/` → SQL only in `lib/db/` → `sdk`. Bot API calls only through `lib/tg.js`.
 - **Owner = numeric id `5557901897`**; roles only in `lib/core/roles.js` (owner; reviewer = may
-  review publications, nothing else). Admin routes declare `perm` and also call `assertOwner`.
+  review publications and moderate gallery reports, nothing else). Admin routes declare `perm` and also call `assertOwner`.
 - **All Telegram/WhatsApp numbers live in `tgcloud/lib/core/limits.js`**; owner-editable values in
   `config.js` DEFAULTS (stored in `settings`); internal timings in `config.js` `T`.
 - Texts only in `lib/i18n/{fa,en}.js` (same keys; `t()` escapes, `tp()` plain); invisible characters
@@ -198,6 +199,8 @@ map is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
   actions and feature flags in `lib/studio/transfer.js`. WhatsApp packs are `packs` rows with
   `platform = 'whatsapp'` — Telegram queries must keep their `platform = 'telegram'` filter. Custom
   emoji sets are Telegram packs with `kind = 'emoji'`: emoji and regular stickers never mix.
+- Points: only through `app.account.award(user, reason, uniqueKey)` / `spendCredits` (ledger key =
+  idempotency key, daily caps in `config.js` `POINTS`). Payments: only `lib/payments/stars.js`.
 - Ask Kimi before: `push`, `migrate`, BotFather changes, deleting data, anything that messages real
   users or posts to a channel, adding GPL/AGPL/non-commercial components. Talk to Kimi in Persian;
   code, comments, commits and docs in English.

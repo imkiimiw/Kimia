@@ -1,4 +1,4 @@
-# Architecture — Wanger Stickers (Phases 1–4)
+# Architecture — Wanger Stickers (Phases 1–5)
 
 One tgcloud project (@Wanger_Motionbot, app9292593567): a thin Serverless backend in `tgcloud/`,
 the Mini App in `src/` (Phase 0–1: the device spike page; the Studio from Phase 2), and the media
@@ -42,6 +42,10 @@ handlers/{message,callback_query,my_chat_member}.js   (thin: one line each)
 | `lib/core/qr.js`, `lib/core/png.js` | QR encoder (byte mode, level M, versions 1–10) and 1-bit PNG writer — share links (Phase 4). |
 | `endpoints/spike_*.js` | Phase 0 spike tools (owner only). |
 | `endpoints/wa_export.js` | Sends a WhatsApp pack's ZIP (gate re-checked without the cache). |
+| `lib/packs/gallery.js`, `lib/bot/community_ui.js` | Phase 5: gallery (browse, like, report, auto-hide, moderation), points screen (earn, spend, invite), Pro button. |
+| `lib/payments/stars.js`, `handlers/pre_checkout_query.js` | Phase 5: Pro with Telegram Stars (invoice link, pre-checkout, payment once per charge id, refund). |
+| `lib/ai/provider.js`, `lib/core/suggest.js`, `endpoints/ai_suggest.js` | Phase 5: the AiProvider interface and its local provider (emoji suggestions, caption ideas). |
+| `lib/db/community.js` | Phase 5 SQL: points ledger, gallery likes / reports, payments. |
 
 ## The Studio (Phase 2)
 
@@ -91,7 +95,7 @@ server              upload kinds emoji_static / emoji_video → custom_emoji set
 `tgcloud/lib/core/` (limits, validate, inspect, bytes) are imported by the engine, so the client
 and the server check files with the same code.
 
-## Data (schema.js, 25 tables; Phase 3 adds `packs.tray_file_id`; Phase 4 adds `packs.share_code`, `packs.share_opens` and `share_visits`)
+## Data (schema.js, 29 tables; Phase 3 adds `packs.tray_file_id`; Phase 4 `packs.share_code`, `share_opens`, `share_visits`; Phase 5 `points_ledger`, `gallery_likes`, `gallery_reports`, `payments` and `packs.likes`, `reports`, `gallery_hidden`, `gallery_at`)
 
 users · usage_daily · channels · membership_cache · user_state · pending_actions · packs ·
 pack_items · pack_posts · staff · pack_ops · broadcasts · settings · secrets · rate_limits · errors ·
@@ -116,6 +120,7 @@ the platform's measured limits) and a strict fake Bot API with sticker-set rules
 (`tests/helpers/fake-telegram.mjs`). Acceptance suites: `e2e.gate`, `e2e.packs`, `e2e.publish`,
 `e2e.admin` (permission matrix over every admin route and step, broadcast interruption), `e2e.media`
 (video stickers, deliveries, WhatsApp packs end to end), `e2e.pro` (custom emoji packs, share links,
-QR decoded by jsQR), `anim` (timeline, splitter, ZIP, validators, effect loops).
+QR decoded by jsQR), `e2e.community` (points, gallery, Stars payments, suggestions), `anim` (timeline,
+splitter, ZIP, validators, effect loops).
 In a browser: `npm run engine:local` (encoders + validators + ffprobe) and `npm run studio:local`
 (the real Studio UI with a mock Telegram bridge).
