@@ -1,12 +1,12 @@
 {
-  "at": "2026-11-12T13:49:34.121Z",
+  "at": "2026-11-14T13:31:30.842Z",
   "photo": "photo2.jpg",
   "photoBytes": 67659,
-  "openMs": 871,
-  "autoRemoveMs": 1999,
-  "exportMs": 320,
+  "openMs": 1961,
+  "autoRemoveMs": 2815,
+  "exportMs": 444,
   "exportLine": "اندازه: ۳۴۲×۵۱۲ · ۳۹ کیلوبایت · WEBP",
-  "totalMs": 3952,
+  "totalMs": 6048,
   "upload": {
     "action": "new",
     "title": "استودیوی من",
@@ -19,9 +19,98 @@
     "width": 342,
     "height": 512
   },
-  "quickToExportMs": 2852,
+  "quickToExportMs": 4226,
   "gate": {
     "opened": "https://t.me/HIDE_i_SEEK"
+  },
+  "phase3": {
+    "home": {
+      "tiles": [
+        "🖼 استیکر از عکس",
+        "🎬 استیکر ویدیویی",
+        "🌀 GIF و تبدیل فرمت",
+        "🟢 استیکر واتس‌اپ",
+        "✂️ چند استیکر از یک عکس",
+        "📚 چند عکس با هم"
+      ],
+      "ms": 1832
+    },
+    "quick_video_sticker": {
+      "line": "VP9 · ۵۱۲×۲۸۸ · ۳۰ فریم در ثانیه · ۳ ثانیه · ۱۵۶٫۴ کیلوبایت",
+      "kind": "telegram_video",
+      "action": "new",
+      "kb": 156,
+      "valid": true,
+      "violations": [],
+      "durationMs": 3000,
+      "fps": 30,
+      "size": "512x288",
+      "ms": 6163
+    },
+    "round_video": {
+      "action": "add",
+      "packId": 7,
+      "valid": true,
+      "violations": [],
+      "alpha": true,
+      "size": "512x512",
+      "ms": 9967
+    },
+    "gif_file_and_mp4": {
+      "gif": {
+        "kind": "gif",
+        "action": "file",
+        "kb": 362,
+        "valid": true,
+        "violations": [],
+        "frames": 42
+      },
+      "mp4": {
+        "kind": "animation",
+        "action": "send",
+        "kb": 108,
+        "valid": true,
+        "violations": [],
+        "chunked": false
+      },
+      "ms": 2351
+    },
+    "whatsapp_static_pack": {
+      "line": "۵۱۲×۵۱۲ · ۲۵٫۶ کیلوبایت",
+      "sticker": {
+        "kind": "whatsapp_static",
+        "action": "wa_new",
+        "title": "پک واتس‌اپ",
+        "publisher": "@tester",
+        "kb": 26,
+        "valid": true,
+        "violations": []
+      },
+      "tray": {
+        "kind": "whatsapp_tray",
+        "action": "wa_tray",
+        "packId": 21,
+        "valid": true,
+        "violations": []
+      },
+      "ms": 2308
+    },
+    "screenshot_to_pack": {
+      "found": "۳ استیکر پیدا شد. روی هر کادر بزن تا کنار گذاشته یا برگردانده شود.",
+      "uploads": 3,
+      "actions": [
+        "add",
+        "add",
+        "add"
+      ],
+      "quiet": [
+        true,
+        true,
+        false
+      ],
+      "allValid": true,
+      "ms": 2592
+    }
   },
   "browser": "headless Chromium (container) — not a phone"
 }

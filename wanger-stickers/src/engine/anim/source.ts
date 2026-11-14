@@ -116,6 +116,12 @@ export async function openVideo(blob: Blob, o: OpenOptions = {}): Promise<AnimSo
       setTimeout(finish, 3000);
       v.currentTime = sec;
     });
+  let queue: Promise<unknown> = Promise.resolve();
+  const serial = <R,>(fn: () => Promise<R>): Promise<R> => {
+    const run = queue.then(fn, fn);
+    queue = run.catch(() => undefined);
+    return run;
+  };
   // frames captured by prepare(): sorted by media time
   let cache: { m: number; c: Canvas }[] = [];
   const cached = (t: number): Canvas | null => {
@@ -132,13 +138,30 @@ export async function openVideo(blob: Blob, o: OpenOptions = {}): Promise<AnimSo
     // a captured frame further than ~2 source frames away means playback dropped frames there
     return Math.abs(cache[k].m - t) <= 70 || (k + 1 < cache.length && cache[k + 1].m - cache[k].m > 70 && t < cache[k + 1].m) ? cache[k].c : null;
   };
-  return {
+  const source: AnimSource = {
     kind: 'video',
     width: w,
     height: h,
     durationMs,
     alpha,
-    async frameAt(ms: number) {
+    frameAt(ms: number) {
+      return serial(() => frameAtNow(ms));
+    },
+    prepare(timesMs: number[], onProgress?: (p: number) => void) {
+      return serial(() => prepareNow(timesMs, onProgress));
+    },
+    close() {
+      cache = [];
+      v.removeAttribute('src');
+      v.load();
+      URL.revokeObjectURL(url);
+    },
+  };
+  return source;
+
+  // one <video> element: seeks and captures must never overlap (poster, thumbnails, export)
+  async function frameAtNow(ms: number): Promise<Canvas> {
+    {
       const t = Math.max(0, Math.min(ms, Math.max(0, durationMs - 1)));
       const hit = cached(t);
       x.clearRect(0, 0, w, h);
@@ -152,8 +175,10 @@ export async function openVideo(blob: Blob, o: OpenOptions = {}): Promise<AnimSo
       }
       x.drawImage(v, 0, 0, w, h);
       return c;
-    },
-    async prepare(timesMs: number[], onProgress?: (p: number) => void) {
+    }
+  }
+  async function prepareNow(timesMs: number[], onProgress?: (p: number) => void): Promise<void> {
+    {
       const rvfc = (v as VideoWithRvfc).requestVideoFrameCallback;
       if (!rvfc || !timesMs.length) return;
       const need = [...new Set(timesMs.map((t) => Math.round(Math.max(0, Math.min(t, durationMs - 1)))))].sort((a, b) => a - b);
@@ -194,14 +219,8 @@ export async function openVideo(blob: Blob, o: OpenOptions = {}): Promise<AnimSo
         v.play().catch(stop);
       });
       cache.sort((a, b) => a.m - b.m);
-    },
-    close() {
-      cache = [];
-      v.removeAttribute('src');
-      v.load();
-      URL.revokeObjectURL(url);
-    },
-  };
+    }
+  }
 }
 
 type VideoWithRvfc = HTMLVideoElement & { requestVideoFrameCallback?: (cb: (now: number, meta: { mediaTime: number }) => void) => number };

@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-12T14:30:21.194Z",
+  "at": "2026-11-14T13:31:04.515Z",
   "browser": "153.0.8010.12",
   "checks": {
     "mp4_1080p_10s_to_vp9_sticker": {
@@ -10,7 +10,7 @@
         "durationMs": 10000
       },
       "violations": [],
-      "kb": 154.9,
+      "kb": 156.9,
       "fps": 30,
       "frames": 90,
       "durationMs": 3000,
@@ -19,11 +19,11 @@
       "encodes": 1,
       "alpha": false,
       "timings": {
-        "openMs": 77,
-        "prepareMs": 3405,
-        "renderMs": 3527,
-        "encodeMs": 250,
-        "wallMs": 3887
+        "openMs": 98,
+        "prepareMs": 3520,
+        "renderMs": 3693,
+        "encodeMs": 395,
+        "wallMs": 4233
       },
       "ffprobe": {
         "programs": [],
@@ -44,7 +44,7 @@
     "round_video_sticker_with_alpha": {
       "pass": true,
       "violations": [],
-      "kb": 188,
+      "kb": 189,
       "alphaTrack": true
     },
     "mp4_to_gif": {
@@ -54,7 +54,7 @@
       "frames": 57,
       "durationMs": 3990,
       "size": "360x203",
-      "encodeMs": 4899,
+      "encodeMs": 5172,
       "ffprobe": {
         "programs": [],
         "streams": [
@@ -76,7 +76,7 @@
       "pass": true,
       "violations": [],
       "kb": 140,
-      "encodeMs": 57,
+      "encodeMs": 77,
       "ffprobe": {
         "programs": [],
         "streams": [
@@ -103,13 +103,13 @@
       "pass": true,
       "violations": [],
       "trayViolations": [],
-      "kb": 273,
+      "kb": 272,
       "fps": 15,
       "quality": 70,
       "encodes": 1,
       "frames": 45,
       "durationMs": 2999,
-      "encodeMs": 1255
+      "encodeMs": 1860
     },
     "frames_zip": {
       "pass": true,
@@ -151,5 +151,5 @@
     "debug: [vite] connecting...",
     "debug: [vite] connected."
   ],
-  "files": "/tmp/ws-engine-WSkBfV"
+  "files": "/tmp/ws-engine-ra5Sc1"
 }
