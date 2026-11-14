@@ -269,3 +269,48 @@ test('broadcast: audience English only, pause / resume / cancel', async () => {
   await h2.press(OWNER, `a:bccan:${b2.id}`);
   assert.equal(h2.one('SELECT status FROM broadcasts').status, 'cancelled');
 });
+
+test('storage channel: a forwarded post of a private channel, an id without -100, one-tap offer; public refused', async () => {
+  const h = setup();
+  await h.send(OWNER, '/start');
+  await h.tap(OWNER, 'l:set:fa');
+  const PRIV = -1004444444444;
+  h.tg.addChannel({ id: PRIV, title: 'Wanger storage', username: null });
+  // forwarded post
+  await h.press(OWNER, 'a:stor');
+  await h.send(OWNER, 'a post', { forward_origin: { type: 'channel', chat: { id: PRIV, type: 'channel', title: 'Wanger storage' }, message_id: 5, date: 0 } });
+  assert.equal(JSON.parse(h.one("SELECT value FROM settings WHERE key = 'storage.chat_id'").value), PRIV);
+  assert.equal(JSON.parse(h.one("SELECT value FROM settings WHERE key = 'storage.title'").value), 'Wanger storage');
+  // an id the way apps show it (no -100)
+  const PRIV2 = -1005555555555;
+  h.tg.addChannel({ id: PRIV2, title: 'Second', username: null });
+  await h.press(OWNER, 'a:stor');
+  await h.send(OWNER, '5555555555');
+  assert.equal(JSON.parse(h.one("SELECT value FROM settings WHERE key = 'storage.chat_id'").value), PRIV2);
+  // a public channel is refused (users' files would be public); so is the publish channel
+  h.tg.addChannel({ id: -1006666666666, title: 'Public', username: 'SomePublicChan' });
+  await h.press(OWNER, 'a:stor');
+  let r = await h.send(OWNER, '@SomePublicChan');
+  assert.equal(r.result, 'step_error:a_storage');
+  assert.match(h.lastText(OWNER), /عمومی/);
+  // the bot without rights → says exactly that
+  h.tg.addChannel({ id: -1007777777777, title: 'No rights', username: null, botAdmin: false });
+  r = await h.send(OWNER, '-1007777777777');
+  assert.equal(r.result, 'step_error:a_storage');
+  assert.match(h.lastText(OWNER), /ارسال پیام/);
+  // an invite link → "forward a post"
+  r = await h.send(OWNER, 'https://t.me/+AbCdEf123456');
+  assert.match(h.lastText(OWNER), /فوروارد/);
+  await h.send(OWNER, '/cancel');
+  assert.equal(JSON.parse(h.one("SELECT value FROM settings WHERE key = 'storage.chat_id'").value), PRIV2);
+  // the owner makes the bot an admin of a new private channel → a one-tap offer
+  const PRIV3 = -1008888888888;
+  h.tg.addChannel({ id: PRIV3, title: 'Third', username: null });
+  const res = await h.myChatMember({ id: PRIV3, type: 'channel', title: 'Third' }, OWNER, 'administrator', { can_post_messages: true });
+  assert.equal(res.result, 'storage_offered');
+  await h.tap(OWNER, `a:stouse:${PRIV3}`);
+  assert.equal(JSON.parse(h.one("SELECT value FROM settings WHERE key = 'storage.chat_id'").value), PRIV3);
+  // someone else adding the bot gets no offer; a reviewer can't use the button
+  const res2 = await h.myChatMember({ id: -1009999999998, type: 'channel', title: 'X' }, 12345, 'administrator', {});
+  assert.notEqual(res2.result, 'storage_offered');
+});

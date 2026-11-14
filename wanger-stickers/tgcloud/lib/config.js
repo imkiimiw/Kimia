@@ -70,6 +70,7 @@ export const DEFAULTS = Object.freeze({
   'text.help.fa': '',
   'text.help.en': '',
   'storage.chat_id': 0,
+  'storage.title': '', // the storage channel's title when it was set (shown in the panel)
   'account.provider': 'local',
   'broadcast.batch': 25,
   'notify.gate': true,

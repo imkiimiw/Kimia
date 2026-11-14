@@ -34,3 +34,18 @@ export function parseChatRef(text, message) {
 export function isValidInviteLink(link) {
   return /^https:\/\/t\.me\/(\+[A-Za-z0-9_-]{6,64}|joinchat\/[A-Za-z0-9_-]{6,64}|[A-Za-z][A-Za-z0-9_]{3,31})$/.test(String(link || '').trim());
 }
+
+/**
+ * Ids to try for a typed numeric id: as typed, and — because apps show channel ids without it —
+ * with Telegram's "-100" channel prefix (2102285623 or -2102285623 → -1002102285623).
+ * @param {number} n
+ */
+export function channelIdCandidates(n) {
+  const out = [n];
+  const abs = Math.abs(n);
+  if (!String(abs).startsWith('100') || String(abs).length < 13) {
+    const withPrefix = Number(`-100${abs}`);
+    if (Number.isSafeInteger(withPrefix) && withPrefix !== n) out.push(withPrefix);
+  }
+  return out;
+}

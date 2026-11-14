@@ -364,5 +364,6 @@ export async function onMyChatMember(app, upd) {
   }
   const g = await app.gate.onBotStatusChange(upd.chat, upd.new_chat_member);
   const p = await app.publish.onBotStatusChange(upd.chat, upd.new_chat_member);
+  if (!g && !p && upd.from && (await panel.offerStorage(app, upd.chat, upd.new_chat_member, upd.from.id))) return 'storage_offered';
   return g ? 'gate_channel' : p ? 'publish_channel' : 'other_chat';
 }

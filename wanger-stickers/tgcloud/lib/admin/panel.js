@@ -10,7 +10,8 @@ import { packs as pdb, posts as postDb } from '../db/packs.js';
 import { system } from '../db/system.js';
 import { dateText } from '../i18n/index.js';
 import { utf8 } from '../core/bytes.js';
-import { OWNER_ID, FEATURES, SETTING_RANGES, QUOTA_FEATURES, T, APP_URL } from '../config.js';
+import { OWNER_ID, FEATURES, SETTING_RANGES, QUOTA_FEATURES, T, APP_URL, BOT_USERNAME } from '../config.js';
+import { parseChatRef, channelIdCandidates } from '../core/chatref.js';
 
 export const assertOwner = (app) => {
   if (app.user.tg_id !== OWNER_ID) throw new PermissionError('admin');
@@ -234,7 +235,17 @@ export const routes = {
       return { toast: app.tp(app.settings.get('maintenance.on') ? 'adm.maint_is_on' : 'adm.maint_is_off'), alert: true };
     }),
   },
-  'a:stor': { args: [], perm: 'admin', run: owner(async (app) => { await app.state.set(app.user.tg_id, 'a_storage', {}); await app.tg.send(app.user.tg_id, { text: app.t('adm.ask_storage', { value: String(app.settings.get('storage.chat_id') || '—') }) }, 'ask_storage'); }) },
+  'a:stor': { args: [], perm: 'admin', run: owner(async (app) => { await app.state.set(app.user.tg_id, 'a_storage', {}); await app.tg.send(app.user.tg_id, { text: app.t('adm.ask_storage', { value: app.settings.get('storage.chat_id') ? `${app.settings.get('storage.title') || ''} (${app.settings.get('storage.chat_id')})` : '—', bot: BOT_USERNAME }) }, 'ask_storage'); }) },
+  'a:stouse': {
+    args: ['int'], perm: 'admin',
+    run: owner(async (app, [chatId], cq) => {
+      const info = await app.tg.inspectChannel(chatId);
+      if (!info.ok) throw new UserError('adm.err.channel_not_found', { bot: BOT_USERNAME });
+      await setStorage(app, info);
+      await show(app, cq, { text: app.t('adm.storage_set', { title: info.chat.title || '' }) }, 'storage_set');
+      return { toast: app.tp('adm.storage_set_toast') };
+    }),
+  },
 
   'a:nt': { args: [], perm: 'admin', run: owner(async (app, _a, cq) => show(app, cq, notifyView(app), 'admin_notify')) },
   'a:ntog': {
@@ -269,6 +280,44 @@ export const routes = {
 
 /** Features whose code exists (a flag can be turned on). */
 const BUILT = new Set(['packs', 'pack_import', 'pack_publish', 'studio', 'gif_studio', 'convert', 'whatsapp', 'video', 'wastickers', 'gif_zip', 'emoji', 'share', 'anim_bg']);
+
+/**
+ * A channel the owner typed or forwarded: forwarded post, @username, t.me link or numeric id
+ * (tried with and without the "-100" prefix). Throws a UserError that says what is wrong.
+ */
+export async function resolveChannel(app, text, message) {
+  const ref = parseChatRef(text, message);
+  if (!ref) throw new UserError('adm.err.channel_ref');
+  if (ref.kind === 'invite') throw new UserError('adm.err.channel_invite');
+  const tries = ref.kind === 'username' ? ['@' + ref.value] : channelIdCandidates(ref.value);
+  let info = null;
+  for (const id of tries) {
+    info = await app.tg.inspectChannel(id);
+    if (info.ok || info.error === 'transient') break;
+  }
+  if (!info.ok) throw new UserError(info.error === 'not_channel' ? 'pc.err.not_channel' : info.error === 'transient' ? 'gm.err.transient' : 'adm.err.channel_not_found', { bot: BOT_USERNAME });
+  return info;
+}
+
+/** The storage channel must be private (stored files would be public otherwise) and writable. */
+async function setStorage(app, info) {
+  if (!info.isAdmin || !info.canPost) throw new UserError('adm.err.storage_rights', { bot: BOT_USERNAME, title: info.chat.title || '' });
+  if (info.chat.username) throw new UserError('adm.err.storage_public', { title: info.chat.title || info.chat.username });
+  const pub = app.settings.get('publish.chat');
+  if (pub && pub.chat_id === info.chat.id) throw new UserError('adm.err.storage_public', { title: info.chat.title || '' });
+  await app.settings.set(app.user.tg_id, 'storage.chat_id', info.chat.id);
+  await app.settings.set(app.user.tg_id, 'storage.title', String(info.chat.title || '').slice(0, 128));
+}
+
+/** The owner made the bot an admin of a channel we don't use yet: offer it as the storage channel. */
+export async function offerStorage(app, chat, member, fromId) {
+  if (fromId !== OWNER_ID || chat.type !== 'channel' || member.status !== 'administrator') return false;
+  if (Number(app.settings.get('storage.chat_id')) === chat.id || chat.username) return false;
+  const pub = app.settings.get('publish.chat');
+  if (pub && pub.chat_id === chat.id) return false;
+  await app.tg.send(OWNER_ID, { text: app.t('adm.storage_offer', { title: chat.title || String(chat.id) }), keyboard: markup([[btn(app.tp('adm.btn_storage_use'), 'a', 'stouse', chat.id)]]) }, 'storage_offer');
+  return true;
+}
 
 /** Owner text steps of this module. @returns {Promise<string|null>} */
 export async function onAdminStep(app, step, payload, message) {
@@ -346,9 +395,8 @@ export async function onAdminStep(app, step, payload, message) {
         await app.settings.set(me, 'storage.chat_id', 0);
         return done(settingsView(app));
       }
-      const info = await app.tg.inspectChannel(/^-?\d+$/.test(text) ? Number(text) : text);
-      if (!info.ok || !info.isAdmin || !info.canPost) throw new UserError('adm.err.storage');
-      await app.settings.set(me, 'storage.chat_id', info.chat.id);
+      const info = await resolveChannel(app, text, message);
+      await setStorage(app, info);
       return done(settingsView(app));
     }
     case 'a_secset': {
