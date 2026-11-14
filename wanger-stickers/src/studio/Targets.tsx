@@ -4,6 +4,19 @@
 import { useState } from 'react';
 import { saveFile, waExport, tg, type Boot, type SaveResult, type UploadKind, type UploadFormat, type WaPack } from './api';
 import { num, type makeT, type Lang } from './i18n';
+import { suggestEmojis } from '../../tgcloud/lib/core/suggest.js';
+
+/** Emoji chips suggested from the sticker's own text (the local AiProvider; no network). */
+function EmojiChips({ hint, max, onPick }: { hint?: string; max: number; onPick: (e: string) => void }) {
+  if (!hint || !hint.trim()) return null;
+  const list = suggestEmojis(hint, max) as string[];
+  return (
+    <div className="row chips">
+      <button onClick={() => onPick(list.join(''))}>{list.join('')}</button>
+      {list.length > 1 && list.map((e) => <button key={e} onClick={() => onPick(e)}>{e}</button>)}
+    </div>
+  );
+}
 
 type T = ReturnType<typeof makeT>;
 
@@ -23,7 +36,7 @@ export const maxOf = (info: Boot, kind: TgKind) => (kind === 'emoji' ? info.limi
  * Pack radio list + new title + "just send" + emojis. `kind` = regular stickers or custom emoji
  * (their packs never mix); `allowSend` = false for batches and emoji.
  */
-export function TelegramChoice({ info, t, lang, value, onChange, allowSend = true, kind = 'sticker' }: { info: Boot; t: T; lang: Lang; value: TgChoice; onChange: (c: TgChoice) => void; allowSend?: boolean; kind?: TgKind }) {
+export function TelegramChoice({ info, t, lang, value, onChange, allowSend = true, kind = 'sticker', hint }: { info: Boot; t: T; lang: Lang; value: TgChoice; onChange: (c: TgChoice) => void; allowSend?: boolean; kind?: TgKind; hint?: string }) {
   const max = maxOf(info, kind);
   const packs = packsOf(info, kind);
   if (kind === 'emoji') allowSend = false;
@@ -48,6 +61,7 @@ export function TelegramChoice({ info, t, lang, value, onChange, allowSend = tru
         {allowSend && <label className="opt"><input type="radio" name="tgt" checked={key === 'send'} onChange={() => pick('send')} />{t('save_send')}</label>}
       </fieldset>
       <label>{t('save_emoji')}<input value={value.emojis} onChange={(e) => onChange({ ...value, emojis: e.target.value })} /></label>
+      <EmojiChips hint={hint} max={3} onPick={(e) => onChange({ ...value, emojis: e })} />
     </>
   );
 }
@@ -74,7 +88,7 @@ export function defaultWaChoice(info: Boot, kind: 'static' | 'animated'): WaChoi
 }
 export const waChoiceReady = (c: WaChoice) => c.packId !== null || (!!c.title.trim() && !!c.publisher.trim());
 
-export function WhatsAppChoice({ info, t, lang, kind, value, onChange }: { info: Boot; t: T; lang: Lang; kind: 'static' | 'animated'; value: WaChoice; onChange: (c: WaChoice) => void }) {
+export function WhatsAppChoice({ info, t, lang, kind, value, onChange, hint }: { info: Boot; t: T; lang: Lang; kind: 'static' | 'animated'; value: WaChoice; onChange: (c: WaChoice) => void; hint?: string }) {
   const P = info.limits.whatsapp.pack;
   const packs = info.wa.filter((p) => p.kind === kind);
   return (
@@ -100,6 +114,7 @@ export function WhatsAppChoice({ info, t, lang, kind, value, onChange }: { info:
         )}
       </fieldset>
       <label>{t('wa_emoji')}<input value={value.emojis} onChange={(e) => onChange({ ...value, emojis: e.target.value })} /></label>
+      <EmojiChips hint={hint} max={info.limits.whatsapp.pack.emojiPerStickerMax} onPick={(e) => onChange({ ...value, emojis: e })} />
     </>
   );
 }

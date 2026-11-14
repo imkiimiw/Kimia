@@ -1,12 +1,12 @@
 {
-  "at": "2026-11-14T14:45:51.186Z",
+  "at": "2026-11-14T15:14:55.246Z",
   "photo": "photo2.jpg",
   "photoBytes": 67659,
-  "openMs": 1769,
-  "autoRemoveMs": 2698,
-  "exportMs": 366,
+  "openMs": 2031,
+  "autoRemoveMs": 2579,
+  "exportMs": 429,
   "exportLine": "اندازه: ۳۴۲×۵۱۲ · ۳۹ کیلوبایت · WEBP",
-  "totalMs": 5669,
+  "totalMs": 5900,
   "upload": {
     "action": "new",
     "title": "استودیوی من",
@@ -19,66 +19,11 @@
     "width": 342,
     "height": 512
   },
-  "quickToExportMs": 4230,
+  "quickToExportMs": 5533,
   "gate": {
     "opened": "https://t.me/HIDE_i_SEEK"
   },
   "phase3": {
-    "home": {
-      "tiles": [
-        "🖼 استیکر از عکس",
-        "🎬 استیکر ویدیویی",
-        "😀 ایموجی سفارشی",
-        "😂 میم‌ساز",
-        "🌀 GIF و تبدیل فرمت",
-        "✍️ متن متحرک",
-        "🎞 اسلایدشو / چسباندن",
-        "🟢 استیکر واتس‌اپ",
-        "✂️ چند استیکر از یک عکس",
-        "📚 چند عکس با هم"
-      ],
-      "ms": 1762
-    },
-    "quick_video_sticker": {
-      "line": "VP9 · ۵۱۲×۲۸۸ · ۳۰ فریم در ثانیه · ۳ ثانیه · ۱۵۱٫۸ کیلوبایت",
-      "kind": "telegram_video",
-      "action": "new",
-      "kb": 152,
-      "valid": true,
-      "violations": [],
-      "durationMs": 3000,
-      "fps": 30,
-      "size": "512x288",
-      "ms": 9101
-    },
-    "round_video": {
-      "action": "add",
-      "packId": 7,
-      "valid": true,
-      "violations": [],
-      "alpha": true,
-      "size": "512x512",
-      "ms": 9435
-    },
-    "gif_file_and_mp4": {
-      "gif": {
-        "kind": "gif",
-        "action": "file",
-        "kb": 362,
-        "valid": true,
-        "violations": [],
-        "frames": 42
-      },
-      "mp4": {
-        "kind": "animation",
-        "action": "send",
-        "kb": 108,
-        "valid": true,
-        "violations": [],
-        "chunked": false
-      },
-      "ms": 2312
-    },
     "whatsapp_static_pack": {
       "line": "۵۱۲×۵۱۲ · ۲۵٫۶ کیلوبایت",
       "sticker": {
@@ -97,23 +42,7 @@
         "valid": true,
         "violations": []
       },
-      "ms": 2293
-    },
-    "screenshot_to_pack": {
-      "found": "۳ استیکر پیدا شد. روی هر کادر بزن تا کنار گذاشته یا برگردانده شود.",
-      "uploads": 3,
-      "actions": [
-        "add",
-        "add",
-        "add"
-      ],
-      "quiet": [
-        true,
-        true,
-        false
-      ],
-      "allValid": true,
-      "ms": 2561
+      "ms": 2453
     }
   },
   "phase4": {
@@ -124,7 +53,7 @@
       "valid": true,
       "violations": [],
       "size": "100x100",
-      "ms": 2067
+      "ms": 2236
     },
     "meme": {
       "kind": "telegram_static",
@@ -132,7 +61,7 @@
       "packId": 7,
       "valid": true,
       "size": "343x512",
-      "ms": 2704
+      "ms": 2854
     },
     "animate_still_with_template": {
       "kind": "telegram_video",
@@ -140,34 +69,7 @@
       "violations": [],
       "size": "512x512",
       "kb": 162,
-      "ms": 5447
-    },
-    "text_animation": {
-      "kind": "telegram_video",
-      "valid": true,
-      "violations": [],
-      "alpha": true,
-      "ms": 3916
-    },
-    "slideshow_gif": {
-      "kind": "gif",
-      "valid": true,
-      "frames": 42,
-      "durationMs": 2940,
-      "ms": 6707
-    },
-    "draft_resume": {
-      "resumed": true,
-      "ms": 5830
-    },
-    "emoji_video": {
-      "kind": "emoji_video",
-      "action": "new",
-      "valid": true,
-      "violations": [],
-      "size": "100x100",
-      "kb": 75,
-      "ms": 8883
+      "ms": 5959
     }
   },
   "browser": "headless Chromium (container) — not a phone"

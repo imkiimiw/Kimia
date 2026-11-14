@@ -245,7 +245,7 @@ test('reviewers: the owner adds and removes them; a reviewer sees only the queue
   assert.ok(h.texts(R).some((t) => /بررسی‌کننده/.test(t)), 'reviewer notified');
   await h.send(R, '/admin');
   const kb = h.lastButtons(R).map((b) => b.callback_data);
-  assert.deepEqual(kb, ['a:q', 'm:home']);
+  assert.deepEqual(kb, ['a:q', 'a:mod', 'm:home']);
   const r = await h.press(R, 'a:st');
   assert.ok(r.ok);
   assert.ok(!h.texts(R).some((t) => /<b>کاربران<\/b>/.test(t)), 'no stats for reviewers');

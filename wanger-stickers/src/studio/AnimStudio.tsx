@@ -477,7 +477,7 @@ function ExportTelegram({ src, doc, info, t, lang, onError, onAgain, emoji: emoj
       <div className={`preview checker ${kind === 'emoji' ? 'small' : ''}`}><video src={res.url} autoPlay loop muted playsInline /></div>
       <p className="hint">{res.line}</p>
       {res.violations.length > 0 && <p className="note">{t('invalid', { why: res.violations.join(', ') })}</p>}
-      <TelegramChoice info={info} t={t} lang={lang} value={choice} onChange={setChoice} kind={kind} />
+      <TelegramChoice info={info} t={t} lang={lang} value={choice} onChange={setChoice} kind={kind} hint={doc.texts.map((x) => x.text).join(' ')} />
       <button className="primary" disabled={saving !== null || res.violations.length > 0 || !tgChoiceReady(choice)} onClick={() => void save()}>{saving === null ? t('save_btn') : t('saving', { p: saving })}</button>
     </div>
   );
@@ -543,7 +543,7 @@ function ExportWhatsApp({ src, doc, info, t, lang, onError, onAgain }: AnimProps
       <div className="preview checker"><img src={res.url} alt="" /></div>
       <p className="hint">{res.line}</p>
       {res.violations.length > 0 && <p className="note">{t('invalid', { why: res.violations.join(', ') })}</p>}
-      <WhatsAppChoice info={info} t={t} lang={lang} kind="animated" value={choice} onChange={setChoice} />
+      <WhatsAppChoice info={info} t={t} lang={lang} kind="animated" value={choice} onChange={setChoice} hint={doc.texts.map((x) => x.text).join(' ')} />
       <button className="primary" disabled={saving !== null || res.violations.length > 0 || !waChoiceReady(choice)} onClick={() => void save()}>{saving === null ? t('save_btn') : t('saving', { p: saving })}</button>
     </div>
   );

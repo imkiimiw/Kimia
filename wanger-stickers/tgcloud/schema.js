@@ -3,8 +3,9 @@
 // code. Timestamps are unix seconds. Every lookup column has an index; every query is LIMITed.
 // Phase 2 adds jobs, job_chunks, uploads, upload_chunks (the Studio's transfer protocol). Phase 3 adds
 // packs.tray_file_id (WhatsApp packs live in `packs` with platform = 'whatsapp'). Phase 4 adds
-// packs.share_code / share_opens and share_visits (share links). Later phases add payments and the
-// gallery.
+// packs.share_code / share_opens and share_visits (share links). Phase 5 adds the gallery (packs
+// likes / reports / gallery_hidden / gallery_at, gallery_likes, gallery_reports), points_ledger and
+// payments.
 import { table, integer, text, real, blob, index, uniqueIndex, primaryKey, sql } from 'sdk/db';
 
 export const users = table('users', {
@@ -98,10 +99,68 @@ export const packs = table('packs', {
   tray_file_id: text('tray_file_id'), // Phase 3: WhatsApp tray icon (96×96 PNG) in the storage channel
   share_code: text('share_code'), // Phase 4: random code of the share link t.me/<bot>?start=pack_<code>
   share_opens: integer('share_opens').notNull().default(0), // Phase 4: times the share link was opened
+  likes: integer('likes').notNull().default(0), // Phase 5: gallery likes (one per person, gallery_likes)
+  reports: integer('reports').notNull().default(0), // Phase 5: open abuse reports
+  gallery_hidden: integer('gallery_hidden').notNull().default(0), // Phase 5: 1 = hidden from the gallery (moderation)
+  gallery_at: integer('gallery_at'), // Phase 5: when the pack entered the gallery (its publication)
 }, (t) => ({
   userIdx: index('idx_packs_user').on(t.tg_id, t.id),
   nameIdx: uniqueIndex('uidx_packs_name').on(t.tg_name),
   shareIdx: uniqueIndex('uidx_packs_share').on(t.share_code),
+  galleryNewIdx: index('idx_packs_gallery_new').on(t.gallery_hidden, t.gallery_at),
+  galleryTopIdx: index('idx_packs_gallery_top').on(t.gallery_hidden, t.likes),
+}));
+
+/** Phase 5: Wanger Points ledger — the key is the idempotency key, so an award is never paid twice. */
+export const points_ledger = table('points_ledger', {
+  key: text('key').primaryKey(),
+  tg_id: integer('tg_id').notNull(),
+  delta: integer('delta').notNull(),
+  reason: text('reason').notNull(),
+  day: integer('day').notNull(), // YYYYMMDD (Tehran) for daily caps
+  at: integer('at').notNull(),
+}, (t) => ({
+  userDayIdx: index('idx_points_user_day').on(t.tg_id, t.day, t.reason),
+  userIdx: index('idx_points_user').on(t.tg_id, t.at),
+}));
+
+/** Phase 5: one like per person per gallery pack. */
+export const gallery_likes = table('gallery_likes', {
+  pack_id: integer('pack_id').notNull(),
+  tg_id: integer('tg_id').notNull(),
+  at: integer('at').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.pack_id, t.tg_id] }),
+})).withoutRowid();
+
+/** Phase 5: abuse reports on gallery packs (one per person per pack). */
+export const gallery_reports = table('gallery_reports', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  pack_id: integer('pack_id').notNull(),
+  tg_id: integer('tg_id').notNull(),
+  reason: text('reason').notNull(), // spam | sexual | hate | violence | copyright | other
+  status: text('status').notNull().default('open'), // open | dismissed | upheld
+  at: integer('at').notNull(),
+}, (t) => ({
+  uniq: uniqueIndex('uidx_reports_pack_user').on(t.pack_id, t.tg_id),
+  statusIdx: index('idx_reports_status').on(t.status, t.pack_id),
+}));
+
+/** Phase 5: Telegram Stars payments (Pro). charge_id is Telegram's telegram_payment_charge_id. */
+export const payments = table('payments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  tg_id: integer('tg_id').notNull(),
+  charge_id: text('charge_id').notNull(),
+  stars: integer('stars').notNull(),
+  product: text('product').notNull(), // pro_month
+  payload: text('payload'),
+  recurring: integer('recurring').notNull().default(0),
+  until: integer('until').notNull().default(0), // Pro paid up to (unix seconds)
+  created_at: integer('created_at').notNull(),
+  refunded: integer('refunded').notNull().default(0),
+}, (t) => ({
+  chargeIdx: uniqueIndex('uidx_payments_charge').on(t.charge_id),
+  userIdx: index('idx_payments_user').on(t.tg_id, t.id),
 }));
 
 /** Phase 4: who opened a pack's share link (one row per person: the "people" count). */

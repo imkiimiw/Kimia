@@ -28,15 +28,15 @@ test('fa and en have exactly the same keys and the same {vars}', () => {
 });
 
 test('every text key written in the code exists (literal keys and the dynamic families)', () => {
-  const NS = /^(common|lang|gate|menu|help|acct|feature|dm|cmd|media|st|pk|imp|cp|dup|mg|op|err|pub|adm|set|flag|gm|bc|pc|pq|alert|wa|studio)\./;
+  const NS = /^(common|lang|gate|menu|help|acct|feature|dm|cmd|media|st|pk|imp|cp|dup|mg|op|err|pub|adm|set|flag|gm|bc|pc|pq|alert|wa|studio|gl|pt|pay|ai)\./;
   const missing = new Set();
   for (const f of code.filter((f) => !f.includes(`${path.sep}i18n${path.sep}`))) {
     const src = fs.readFileSync(f, 'utf8');
     for (const m of src.matchAll(/'([a-z]+(?:\.[a-z0-9_]+)+)'/g)) {
       const k = m[1];
       if (!NS.test(k) || /\.(js|json|png|webp)$/.test(k)) continue;
-      if (/^(set|flags|quota|publish|gate|notify|text|maintenance|limits|broadcast|storage|account|boot|hk|telegram)\.[a-z_.]+$/.test(k) && !(k in fa)) continue; // settings keys, not texts
-      if (/^(pack|sticker|op|pub|gate|user|event|points)\.[a-z_.]+$/.test(k) && !(k in fa) && !/^(pub|op|gate)\.(err|btn|status|n_|t_)/.test(k)) continue; // stats metrics
+      if (/^(set|flags|quota|publish|gate|notify|text|maintenance|limits|broadcast|storage|account|boot|hk|telegram|points|gallery|pro|media)\.[a-z_.]+$/.test(k) && !(k in fa)) continue; // settings keys, not texts
+      if (/^(pack|sticker|op|pub|gate|user|event|points|gallery|pay|share)\.[a-z_.]+$/.test(k) && !(k in fa) && !/^(pub|op|gate|pay)\.(err|btn|status|n_|t_)/.test(k)) continue; // stats metrics
       if (!(k in fa)) missing.add(`${k} (${path.relative(ROOT, f)})`);
     }
   }
@@ -56,6 +56,9 @@ test('every text key written in the code exists (literal keys and the dynamic fa
     'lang.name.fa', 'lang.name.en',
     ...['static', 'animated'].flatMap((k) => [`wa.kind.${k}`, `wa.kind_icon.${k}`]),
     ...['TOO_FEW', 'TOO_MANY', 'KIND', 'MIXED', 'EMOJIS', 'NAME', 'PUBLISHER', 'IDENTIFIER', 'NO_TRAY'].map((r) => `wa.rule.${r}`),
+    ...['spam', 'sexual', 'hate', 'violence', 'copyright', 'other'].map((r) => `gl.reason.${r}`),
+    ...['pack_created', 'share_open', 'published', 'like_received', 'referral', 'boost', 'pro_week', 'admin', 'other'].map((r) => `pt.reason.${r}`),
+    ...['restore', 'remove', 'ban'].map((a) => `gl.done_${a}`),
   ];
   for (const k of families) if (!(k in fa)) missing.add(k);
   assert.deepEqual([...missing], []);

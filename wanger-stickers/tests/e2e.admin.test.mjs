@@ -75,13 +75,13 @@ test('every owner text step is ignored for anyone else (even with a forged state
   }
 });
 
-test('/admin opens nothing for a normal user; reviewers get the queue only', async () => {
+test('/admin opens nothing for a normal user; reviewers get the queue and gallery reports only', async () => {
   const h = await world();
   const mark = h.mark();
   await h.send(X, '/admin');
   assert.ok(h.texts(X, mark).every((t) => !/پنل مدیریت/.test(t)));
   await h.send(R, '/admin');
-  assert.deepEqual(h.lastButtons(R).map((b) => b.callback_data), ['a:q', 'm:home']);
+  assert.deepEqual(h.lastButtons(R).map((b) => b.callback_data), ['a:q', 'a:mod', 'm:home']); // queue + gallery reports (Phase 5)
 });
 
 test('the owner panel works: stats, settings, flags, maintenance, user ban/pro/points, secrets, backup', async () => {

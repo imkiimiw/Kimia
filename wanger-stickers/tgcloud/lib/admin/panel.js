@@ -25,7 +25,7 @@ const NOTIFY_KEYS = ['notify.gate', 'notify.errors', 'notify.daily'];
 
 export async function homeView(app) {
   if (app.role !== 'owner') {
-    return { text: app.t('adm.home_reviewer'), keyboard: markup([[btn(app.tp('adm.queue'), 'a', 'q')], [btn(app.tp('common.menu'), 'm', 'home')]]) };
+    return { text: app.t('adm.home_reviewer'), keyboard: markup([[btn(app.tp('adm.queue'), 'a', 'q')], [btn(app.tp('adm.reports'), 'a', 'mod')], [btn(app.tp('common.menu'), 'm', 'home')]]) };
   }
   const maint = app.settings.get('maintenance.on');
   return {
@@ -34,6 +34,7 @@ export async function homeView(app) {
       [btn(app.tp('adm.stats'), 'a', 'st'), btn(app.tp('adm.broadcast'), 'a', 'bc')],
       [btn(app.tp('adm.channels'), 'a', 'ch'), btn(app.tp('adm.users'), 'a', 'us')],
       [btn(app.tp('adm.publish'), 'a', 'pub'), btn(app.tp('adm.queue'), 'a', 'q')],
+      [btn(app.tp('adm.reports'), 'a', 'mod'), btn(app.tp('adm.payments'), 'a', 'pay')],
       [btn(app.tp('adm.settings'), 'a', 'set'), btn(app.tp('adm.notify'), 'a', 'nt')],
       [btn(app.tp('adm.errors'), 'a', 'err'), btn(app.tp('adm.secrets'), 'a', 'sec')],
       [btn(app.tp('adm.backup'), 'a', 'bk'), { text: app.tp('adm.spike'), web_app: { url: `${APP_URL}?spike=1` } }],
@@ -77,11 +78,13 @@ async function userView(app, id) {
   const usage = (await users.usageAll(id, dayKey(app.clock.now()))).map((r) => `${r.feature}: ${r.count}`).join('، ') || '—';
   const pro = t.plan === 'pro' && t.plan_until > app.clock.now();
   const packCount = await pdb.countByUser(id);
+  const lastPay = (await app.stars.listOf(id))[0] || null;
   const rows = [
     [t.banned ? btn(app.tp('adm.u_unban'), 'a', 'uunb', id) : btn(app.tp('adm.u_ban'), 'a', 'uban', id, 0), t.banned ? null : btn(app.tp('adm.u_ban_eco'), 'a', 'uban', id, 1)],
     [pro ? btn(app.tp('adm.u_unpro'), 'a', 'unopro', id) : btn(app.tp('adm.u_pro'), 'a', 'upro', id), btn(app.tp('adm.u_points'), 'a', 'upts', id)],
     [btn(app.tp('adm.u_reset_quota'), 'a', 'urq', id), btn(app.tp('adm.u_message'), 'a', 'umsg', id)],
     [btn(app.tp(t.publish_banned ? 'adm.u_pub_unban' : 'adm.u_pub_ban'), 'a', 'upub', id)],
+    ...(lastPay && !lastPay.refunded ? [[btn(app.tp('adm.u_refund', { stars: lastPay.stars }), 'a', 'urf', id)]] : []),
     [btn(app.tp('adm.u_search'), 'a', 'us'), back(app)],
   ];
   return {
@@ -169,6 +172,17 @@ export const routes = {
 
   'a:us': { args: [], perm: 'admin', run: owner(async (app) => { await app.state.set(app.user.tg_id, 'a_us', {}); await app.tg.send(app.user.tg_id, { text: app.t('adm.ask_user') }, 'ask_user'); }) },
   'a:uv': { args: ['uint'], perm: 'admin', run: owner(async (app, [id], cq) => show(app, cq, await userView(app, id), 'admin_user')) },
+  'a:urf': { args: ['uint'], perm: 'admin', run: owner(async (app, [id], cq) => {
+    const last = await app.stars.refundLast(app.user.tg_id, id);
+    await show(app, cq, await userView(app, id), 'admin_user');
+    return { toast: app.tp('adm.refunded', { stars: last.stars }), alert: true };
+  }) },
+  'a:pay': { args: [], perm: 'admin', run: owner(async (app, _a, cq) => {
+    const tot = (await app.stars.totals()) || { n: 0, stars: 0, refunds: 0 };
+    const price = Number(app.settings.get('pro.price_stars')) || 0;
+    const status = app.tp(app.stars.onSale() ? 'adm.pay_on' : price ? 'adm.pay_flag_off' : 'adm.pay_no_price');
+    await show(app, cq, { text: app.t('adm.pay_view', { n: tot.n, stars: tot.stars, refunds: tot.refunds, price, status }), keyboard: markup([[btn(app.tp('set.pro.price_stars'), 'a', 'setv', NUM_KEYS.indexOf('pro.price_stars'))], [btn(`${app.flag('payments') ? '✅' : '⬜\ufe0f'} ${app.tp('flag.payments')}`, 'a', 'flag', FEATURES.indexOf('payments'))], [back(app)]]) }, 'admin_payments');
+  }) },
   'a:uban': {
     args: ['uint', 'uint'], perm: 'admin',
     run: owner(async (app, [id, eco]) => {
@@ -279,7 +293,7 @@ export const routes = {
 };
 
 /** Features whose code exists (a flag can be turned on). */
-const BUILT = new Set(['packs', 'pack_import', 'pack_publish', 'studio', 'gif_studio', 'convert', 'whatsapp', 'video', 'wastickers', 'gif_zip', 'emoji', 'share', 'anim_bg']);
+const BUILT = new Set(['packs', 'pack_import', 'pack_publish', 'studio', 'gif_studio', 'convert', 'whatsapp', 'video', 'wastickers', 'gif_zip', 'emoji', 'share', 'anim_bg', 'points', 'gallery', 'payments']);
 
 /**
  * A channel the owner typed or forwarded: forwarded post, @username, t.me link or numeric id

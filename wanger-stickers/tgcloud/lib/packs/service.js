@@ -86,6 +86,12 @@ export function createPacks(app, account) {
     await pdb.remove(pack.id);
   }
 
+  /** Someone this user was invited by gets referral points when the user makes their first pack (once). */
+  async function creditReferrer(user) {
+    const row = user.referrer_id === undefined ? await users.get(user.tg_id) : user;
+    if (row && row.referrer_id) await account.award(row.referrer_id, 'referral', `u${user.tg_id}`);
+  }
+
   async function mustOwn(userId, packId) {
     const pack = await pdb.getOwned(packId, userId);
     if (!pack) throw new UserError('pk.err.gone');
@@ -104,6 +110,8 @@ export function createPacks(app, account) {
     itemOf,
     checkQuota,
     countUsage,
+    creditReferrer,
+    get: (id) => pdb.get(Number(id)),
     list: (userId, offset, n) => pdb.listByUser(userId, offset, n),
     count: (userId) => pdb.countByUser(userId),
     items: (packId) => pdb.items(packId),
@@ -142,6 +150,8 @@ export function createPacks(app, account) {
       await countUsage(user.tg_id, 'pack_create');
       app.stats.count('pack.created');
       account.recordEvent(user.tg_id, 'pack_created');
+      await account.award(user.tg_id, 'pack_created', `p${pack.id}`);
+      await creditReferrer(user);
       return pack;
     },
 
@@ -241,8 +251,9 @@ export function createPacks(app, account) {
       const pack = await pdb.byShareCode(code);
       if (!pack) return null;
       if (pack.tg_id !== userId) {
-        await pdb.recordOpen(pack.id, userId, clock.now());
+        const newPerson = await pdb.recordOpen(pack.id, userId, clock.now());
         app.stats.count('share.open');
+        if (newPerson) await account.award(pack.tg_id, 'share_open', `${pack.id}:${userId}`);
       }
       return pack;
     },

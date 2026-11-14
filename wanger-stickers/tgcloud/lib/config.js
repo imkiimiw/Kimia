@@ -32,7 +32,7 @@ export const DEFAULT_LANG = 'fa';
 
 /** Features with a flag; a button is shown only when its flag is on (brief §1 rule 7). */
 // Append only: the admin panel addresses flags by their index in this list.
-export const FEATURES = Object.freeze(['packs', 'pack_import', 'pack_publish', 'studio', 'gif_studio', 'convert', 'whatsapp', 'ai', 'gallery', 'payments', 'video', 'wastickers', 'gif_zip', 'emoji', 'share', 'anim_bg']);
+export const FEATURES = Object.freeze(['packs', 'pack_import', 'pack_publish', 'studio', 'gif_studio', 'convert', 'whatsapp', 'ai', 'gallery', 'payments', 'video', 'wastickers', 'gif_zip', 'emoji', 'share', 'anim_bg', 'points']);
 /** Features with a daily free quota (counted only after success). */
 export const QUOTA_FEATURES = Object.freeze(['pack_create', 'sticker_add', 'pack_import', 'publish', 'media_send', 'wa_export']);
 
@@ -55,8 +55,9 @@ export const DEFAULTS = Object.freeze({
   'flags.emoji': true, // Phase 4: custom emoji packs (100×100)
   'flags.share': true, // Phase 4: share links with QR and open counts
   'flags.anim_bg': true, // Phase 4: background removal on videos (experimental, capable devices only)
+  'flags.points': true, // Phase 5: Wanger Points (earn and spend)
   'flags.ai': false,
-  'flags.gallery': false,
+  'flags.gallery': true, // Phase 5: public gallery with likes and reports
   'flags.payments': false,
   'quota.pack_create': 10,
   'quota.sticker_add': 300,
@@ -80,6 +81,31 @@ export const DEFAULTS = Object.freeze({
   'publish.min_stickers': 3,
   'publish.gap_sec': 30,
   'publish.republish_days': 7,
+  // Phase 5
+  'points.pack_created': 2,
+  'points.share_open': 1,
+  'points.published': 5,
+  'points.like_received': 1,
+  'points.referral': 10,
+  'points.cost_boost': 20, // points for today's boost …
+  'points.boost_stickers': 50, // … +50 stickers and …
+  'points.boost_media': 20, // … +20 GIFs / files today
+  'points.cost_pro_week': 150, // points for 7 days of Pro
+  'gallery.hide_reports': 3, // open reports that hide a pack until a moderator looks
+  'pro.price_stars': 0, // Stars per month; 0 = not for sale yet (the owner sets it)
+});
+
+/**
+ * Wanger Points (Phase 5): what each real activity earns (owner-editable in settings `points.<reason>`)
+ * and a fixed daily cap per reason, so points can't be farmed (brief §12). Every award carries a
+ * unique key in points_ledger (never paid twice).
+ */
+export const POINTS = Object.freeze({
+  pack_created: { dailyCap: 6 }, // a new pack (Telegram or WhatsApp)
+  share_open: { dailyCap: 20 }, // a new person opened your share link
+  published: { dailyCap: 15 }, // a publication approved and posted
+  like_received: { dailyCap: 20 }, // a gallery like
+  referral: { dailyCap: 50 }, // someone you invited made their first sticker
 });
 
 /** Validation of owner input for numeric settings: [min, max]. */
@@ -97,6 +123,17 @@ export const SETTING_RANGES = Object.freeze({
   // append only (the panel addresses these by index)
   'quota.media_send': [0, 10000],
   'quota.wa_export': [0, 1000],
+  'points.pack_created': [0, 100],
+  'points.share_open': [0, 100],
+  'points.published': [0, 1000],
+  'points.like_received': [0, 100],
+  'points.referral': [0, 1000],
+  'points.cost_boost': [1, 100000],
+  'points.boost_stickers': [0, 1000],
+  'points.boost_media': [0, 1000],
+  'points.cost_pro_week': [1, 100000],
+  'gallery.hide_reports': [1, 100],
+  'pro.price_stars': [0, 10000], // Telegram: a Stars subscription costs at most 10 000
 });
 
 /** Internal timings and caps (not owner-editable). */

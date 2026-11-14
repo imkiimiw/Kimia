@@ -223,6 +223,7 @@ export const STUDIO_TEXTS = {
     ta_pop: 'پاپ',
     ta_wave: 'موج',
     ta_blink: 'چشمک',
+    ideas_btn: '💡 ایده\u200cی متن (بزن تا عوض شود)',
   },
   en: {
     loading: 'Getting ready…',
@@ -447,6 +448,7 @@ export const STUDIO_TEXTS = {
     ta_pop: 'Pop',
     ta_wave: 'Wave',
     ta_blink: 'Blink',
+    ideas_btn: '💡 Caption ideas (tap for more)',
   },
 } as const;
 

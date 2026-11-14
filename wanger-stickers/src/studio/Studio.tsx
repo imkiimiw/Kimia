@@ -401,8 +401,8 @@ function ExportSheet({ doc, info, t, lang, platform, setPlatform, onDone, onWaDo
           <p className="hint">{plat === 'whatsapp' ? t('wa_preview', { kb }) : t('save_preview', { w: res.width, h: res.height, kb, fmt: res.format.toUpperCase() })}</p>
           {res.violations.length > 0 && <p className="note">{t('invalid', { why: res.violations.join(', ') })}</p>}
           {plat === 'whatsapp'
-            ? <WhatsAppChoice info={info} t={t} lang={lang} kind="static" value={wa} onChange={setWa} />
-            : <TelegramChoice info={info} t={t} lang={lang} value={tgc} onChange={setTgc} kind={plat === 'emoji' ? 'emoji' : 'sticker'} />}
+            ? <WhatsAppChoice info={info} t={t} lang={lang} kind="static" value={wa} onChange={setWa} hint={hintOf(doc)} />
+            : <TelegramChoice info={info} t={t} lang={lang} value={tgc} onChange={setTgc} kind={plat === 'emoji' ? 'emoji' : 'sticker'} hint={hintOf(doc)} />}
           <button className="primary" disabled={saving !== null || res.violations.length > 0 || (plat === 'whatsapp' ? !waChoiceReady(wa) : !tgChoiceReady(tgc))} onClick={() => void save()}>
             {saving === null ? t('save_btn') : t('saving', { p: saving })}
           </button>
@@ -412,6 +412,9 @@ function ExportSheet({ doc, info, t, lang, platform, setPlatform, onDone, onWaDo
     </div>
   );
 }
+
+/** The sticker's words (text layers + template text): the hint for emoji suggestions. */
+const hintOf = (d: { texts: { text: string }[]; decor?: { text: string } | null }) => [...d.texts.map((x) => x.text), d.decor?.text || ''].join(' ');
 
 function Done({ step, t, onAgain }: { step: Extract<Step, { k: 'done' }>; t: ReturnType<typeof makeT>; onAgain: () => void }) {
   const r = step.result;

@@ -25,6 +25,7 @@ export function menuKeyboard(app) {
   if (app.flag('studio')) rows.push([web('menu.studio', 'sticker')]);
   if (app.flag('gif_studio')) rows.push([web('menu.gif', 'gif')]);
   if (app.flag('packs')) rows.push([btn(app.tp('menu.packs'), 'm', 'packs', 0)]);
+  if (app.flag('gallery')) rows.push([btn(app.tp('menu.gallery'), 'g', 'list', 'new', 0)]);
   if (app.flag('whatsapp')) rows.push([web('menu.whatsapp', 'wa')]);
   if (app.flag('convert')) rows.push([web('menu.convert', 'convert')]);
   rows.push([btn(app.tp('menu.account'), 'm', 'acct'), btn(app.tp('menu.help'), 'm', 'help')]);
@@ -68,8 +69,14 @@ export async function accountView(app) {
       packs: packCount,
       lang: app.tp(`lang.name.${app.lang}`),
       quotas: { __html: lines },
+      until: acc.plan === 'pro' ? { __html: app.t('acct.pro_until', { days: Math.max(1, Math.ceil((acc.planUntil - app.clock.now()) / 86400)) }) } : '',
     }),
-    keyboard: markup([[btn(app.tp('help.btn_lang'), 'm', 'lang')], [btn(app.tp('common.menu'), 'm', 'home')]]),
+    keyboard: markup([
+      ...(app.flag('points') ? [[btn(app.tp('acct.btn_points', { n: acc.points }), 'pt', 'menu')]] : []),
+      ...(app.flag('payments') && Number(app.settings.get('pro.price_stars')) > 0 ? [[btn(app.tp('acct.btn_pro', { price: app.settings.get('pro.price_stars') }), 'pay', 'pro')]] : []),
+      [btn(app.tp('help.btn_lang'), 'm', 'lang')],
+      [btn(app.tp('common.menu'), 'm', 'home')],
+    ]),
   };
 }
 

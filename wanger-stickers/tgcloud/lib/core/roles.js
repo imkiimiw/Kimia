@@ -3,12 +3,13 @@
  *
  * - owner (OWNER_ID, numeric): everything.
  * - reviewer (added by the owner, Kimi's request 2026-11-12): may review pack publications
- *   (approve / reject / remove a post) and see the review queue. Nothing else.
+ *   (approve / reject / remove a post), see the review queue, and moderate reported gallery packs
+ *   (Phase 5: show again / remove). Nothing else — banning stays with the owner.
  * - everyone else: no admin permission at all.
  */
 import { OWNER_ID } from '../config.js';
 
-const REVIEWER = new Set(['panel.open', 'publish.review', 'publish.queue', 'publish.remove']);
+const REVIEWER = new Set(['panel.open', 'publish.review', 'publish.queue', 'publish.remove', 'gallery.moderate']);
 
 /** @param {{tg_id?: number}|null} user @param {{role?: string}|null} staffRow */
 export function roleOf(user, staffRow) {

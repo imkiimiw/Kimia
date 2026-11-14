@@ -11,6 +11,7 @@ import { Mask } from '../engine/mask';
 import { FONTS, loadFont, textBox, type FontKey, type TextLayer } from '../engine/text';
 import { ctx2d } from '../engine/image';
 import type { makeT } from './i18n';
+import { call } from './api';
 
 type T = ReturnType<typeof makeT>;
 type Tab = 'bg' | 'shape' | 'look' | 'text' | 'decor' | 'pen';
@@ -22,6 +23,16 @@ const VIEW = 320; // css px of the square view (scaled by devicePixelRatio)
 export default function Editor({ doc, t, onNext, autoRemove, startTab, onChange }: { doc: StickerDoc; t: T; onNext: () => void; autoRemove?: boolean; startTab?: Tab; onChange?: () => void }) {
   const [tab, setTab] = useState<Tab>(startTab || 'bg');
   const [pen, setPen] = useState({ color: '#ff3b6b', width: 10 });
+  const [ideas, setIdeas] = useState<{ mood: number; list: string[] } | null>(null);
+  const MOODS = ['funny', 'love', 'greet', 'reply'] as const;
+  const loadIdeas = async (mood: number) => {
+    try {
+      const r = await call<{ captions: string[] }>('ai_suggest', { kind: 'captions', mood: MOODS[mood % MOODS.length] });
+      setIdeas({ mood, list: r.captions });
+    } catch {
+      setIdeas(null);
+    }
+  };
   const [tool, setTool] = useState<Tool>('erase');
   const [brush, setBrush] = useState(28);
   const [soft, setSoft] = useState(0.4);
@@ -319,6 +330,8 @@ export default function Editor({ doc, t, onNext, autoRemove, startTab, onChange 
           {selected && (
             <>
               <textarea dir="auto" rows={2} value={selected.text} placeholder={t('text_placeholder')} onFocus={() => history.push(doc)} onChange={(e) => editText({ text: e.target.value })} />
+              <button onClick={() => void loadIdeas(ideas ? ideas.mood + 1 : 0)}>{t('ideas_btn')}</button>
+              {ideas && <div className="row chips wrap">{ideas.list.map((c) => <button key={c} dir="auto" onClick={() => { history.push(doc); editText({ text: c }); }}>{c}</button>)}</div>}
               <label>{t('text_font')}
                 <select value={selected.font} onChange={(e) => { history.push(doc); editText({ font: e.target.value as FontKey }); }}>
                   {(Object.keys(FONTS) as FontKey[]).map((f) => <option key={f} value={f}>{FONTS[f].family.replace('WS ', '')}</option>)}

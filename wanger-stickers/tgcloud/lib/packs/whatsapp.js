@@ -70,6 +70,8 @@ export function createWhatsApp(app, packs) {
       const pack = await wdb.create({ tg_id: user.tg_id, title: o.title, publisher: o.publisher, kind: o.kind, wa_identifier: makeWaIdentifier(user.tg_id, n) }, clock.now());
       await packs.countUsage(user.tg_id, 'pack_create');
       app.stats.count('pack.wa_created');
+      await app.account.award(user.tg_id, 'pack_created', `w${pack.id}`);
+      await packs.creditReferrer(user);
       return pack;
     },
 

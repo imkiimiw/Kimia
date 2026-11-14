@@ -97,6 +97,7 @@ const handlers = {
     return { result: { action: c.action, packId: 9, name: 'ws_1_2_by_Wanger_Motionbot', count: 4 } };
   },
   wa_export: () => ({ result: { sent: true, count: waCount, bytes: 1000 } }),
+  ai_suggest: (i) => ({ result: i.kind === 'captions' ? { provider: 'local', captions: ['یک', 'دو', 'سه', 'چهار'] } : { provider: 'local', emojis: ['😀'] } }),
 };
 window.Telegram = { WebApp: {
   initData: 'query_id=x&user=%7B%22id%22%3A1%7D', initDataUnsafe: { user: { id: 1, first_name: 'Test', language_code: 'fa' } },

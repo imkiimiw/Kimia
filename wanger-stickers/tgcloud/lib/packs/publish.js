@@ -8,6 +8,7 @@
 // after the send, and a row whose lease expired without a message_id is "uncertain" — it is shown
 // to the owner and never re-sent automatically.
 import { posts as postDb, packs as pdb } from '../db/packs.js';
+import { gallery as gdb } from '../db/community.js';
 import { users } from '../db/users.js';
 import { system } from '../db/system.js';
 import { UserError, PermissionError, dayStart, parseJson, truncate } from '../core/util.js';
@@ -201,6 +202,8 @@ export function createPublish(app) {
         const done = await postDb.published(post.id, m.message_id, clock.now());
         await refreshChannel(ch, m.chat);
         await pdb.setPublic(pack.id, true);
+        await gdb.enter(pack.id, clock.now()); // Phase 5: the public gallery
+        await app.account.award(post.tg_id, 'published', `post${post.id}`);
         app.stats.count('pub.published');
         const link = postLink(done);
         await notifyCreator(done, link ? 'pub.n_published_link' : 'pub.n_published', { title: pack.title, link: link || '' });
@@ -242,6 +245,7 @@ export function createPublish(app) {
       if (!isCreator && !(actorRole === 'owner' || actorRole === 'reviewer')) throw new PermissionError('publish.remove');
       const to = isCreator ? 'withdrawn' : 'removed';
       const done = await postDb.transition(post.id, ['pending', 'approved', 'published'], to, {}, clock.now());
+      if (done) await gdb.leave(post.pack_id);
       if (!done) throw new UserError('pub.err.decided');
       const how = post.status === 'published' ? await takeDown(post) : 'none';
       const pack = await pdb.get(post.pack_id);

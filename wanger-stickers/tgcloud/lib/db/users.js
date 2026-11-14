@@ -34,6 +34,13 @@ export const users = {
   addPoints: (id, delta) => db.run(sql`UPDATE users SET points = max(0, points + ${delta}) WHERE tg_id = ${id} RETURNING points`).then((r) => (first(r) ? first(r).points : null)),
   setPublishBanned: (id, flag) => db.run(sql`UPDATE users SET publish_banned = ${flag ? 1 : 0} WHERE tg_id = ${id}`).then((r) => r.rowsAffected),
   /** Next pack number for this user (atomic). */
+  /** The person who invited this user (set once, only for a new user; Phase 5 points). */
+  setReferrer: (id, ref) => db.run(sql`UPDATE users SET referrer_id = ${ref} WHERE tg_id = ${id} AND referrer_id IS NULL AND tg_id != ${ref}`),
+  /** Atomic spend: only when the balance covers it. Returns the new balance or null. */
+  spendPoints: (id, cost) => db.run(sql`UPDATE users SET points = points - ${cost} WHERE tg_id = ${id} AND points >= ${cost} RETURNING points`).then((r) => (first(r) ? first(r).points : null)),
+  /** Pro until a time (never shortens an existing longer Pro unless `force`). */
+  extendPro: (id, until) => db.run(sql`UPDATE users SET plan = 'pro', plan_until = max(plan_until, ${until}) WHERE tg_id = ${id} RETURNING plan_until`).then((r) => (first(r) ? first(r).plan_until : null)),
+  endPro: (id, now) => db.run(sql`UPDATE users SET plan = 'free', plan_until = ${now} WHERE tg_id = ${id}`),
   nextPackNumber: (id) => db.run(sql`UPDATE users SET pack_counter = pack_counter + 1 WHERE tg_id = ${id} RETURNING pack_counter`).then((r) => (first(r) ? first(r).pack_counter : null)),
 
   /** /deletemydata: names cleared; id, ban and counters kept (a ban can't be escaped). */

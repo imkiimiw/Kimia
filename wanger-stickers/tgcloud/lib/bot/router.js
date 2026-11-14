@@ -8,7 +8,7 @@
 // callback_data table (ns:action:args, ≤ 64 bytes; see each module):
 //   m:*  menu         l:set  language     fj:check  gate        dm:*  delete my data
 //   st:* a sticker the user sent          pk:* packs  imp:* import  cp:* copy  mg:* merge  op:* bulk ops
-//   w:*  WhatsApp packs (lib/bot/wa_ui.js)
+//   w:*  WhatsApp packs (lib/bot/wa_ui.js)   g:* gallery  pt:* points  pay:* Pro (lib/bot/community_ui.js)
 //   pb:* publishing (creator)             pr:* review (owner + reviewers)
 //   a:*  admin panel (owner; a:home and a:q/a:qv also reviewers)
 import { decode, parseArgs } from '../core/codec.js';
@@ -19,6 +19,7 @@ import { menuView, helpView, accountView, langView, deleteAskView, deleteMyData 
 import * as packsUi from './packs_ui.js';
 import * as publishUi from './publish_ui.js';
 import * as waUi from './wa_ui.js';
+import * as communityUi from './community_ui.js';
 import * as panel from '../admin/panel.js';
 import * as channelsUi from '../admin/channels_ui.js';
 import * as broadcastUi from '../admin/broadcast_ui.js';
@@ -55,6 +56,7 @@ export const ROUTES = Object.freeze({
   ...packsUi.routes,
   ...publishUi.routes,
   ...waUi.routes,
+  ...communityUi.routes,
   ...panel.routes,
   ...channelsUi.routes,
   ...broadcastUi.routes,
@@ -166,10 +168,13 @@ async function setLanguage(app, lang, cq) {
 
 async function startCommand(app, payload) {
   const p = String(payload || '');
-  if (/^ref_[A-Za-z0-9_]{1,32}$/.test(p) && app.user.is_new) {
+  // a referral counts for a user who joined in the last day (the /start may wait behind the language choice and the gate)
+  if (/^ref_[A-Za-z0-9_]{1,32}$/.test(p) && !app.user.referrer_id && app.clock.now() - (app.user.joined_at || 0) < 86400) {
     const ref = Number(p.slice(4));
     if (Number.isSafeInteger(ref) && ref !== app.user.tg_id && (await users.get(ref))) {
       await system.audit({ at: app.clock.now(), actor_id: app.user.tg_id, action: 'referral', target: String(ref), details: null });
+      await users.setReferrer(app.user.tg_id, ref); // points when this user makes a first pack (Phase 5)
+      app.user.referrer_id = ref;
       app.stats.count('user.referred');
     }
   }
@@ -267,6 +272,8 @@ export async function onMessage(app, message) {
   if (!message || !message.chat || message.chat.type !== 'private' || !message.from || message.from.is_bot) return 'ignored';
   const row = await app.account.ensureAccount(message.from);
   await app.setUser(row);
+  // a payment is recorded whatever else is going on (maintenance, gate, steps): the money moved
+  if (message.successful_payment) return `payment:${await app.stars.paid(row.tg_id, message.successful_payment)}`;
   const isOwner = row.tg_id === OWNER_ID;
   const text = typeof message.text === 'string' ? message.text : '';
   const cmd = parseCommand(text);

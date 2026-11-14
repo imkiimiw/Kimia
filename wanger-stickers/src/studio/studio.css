@@ -65,3 +65,5 @@
 .export .preview.small { width: 140px; height: 140px; }
 .export .preview.small img, .export .preview.small video { width: 100px; height: 100px; image-rendering: auto; }
 .editor .tabs { grid-template-columns: repeat(3, 1fr); }
+/* Phase 5: suggestion chips */
+.studio .row.chips button { flex: 0 1 auto; min-height: 40px; padding: 0 12px; border-radius: 20px; }

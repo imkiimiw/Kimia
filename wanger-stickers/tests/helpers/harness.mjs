@@ -8,6 +8,7 @@ import { createFakeTelegram, buttons, BOT_ID } from './fake-telegram.mjs';
 import messageHandler from '../../tgcloud/handlers/message.js';
 import callbackHandler from '../../tgcloud/handlers/callback_query.js';
 import myChatMemberHandler from '../../tgcloud/handlers/my_chat_member.js';
+import preCheckoutHandler from '../../tgcloud/handlers/pre_checkout_query.js';
 
 export const OWNER = 5557901897;
 export const SEED = [-1002407928564, -1001816009903, -1001910797391];
@@ -91,6 +92,11 @@ export function setup({ botAdminIn = SEED, settings = {} } = {}) {
     async myChatMember(chat, fromId, newStatus, extra = {}) {
       const upd = { chat, from: person(fromId), date: 0, old_chat_member: { status: 'member', user: { id: BOT_ID } }, new_chat_member: { status: newStatus, user: { id: BOT_ID }, ...extra } };
       return myChatMemberHandler(upd, { update: { update_id: updateId++, my_chat_member: upd } });
+    },
+    /** A Stars checkout (pre_checkout_query) from a user. */
+    async preCheckout(fromId, payload, amount, currency = 'XTR') {
+      const q = { id: `pcq${updateId}`, from: person(fromId), currency, total_amount: amount, invoice_payload: payload };
+      return preCheckoutHandler(q, { update: { update_id: updateId++, pre_checkout_query: q } });
     },
     lastText: (chatId) => { const c = tg.lastTo(chatId); return (c && c.params.text) || ''; },
     lastButtons: (chatId) => buttons(tg.lastTo(chatId) && tg.lastTo(chatId).params),

@@ -19,8 +19,9 @@ export const packs = {
   byShareCode: (code) => db.get(sql`SELECT * FROM packs WHERE share_code = ${code} AND platform = 'telegram'`),
   /** One open of the link; the person is counted once per pack. */
   async recordOpen(packId, userId, now) {
-    await db.run(sql`INSERT INTO share_visits (pack_id, tg_id, at) VALUES (${packId}, ${userId}, ${now}) ON CONFLICT (pack_id, tg_id) DO NOTHING`);
+    const r = await db.run(sql`INSERT INTO share_visits (pack_id, tg_id, at) VALUES (${packId}, ${userId}, ${now}) ON CONFLICT (pack_id, tg_id) DO NOTHING RETURNING pack_id`);
     await db.run(sql`UPDATE packs SET share_opens = share_opens + 1 WHERE id = ${packId}`);
+    return !!first(r); // a person not seen before
   },
   sharePeople: (packId) => db.get(sql`SELECT count(*) AS n FROM share_visits WHERE pack_id = ${packId}`).then((r) => (r ? r.n : 0)),
   get: (id) => db.get(sql`SELECT * FROM packs WHERE id = ${id}`),
@@ -34,6 +35,8 @@ export const packs = {
   setPublic: (id, flag) => db.run(sql`UPDATE packs SET is_public = ${flag ? 1 : 0} WHERE id = ${id}`),
   remove: async (id) => {
     await db.run(sql`DELETE FROM share_visits WHERE pack_id = ${id}`);
+    await db.run(sql`DELETE FROM gallery_likes WHERE pack_id = ${id}`);
+    await db.run(sql`DELETE FROM gallery_reports WHERE pack_id = ${id}`);
     await db.run(sql`DELETE FROM pack_items WHERE pack_id = ${id}`);
     return db.run(sql`DELETE FROM packs WHERE id = ${id}`).then((r) => r.rowsAffected);
   },

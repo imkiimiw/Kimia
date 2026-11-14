@@ -234,6 +234,25 @@ export function createFakeTelegram({ now = () => Math.floor(Date.now() / 1000) }
       return { file_id: s.file_id, file_unique_id: s.file_unique_id, file_size: f.bytes.length };
     },
     setChatMenuButton: () => true,
+    /* ---- payments (Telegram Stars) ---- */
+    createInvoiceLink(p, m) {
+      if (!p.title || p.title.length > 32 || !p.description || p.description.length > 255) fail(400, 'Bad Request: invalid invoice title or description', m);
+      if (!p.payload || Buffer.byteLength(p.payload) > 128) fail(400, 'Bad Request: invalid payload', m);
+      if (p.currency !== 'XTR' || !Array.isArray(p.prices) || p.prices.length !== 1) fail(400, 'Bad Request: CURRENCY_INVALID', m);
+      if (p.subscription_period !== undefined && p.subscription_period !== 2592000) fail(400, 'Bad Request: SUBSCRIPTION_PERIOD_INVALID', m);
+      if (p.prices[0].amount < 1 || p.prices[0].amount > 10000) fail(400, 'Bad Request: invalid price', m);
+      return `https://t.me/$invoice${++nextMessageId}`;
+    },
+    answerPreCheckoutQuery(p, m) {
+      if (!p.pre_checkout_query_id) fail(400, 'Bad Request: query id is empty', m);
+      if (!p.ok && !p.error_message) fail(400, 'Bad Request: error_message is required', m);
+      return true;
+    },
+    refundStarPayment(p, m) {
+      if (!p.user_id || !p.telegram_payment_charge_id) fail(400, 'Bad Request: CHARGE_ID_INVALID', m);
+      return true;
+    },
+    editUserStarSubscription: () => true,
     getChat(p, m) {
       const c = findChannel(p.chat_id);
       if (!c) fail(400, 'Bad Request: chat not found', m);
