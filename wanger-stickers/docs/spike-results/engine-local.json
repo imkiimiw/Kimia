@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-14T13:31:04.515Z",
+  "at": "2026-11-14T14:27:34.746Z",
   "browser": "153.0.8010.12",
   "checks": {
     "mp4_1080p_10s_to_vp9_sticker": {
@@ -10,7 +10,7 @@
         "durationMs": 10000
       },
       "violations": [],
-      "kb": 156.9,
+      "kb": 154.9,
       "fps": 30,
       "frames": 90,
       "durationMs": 3000,
@@ -19,11 +19,11 @@
       "encodes": 1,
       "alpha": false,
       "timings": {
-        "openMs": 98,
-        "prepareMs": 3520,
-        "renderMs": 3693,
-        "encodeMs": 395,
-        "wallMs": 4233
+        "openMs": 180,
+        "prepareMs": 3484,
+        "renderMs": 3683,
+        "encodeMs": 355,
+        "wallMs": 4288
       },
       "ffprobe": {
         "programs": [],
@@ -44,7 +44,7 @@
     "round_video_sticker_with_alpha": {
       "pass": true,
       "violations": [],
-      "kb": 189,
+      "kb": 191,
       "alphaTrack": true
     },
     "mp4_to_gif": {
@@ -54,7 +54,7 @@
       "frames": 57,
       "durationMs": 3990,
       "size": "360x203",
-      "encodeMs": 5172,
+      "encodeMs": 5094,
       "ffprobe": {
         "programs": [],
         "streams": [
@@ -76,7 +76,7 @@
       "pass": true,
       "violations": [],
       "kb": 140,
-      "encodeMs": 77,
+      "encodeMs": 95,
       "ffprobe": {
         "programs": [],
         "streams": [
@@ -103,13 +103,13 @@
       "pass": true,
       "violations": [],
       "trayViolations": [],
-      "kb": 272,
+      "kb": 273,
       "fps": 15,
       "quality": 70,
       "encodes": 1,
       "frames": 45,
       "durationMs": 2999,
-      "encodeMs": 1860
+      "encodeMs": 1740
     },
     "frames_zip": {
       "pass": true,
@@ -145,11 +145,166 @@
       "pass": true,
       "w": 512,
       "h": 512
+    },
+    "custom_emoji_static_100": {
+      "pass": true,
+      "format": "webp",
+      "size": "100x100",
+      "violations": []
+    },
+    "custom_emoji_video_100": {
+      "pass": true,
+      "kb": 72,
+      "size": [
+        100,
+        100
+      ],
+      "violations": []
+    },
+    "motion_effects_9": {
+      "pass": true,
+      "pulse": {
+        "moved": true,
+        "seamVsStep": 1,
+        "kb": 185,
+        "ok": true
+      },
+      "shake": {
+        "moved": true,
+        "seamVsStep": 0.96,
+        "kb": 181,
+        "ok": true
+      },
+      "spin": {
+        "moved": true,
+        "seamVsStep": 1,
+        "kb": 195,
+        "ok": true
+      },
+      "bounce": {
+        "moved": true,
+        "seamVsStep": 1,
+        "kb": 167,
+        "ok": true
+      },
+      "wobble": {
+        "moved": true,
+        "seamVsStep": 1.02,
+        "kb": 169,
+        "ok": true
+      },
+      "float": {
+        "moved": true,
+        "seamVsStep": 1,
+        "kb": 169,
+        "ok": true
+      },
+      "heartbeat": {
+        "moved": true,
+        "seamVsStep": 0.52,
+        "kb": 158,
+        "ok": true
+      },
+      "glow": {
+        "moved": true,
+        "seamVsStep": 0,
+        "kb": 157,
+        "ok": true
+      },
+      "swing": {
+        "moved": true,
+        "seamVsStep": 1,
+        "kb": 184,
+        "ok": true
+      }
+    },
+    "templates_9": {
+      "pass": true,
+      "bubble": {
+        "size": "512x512",
+        "opaque": 140547
+      },
+      "thought": {
+        "size": "512x512",
+        "opaque": 131480
+      },
+      "banner": {
+        "size": "512x512",
+        "opaque": 157570
+      },
+      "frame": {
+        "size": "512x512",
+        "opaque": 173136
+      },
+      "polaroid": {
+        "size": "512x512",
+        "opaque": 252916
+      },
+      "sparkles": {
+        "size": "512x512",
+        "opaque": 193681
+      },
+      "hearts": {
+        "size": "512x512",
+        "opaque": 193742
+      },
+      "burst": {
+        "size": "512x512",
+        "opaque": 198311
+      },
+      "tape": {
+        "size": "512x512",
+        "opaque": 200363
+      },
+      "animatedSparkles": {
+        "size": "512x512",
+        "twinkles": true
+      }
+    },
+    "text_animation_typewriter": {
+      "pass": true,
+      "counts": [
+        0,
+        5992,
+        10088,
+        21990
+      ],
+      "gif": {
+        "kb": 121,
+        "frames": 42,
+        "violations": []
+      }
+    },
+    "slideshow_gif": {
+      "pass": true,
+      "frames": 21,
+      "durationMs": 2100,
+      "violations": []
+    },
+    "join_gif_and_clip_mp4": {
+      "pass": true,
+      "durationMs": 5000,
+      "parts": [
+        3000,
+        2000
+      ],
+      "violations": [],
+      "ffprobe": {
+        "duration": "5.000000"
+      }
+    },
+    "video_background_removal_3s": {
+      "pass": true,
+      "segMs": 59129,
+      "totalMs": 63401,
+      "transparentShare": 0.51,
+      "kb": 189,
+      "violations": []
     }
   },
   "logs": [
     "debug: [vite] connecting...",
     "debug: [vite] connected."
   ],
-  "files": "/tmp/ws-engine-ra5Sc1"
+  "files": "/tmp/ws-engine-o9YBej"
 }

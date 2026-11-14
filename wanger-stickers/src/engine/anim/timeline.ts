@@ -16,6 +16,8 @@ export interface Clip {
 export interface PlannedFrame {
   /** Source time to draw (ms). */
   t: number;
+  /** Position in the output loop, 0 ≤ phase < 1 (motion effects and text animations). */
+  phase?: number;
   /** Optional second source time blended on top with weight `w` (the seamless-loop fade). */
   mix?: { t: number; w: number };
 }
@@ -89,8 +91,8 @@ export function planFrames(c: Clip, fps: number, maxOutMs = Infinity): Plan {
     if (fade > 0 && tau < fade) {
       // the head fades in over the tail: at τ = 0 it shows the tail at full − fade (where the
       // previous loop ended), at τ = fade only the head
-      frames.push({ t: src(tau + (full - fade)), mix: { t: src(tau), w: tau / fade } });
-    } else frames.push({ t: src(tau) });
+      frames.push({ t: src(tau + (full - fade)), mix: { t: src(tau), w: tau / fade }, phase: i / n });
+    } else frames.push({ t: src(tau), phase: i / n });
   }
   return { fps, frames, durationMs: (n * 1000) / fps };
 }

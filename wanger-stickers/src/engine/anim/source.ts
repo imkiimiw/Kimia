@@ -9,7 +9,7 @@
 import { makeCanvas, ctx2d, type Canvas } from '../image';
 import { inspectLottie } from '../../../tgcloud/lib/core/inspect.js';
 
-export type SourceKind = 'video' | 'gif' | 'tgs' | 'images';
+export type SourceKind = 'video' | 'gif' | 'tgs' | 'images' | 'concat' | 'blank';
 
 export interface AnimSource {
   kind: SourceKind;
@@ -382,7 +382,15 @@ interface LottieT {
 export async function openImages(blobs: Blob[], o: OpenOptions = {}): Promise<AnimSource> {
   const { loadImage } = await import('../image');
   const imgs: Canvas[] = [];
-  for (const b of blobs) imgs.push(await loadImage(b, o.maxSide ?? 1024));
+  // a photo that can't be decoded is left out of the slideshow; none at all is an error
+  for (const b of blobs) {
+    try {
+      imgs.push(await loadImage(b, o.maxSide ?? 1024));
+    } catch {
+      /* skipped */
+    }
+  }
+  if (!imgs.length) throw new Error('DECODE_FAILED');
   const W = Math.max(...imgs.map((i) => i.width));
   const H = Math.max(...imgs.map((i) => i.height));
   const slide = Math.max(20, o.slideMs ?? 1000);
@@ -393,7 +401,7 @@ export async function openImages(blobs: Blob[], o: OpenOptions = {}): Promise<An
     kind: 'images',
     width: W,
     height: H,
-    durationMs: blobs.length === 1 ? 3000 : slide * imgs.length,
+    durationMs: imgs.length === 1 ? 3000 : slide * imgs.length,
     alpha: true,
     async frameAt(ms: number) {
       const i = imgs.length === 1 ? 0 : Math.min(imgs.length - 1, Math.floor(Math.max(0, ms) / slide));
@@ -410,4 +418,61 @@ export async function openImages(blobs: Blob[], o: OpenOptions = {}): Promise<An
       imgs.length = 0;
     },
   };
+}
+
+/* ------------------------------------------------------------------ joined clips, blank canvas (Phase 4) */
+
+/**
+ * Several sources played one after another ("join GIFs / clips"). The canvas is as big as the
+ * largest part; each part is fitted into it, centred.
+ */
+export function concatSources(parts: AnimSource[]): AnimSource {
+  if (!parts.length) throw new Error('EMPTY');
+  const W = Math.max(...parts.map((s) => s.width));
+  const H = Math.max(...parts.map((s) => s.height));
+  const starts: number[] = [];
+  let total = 0;
+  for (const s of parts) {
+    starts.push(total);
+    total += Math.max(1, s.durationMs);
+  }
+  const c = makeCanvas(W, H);
+  const x = ctx2d(c);
+  const which = (ms: number) => {
+    let i = parts.length - 1;
+    while (i > 0 && starts[i] > ms) i--;
+    return i;
+  };
+  return {
+    kind: 'concat',
+    width: W,
+    height: H,
+    durationMs: total,
+    fps: Math.max(...parts.map((s) => s.fps || 0)) || undefined,
+    alpha: parts.some((s) => s.alpha),
+    async frameAt(ms: number) {
+      const t = Math.max(0, Math.min(ms, total - 1));
+      const i = which(t);
+      const f = await parts[i].frameAt(t - starts[i]);
+      const k = Math.min(W / f.width, H / f.height);
+      x.clearRect(0, 0, W, H);
+      x.drawImage(f as CanvasImageSource, (W - f.width * k) / 2, (H - f.height * k) / 2, f.width * k, f.height * k);
+      return c;
+    },
+    async prepare(times: number[], onProgress?: (p: number) => void) {
+      for (let i = 0; i < parts.length; i++) {
+        const own = times.filter((t) => which(t) === i).map((t) => t - starts[i]);
+        if (own.length && parts[i].prepare) await parts[i].prepare!(own, (q) => onProgress?.((i + q) / parts.length));
+      }
+    },
+    close() {
+      parts.forEach((p) => p.close());
+    },
+  };
+}
+
+/** A transparent canvas of a fixed length (text animations: the text is the whole sticker). */
+export function blankSource(w = 512, h = 512, durationMs = 3000): AnimSource {
+  const c = makeCanvas(w, h);
+  return { kind: 'blank', width: w, height: h, durationMs, alpha: true, frameAt: async () => c, close() {} };
 }

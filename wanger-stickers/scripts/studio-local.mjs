@@ -15,7 +15,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { ROOT } from './tg.mjs';
-import { validateTelegramStatic, validateTelegramVideo, validateGif, validateMp4Animation, validateWhatsAppStatic, validateWhatsAppTray, sniffImage } from '../tgcloud/lib/core/validate.js';
+import { validateTelegramStatic, validateTelegramVideo, validateGif, validateMp4Animation, validateWhatsAppStatic, validateWhatsAppTray, validateCustomEmojiStatic, validateCustomEmojiVideo, sniffImage } from '../tgcloud/lib/core/validate.js';
 
 const require = createRequire(import.meta.url);
 let playwright;
@@ -26,7 +26,7 @@ try {
 }
 const DIST = path.join(ROOT, 'dist');
 const OUTDIR = path.join(ROOT, 'docs/spike-results');
-const [photoPath, clipPath, gifPath, sheetPath] = process.argv.slice(2);
+const [photoPath, clipPath, gifPath, sheetPath, ...morePhotos] = process.argv.slice(2);
 if (!photoPath || !fs.existsSync(photoPath)) {
   console.error('usage: npm run studio:local -- <photo.jpg> [clip.mp4 anim.gif sheet.png]');
   process.exit(1);
@@ -54,13 +54,14 @@ const base = `http://127.0.0.1:${server.address().port}`;
 const BOOT = {
   user: { id: 1, first_name: 'Test', username: 'tester', lang: 'fa' },
   role: 'user',
-  packs: [{ id: 7, title: 'گربه‌ها', count: 3, name: 'ws_1_1_by_Wanger_Motionbot' }],
+  packs: [{ id: 7, title: 'گربه‌ها', count: 3, name: 'ws_1_1_by_Wanger_Motionbot', kind: 'sticker' }],
   wa: [],
-  flags: { studio: true, video: true, gif_studio: true, convert: true, whatsapp: true },
+  flags: { studio: true, video: true, gif_studio: true, convert: true, whatsapp: true, emoji: true, anim_bg: true },
   quota: { pack_create: 10, sticker_add: 300, media_send: 100, wa_export: 20 },
   limits: {
     static: { side: 512, maxBytes: 524288 }, video: { maxBytes: 262144, maxDurationMs: 3000, maxFps: 30 },
-    set: { maxStickersRegular: 120, titleMaxChars: 64 },
+    set: { maxStickersRegular: 120, maxStickersEmoji: 200, titleMaxChars: 64 },
+    customEmoji: { width: 100, height: 100 },
     whatsapp: { pack: { minStickers: 3, maxStickers: 30, emojiPerStickerMax: 3, nameMaxChars: 128, publisherMaxChars: 128 } },
     chunkBytes: 256 * 1024,
   },
@@ -111,6 +112,7 @@ async function page(opts = {}) {
   const p = await browser.newPage({ viewport: { width: 390, height: 900 }, deviceScaleFactor: 1 });
   await p.route('https://telegram.org/**', (r) => r.fulfill({ contentType: 'text/javascript', body: mock(opts) }));
   p.on('pageerror', (e) => console.log('[pageerror]', e.message));
+  if (process.env.ONLY) p.on('console', (m) => m.type() === 'error' && console.log('[console]', m.text().slice(0, 300)));
   return p;
 }
 const report = { at: new Date().toISOString(), photo: path.basename(photoPath), photoBytes: photo.length };
@@ -172,6 +174,7 @@ const report = { at: new Date().toISOString(), photo: path.basename(photoPath), 
 const fileOf = (c) => new Uint8Array(Buffer.from(c.inline, 'base64'));
 const commitsOf = (p) => p.evaluate(() => window.__commits);
 const timed = async (name, fn) => {
+  if (process.env.ONLY && !process.env.ONLY.split(',').includes(name)) return;
   const t0 = Date.now();
   try {
     report.phase3[name] = { ...(await fn()), ms: Date.now() - t0 };
@@ -281,6 +284,147 @@ if (clipPath) {
       return { found, uploads: cs.length, actions: cs.map((c) => c.action), quiet: cs.map((c) => !!c.quiet), allValid: checks.every(Boolean) };
     });
   }
+}
+if (clipPath) {
+  report.phase4 = {};
+  const t4 = async (name, fn) => {
+    if (process.env.ONLY && !process.env.ONLY.split(',').includes(name)) return;
+    const t0 = Date.now();
+    try {
+      report.phase4[name] = { ...(await fn()), ms: Date.now() - t0 };
+    } catch (e) {
+      report.phase4[name] = { error: String(e && e.message).slice(0, 500), ms: Date.now() - t0 };
+    }
+    console.log(name, JSON.stringify(report.phase4[name]).slice(0, 300));
+  };
+  const editorFromPick = async (p, mode) => {
+    await p.goto(`${base}/?mode=${mode}`);
+    await p.locator('input[type=file]').setInputFiles(photoPath);
+    await p.getByRole('button', { name: /حذف خودکار/ }).waitFor({ timeout: 30000 });
+  };
+  // 10. custom emoji from a photo (static, 100×100) → a new emoji pack
+  await t4('emoji_static', async () => {
+    const p = await page();
+    await editorFromPick(p, 'emoji');
+    await p.getByRole('button', { name: /ذخیره‌ی استیکر/ }).click();
+    await p.locator('.export img').waitFor({ timeout: 60000 });
+    await p.screenshot({ path: path.join(OUTDIR, 'studio-emoji-export.png'), fullPage: true });
+    await p.getByLabel(/پک جدید/).check();
+    await p.locator('.export input[placeholder]').fill('ایموجی من');
+    await p.getByRole('button', { name: /✅ ذخیره/ }).click();
+    await p.getByText(/ساخته شد/).waitFor({ timeout: 30000 });
+    const c = (await commitsOf(p))[0];
+    const v = validateCustomEmojiStatic(fileOf(c), c.format);
+    await p.close();
+    return { kind: c.kind, action: c.action, format: c.format, valid: v.ok, violations: v.violations, size: `${v.info.width}x${v.info.height}` };
+  });
+  // 11. meme maker: the photo keeps its background, two captions, → existing pack
+  await t4('meme', async () => {
+    const p = await page();
+    await p.goto(`${base}/?mode=meme`);
+    await p.locator('input[type=file]').setInputFiles(photoPath);
+    await p.locator('textarea').first().waitFor({ timeout: 30000 });
+    await p.locator('textarea').first().fill('وقتی کد بدون خطا اجرا شد');
+    await p.waitForTimeout(500);
+    await p.screenshot({ path: path.join(OUTDIR, 'studio-meme.png'), fullPage: true });
+    await p.getByRole('button', { name: /ذخیره‌ی استیکر/ }).click();
+    await p.locator('.export img').waitFor({ timeout: 60000 });
+    await p.getByRole('button', { name: /✅ ذخیره/ }).click();
+    await p.getByText(/اضافه شد/).waitFor({ timeout: 30000 });
+    const c = (await commitsOf(p))[0];
+    const f = fileOf(c);
+    const v = validateTelegramStatic(f, sniffImage(f));
+    await p.close();
+    return { kind: c.kind, action: c.action, packId: c.packId, valid: v.ok, size: `${v.info.width}x${v.info.height}` };
+  });
+  // 12. a still sticker + «🎬 متحرکش کن» (bounce) → video sticker; with a template
+  await t4('animate_still_with_template', async () => {
+    const p = await page();
+    await editorFromPick(p, 'sticker');
+    await p.getByRole('button', { name: 'قالب' }).click();
+    await p.getByRole('button', { name: /حباب/ }).click();
+    await p.locator('textarea').first().fill('سلام!');
+    await p.waitForTimeout(400);
+    await p.screenshot({ path: path.join(OUTDIR, 'studio-template.png'), fullPage: true });
+    await p.getByRole('button', { name: /ذخیره‌ی استیکر/ }).click();
+    await p.locator('.export img').waitFor({ timeout: 60000 });
+    await p.getByRole('button', { name: /متحرکش کن/ }).click();
+    await p.getByRole('button', { name: 'ساختن' }).waitFor({ timeout: 60000 });
+    await p.screenshot({ path: path.join(OUTDIR, 'studio-effects.png'), fullPage: true });
+    await p.getByRole('button', { name: 'ساختن' }).click();
+    await p.locator('.export video').waitFor({ timeout: 120000 });
+    await p.getByRole('button', { name: /✅ ذخیره/ }).click();
+    await p.getByText(/اضافه شد/).waitFor({ timeout: 30000 });
+    const c = (await commitsOf(p))[0];
+    const v = validateTelegramVideo(fileOf(c));
+    await p.close();
+    return { kind: c.kind, valid: v.ok, violations: v.violations, size: `${v.info.tracks[0].width}x${v.info.tracks[0].height}`, kb: Math.round(fileOf(c).length / 1024) };
+  });
+  // 13. animated text on a blank sticker → video sticker
+  await t4('text_animation', async () => {
+    const p = await page();
+    await p.goto(`${base}/?mode=text`);
+    await p.getByRole('button', { name: 'ساختن' }).waitFor({ timeout: 60000 });
+    await p.getByRole('button', { name: 'ساختن' }).click();
+    await p.locator('.export video').waitFor({ timeout: 120000 });
+    await p.getByRole('button', { name: /✅ ذخیره/ }).click();
+    await p.getByText(/اضافه شد/).waitFor({ timeout: 30000 });
+    const c = (await commitsOf(p))[0];
+    const v = validateTelegramVideo(fileOf(c));
+    await p.close();
+    return { kind: c.kind, valid: v.ok, violations: v.violations, alpha: v.info.tracks[0].alphaMode === 1 };
+  });
+  // 14. slideshow of photos → .gif file
+  if (morePhotos.length >= 2) {
+    await t4('slideshow_gif', async () => {
+      const p = await page();
+      await p.goto(`${base}/?mode=slideshow`);
+      await p.locator('input[type=file]').setInputFiles([photoPath, ...morePhotos]);
+      await p.waitForTimeout(4000);
+      if (process.env.ONLY) console.log('slideshow page:', (await p.locator('body').innerText()).slice(0, 300).replace(/\n/g, ' | '));
+      await p.getByRole('button', { name: 'ساختن' }).waitFor({ timeout: 60000 });
+      await p.getByRole('button', { name: 'ساختن' }).click();
+      await p.getByRole('button', { name: /فایل \.gif/ }).click();
+      await p.getByText(/در چت فرستاده شد/).waitFor({ timeout: 120000 });
+      const c = (await commitsOf(p))[0];
+      const v = validateGif(fileOf(c));
+      await p.close();
+      return { kind: c.kind, valid: v.ok, frames: v.info.frames, durationMs: v.info.durationMs };
+    });
+  }
+  // 15. a draft survives closing the Studio
+  await t4('draft_resume', async () => {
+    const ctxB = await browser.newContext({ viewport: { width: 390, height: 900 } });
+    const p = await ctxB.newPage();
+    await p.route('https://telegram.org/**', (r) => r.fulfill({ contentType: 'text/javascript', body: mock({}) }));
+    await p.goto(`${base}/?mode=sticker`);
+    await p.locator('input[type=file]').setInputFiles(photoPath);
+    await p.getByRole('button', { name: /حذف خودکار/ }).waitFor({ timeout: 30000 });
+    await p.getByRole('button', { name: 'متن' }).click();
+    await p.getByRole('button', { name: '🔥' }).click();
+    await p.waitForTimeout(2000);
+    await p.goto(`${base}/`);
+    await p.getByRole('button', { name: /ادامه‌ی پیش‌نویس/ }).click();
+    await p.getByRole('button', { name: /حذف خودکار/ }).waitFor({ timeout: 30000 });
+    await p.getByRole('button', { name: 'متن' }).click();
+    const resumed = await p.locator('textarea').first().inputValue({ timeout: 5000 }).catch(() => '');
+    await ctxB.close();
+    return { resumed: resumed === '🔥' };
+  });
+  // 16. a chat video → a video custom emoji (100×100) → a new emoji pack
+  await t4('emoji_video', async () => {
+    const p = await page();
+    await p.goto(`${base}/?job=V1&mode=emoji&quick=1`);
+    await p.locator('.export video').waitFor({ timeout: 180000 });
+    await p.getByLabel(/پک جدید/).check();
+    await p.locator('.export input[placeholder]').fill('ایموجی ویدیویی');
+    await p.getByRole('button', { name: /✅ ذخیره/ }).click();
+    await p.getByText(/ساخته شد/).waitFor({ timeout: 30000 });
+    const c = (await commitsOf(p))[0];
+    const v = validateCustomEmojiVideo(fileOf(c));
+    await p.close();
+    return { kind: c.kind, action: c.action, valid: v.ok, violations: v.violations, size: `${v.info.tracks[0].width}x${v.info.tracks[0].height}`, kb: Math.round(fileOf(c).length / 1024) };
+  });
 }
 await browser.close();
 server.close();

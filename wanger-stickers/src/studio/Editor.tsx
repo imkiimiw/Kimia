@@ -2,7 +2,8 @@
 // pan, automatic removal). Other tabs: the live sticker preview (shape, outline, shadow,
 // adjustments, text layers you can drag). Every change goes through History (undo / redo).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { StickerDoc, Shape } from '../engine/render';
+import type { StickerDoc, Shape, Stroke } from '../engine/render';
+import { DECORS, DECOR_DEFAULT_COLOR, type DecorKind } from '../engine/decor';
 import { renderSticker } from '../engine/render';
 import { removeBackground, type ModelKind } from '../engine/segment';
 import { History } from '../engine/history';
@@ -12,13 +13,15 @@ import { ctx2d } from '../engine/image';
 import type { makeT } from './i18n';
 
 type T = ReturnType<typeof makeT>;
-type Tab = 'bg' | 'shape' | 'look' | 'text';
+type Tab = 'bg' | 'shape' | 'look' | 'text' | 'decor' | 'pen';
+const QUICK_EMOJI = ['😂', '😍', '🔥', '❤️', '👍', '😎', '🥲', '✨'];
 type Tool = 'erase' | 'restore' | 'move';
 
 const VIEW = 320; // css px of the square view (scaled by devicePixelRatio)
 
-export default function Editor({ doc, t, onNext, autoRemove }: { doc: StickerDoc; t: T; onNext: () => void; autoRemove?: boolean }) {
-  const [tab, setTab] = useState<Tab>('bg');
+export default function Editor({ doc, t, onNext, autoRemove, startTab, onChange }: { doc: StickerDoc; t: T; onNext: () => void; autoRemove?: boolean; startTab?: Tab; onChange?: () => void }) {
+  const [tab, setTab] = useState<Tab>(startTab || 'bg');
+  const [pen, setPen] = useState({ color: '#ff3b6b', width: 10 });
   const [tool, setTool] = useState<Tool>('erase');
   const [brush, setBrush] = useState(28);
   const [soft, setSoft] = useState(0.4);
@@ -26,9 +29,12 @@ export default function Editor({ doc, t, onNext, autoRemove }: { doc: StickerDoc
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [sel, setSel] = useState<string | null>(null);
+  const [sel, setSel] = useState<string | null>(startTab === 'text' && doc.texts[0] ? doc.texts[0].id : null);
   const [, setTick] = useState(0);
-  const rerender = useCallback(() => setTick((n) => n + 1), []);
+  const rerender = useCallback(() => {
+    setTick((n) => n + 1);
+    onChange?.();
+  }, [onChange]);
   const history = useMemo(() => new History(60), []);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drag = useRef<{ x: number; y: number; id?: string; ox?: number; oy?: number } | null>(null);
@@ -128,6 +134,17 @@ export default function Editor({ doc, t, onNext, autoRemove }: { doc: StickerDoc
         drag.current = { x: p.x, y: p.y };
         paint(p, p);
       }
+    } else if (tab === 'pen') {
+      const r = renderSticker(doc, size);
+      if (!r) return;
+      history.push(doc);
+      const offX = (size - r.width) / 2, offY = (size - r.height) / 2;
+      const st: Stroke = { color: pen.color, width: pen.width, points: [[(p.x - offX) / r.width, (p.y - offY) / r.height]] };
+      doc.strokes = [...(doc.strokes || []), st];
+      drag.current = { x: p.x, y: p.y, id: 'pen', ox: offX, oy: offY };
+      (drag.current as { w?: number; h?: number }).w = r.width;
+      (drag.current as { w?: number; h?: number }).h = r.height;
+      rerender();
     } else if (tab === 'text') {
       const r = renderSticker(doc, size);
       if (!r) return;
@@ -155,6 +172,12 @@ export default function Editor({ doc, t, onNext, autoRemove }: { doc: StickerDoc
     } else if (tab === 'bg') {
       paint({ x: d.x, y: d.y }, p);
       drag.current = { x: p.x, y: p.y };
+    } else if (tab === 'pen' && d.id === 'pen') {
+      const dd = d as { ox?: number; oy?: number; w?: number; h?: number };
+      const strokes = doc.strokes || [];
+      const st = strokes[strokes.length - 1];
+      if (st && dd.w && dd.h) st.points.push([(p.x - (dd.ox || 0)) / dd.w, (p.y - (dd.oy || 0)) / dd.h]);
+      rerender();
     } else if (tab === 'text' && d.id) {
       const r = renderSticker(doc, size);
       const layer = doc.texts.find((l) => l.id === d.id);
@@ -183,6 +206,22 @@ export default function Editor({ doc, t, onNext, autoRemove }: { doc: StickerDoc
     const layer: TextLayer = { id: Math.random().toString(36).slice(2, 9), text: t('text_placeholder').replace('…', ''), font: 'vazirmatn', size: 56, color: '#ffffff', stroke: '#111111', strokeWidth: 5, shadow: true, x: 0.5, y: 0.85, rotation: 0 };
     change(() => doc.texts.push(layer));
     setSel(layer.id);
+  };
+  const addEmoji = (e: string) => {
+    const layer: TextLayer = { id: Math.random().toString(36).slice(2, 9), text: e, font: 'inter', size: 96, color: '#000000', stroke: '', strokeWidth: 0, shadow: false, x: 0.2 + Math.random() * 0.6, y: 0.2 + Math.random() * 0.3, rotation: 0 };
+    change(() => doc.texts.push(layer));
+    setSel(layer.id);
+  };
+  const moveLayer = (dir: -1 | 1) => {
+    if (!selected) return;
+    const i = doc.texts.indexOf(selected);
+    const j = i + dir;
+    if (j < 0 || j >= doc.texts.length) return;
+    change(() => {
+      const list = doc.texts.slice();
+      [list[i], list[j]] = [list[j], list[i]];
+      doc.texts = list;
+    });
   };
   const editText = (patch: Partial<TextLayer>) => {
     if (!selected) return;
@@ -216,8 +255,8 @@ export default function Editor({ doc, t, onNext, autoRemove }: { doc: StickerDoc
       </div>
 
       <nav className="tabs">
-        {(['bg', 'shape', 'look', 'text'] as Tab[]).map((k) => (
-          <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{t(`tab_${k}` as never)}</button>
+        {(['bg', 'shape', 'look', 'text', 'decor', 'pen'] as Tab[]).map((k) => (
+          <button key={k} className={tab === k ? 'on' : ''} onClick={() => { setTab(k); if (k === 'text' && !sel && doc.texts.length) setSel(doc.texts[doc.texts.length - 1].id); }}>{t(`tab_${k}` as never)}</button>
         ))}
       </nav>
 
@@ -269,9 +308,12 @@ export default function Editor({ doc, t, onNext, autoRemove }: { doc: StickerDoc
       {tab === 'text' && (
         <section className="panel">
           <button onClick={addText}>{t('text_add')}</button>
+          <div className="row emojis">{QUICK_EMOJI.map((e) => <button key={e} onClick={() => addEmoji(e)} aria-label={e}>{e}</button>)}</div>
           {doc.texts.length > 1 && (
             <div className="row">
               {doc.texts.map((l, i) => <button key={l.id} className={sel === l.id ? 'on' : ''} onClick={() => setSel(l.id)}>{i + 1}</button>)}
+              <button onClick={() => moveLayer(-1)} aria-label={t('layer_down')}>⤓</button>
+              <button onClick={() => moveLayer(1)} aria-label={t('layer_up')}>⤒</button>
             </div>
           )}
           {selected && (
@@ -288,10 +330,42 @@ export default function Editor({ doc, t, onNext, autoRemove }: { doc: StickerDoc
                 <input type="range" min={0} max={14} value={selected.strokeWidth} onPointerDown={() => history.push(doc)} onChange={(e) => editText({ strokeWidth: +e.target.value })} />
               </label>
               <label className="check"><input type="checkbox" checked={selected.shadow} onChange={(e) => { history.push(doc); editText({ shadow: e.target.checked }); }} />{t('text_shadow')}</label>
+              <label>{t('text_spacing')}<input type="range" min={0} max={20} value={selected.spacing || 0} onPointerDown={() => history.push(doc)} onChange={(e) => editText({ spacing: +e.target.value })} /></label>
+              <label className="check"><input type="checkbox" checked={!!selected.box} onChange={(e) => { history.push(doc); editText({ box: e.target.checked ? '#000000' : '' }); }} />{t('text_box')}
+                {selected.box && <input type="color" value={selected.box} onChange={(e) => { history.push(doc); editText({ box: e.target.value }); }} />}
+              </label>
               <button className="danger" onClick={() => change(() => { doc.texts = doc.texts.filter((l) => l.id !== selected.id); })}>{t('text_delete')}</button>
               <p className="hint">{t('text_hint')}</p>
             </>
           )}
+        </section>
+      )}
+
+      {tab === 'decor' && (
+        <section className="panel">
+          <div className="row wrap">
+            {DECORS.map((k: DecorKind) => (
+              <button key={k} className={(doc.decor?.kind || 'none') === k ? 'on' : ''} onClick={() => change(() => { doc.decor = k === 'none' ? null : { kind: k, color: doc.decor?.color && doc.decor.kind === k ? doc.decor.color : DECOR_DEFAULT_COLOR[k], text: doc.decor?.text || '' }; })}>{t(`decor_${k}` as never)}</button>
+            ))}
+          </div>
+          {doc.decor && (
+            <>
+              <label>{t('text_color')}<input type="color" value={doc.decor.color} onChange={(e) => change(() => { doc.decor = { ...doc.decor!, color: e.target.value }; })} /></label>
+              {['bubble', 'thought', 'banner', 'polaroid', 'burst'].includes(doc.decor.kind) && (
+                <textarea dir="auto" rows={1} placeholder={t('decor_text')} value={doc.decor.text} onFocus={() => history.push(doc)} onChange={(e) => { doc.decor = { ...doc.decor!, text: e.target.value }; void loadFont('vazirmatn').then(rerender); rerender(); }} />
+              )}
+            </>
+          )}
+        </section>
+      )}
+
+      {tab === 'pen' && (
+        <section className="panel">
+          <p className="hint">{t('pen_hint')}</p>
+          <label>{t('text_color')}<input type="color" value={pen.color} onChange={(e) => setPen({ ...pen, color: e.target.value })} /></label>
+          <label>{t('pen_width')}<input type="range" min={2} max={40} value={pen.width} onChange={(e) => setPen({ ...pen, width: +e.target.value })} /></label>
+          <button disabled={!(doc.strokes || []).length} onClick={() => change(() => { doc.strokes = (doc.strokes || []).slice(0, -1); })}>{t('pen_undo_last')}</button>
+          <button disabled={!(doc.strokes || []).length} onClick={() => change(() => { doc.strokes = []; })}>{t('pen_clear')}</button>
         </section>
       )}
 

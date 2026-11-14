@@ -47,14 +47,15 @@ export interface WaPack {
 export interface Boot {
   user: { id: number; first_name: string; username?: string; lang: 'fa' | 'en' };
   role: string;
-  packs: { id: number; title: string; count: number; name: string }[];
+  packs: { id: number; title: string; count: number; name: string; kind?: 'sticker' | 'emoji' }[];
   wa: WaPack[];
-  flags: { studio: boolean; video: boolean; gif_studio: boolean; convert: boolean; whatsapp: boolean };
+  flags: { studio: boolean; video: boolean; gif_studio: boolean; convert: boolean; whatsapp: boolean; emoji?: boolean; anim_bg?: boolean };
   quota: { pack_create: number; sticker_add: number; media_send: number; wa_export: number };
   limits: {
     static: { side: number; maxBytes: number };
     video: { maxBytes: number; maxDurationMs: number; maxFps: number };
-    set: { maxStickersRegular: number; titleMaxChars: number };
+    set: { maxStickersRegular: number; maxStickersEmoji?: number; titleMaxChars: number };
+    customEmoji?: { width: number; height: number };
     whatsapp: { pack: { minStickers: number; maxStickers: number; emojiPerStickerMax: number; nameMaxChars: number; publisherMaxChars: number } };
     chunkBytes: number;
   };
@@ -84,6 +85,7 @@ export interface SaveTarget {
   publisher?: string;
   emojis?: string;
   quiet?: boolean;
+  repaint?: boolean;
 }
 export interface SaveResult {
   action: string;
@@ -95,7 +97,7 @@ export interface SaveResult {
 }
 
 /** Upload kinds (tgcloud/lib/core/validate.js UPLOAD_KINDS). */
-export type UploadKind = 'telegram_static' | 'telegram_video' | 'animation' | 'gif' | 'webp_file' | 'frames_zip' | 'whatsapp_static' | 'whatsapp_animated' | 'whatsapp_tray';
+export type UploadKind = 'telegram_static' | 'telegram_video' | 'emoji_static' | 'emoji_video' | 'animation' | 'gif' | 'webp_file' | 'frames_zip' | 'whatsapp_static' | 'whatsapp_animated' | 'whatsapp_tray';
 export type UploadFormat = 'webp' | 'png' | 'webm' | 'mp4' | 'gif' | 'zip';
 
 /** Any finished file: one call when it fits a chunk, else begin → chunks → commit. */

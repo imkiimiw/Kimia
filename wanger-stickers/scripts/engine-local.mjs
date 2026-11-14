@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { createServer } from 'vite';
 import { ROOT } from './tg.mjs';
-import { validateTelegramVideo, validateMp4Animation, validateGif, validateWhatsAppAnimated, validateWhatsAppTray, sniffImage } from '../tgcloud/lib/core/validate.js';
+import { validateTelegramVideo, validateMp4Animation, validateGif, validateWhatsAppAnimated, validateWhatsAppTray, validateCustomEmojiStatic, validateCustomEmojiVideo, sniffImage } from '../tgcloud/lib/core/validate.js';
 import { readZip } from '../tgcloud/lib/core/zip.js';
 
 const require = createRequire(import.meta.url);
@@ -118,6 +118,33 @@ try {
   ok('tgs_to_video_sticker', tc.ok && t.alphaDiff > 0 && t.corner === 0 && t.opaque[0] > 1000 && t.opaque[2] > t.opaque[0], { violations: tc.violations, kb: Math.round(t.info.bytes / 1024), sourceMs: t.durationMs, sourceFps: t.fps, alpha: t.info.alpha, alphaDiff: t.alphaDiff, corner: t.corner, opaque: t.opaque, centre: t.centre, size: t.size });
   const s = await run('waStaticFromCanvas');
   ok('whatsapp_canvas_512', s.w === 512 && s.h === 512, s);
+
+  // ---- Phase 4
+  const es = await run('emojiStatic');
+  const esv = validateCustomEmojiStatic(Buffer.from(es.b64, 'base64'), es.format);
+  ok('custom_emoji_static_100', esv.ok, { format: es.format, size: `${es.w}x${es.h}`, violations: esv.violations });
+  const ev = await run('emojiVideo', clipName);
+  const evv = validateCustomEmojiVideo(Buffer.from(ev.b64, 'base64'));
+  ok('custom_emoji_video_100', evv.ok, { kb: ev.kb, size: ev.size, violations: evv.violations });
+  const fx = await run('effects');
+  ok('motion_effects_9', Object.values(fx).every((e) => e.moved && e.ok), fx);
+  const tp = await run('templates');
+  ok('templates_9', Object.entries(tp).filter(([k]) => k !== 'animatedSparkles').every(([, v]) => v.size === '512x512' && v.opaque > 1000) && tp.animatedSparkles.twinkles, tp);
+  const ta = await run('textAnimation');
+  const tag = validateGif(Buffer.from(ta.gif.b64, 'base64'));
+  ok('text_animation_typewriter', ta.grows && tag.ok, { counts: ta.counts, gif: { kb: ta.gif.kb, frames: ta.gif.frames, violations: tag.violations } });
+  if (gifPath) {
+    const sj = await run('slideshowAndJoin', clipName, path.basename(gifPath));
+    const sg = validateGif(Buffer.from(sj.slideshow.b64, 'base64'));
+    const jm = validateMp4Animation(Buffer.from(sj.join.b64, 'base64'));
+    const jp = ffprobe(save('joined.mp4', sj.join.b64));
+    ok('slideshow_gif', sg.ok && sg.info.durationMs >= 2000, { frames: sg.info.frames, durationMs: sg.info.durationMs, violations: sg.violations });
+    ok('join_gif_and_clip_mp4', jm.ok, { durationMs: jm.info.durationMs, parts: sj.join.parts, violations: jm.violations, ffprobe: jp.format });
+  }
+  const cu = await run('cutoutVideo', clipName);
+  const cuv = validateTelegramVideo(Buffer.from(cu.b64, 'base64'));
+  ok('video_background_removal_3s', cuv.ok && cu.alpha, { segMs: cu.segMs, totalMs: cu.totalMs, transparentShare: cu.transparentShare, kb: cu.kb, violations: cuv.violations });
+  save('cutout.webm', cu.b64);
 } catch (e) {
   ok('run', false, { error: String(e && e.stack).slice(0, 2000) });
 } finally {

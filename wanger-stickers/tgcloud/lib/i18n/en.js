@@ -579,4 +579,6 @@ export default {
   'flag.emoji': 'Custom emoji packs',
   'flag.share': 'Share links & QR',
   'flag.anim_bg': 'Video background removal (experimental)',
+  'media.btn_emoji': '😀 Custom emoji',
+  'media.btn_meme': '😂 Meme',
 };

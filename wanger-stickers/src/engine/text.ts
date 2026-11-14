@@ -9,6 +9,7 @@ import lalezarLat from '@fontsource/lalezar/files/lalezar-latin-400-normal.woff2
 import interLat from '@fontsource/inter/files/inter-latin-800-normal.woff2?url';
 import type { Ctx } from './image';
 import { baseDirection } from './direction';
+import { graphemes } from './effects';
 export { baseDirection };
 
 const ARABIC = 'U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0897-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC';
@@ -46,18 +47,51 @@ export interface TextLayer {
   x: number; // centre, 0..1 of the sticker canvas
   y: number;
   rotation: number; // degrees
+  spacing?: number; // letter spacing, px at 512 (Phase 4; ignored where the browser can't)
+  box?: string; // background box colour behind the text ('' or undefined = none)
+  maxWidth?: number; // shrink the size so the widest line fits this share of the canvas width (memes)
+  anim?: 'none' | 'typewriter' | 'pop' | 'wave' | 'blink'; // animated outputs only (engine/effects.ts)
+}
+
+/** Per-frame state of an animated text (engine/effects.ts textAt). */
+export interface TextFrame {
+  chars: number;
+  scale: number;
+  alpha: number;
+  wave: number;
 }
 
 /** Draws a (possibly multi-line) text layer centred at its position. scale = canvas px per 512-px unit. */
-export function drawText(x: Ctx, layer: TextLayer, W: number, H: number, scale: number): void {
+export function drawText(x: Ctx, layer: TextLayer, W: number, H: number, scale: number, frame?: TextFrame): void {
   if (!layer.text.trim()) return;
   const f = FONTS[layer.font];
-  const size = layer.size * scale;
-  const lines = layer.text.split('\n');
+  let text = layer.text;
+  if (frame && frame.chars < Infinity) text = graphemes(layer.text).slice(0, frame.chars).join('');
+  if (!text) return;
+  let size = layer.size * scale;
+  const fontOf = (px: number) => `${f.weight} ${px}px "${f.family}", system-ui, sans-serif`;
+  const allLines = layer.text.split('\n');
   x.save();
-  x.translate(layer.x * W, layer.y * H);
-  x.rotate((layer.rotation * Math.PI) / 180);
-  x.font = `${f.weight} ${size}px "${f.family}", system-ui, sans-serif`;
+  x.font = fontOf(size);
+  const spacing = (layer.spacing || 0) * scale;
+  const ls = x as CanvasRenderingContext2D & { letterSpacing?: string };
+  if (spacing && 'letterSpacing' in ls) ls.letterSpacing = `${spacing}px`;
+  if (layer.maxWidth) {
+    // measured on the FULL text, so a typewriter doesn't change the size while typing
+    const widest = Math.max(...allLines.map((l) => x.measureText(l).width), 1);
+    const limit = layer.maxWidth * W;
+    if (widest > limit) {
+      size *= limit / widest;
+      x.font = fontOf(size);
+    }
+  }
+  const lines = text.split('\n');
+  x.translate(layer.x * W, layer.y * H + (frame && frame.wave ? Math.sin(frame.wave * Math.PI * 2) * 0.03 * H : 0));
+  x.rotate((layer.rotation * Math.PI) / 180 + (frame && frame.wave ? Math.sin(frame.wave * Math.PI * 2 + 1) * 0.04 : 0));
+  if (frame) {
+    x.scale(frame.scale, frame.scale);
+    x.globalAlpha = frame.alpha;
+  }
   x.textAlign = 'center';
   x.textBaseline = 'middle';
   (x as CanvasRenderingContext2D).direction = baseDirection(layer.text);
@@ -65,6 +99,22 @@ export function drawText(x: Ctx, layer: TextLayer, W: number, H: number, scale: 
   x.miterLimit = 2;
   const lh = size * 1.25;
   const top = -((lines.length - 1) * lh) / 2;
+  if (layer.box) {
+    const w = Math.max(...allLines.map((l) => x.measureText(l).width)) + size * 0.7 + (layer.strokeWidth || 0) * 2 * scale;
+    const h = allLines.length * lh + size * 0.35;
+    const r = Math.min(h / 2, size * 0.45);
+    const bx = -w / 2;
+    const by = -((allLines.length - 1) * lh) / 2 - lh / 2 - size * 0.175;
+    x.fillStyle = layer.box;
+    x.beginPath();
+    x.moveTo(bx + r, by);
+    x.arcTo(bx + w, by, bx + w, by + h, r);
+    x.arcTo(bx + w, by + h, bx, by + h, r);
+    x.arcTo(bx, by + h, bx, by, r);
+    x.arcTo(bx, by, bx + w, by, r);
+    x.closePath();
+    x.fill();
+  }
   if (layer.shadow) {
     x.shadowColor = 'rgba(0,0,0,0.45)';
     x.shadowBlur = 6 * scale;
@@ -82,6 +132,11 @@ export function drawText(x: Ctx, layer: TextLayer, W: number, H: number, scale: 
     x.fillText(line, 0, y);
   });
   x.restore();
+}
+
+/** A meme caption: white, black outline, auto-fitted to the width (top or bottom). */
+export function memeLayer(text: string, where: 'top' | 'bottom', font: FontKey = 'vazirmatn'): TextLayer {
+  return { id: `meme-${where}`, text, font, size: 72, color: '#ffffff', stroke: '#000000', strokeWidth: 5, shadow: false, x: 0.5, y: where === 'top' ? 0.11 : 0.89, rotation: 0, maxWidth: 0.92 };
 }
 
 /** Approximate box of a layer (for hit-testing), in canvas px. */

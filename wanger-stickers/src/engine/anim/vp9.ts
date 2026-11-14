@@ -6,7 +6,7 @@
 // caller asks the user to shorten. Every result goes through the server's own validator.
 import { muxWebM, type WebMFrame } from '../webm/mux';
 import { TELEGRAM, SIZE_TARGETING } from '../limits';
-import { validateTelegramVideo } from '../../../tgcloud/lib/core/validate.js';
+import { validateTelegramVideo, validateCustomEmojiVideo } from '../../../tgcloud/lib/core/validate.js';
 import { resampleIndexes } from './timeline';
 import { bleed, framesHaveAlpha } from './compose';
 
@@ -118,7 +118,7 @@ async function encodeOnce(p: Prepared, idx: number[], fps: number, codec: string
  * frames: rendered at `fps` (normally 30). Returns the best file that fits 256 KB, or throws
  * 'TOO_BIG' after the whole ladder (the UI then asks to shorten or simplify).
  */
-export async function toTelegramVideo(frames: ImageData[], fps: number, onProgress?: (p: number, note: string) => void): Promise<VideoResult> {
+export async function toTelegramVideo(frames: ImageData[], fps: number, onProgress?: (p: number, note: string) => void, kind: 'sticker' | 'emoji' = 'sticker'): Promise<VideoResult> {
   const V = TELEGRAM.video;
   if (!frames.length) throw new Error('EMPTY');
   const w = frames[0].width;
@@ -137,7 +137,8 @@ export async function toTelegramVideo(frames: ImageData[], fps: number, onProgre
       const f = ladder[step];
       const idx = resampleIndexes(frames.length, fps, f);
       const seconds = idx.length / f;
-      if (!bitrate) bitrate = Math.round(((target * 8) / seconds) * 0.85);
+      // a 100×100 emoji needs far fewer bits than its 256 KB cap allows
+      if (!bitrate) bitrate = Math.round(((target * 8) / seconds) * 0.85 * (kind === 'emoji' ? 0.25 : 1));
       let best: { bytes: Uint8Array; bitrate: number } | null = null;
       const budget = step === 0 ? SIZE_TARGETING.maxQualitySearchEncodes : 2;
       for (let n = 0; n < budget; n++) {
@@ -156,7 +157,7 @@ export async function toTelegramVideo(frames: ImageData[], fps: number, onProgre
         bitrate = Math.round(bitrate * (target / bytes.length) * 0.9);
       }
       if (best) {
-        const v = validateTelegramVideo(best.bytes);
+        const v = kind === 'emoji' ? validateCustomEmojiVideo(best.bytes) : validateTelegramVideo(best.bytes);
         onProgress?.(1, 'done');
         return { bytes: best.bytes, width: w, height: h, fps: f, frames: idx.length, durationMs: (idx.length * 1000) / f, bitrate: best.bitrate, alpha: !!p.alpha, encodes, violations: v.violations };
       }

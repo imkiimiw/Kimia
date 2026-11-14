@@ -1,11 +1,18 @@
 // The animated studio (Phase 3, its own lazy chunk): a video, GIF, round video or animated
-// sticker → Telegram video sticker, GIF / MP4, WhatsApp animated sticker, or a conversion.
-// Edit: timeline with frame previews (start / end within the target's limit), speed, reverse,
-// boomerang, smooth loop, frame (original / square), shape, background, one text layer.
+// sticker → Telegram video sticker or custom emoji, GIF / MP4, WhatsApp animated sticker, or a
+// conversion. Edit: timeline with frame previews (start / end within the target's limit), speed,
+// reverse, boomerang, smooth loop, frame (original / square), shape, background, text layers
+// (Phase 4: several, animated), motion effects, templates, background removal (experimental).
+// Phase 4 sources: a still sticker + an effect, a slideshow of photos, joined clips, a blank
+// canvas for text animations, meme captions.
 // Export: frames are rendered once, encoded with bounded size targeting, re-validated by the
 // server on upload. Nothing leaves the device until the user taps a save / send button.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { openSource, type AnimSource } from '../engine/anim/source';
+import { openSource, openImages, concatSources, blankSource, sniffKind, type AnimSource } from '../engine/anim/source';
+import { EFFECTS, TEXT_ANIMS, type EffectKind, type TextAnim } from '../engine/effects';
+import { DECORS, DECOR_DEFAULT_COLOR, type DecorKind } from '../engine/decor';
+import { memeLayer, type TextLayer } from '../engine/text';
+import { canCutoutVideo, CUTOUT } from '../engine/anim/cutout';
 import { defaultClip, clampClip, planFrames, outputMs, SPEEDS, type Clip, type Plan } from '../engine/anim/timeline';
 import { newAnimDoc, makeRenderer, outputSize, renderAll, squareCrop, planTimes, type AnimDoc, type AnimShape, type AnimTarget } from '../engine/anim/compose';
 import { FONTS, loadFont, type FontKey } from '../engine/text';
@@ -14,7 +21,7 @@ import { trayIcon } from '../engine/export';
 import { TELEGRAM, WHATSAPP, OUTPUT } from '../engine/limits';
 import { saveFile, tg, type Boot, type SaveResult } from './api';
 import { num, type makeT, type Lang } from './i18n';
-import { TelegramChoice, defaultTgChoice, tgChoiceReady, saveTelegram, WhatsAppChoice, defaultWaChoice, waChoiceReady, saveWhatsApp, WaSaved, type TgChoice, type WaChoice } from './Targets';
+import { TelegramChoice, defaultTgChoice, tgChoiceReady, saveTelegram, WhatsAppChoice, defaultWaChoice, waChoiceReady, saveWhatsApp, WaSaved, packLink, type TgChoice, type WaChoice, type TgKind } from './Targets';
 
 type T = ReturnType<typeof makeT>;
 export type Tab = 'telegram' | 'gif' | 'whatsapp' | 'convert';
@@ -25,8 +32,21 @@ const ENGINE_TARGET: Record<Tab, AnimTarget> = { telegram: 'telegram', whatsapp:
 const PREVIEW = 300; // css px
 const sec = (ms: number) => Math.round(ms / 100) / 10;
 
+export type AnimMode = 'clip' | 'still' | 'slideshow' | 'join' | 'text' | 'meme';
+
 export interface AnimProps {
   blob: Blob;
+  /** Several files: photos → slideshow, clips / GIFs → joined (Phase 4). */
+  blobs?: Blob[];
+  mode?: AnimMode;
+  /** Telegram tab: make a custom emoji instead of a sticker. */
+  emoji?: boolean;
+  /** Preferred destination pack (from «🎨 افزودن در استودیو» in a pack screen). */
+  packId?: number | null;
+  /** A saved draft's settings to start from (drafts.ts). */
+  initialDoc?: AnimDoc | null;
+  /** Called after every change (the Studio autosaves a draft). */
+  onDocChange?: (doc: AnimDoc, tab: Tab) => void;
   info: Boot;
   t: T;
   lang: Lang;
@@ -48,28 +68,56 @@ export default function AnimStudio(p: AnimProps) {
   const [doc, setDoc] = useState<AnimDoc | null>(null);
   const [stage, setStage] = useState<'edit' | 'export'>('edit');
 
+  const [slideMs, setSlideMs] = useState(1000);
   useEffect(() => {
     let live = true;
     let opened: AnimSource | null = null;
-    openSource(blob)
+    void (async () => {
+      const mode = p.mode || 'clip';
+      if (mode === 'text') return blankSource(512, 512, 3000);
+      const list = p.blobs && p.blobs.length > 1 ? p.blobs : [blob];
+      if (list.length > 1) {
+        const kinds = await Promise.all(list.map((b) => sniffKind(b)));
+        if (kinds.every((k) => k === 'image')) return openImages(list, { slideMs });
+        return concatSources(await Promise.all(list.map((b) => openSource(b))));
+      }
+      return openSource(blob);
+    })()
       .then((s) => {
         opened = s;
         if (!live) return s.close();
-        const d = newAnimDoc(clampClip(defaultClip(s.durationMs, DEFAULT_MS[tab]), s.durationMs, MAX_MS[tab]), !!p.round);
-        if (p.round) d.crop = squareCrop(s);
-        if (tab === 'whatsapp') d.crop = squareCrop(s);
+        // keep the edits when only the slide length changed
+        setDoc((prev) => {
+          if (prev) return { ...prev, clip: clampClip({ ...prev.clip, endMs: s.durationMs }, s.durationMs, MAX_MS[tab]) };
+          if (p.initialDoc) return { ...p.initialDoc, clip: clampClip(p.initialDoc.clip, s.durationMs, MAX_MS[tab]) };
+          const d = newAnimDoc(clampClip(defaultClip(s.durationMs, DEFAULT_MS[tab]), s.durationMs, MAX_MS[tab]), !!p.round);
+          if (p.round || tab === 'whatsapp' || p.emoji) d.crop = squareCrop(s);
+          if (p.mode === 'still') d.effect = { kind: 'bounce', strength: 1 };
+          if (p.mode === 'text') d.texts = [{ id: 't1', text: p.t('text_anim_sample'), font: 'lalezar', size: 92, color: '#ff3b6b', stroke: '#ffffff', strokeWidth: 6, shadow: true, x: 0.5, y: 0.5, rotation: 0, anim: 'typewriter', maxWidth: 0.9 }];
+          if (p.mode === 'meme') d.texts = [memeLayer(p.t('meme_top_sample'), 'top'), memeLayer(p.t('meme_bottom_sample'), 'bottom')];
+          return d;
+        });
+        void loadFont(p.mode === 'text' ? 'lalezar' : 'vazirmatn').then(() => setDoc((d) => (d ? { ...d } : d)));
         setSrc(s);
-        setDoc(d);
         if (p.quick) setStage('export');
       })
-      .catch(() => live && setFailed(true));
+      .catch((e) => {
+        console.error('anim_open_failed', e);
+        if (live) setFailed(true);
+      });
     return () => {
       live = false;
       opened?.close();
     };
-    // the source is opened once per file
+    // the source is opened once per file (and again when the slide length changes)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blob]);
+  }, [blob, slideMs]);
+
+  useEffect(() => {
+    if (doc) p.onDocChange?.(doc, tab);
+    // only the document and the tab matter for the draft
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc, tab]);
 
   useEffect(() => {
     const bb = tg().BackButton;
@@ -98,7 +146,7 @@ export default function AnimStudio(p: AnimProps) {
         </div>
       )}
       {stage === 'edit'
-        ? <AnimEditor src={src} doc={doc} setDoc={setDoc} tab={tab} t={t} lang={p.lang} onNext={() => setStage('export')} />
+        ? <AnimEditor src={src} doc={doc} setDoc={setDoc} tab={tab} t={t} lang={p.lang} info={info} slideMs={p.blobs && p.blobs.length > 1 && src.kind === 'images' ? slideMs : null} setSlideMs={setSlideMs} onNext={() => setStage('export')} />
         : <AnimExport key={tab} {...p} src={src} doc={doc} tab={tab} />}
     </main>
   );
@@ -106,7 +154,8 @@ export default function AnimStudio(p: AnimProps) {
 
 /* ------------------------------------------------------------------ editor */
 
-function AnimEditor({ src, doc, setDoc, tab, t, lang, onNext }: { src: AnimSource; doc: AnimDoc; setDoc: (d: AnimDoc) => void; tab: Tab; t: T; lang: Lang; onNext: () => void }) {
+function AnimEditor({ src, doc, setDoc, tab, t, lang, info, slideMs, setSlideMs, onNext }: { src: AnimSource; doc: AnimDoc; setDoc: (d: AnimDoc) => void; tab: Tab; t: T; lang: Lang; info: Boot; slideMs: number | null; setSlideMs: (n: number) => void; onNext: () => void }) {
+  const [selText, setSelText] = useState(0);
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const [thumbs, setThumbs] = useState<string[]>([]);
   const [playing, setPlaying] = useState<null | number>(null); // preparing progress, or -1 = playing
@@ -194,14 +243,31 @@ function AnimEditor({ src, doc, setDoc, tab, t, lang, onNext }: { src: AnimSourc
   };
   useEffect(() => () => stopRef.current(), []);
 
-  const text = doc.texts[0];
-  const setText = (patch: Partial<NonNullable<typeof text>> | null) => {
-    if (patch === null) return setDoc({ ...doc, texts: [] });
-    const base = text || { id: 't1', text: '', font: 'vazirmatn' as FontKey, size: 64, color: '#ffffff', stroke: '#000000', strokeWidth: 4, shadow: true, x: 0.5, y: 0.85, rotation: 0 };
-    const next = { ...base, ...patch };
-    if (patch.font) void loadFont(patch.font).then(() => setDoc({ ...doc, texts: [{ ...next }] }));
-    setDoc({ ...doc, texts: [next] });
+  const text = doc.texts[Math.min(selText, doc.texts.length - 1)];
+  const setText = (patch: Partial<TextLayer> | null) => {
+    const i = Math.min(selText, doc.texts.length - 1);
+    if (patch === null) {
+      setDoc({ ...doc, texts: doc.texts.filter((_, k) => k !== i) });
+      setSelText(Math.max(0, i - 1));
+      return;
+    }
+    if (!text) {
+      const fresh: TextLayer = { id: `t${Date.now() % 1e6}`, text: '', font: 'vazirmatn', size: 64, color: '#ffffff', stroke: '#000000', strokeWidth: 4, shadow: true, x: 0.5, y: 0.85, rotation: 0, ...patch };
+      setDoc({ ...doc, texts: [fresh] });
+      return;
+    }
+    const next = { ...text, ...patch };
+    if (patch.font) void loadFont(patch.font).then(() => setDoc({ ...doc, texts: doc.texts.map((x, k) => (k === i ? { ...next } : x)) }));
+    setDoc({ ...doc, texts: doc.texts.map((x, k) => (k === i ? next : x)) });
   };
+  const addText = () => {
+    const fresh: TextLayer = { id: `t${Date.now() % 1e6}`, text: '', font: 'vazirmatn', size: 64, color: '#ffffff', stroke: '#000000', strokeWidth: 4, shadow: true, x: 0.5, y: doc.texts.length ? 0.15 : 0.85, rotation: 0 };
+    setDoc({ ...doc, texts: [...doc.texts, fresh] });
+    setSelText(doc.texts.length);
+  };
+  const effect = doc.effect || { kind: 'none' as EffectKind, strength: 1 };
+  const decor = doc.decor || null;
+  const cutoutOk = !!info.flags.anim_bg && (src.kind === 'video' || src.kind === 'concat') && canCutoutVideo();
   const outMs = outputMs(clip);
   const busy = playing !== null && playing >= 0;
   return (
@@ -242,20 +308,57 @@ function AnimEditor({ src, doc, setDoc, tab, t, lang, onNext }: { src: AnimSourc
           <input type="color" value={doc.bg || '#ff3b6b'} onChange={(e) => setDoc({ ...doc, bg: e.target.value })} aria-label={t('anim_bg')} />
         </div>
       </div>
+      {slideMs !== null && (
+        <div className="panel">
+          <label>{t('slide_len')} <input type="range" min={200} max={3000} step={100} value={slideMs} onChange={(e) => setSlideMs(Number(e.target.value))} /> <small>{num(lang, sec(slideMs))}</small></label>
+        </div>
+      )}
       <div className="panel">
-        <textarea dir="auto" rows={2} placeholder={t('text_placeholder')} value={text ? text.text : ''} onChange={(e) => setText({ text: e.target.value })} />
+        <span>{t('effect')}</span>
+        <div className="row wrap">
+          {EFFECTS.map((k) => <button key={k} className={effect.kind === k ? 'on' : ''} onClick={() => setDoc({ ...doc, effect: { ...effect, kind: k } })}>{t(`fx_${k}` as never)}</button>)}
+        </div>
+        {effect.kind !== 'none' && <label>{t('effect_strength')} <input type="range" min={0.3} max={2} step={0.1} value={effect.strength} onChange={(e) => setDoc({ ...doc, effect: { ...effect, strength: Number(e.target.value) } })} /></label>}
+      </div>
+      <div className="panel">
+        <span>{t('tab_decor')}</span>
+        <div className="row wrap">
+          {DECORS.map((k: DecorKind) => <button key={k} className={(decor?.kind || 'none') === k ? 'on' : ''} onClick={() => setDoc({ ...doc, decor: k === 'none' ? null : { kind: k, color: decor && decor.kind === k ? decor.color : DECOR_DEFAULT_COLOR[k], text: decor?.text || '' } })}>{t(`decor_${k}` as never)}</button>)}
+        </div>
+        {decor && (
+          <div className="row">
+            <input type="color" value={decor.color} onChange={(e) => setDoc({ ...doc, decor: { ...decor, color: e.target.value } })} aria-label={t('text_color')} />
+            {['bubble', 'thought', 'banner', 'polaroid', 'burst'].includes(decor.kind) && <input dir="auto" placeholder={t('decor_text')} value={decor.text} onChange={(e) => setDoc({ ...doc, decor: { ...decor, text: e.target.value } })} />}
+          </div>
+        )}
+      </div>
+      <div className="panel">
+        <div className="row">
+          {doc.texts.map((x, i) => <button key={x.id} className={i === Math.min(selText, doc.texts.length - 1) ? 'on' : ''} onClick={() => setSelText(i)}>{num(lang, i + 1)}</button>)}
+          <button onClick={addText}>{t('text_add')}</button>
+        </div>
         {text && (
           <>
+            <textarea dir="auto" rows={2} placeholder={t('text_placeholder')} value={text.text} onChange={(e) => setText({ text: e.target.value })} />
             <div className="row">
               <select value={text.font} onChange={(e) => setText({ font: e.target.value as FontKey })}>{(Object.keys(FONTS) as FontKey[]).map((f) => <option key={f} value={f}>{FONTS[f].family.replace('WS ', '')}</option>)}</select>
               <input type="color" value={text.color} onChange={(e) => setText({ color: e.target.value })} aria-label={t('text_color')} />
+              <select value={text.anim || 'none'} onChange={(e) => setText({ anim: e.target.value as TextAnim })} aria-label={t('text_anim')}>{TEXT_ANIMS.map((a) => <option key={a} value={a}>{t(`ta_${a}` as never)}</option>)}</select>
             </div>
             <label>{t('text_size')} <input type="range" min={24} max={140} value={text.size} onChange={(e) => setText({ size: Number(e.target.value) })} /></label>
             <div className="row">{([['pos_top', 0.15], ['pos_middle', 0.5], ['pos_bottom', 0.85]] as const).map(([k, y]) => <button key={k} className={Math.abs(text.y - y) < 0.01 ? 'on' : ''} onClick={() => setText({ y })}>{t(k)}</button>)}</div>
+            <label className="opt"><input type="checkbox" checked={!!text.box} onChange={(e) => setText({ box: e.target.checked ? '#000000' : '' })} />{t('text_box')}</label>
             <button className="danger" onClick={() => setText(null)}>{t('text_delete')}</button>
           </>
         )}
+        {!text && <textarea dir="auto" rows={2} placeholder={t('text_placeholder')} value="" onChange={(e) => setText({ text: e.target.value })} />}
       </div>
+      {cutoutOk && (
+        <div className="panel">
+          <label className="opt"><input type="checkbox" checked={!!doc.cutout} onChange={(e) => setDoc({ ...doc, cutout: e.target.checked, clip: e.target.checked ? clampClip(doc.clip, src.durationMs, Math.min(max, CUTOUT.maxClipMs)) : doc.clip })} />{t('cutout_video')}</label>
+          {doc.cutout && <p className="hint">{t('cutout_hint', { s: num(lang, sec(CUTOUT.maxClipMs)) })}</p>}
+        </div>
+      )}
       <button className="primary" disabled={busy} onClick={() => { stopRef.current(); onNext(); }}>{t('make')}</button>
     </div>
   );
@@ -263,13 +366,19 @@ function AnimEditor({ src, doc, setDoc, tab, t, lang, onNext }: { src: AnimSourc
 
 /* ------------------------------------------------------------------ export */
 
-type Prog = { k: 'capturing' | 'rendering' | 'encoding'; p: number } | null;
+type Prog = { k: 'capturing' | 'rendering' | 'encoding' | 'cutting'; p: number } | null;
 
 async function framesFor(src: AnimSource, doc: AnimDoc, target: AnimTarget, fps: number, maxMs: number, setProg: (p: Prog) => void): Promise<{ frames: ImageData[]; plan: Plan }> {
   const plan = planFrames(doc.clip, fps, maxMs);
+  let maskAt;
+  if (doc.cutout) {
+    setProg({ k: 'cutting', p: 0 });
+    const { prepareCutout } = await import('../engine/anim/cutout');
+    maskAt = await prepareCutout(src, planTimes(plan), (q) => setProg({ k: 'cutting', p: Math.round(q * 100) }));
+  }
   setProg({ k: 'capturing', p: 0 });
   await src.prepare?.(planTimes(plan), (q) => setProg({ k: 'capturing', p: Math.round(q * 100) }));
-  const r = makeRenderer(src, doc, target, outputSize(doc, src, target));
+  const r = makeRenderer(src, doc, target, outputSize(doc, src, target), undefined, maskAt);
   const frames = await renderAll(r, plan, (q) => setProg({ k: 'rendering', p: Math.round(q * 100) }));
   return { frames, plan };
 }
@@ -296,22 +405,25 @@ function AnimExport(p: AnimProps & { src: AnimSource; doc: AnimDoc; tab: Tab }) 
   return <ExportFiles {...p} />;
 }
 
-function ExportTelegram({ src, doc, info, t, lang, onError, onAgain }: AnimProps & { src: AnimSource; doc: AnimDoc }) {
+function ExportTelegram({ src, doc, info, t, lang, onError, onAgain, emoji: emoji0, packId }: AnimProps & { src: AnimSource; doc: AnimDoc }) {
+  const [kind, setKind] = useState<TgKind>(emoji0 && info.flags.emoji ? 'emoji' : 'sticker');
   const [prog, setProg] = useState<Prog>(null);
   const [res, setRes] = useState<{ bytes: Uint8Array; url: string; line: string; violations: string[] } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [choice, setChoice] = useState<TgChoice>(() => defaultTgChoice(info));
+  const [choice, setChoice] = useState<TgChoice>(() => defaultTgChoice(info, kind, packId));
   const [saving, setSaving] = useState<number | null>(null);
   const [done, setDone] = useState<SaveResult | null>(null);
   useEffect(() => {
     let live = true;
+    setRes(null);
+    setMsg(null);
     void (async () => {
       try {
         const fps = Math.min(TELEGRAM.video.maxFps, src.fps && src.fps < 30 ? Math.max(15, src.fps) : 30);
-        const { frames } = await framesFor(src, doc, 'telegram', fps, TELEGRAM.video.maxDurationMs, setProg);
+        const { frames } = await framesFor(src, doc, kind === 'emoji' ? 'emoji' : 'telegram', fps, TELEGRAM.video.maxDurationMs, setProg);
         setProg({ k: 'encoding', p: 0 });
         const { toTelegramVideo } = await import('../engine/anim/vp9');
-        const out = await toTelegramVideo(frames, fps, (q) => setProg({ k: 'encoding', p: Math.round(q * 100) }));
+        const out = await toTelegramVideo(frames, fps, (q) => setProg({ k: 'encoding', p: Math.round(q * 100) }), kind);
         if (!live) return;
         setRes({ bytes: out.bytes, url: blobUrl(out.bytes, 'video/webm'), violations: out.violations, line: t('result_video', { w: out.width, h: out.height, fps: out.fps, s: num(lang, sec(out.durationMs)), kb: kb(out.bytes.length) }) });
       } catch (e) {
@@ -326,26 +438,31 @@ function ExportTelegram({ src, doc, info, t, lang, onError, onAgain }: AnimProps
     return () => {
       live = false;
     };
-  }, [src, doc, t, lang, onError]);
+  }, [src, doc, t, lang, onError, kind]);
+  const switcher = info.flags.emoji && (
+    <div className="row">
+      {(['sticker', 'emoji'] as TgKind[]).map((k) => <button key={k} className={kind === k ? 'on' : ''} disabled={!!prog} onClick={() => { setKind(k); setChoice(defaultTgChoice(info, k, packId)); }}>{t(k === 'emoji' ? 'kind_emoji' : 'kind_sticker')}</button>)}
+    </div>
+  );
   if (done) {
-    const text = done.action === 'new' ? t('saved_new', { title: choice.title || '' }) : done.action === 'add' ? t('saved_add', { title: info.packs.find((x) => x.id === choice.packId)?.title || '', n: done.count || 0 }) : t('saved_send');
+    const title = choice.action === 'new' ? choice.title || '' : info.packs.find((x) => x.id === choice.packId)?.title || '';
+    const text = done.action === 'new' ? t('saved_new', { title }) : done.action === 'add' ? t('saved_add', { title, n: done.count || 0 }) : t('saved_send');
     return (
       <div className="center">
         <p className="big">{text}</p>
-        {done.name && <button className="primary" onClick={() => tg().openTelegramLink?.(`https://t.me/addstickers/${done.name}`)}>{t('open_pack')}</button>}
+        {done.name && <button className="primary" onClick={() => tg().openTelegramLink?.(packLink(done.name!, kind))}>{t('open_pack')}</button>}
         <button onClick={onAgain}>{t('another')}</button>
         <button onClick={() => tg().close?.()}>{t('close')}</button>
       </div>
     );
   }
-  if (msg) return <div className="center"><p className="note">{msg}</p></div>;
-  if (!res) return <Progress t={t} prog={prog || { k: 'capturing', p: 0 }} />;
+  if (msg) return <div className="export">{switcher}<p className="note">{msg}</p></div>;
+  if (!res) return <><div className="export">{switcher}</div><Progress t={t} prog={prog || { k: 'capturing', p: 0 }} /></>;
   const save = async () => {
     setSaving(0);
     try {
-      const r = await saveTelegram(info, res.bytes, 'telegram_video', 'webm', choice, (q) => setSaving(Math.round(q * 100)));
+      const r = await saveTelegram(info, res.bytes, kind === 'emoji' ? 'emoji_video' : 'telegram_video', 'webm', choice, (q) => setSaving(Math.round(q * 100)));
       tg().HapticFeedback?.notificationOccurred('success');
-      if (r.action === 'new' && r.packId) info.packs.unshift({ id: r.packId, title: (choice.title || '').trim(), count: 1, name: r.name || '' });
       setDone(r);
     } catch (e) {
       setSaving(null);
@@ -355,11 +472,12 @@ function ExportTelegram({ src, doc, info, t, lang, onError, onAgain }: AnimProps
   };
   return (
     <div className="export">
-      <h2>{t('save_title')}</h2>
-      <div className="preview checker"><video src={res.url} autoPlay loop muted playsInline /></div>
+      {switcher}
+      <h2>{t(kind === 'emoji' ? 'save_title_emoji' : 'save_title')}</h2>
+      <div className={`preview checker ${kind === 'emoji' ? 'small' : ''}`}><video src={res.url} autoPlay loop muted playsInline /></div>
       <p className="hint">{res.line}</p>
       {res.violations.length > 0 && <p className="note">{t('invalid', { why: res.violations.join(', ') })}</p>}
-      <TelegramChoice info={info} t={t} lang={lang} value={choice} onChange={setChoice} />
+      <TelegramChoice info={info} t={t} lang={lang} value={choice} onChange={setChoice} kind={kind} />
       <button className="primary" disabled={saving !== null || res.violations.length > 0 || !tgChoiceReady(choice)} onClick={() => void save()}>{saving === null ? t('save_btn') : t('saving', { p: saving })}</button>
     </div>
   );

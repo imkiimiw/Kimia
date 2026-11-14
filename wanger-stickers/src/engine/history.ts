@@ -12,6 +12,8 @@ const snap = (d: StickerDoc): Snap => ({
   shadow: d.shadow,
   adjust: { ...d.adjust },
   texts: d.texts.map((t) => ({ ...t })),
+  decor: d.decor ? { ...d.decor } : null,
+  strokes: (d.strokes || []).map((st) => ({ ...st, points: st.points.slice() })),
   mask: d.mask.data.slice(),
 });
 
@@ -58,5 +60,7 @@ function apply(d: StickerDoc, s: Snap) {
   d.shadow = s.shadow;
   d.adjust = { ...s.adjust };
   d.texts = s.texts.map((t) => ({ ...t }));
+  d.decor = s.decor ? { ...s.decor } : null;
+  d.strokes = (s.strokes || []).map((st) => ({ ...st, points: st.points.slice() }));
   d.mask.set(s.mask);
 }

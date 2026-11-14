@@ -150,3 +150,23 @@ test('WhatsApp helpers: identifier, one-line texts, 1–3 emojis, file names', (
   assert.equal(waFileName(0), '01.webp');
   assert.equal(waFileName(29), '30.webp');
 });
+
+test('motion effects loop seamlessly; text animations progress; ≥ 6 effects and text motions', async () => {
+  const { EFFECTS, TEXT_ANIMS, motionAt, textAt, graphemes } = await import('../src/engine/effects.ts');
+  assert.ok(EFFECTS.filter((e) => e !== 'none').length >= 6);
+  assert.ok(TEXT_ANIMS.filter((e) => e !== 'none').length >= 4);
+  for (const k of EFFECTS) {
+    const a = motionAt(k, 0, 1);
+    const b = motionAt(k, 1, 1);
+    for (const f of ['dx', 'dy', 'scale', 'alpha', 'glow']) assert.ok(Math.abs(a[f] - b[f]) < 1e-6, `${k}.${f} loops`);
+    assert.ok(Math.abs(Math.cos(a.rotate) - Math.cos(b.rotate)) < 1e-6, `${k} rotation loops`);
+    if (k !== 'none') assert.ok([0.1, 0.25, 0.4, 0.6].some((p) => JSON.stringify(motionAt(k, p, 1)) !== JSON.stringify(a)), `${k} moves`);
+  }
+  const n = graphemes('سلام 👍🏽!').length;
+  assert.equal(n, 7);
+  const shown = [0, 0.2, 0.4, 0.69, 0.9].map((p) => textAt('typewriter', p, n).chars);
+  assert.deepEqual(shown, [...shown].sort((x, y) => x - y));
+  assert.equal(shown[0], 0);
+  assert.equal(shown[4], n);
+  assert.ok(textAt('pop', 0, n).scale < textAt('pop', 0.5, n).scale + 1e-9);
+});

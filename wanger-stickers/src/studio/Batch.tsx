@@ -61,7 +61,6 @@ function Runner({ info, t, lang, items, onAgain, onError, platform0, aiKey = 'ba
           const res = await toTelegramStatic(d);
           const r = await saveTelegram(info, res.bytes, 'telegram_static', res.format, tgChoice, undefined, i < n - 1);
           if (r.action === 'new' && r.packId) {
-            info.packs.unshift({ id: r.packId, title: (tgChoice.title || '').trim(), count: 1, name: r.name || '' });
             tgChoice = { ...tgChoice, action: 'add', packId: r.packId };
           }
           last = r;

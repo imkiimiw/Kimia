@@ -12,18 +12,28 @@ export interface TgChoice {
   packId?: number;
   title?: string;
   emojis: string;
+  repaint?: boolean; // a new custom emoji pack whose emoji take the text colour
 }
 
-/** Pack radio list + new title + "just send" + emojis. `allowSend` = false for batches. */
-export function TelegramChoice({ info, t, lang, value, onChange, allowSend = true }: { info: Boot; t: T; lang: Lang; value: TgChoice; onChange: (c: TgChoice) => void; allowSend?: boolean }) {
-  const max = info.limits.set.maxStickersRegular;
+export type TgKind = 'sticker' | 'emoji';
+const packsOf = (info: Boot, kind: TgKind) => info.packs.filter((p) => (p.kind || 'sticker') === kind);
+export const maxOf = (info: Boot, kind: TgKind) => (kind === 'emoji' ? info.limits.set.maxStickersEmoji || 200 : info.limits.set.maxStickersRegular);
+
+/**
+ * Pack radio list + new title + "just send" + emojis. `kind` = regular stickers or custom emoji
+ * (their packs never mix); `allowSend` = false for batches and emoji.
+ */
+export function TelegramChoice({ info, t, lang, value, onChange, allowSend = true, kind = 'sticker' }: { info: Boot; t: T; lang: Lang; value: TgChoice; onChange: (c: TgChoice) => void; allowSend?: boolean; kind?: TgKind }) {
+  const max = maxOf(info, kind);
+  const packs = packsOf(info, kind);
+  if (kind === 'emoji') allowSend = false;
   const key = value.action === 'add' ? `p${value.packId}` : value.action;
   const pick = (k: string) => onChange(k === 'new' ? { ...value, action: 'new' } : k === 'send' ? { ...value, action: 'send' } : { ...value, action: 'add', packId: Number(k.slice(1)) });
   return (
     <>
       <fieldset>
         <legend>{t('save_to_pack')}</legend>
-        {info.packs.map((p) => {
+        {packs.map((p) => {
           const full = p.count >= max;
           return (
             <label key={p.id} className={`opt ${full ? 'off' : ''}`}>
@@ -33,7 +43,8 @@ export function TelegramChoice({ info, t, lang, value, onChange, allowSend = tru
           );
         })}
         <label className="opt"><input type="radio" name="tgt" checked={key === 'new'} onChange={() => pick('new')} />{t('save_new')}</label>
-        {value.action === 'new' && <input dir="auto" maxLength={info.limits.set.titleMaxChars} placeholder={t('save_title_ph')} value={value.title || ''} onChange={(e) => onChange({ ...value, title: e.target.value })} />}
+        {value.action === 'new' && <input dir="auto" maxLength={info.limits.set.titleMaxChars} placeholder={t(kind === 'emoji' ? 'emoji_title_ph' : 'save_title_ph')} value={value.title || ''} onChange={(e) => onChange({ ...value, title: e.target.value })} />}
+        {value.action === 'new' && kind === 'emoji' && <label className="opt"><input type="checkbox" checked={!!value.repaint} onChange={(e) => onChange({ ...value, repaint: e.target.checked })} />{t('emoji_repaint')}</label>}
         {allowSend && <label className="opt"><input type="radio" name="tgt" checked={key === 'send'} onChange={() => pick('send')} />{t('save_send')}</label>}
       </fieldset>
       <label>{t('save_emoji')}<input value={value.emojis} onChange={(e) => onChange({ ...value, emojis: e.target.value })} /></label>
@@ -42,9 +53,11 @@ export function TelegramChoice({ info, t, lang, value, onChange, allowSend = tru
 }
 
 export const tgChoiceReady = (c: TgChoice) => c.action !== 'new' || !!(c.title || '').trim();
-export const defaultTgChoice = (info: Boot): TgChoice => {
-  const free = info.packs.filter((p) => p.count < info.limits.set.maxStickersRegular);
-  return free.length ? { action: 'add', packId: free[0].id, emojis: '😀' } : { action: 'new', title: '', emojis: '😀' };
+export const defaultTgChoice = (info: Boot, kind: TgKind = 'sticker', packId?: number | null): TgChoice => {
+  const free = packsOf(info, kind).filter((p) => p.count < maxOf(info, kind));
+  const want = packId ? free.find((p) => p.id === packId) : null;
+  const pick = want || free[0];
+  return pick ? { action: 'add', packId: pick.id, emojis: '😀' } : { action: 'new', title: '', emojis: '😀' };
 };
 
 export interface WaChoice {
@@ -92,10 +105,21 @@ export function WhatsAppChoice({ info, t, lang, kind, value, onChange }: { info:
 }
 
 /** Uploads one Telegram sticker (static or video) to the chosen target. */
-export function saveTelegram(info: Boot, bytes: Uint8Array, kind: UploadKind, format: UploadFormat, c: TgChoice, onProgress?: (p: number) => void, quiet = false): Promise<SaveResult> {
-  const target = c.action === 'new' ? { action: 'new' as const, title: (c.title || '').trim() } : c.action === 'send' ? { action: 'send' as const } : { action: 'add' as const, packId: c.packId };
-  return saveFile(bytes, kind, format, { ...target, emojis: c.emojis, ...(quiet ? { quiet: true } : {}) }, info.limits.chunkBytes, onProgress);
+export async function saveTelegram(info: Boot, bytes: Uint8Array, kind: UploadKind, format: UploadFormat, c: TgChoice, onProgress?: (p: number) => void, quiet = false): Promise<SaveResult> {
+  const emoji = kind === 'emoji_static' || kind === 'emoji_video';
+  const target = c.action === 'new' ? { action: 'new' as const, title: (c.title || '').trim(), ...(emoji && c.repaint ? { repaint: true } : {}) } : c.action === 'send' ? { action: 'send' as const } : { action: 'add' as const, packId: c.packId };
+  const r = await saveFile(bytes, kind, format, { ...target, emojis: c.emojis, ...(quiet ? { quiet: true } : {}) }, info.limits.chunkBytes, onProgress);
+  // keep the boot data current for the next sticker of this session
+  if (r.action === 'new' && r.packId && !info.packs.some((p) => p.id === r.packId)) info.packs.unshift({ id: r.packId, title: (c.title || '').trim(), count: 1, name: r.name || '', kind: emoji ? 'emoji' : 'sticker' });
+  else if (r.action === 'add') {
+    const p = info.packs.find((x) => x.id === c.packId);
+    if (p && r.count) p.count = r.count;
+  }
+  return r;
 }
+
+/** The Telegram link that adds a pack (custom emoji packs use addemoji). */
+export const packLink = (name: string, kind: TgKind) => `https://t.me/${kind === 'emoji' ? 'addemoji' : 'addstickers'}/${name}`;
 
 /**
  * Uploads one WhatsApp sticker; when the pack has no tray icon yet, uploads it too. Returns the

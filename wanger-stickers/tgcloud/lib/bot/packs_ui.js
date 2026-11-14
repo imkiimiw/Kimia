@@ -159,10 +159,14 @@ const wa = (text, url) => [{ text, web_app: { url } }];
 /** Buttons that fit the job's kind; only features whose flag is on (brief §1 rule 7). */
 export function studioButtons(app, job) {
   const rows = [];
+  const extras = [];
+  if (app.flag('emoji')) extras.push({ text: app.tp('media.btn_emoji'), web_app: { url: studioUrl(job, false, 'emoji') } });
+  extras.push({ text: app.tp('media.btn_meme'), web_app: { url: studioUrl(job, false, 'meme') } });
   if (!ANIMATED_KINDS.has(job.source_kind)) {
     rows.push(wa(app.tp('media.btn_open'), studioUrl(job)));
     rows.push(wa(app.tp('media.btn_quick'), studioUrl(job, true)));
     if (app.flag('whatsapp')) rows.push(wa(app.tp('media.btn_wa'), studioUrl(job, false, 'wa')));
+    rows.push(extras);
     return markup(rows);
   }
   if (app.flag('video')) {
@@ -171,6 +175,7 @@ export function studioButtons(app, job) {
   }
   if (app.flag('gif_studio')) rows.push(wa(app.tp('media.btn_gif'), studioUrl(job, false, 'gif')));
   if (app.flag('whatsapp')) rows.push(wa(app.tp('media.btn_wa_anim'), studioUrl(job, false, 'wa')));
+  if (app.flag('video') || app.flag('gif_studio')) rows.push(extras);
   return markup(rows);
 }
 

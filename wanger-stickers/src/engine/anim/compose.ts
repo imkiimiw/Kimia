@@ -1,18 +1,22 @@
 // The animated document and its per-frame compositor (browser). A document = source + clip +
-// crop + shape + background + text layers. Text is rendered ONCE to a transparent overlay and then
-// composited onto every frame (brief §9: never FFmpeg drawtext; the browser shapes Persian).
+// crop + shape + background + text layers (+ Phase 4: motion effect, template, per-frame cut-out).
+// Still text is rendered ONCE to a transparent overlay and composited onto every frame (brief §9:
+// never FFmpeg drawtext; the browser shapes Persian); animated text is drawn per frame.
 // Output geometry per target:
 //   telegram  long side exactly 512, the other ≤ 512 (circle / rounded → 512×512)
 //   whatsapp  exactly 512×512, the art centred inside a transparent margin
 //   gif / mp4 / webp  long side ≤ the chosen size (mp4: even numbers, H.264 needs them)
+//   emoji     exactly 100×100 (custom emoji, Phase 4)
 import { makeCanvas, ctx2d, type Canvas, type Ctx } from '../image';
 import { drawText, type TextLayer } from '../text';
+import { decorInset, drawDecorOver, drawDecorUnder, type Decor } from '../decor';
+import { motionAt, pivotOf, textAt, graphemes, type EffectKind } from '../effects';
 import { TELEGRAM, WHATSAPP } from '../limits';
 import type { AnimSource } from './source';
 import type { Clip, Plan, PlannedFrame } from './timeline';
 
 export type AnimShape = 'none' | 'circle' | 'rounded';
-export type AnimTarget = 'telegram' | 'whatsapp' | 'gif' | 'mp4' | 'webp';
+export type AnimTarget = 'telegram' | 'whatsapp' | 'gif' | 'mp4' | 'webp' | 'emoji';
 
 export interface AnimDoc {
   clip: Clip;
@@ -22,10 +26,16 @@ export interface AnimDoc {
   /** Fill behind the art (null = transparent; MP4 always gets a colour). */
   bg: string | null;
   texts: TextLayer[];
+  /** Motion effect over the loop (Phase 4). */
+  effect?: { kind: EffectKind; strength: number };
+  /** Template (Phase 4). */
+  decor?: Decor | null;
+  /** Remove the background of every frame (Phase 4, experimental). */
+  cutout?: boolean;
 }
 
 export function newAnimDoc(clip: Clip, round = false): AnimDoc {
-  return { clip, crop: { x: 0, y: 0, w: 1, h: 1 }, shape: round ? 'circle' : 'none', bg: null, texts: [] };
+  return { clip, crop: { x: 0, y: 0, w: 1, h: 1 }, shape: round ? 'circle' : 'none', bg: null, texts: [], effect: { kind: 'none', strength: 1 }, decor: null, cutout: false };
 }
 
 /** A centred square crop (for "square" and round videos). */
@@ -48,6 +58,8 @@ export function outputSize(doc: AnimDoc, src: { width: number; height: number },
   const square = doc.shape !== 'none';
   const aspect = square ? 1 : cw / ch;
   if (target === 'whatsapp') return { w: WHATSAPP.animated.width, h: WHATSAPP.animated.height };
+  if (target === 'emoji') return { w: TELEGRAM.customEmoji.width, h: TELEGRAM.customEmoji.height };
+  if (doc.decor && doc.decor.kind !== 'none' && target === 'telegram') return { w: TELEGRAM.video.side, h: TELEGRAM.video.side };
   if (target === 'telegram') {
     const S = TELEGRAM.video.side;
     return aspect >= 1 ? { w: S, h: Math.max(1, Math.min(S, Math.round(S / aspect))) } : { w: Math.max(1, Math.min(S, Math.round(S * aspect))), h: S };
@@ -78,52 +90,97 @@ export interface Renderer {
   draw(f: PlannedFrame): Promise<Canvas>;
 }
 
+/** Per-frame cut-out masks (alpha canvases) by source time, from anim/cutout.ts. */
+export type MaskAt = (t: number) => Canvas | null;
+
 /**
  * A renderer for one (document, target, size). `opaqueBg` forces a background colour (MP4 has no
- * alpha). The text overlay and the art rectangle are computed once.
+ * alpha). Static layers (text without animation, the template's still parts) are drawn once.
  */
-export function makeRenderer(src: AnimSource, doc: AnimDoc, target: AnimTarget, size: Size, opaqueBg?: string): Renderer {
+export function makeRenderer(src: AnimSource, doc: AnimDoc, target: AnimTarget, size: Size, opaqueBg?: string, maskAt?: MaskAt): Renderer {
   const out = makeCanvas(size.w, size.h);
   const x = ctx2d(out, { willReadFrequently: true });
-  // the art rectangle inside the output
-  const margin = target === 'whatsapp' ? WHATSAPP.marginPx : 0;
+  const scale = Math.max(size.w, size.h) / 512;
+  // the art rectangle inside the output (the WhatsApp margin and the template's room)
+  const margin = target === 'whatsapp' ? WHATSAPP.marginPx * scale : 0;
+  const decor = doc.decor && doc.decor.kind !== 'none' ? doc.decor : null;
+  const ins = decorInset(decor);
   const cw = doc.crop.w * src.width;
   const ch = doc.crop.h * src.height;
   const aspect = doc.shape !== 'none' ? 1 : cw / ch;
-  const boxW = size.w - margin * 2;
-  const boxH = size.h - margin * 2;
+  const boxX = size.w * ins.left + margin;
+  const boxY = size.h * ins.top + margin;
+  const boxW = size.w * (1 - ins.left - ins.right) - margin * 2;
+  const boxH = size.h * (1 - ins.top - ins.bottom) - margin * 2;
   const k = Math.min(boxW / aspect, boxH);
   const aw = k * aspect;
   const ah = k;
-  const ax = (size.w - aw) / 2;
-  const ay = (size.h - ah) / 2;
+  const ax = boxX + (boxW - aw) / 2;
+  const ay = boxY + (boxH - ah) / 2;
   // for a square shape on a non-square crop: cover the square with the crop's centre
   const sx = doc.crop.x * src.width, sy = doc.crop.y * src.height;
   let srcRect = { x: sx, y: sy, w: cw, h: ch };
   if (doc.shape !== 'none' && Math.abs(cw - ch) > 0.5) {
-    const s = Math.min(cw, ch);
-    srcRect = { x: sx + (cw - s) / 2, y: sy + (ch - s) / 2, w: s, h: s };
+    const s2 = Math.min(cw, ch);
+    srcRect = { x: sx + (cw - s2) / 2, y: sy + (ch - s2) / 2, w: s2, h: s2 };
   }
+  const effect = doc.effect && doc.effect.kind !== 'none' ? doc.effect : null;
+  const animText = doc.texts.some((t) => t.anim && t.anim !== 'none' && t.text.trim());
+  const animDecor = !!decor && (decor.kind === 'sparkles' || decor.kind === 'hearts');
+  // still text and template drawn once
   const overlay = makeCanvas(size.w, size.h);
   const ox = ctx2d(overlay);
-  for (const t of doc.texts) drawText(ox, t, size.w, size.h, Math.max(size.w, size.h) / 512);
-  const hasText = doc.texts.some((t) => t.text.trim());
+  if (!animText && !animDecor) {
+    drawDecorOver(ox, decor, size.w, size.h, scale);
+    for (const t of doc.texts) drawText(ox, t, size.w, size.h, scale);
+  }
+  const hasOverlay = !animText && !animDecor && (!!decor || doc.texts.some((t) => t.text.trim()));
+  const cut = doc.cutout && maskAt ? makeCanvas(src.width, src.height) : null;
+  const cutX = cut ? ctx2d(cut) : null;
 
-  const paint = (frame: Canvas, alpha: number) => {
+  const paint = (frame: Canvas, t: number, alpha: number) => {
+    let img: Canvas = frame;
+    if (cut && cutX && maskAt) {
+      const m = maskAt(t);
+      if (m) {
+        cutX.globalCompositeOperation = 'copy';
+        cutX.drawImage(frame as CanvasImageSource, 0, 0, cut.width, cut.height);
+        cutX.globalCompositeOperation = 'destination-in';
+        cutX.drawImage(m as CanvasImageSource, 0, 0, cut.width, cut.height);
+        cutX.globalCompositeOperation = 'source-over';
+        img = cut;
+      }
+    }
     x.globalAlpha = alpha;
-    x.drawImage(frame as CanvasImageSource, srcRect.x, srcRect.y, srcRect.w, srcRect.h, ax, ay, aw, ah);
+    x.drawImage(img as CanvasImageSource, srcRect.x, srcRect.y, srcRect.w, srcRect.h, ax, ay, aw, ah);
     x.globalAlpha = 1;
   };
 
   return {
     size,
     async draw(f: PlannedFrame) {
+      const phase = f.phase ?? 0;
       x.clearRect(0, 0, size.w, size.h);
       if (opaqueBg) {
         x.fillStyle = opaqueBg;
         x.fillRect(0, 0, size.w, size.h);
       }
+      drawDecorUnder(x, decor, size.w, size.h, scale);
       x.save();
+      if (effect) {
+        const mo = motionAt(effect.kind, phase, effect.strength);
+        const px = ax + aw / 2;
+        const py = pivotOf(effect.kind) === 'top' ? ay : ay + ah / 2;
+        x.translate(px + mo.dx * aw, py + mo.dy * ah);
+        x.rotate(mo.rotate);
+        x.scale(mo.scale, mo.scale);
+        x.translate(-px, -py);
+        x.globalAlpha = mo.alpha;
+        if (mo.glow > 0) {
+          x.shadowColor = `rgba(255,255,255,${0.95 * mo.glow})`;
+          x.shadowBlur = 24 * scale * mo.glow;
+        }
+      }
       if (doc.shape !== 'none') {
         shapePath(x, doc.shape, ax, ay, aw, ah);
         x.clip();
@@ -133,10 +190,17 @@ export function makeRenderer(src: AnimSource, doc: AnimDoc, target: AnimTarget, 
         x.fillRect(ax, ay, aw, ah);
       }
       x.imageSmoothingQuality = 'high';
-      paint(await src.frameAt(f.t), 1);
-      if (f.mix && f.mix.w > 0) paint(await src.frameAt(f.mix.t), f.mix.w);
+      paint(await src.frameAt(f.t), f.t, 1);
+      if (f.mix && f.mix.w > 0) paint(await src.frameAt(f.mix.t), f.mix.t, f.mix.w);
       x.restore();
-      if (hasText) x.drawImage(overlay as CanvasImageSource, 0, 0);
+      if (hasOverlay) x.drawImage(overlay as CanvasImageSource, 0, 0);
+      else if (animText || animDecor) {
+        drawDecorOver(x, decor, size.w, size.h, scale, phase);
+        for (const t of doc.texts) {
+          const a = t.anim && t.anim !== 'none' ? textAt(t.anim, phase, graphemes(t.text).length) : undefined;
+          drawText(x, t, size.w, size.h, scale, a);
+        }
+      }
       return out;
     },
   };

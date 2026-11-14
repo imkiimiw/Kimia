@@ -4,7 +4,15 @@
 import { makeCanvas, ctx2d, alphaBounds, type Canvas } from './image';
 import type { Mask } from './mask';
 import { drawText, type TextLayer } from './text';
+import { decorInset, drawDecorOver, drawDecorUnder, type Decor } from './decor';
 import { TELEGRAM } from './limits';
+
+/** A pen stroke (Phase 4): points in canvas fractions, width in px at 512. */
+export interface Stroke {
+  color: string;
+  width: number;
+  points: [number, number][];
+}
 
 export type Shape = 'free' | 'square' | 'circle' | 'rounded';
 
@@ -18,6 +26,26 @@ export interface StickerDoc {
   shadow: boolean;
   adjust: { brightness: number; contrast: number; saturation: number }; // 100 = unchanged
   texts: TextLayer[];
+  decor?: Decor | null; // template (Phase 4)
+  strokes?: Stroke[]; // pen drawing (Phase 4)
+}
+
+export function drawStrokes(x: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, strokes: Stroke[] | undefined, W: number, H: number, scale: number): void {
+  if (!strokes || !strokes.length) return;
+  x.save();
+  x.lineCap = 'round';
+  x.lineJoin = 'round';
+  for (const st of strokes) {
+    if (!st.points.length) continue;
+    x.strokeStyle = st.color;
+    x.lineWidth = st.width * scale;
+    x.beginPath();
+    x.moveTo(st.points[0][0] * W, st.points[0][1] * H);
+    for (const [px, py] of st.points.slice(1)) x.lineTo(px * W, py * H);
+    if (st.points.length === 1) x.lineTo(st.points[0][0] * W + 0.1, st.points[0][1] * H);
+    x.stroke();
+  }
+  x.restore();
 }
 
 export function newDoc(src: Canvas, mask: Mask): StickerDoc {
@@ -31,6 +59,8 @@ export function newDoc(src: Canvas, mask: Mask): StickerDoc {
     shadow: true,
     adjust: { brightness: 100, contrast: 100, saturation: 100 },
     texts: [],
+    decor: null,
+    strokes: [],
   };
 }
 
@@ -144,8 +174,12 @@ export function renderSticker(doc: StickerDoc, side: number = TELEGRAM.static.si
   const outlineW = doc.outline.on ? doc.outline.width * scale512 : 0;
   const shadowPad = doc.shadow ? 8 * scale512 : 0;
   const margin = Math.ceil(outlineW + shadowPad + 2 * scale512);
-  const inner = side - margin * 2;
-  const k = inner / Math.max(subject.width, subject.height);
+  const decor = doc.decor && doc.decor.kind !== 'none' ? doc.decor : null;
+  const ins = decorInset(decor);
+  // with a template the sticker is square and the art fits the room the template leaves
+  const boxW = side * (1 - ins.left - ins.right) - margin * 2;
+  const boxH = side * (1 - ins.top - ins.bottom) - margin * 2;
+  const k = decor ? Math.min(boxW / subject.width, boxH / subject.height) : (side - margin * 2) / Math.max(subject.width, subject.height);
   const sw = Math.max(1, Math.round(subject.width * k));
   const sh = Math.max(1, Math.round(subject.height * k));
   const scaled = makeCanvas(sw, sh);
@@ -154,17 +188,22 @@ export function renderSticker(doc: StickerDoc, side: number = TELEGRAM.static.si
   scx.drawImage(subject as CanvasImageSource, 0, 0, sw, sh);
   const withOutline = outlined(scaled, outlineW, doc.outline.color);
   // final canvas: the long side is exactly `side`
-  const W = sw >= sh ? side : Math.min(side, sw + margin * 2);
-  const H = sh > sw ? side : Math.min(side, sh + margin * 2);
+  const W = decor ? side : sw >= sh ? side : Math.min(side, sw + margin * 2);
+  const H = decor ? side : sh > sw ? side : Math.min(side, sh + margin * 2);
   const out = makeCanvas(W, H);
   const x = ctx2d(out);
+  drawDecorUnder(x, decor, W, H, scale512);
   if (doc.shadow) {
     x.shadowColor = 'rgba(0,0,0,0.35)';
     x.shadowBlur = 8 * scale512;
     x.shadowOffsetY = 3 * scale512;
   }
-  x.drawImage(withOutline as CanvasImageSource, (W - withOutline.width) / 2, (H - withOutline.height) / 2);
+  const cx = decor ? W * (ins.left + (1 - ins.left - ins.right) / 2) : W / 2;
+  const cy = decor ? H * (ins.top + (1 - ins.top - ins.bottom) / 2) : H / 2;
+  x.drawImage(withOutline as CanvasImageSource, cx - withOutline.width / 2, cy - withOutline.height / 2);
   x.shadowColor = 'transparent';
+  drawStrokes(x, doc.strokes, W, H, scale512);
+  drawDecorOver(x, decor, W, H, scale512);
   for (const t of doc.texts) drawText(x, t, W, H, scale512);
   return { canvas: out, width: W, height: H };
 }

@@ -4,7 +4,7 @@
 import { renderSticker, type StickerDoc } from './render';
 import { ctx2d, canvasToBlob, makeCanvas, type Canvas } from './image';
 import { TELEGRAM, WHATSAPP, SIZE_TARGETING } from './limits';
-import { validateTelegramStatic, validateWhatsAppStatic, validateWhatsAppTray } from '../../tgcloud/lib/core/validate.js';
+import { validateTelegramStatic, validateWhatsAppStatic, validateWhatsAppTray, validateCustomEmojiStatic } from '../../tgcloud/lib/core/validate.js';
 
 export interface ExportResult {
   bytes: Uint8Array;
@@ -76,6 +76,27 @@ export function waCanvas(src: Canvas): Canvas {
   x.imageSmoothingQuality = 'high';
   x.drawImage(src as CanvasImageSource, (S - w) / 2, (S - h) / 2, w, h);
   return out;
+}
+
+/** Custom emoji (Phase 4): the sticker scaled into exactly 100×100 (centred, transparent), WebP. */
+export async function toCustomEmojiStatic(doc: StickerDoc): Promise<ExportResult & { canvas: Canvas }> {
+  const r = renderSticker(doc);
+  if (!r) throw new Error('EMPTY');
+  const E = TELEGRAM.customEmoji;
+  const canvas = makeCanvas(E.width, E.height);
+  const x = ctx2d(canvas, { willReadFrequently: true });
+  const k = Math.min(E.width / r.width, E.height / r.height);
+  const w = r.width * k, h = r.height * k;
+  x.imageSmoothingQuality = 'high';
+  x.drawImage(r.canvas as CanvasImageSource, (E.width - w) / 2, (E.height - h) / 2, w, h);
+  const img = x.getImageData(0, 0, E.width, E.height);
+  const encode = await webpEncoder();
+  if (encode) {
+    const best = await searchWebp(encode, img, TELEGRAM.static.maxBytes);
+    if (best) return { bytes: best.bytes, format: 'webp', width: E.width, height: E.height, quality: best.q, encodes: best.n, violations: validateCustomEmojiStatic(best.bytes, 'webp').violations, canvas };
+  }
+  const png = new Uint8Array(await (await canvasToBlob(canvas, 'image/png')).arrayBuffer());
+  return { bytes: png, format: 'png', width: E.width, height: E.height, quality: null, encodes: 1, violations: validateCustomEmojiStatic(png, 'png').violations, canvas };
 }
 
 /** WhatsApp tray icon: PNG, exactly 96×96, ≤ 50 KB, from any sticker frame. */

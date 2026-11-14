@@ -580,4 +580,6 @@ export default {
   'flag.emoji': 'پک ایموجی سفارشی',
   'flag.share': 'لینک اشتراک و QR',
   'flag.anim_bg': 'حذف پس\u200cزمینه\u200cی ویدیو (آزمایشی)',
+  'media.btn_emoji': '😀 ایموجی سفارشی',
+  'media.btn_meme': '😂 میم',
 };

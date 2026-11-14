@@ -1,12 +1,12 @@
 {
-  "at": "2026-11-14T13:31:30.842Z",
+  "at": "2026-11-14T14:45:51.186Z",
   "photo": "photo2.jpg",
   "photoBytes": 67659,
-  "openMs": 1961,
-  "autoRemoveMs": 2815,
-  "exportMs": 444,
+  "openMs": 1769,
+  "autoRemoveMs": 2698,
+  "exportMs": 366,
   "exportLine": "اندازه: ۳۴۲×۵۱۲ · ۳۹ کیلوبایت · WEBP",
-  "totalMs": 6048,
+  "totalMs": 5669,
   "upload": {
     "action": "new",
     "title": "استودیوی من",
@@ -19,7 +19,7 @@
     "width": 342,
     "height": 512
   },
-  "quickToExportMs": 4226,
+  "quickToExportMs": 4230,
   "gate": {
     "opened": "https://t.me/HIDE_i_SEEK"
   },
@@ -28,24 +28,28 @@
       "tiles": [
         "🖼 استیکر از عکس",
         "🎬 استیکر ویدیویی",
+        "😀 ایموجی سفارشی",
+        "😂 میم‌ساز",
         "🌀 GIF و تبدیل فرمت",
+        "✍️ متن متحرک",
+        "🎞 اسلایدشو / چسباندن",
         "🟢 استیکر واتس‌اپ",
         "✂️ چند استیکر از یک عکس",
         "📚 چند عکس با هم"
       ],
-      "ms": 1832
+      "ms": 1762
     },
     "quick_video_sticker": {
-      "line": "VP9 · ۵۱۲×۲۸۸ · ۳۰ فریم در ثانیه · ۳ ثانیه · ۱۵۶٫۴ کیلوبایت",
+      "line": "VP9 · ۵۱۲×۲۸۸ · ۳۰ فریم در ثانیه · ۳ ثانیه · ۱۵۱٫۸ کیلوبایت",
       "kind": "telegram_video",
       "action": "new",
-      "kb": 156,
+      "kb": 152,
       "valid": true,
       "violations": [],
       "durationMs": 3000,
       "fps": 30,
       "size": "512x288",
-      "ms": 6163
+      "ms": 9101
     },
     "round_video": {
       "action": "add",
@@ -54,7 +58,7 @@
       "violations": [],
       "alpha": true,
       "size": "512x512",
-      "ms": 9967
+      "ms": 9435
     },
     "gif_file_and_mp4": {
       "gif": {
@@ -73,7 +77,7 @@
         "violations": [],
         "chunked": false
       },
-      "ms": 2351
+      "ms": 2312
     },
     "whatsapp_static_pack": {
       "line": "۵۱۲×۵۱۲ · ۲۵٫۶ کیلوبایت",
@@ -93,7 +97,7 @@
         "valid": true,
         "violations": []
       },
-      "ms": 2308
+      "ms": 2293
     },
     "screenshot_to_pack": {
       "found": "۳ استیکر پیدا شد. روی هر کادر بزن تا کنار گذاشته یا برگردانده شود.",
@@ -109,7 +113,61 @@
         false
       ],
       "allValid": true,
-      "ms": 2592
+      "ms": 2561
+    }
+  },
+  "phase4": {
+    "emoji_static": {
+      "kind": "emoji_static",
+      "action": "new",
+      "format": "webp",
+      "valid": true,
+      "violations": [],
+      "size": "100x100",
+      "ms": 2067
+    },
+    "meme": {
+      "kind": "telegram_static",
+      "action": "add",
+      "packId": 7,
+      "valid": true,
+      "size": "343x512",
+      "ms": 2704
+    },
+    "animate_still_with_template": {
+      "kind": "telegram_video",
+      "valid": true,
+      "violations": [],
+      "size": "512x512",
+      "kb": 162,
+      "ms": 5447
+    },
+    "text_animation": {
+      "kind": "telegram_video",
+      "valid": true,
+      "violations": [],
+      "alpha": true,
+      "ms": 3916
+    },
+    "slideshow_gif": {
+      "kind": "gif",
+      "valid": true,
+      "frames": 42,
+      "durationMs": 2940,
+      "ms": 6707
+    },
+    "draft_resume": {
+      "resumed": true,
+      "ms": 5830
+    },
+    "emoji_video": {
+      "kind": "emoji_video",
+      "action": "new",
+      "valid": true,
+      "violations": [],
+      "size": "100x100",
+      "kb": 75,
+      "ms": 8883
     }
   },
   "browser": "headless Chromium (container) — not a phone"

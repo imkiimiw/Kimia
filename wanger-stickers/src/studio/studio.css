@@ -59,3 +59,9 @@
 .export button.wide { min-height: 44px; border-radius: 12px; }
 .split { align-self: center; line-height: 0; border-radius: 12px; overflow: hidden; margin: 8px auto; width: fit-content; }
 .split canvas { cursor: pointer; }
+/* Phase 4: chips that wrap, quick emojis, the 100×100 emoji preview */
+.studio .row.wrap button { flex: 1 1 30%; min-height: 40px; }
+.studio .row.emojis button { font-size: 22px; min-height: 44px; }
+.export .preview.small { width: 140px; height: 140px; }
+.export .preview.small img, .export .preview.small video { width: 100px; height: 100px; image-rendering: auto; }
+.editor .tabs { grid-template-columns: repeat(3, 1fr); }
