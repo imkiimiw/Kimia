@@ -1,12 +1,11 @@
 // Profile: the player's stats per game.
 import { useEffect, useState } from 'preact/hooks';
-import { useApp } from '../ctx';
+import { DRAW_GAMES, GAMES, useApp } from '../ctx';
 import { n, t } from '../i18n';
 import { call } from '../tg';
 import { Avatar, GameArt, Spinner } from '../ui';
 
 type Stat = { played: number; wins: number; losses: number; draws: number; score: number };
-const GAMES = ['ttt', 'bg', 'hokm', 'codeword', 'fusion'];
 
 export function Profile() {
   const { me } = useApp();
@@ -30,13 +29,14 @@ export function Profile() {
       </div>
       {!games && <div class="center-pad"><Spinner /></div>}
       <div class="stack" style={{ marginTop: '14px' }}>
-        {games && GAMES.map((g) => {
+        {games && !GAMES.some((g) => games[g]) && <p class="hint center">{t('lb_empty')}</p>}
+        {games && GAMES.filter((g) => games[g]).map((g) => {
           const s = games[g] || empty;
           const cells = g === 'fusion'
             ? [['pr_played', s.played], ['pr_best', s.score]]
             : g === 'codeword'
               ? [['pr_played', s.played], ['pr_wins', s.wins], ['pr_points', s.score]]
-              : [['pr_played', s.played], ['pr_wins', s.wins], ['pr_losses', s.losses], ...(g === 'ttt' ? [['pr_draws', s.draws]] : []), ['pr_points', s.score]];
+              : [['pr_played', s.played], ['pr_wins', s.wins], ['pr_losses', s.losses], ...(DRAW_GAMES.includes(g) ? [['pr_draws', s.draws]] : []), ['pr_points', s.score]];
           return (
             <div key={g} class="card stat-card">
               <div class="row">

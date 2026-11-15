@@ -18,12 +18,17 @@
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
 import * as bg from './games/backgammon.js';
+import * as chess from './games/chess.js';
+import * as dots from './games/dots.js';
 import * as hokm from './games/hokm.js';
+import * as ludo from './games/ludo.js';
+import * as reversi from './games/reversi.js';
+import * as rps from './games/rps.js';
 import * as ttt from './games/tictactoe.js';
 import { GRACE_SEC, HOKM_BOTS_AFTER_SEC, MAX_TIMEOUTS, POINTS, RESERVE_TTL, ROOM_IDLE_TTL, ROOM_KEEP_TTL, ROOM_WAIT_TTL } from './config.js';
 import { bumpCounter, nowSec, recordResult } from './store.js';
 
-export const MODS = { ttt, bg, hokm };
+export const MODS = { ttt, bg, hokm, ludo, chess, reversi, dots, rps };
 
 const ID_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 export function newRoomId(rng = Math.random) {
@@ -88,6 +93,8 @@ export async function ensureRoom({ id, game, creator = 0, chat = null, inlineId 
 export async function reserveRooms(list, inviter, lang) {
   const t = nowSec();
   if (Math.random() < 0.25) await sweep(t);
+  /* invitations nobody ever opened (one row per game per inline query) don't pile up */
+  await db.run(sql`DELETE FROM rooms WHERE id IN (SELECT id FROM rooms WHERE status = 'waiting' AND ver = 0 AND updated_at < ${t - 1800} LIMIT 200)`);
   let values = null;
   for (const { id, game } of list) {
     const seats = new Array(MODS[game].SEATS).fill(null);

@@ -1016,3 +1016,613 @@
   background-clip: text;
   color: transparent;
 }
+
+/* ---------- reversi ---------- */
+
+.rv,
+.db {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.rv-count {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 400px;
+}
+
+.rv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 99px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-weight: 800;
+  font-size: 16px;
+  transition: box-shadow var(--mid), border-color var(--mid);
+}
+
+.rv-chip.on {
+  border-color: color-mix(in srgb, var(--brand) 60%, transparent);
+  box-shadow: var(--ring);
+}
+
+.rv-chip .disc {
+  width: 20px;
+  height: 20px;
+  animation: none;
+}
+
+/*
+ * A grid item with its own aspect-ratio is not stretched (it is sized like `start`), so empty cells
+ * would collapse: the square boards divide themselves into equal rows and columns instead.
+ */
+.rv-board {
+  width: min(100%, 400px);
+  aspect-ratio: 1;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  gap: 3px;
+  padding: 8px;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #0f7a57, #075540);
+  box-shadow: var(--shadow-3), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  direction: ltr;
+}
+
+.rv-cell {
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.07);
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+.rv-cell.hint::after {
+  content: '';
+  width: 26%;
+  height: 26%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  animation: glow 1.1s ease-in-out infinite alternate;
+}
+
+.rv-cell.last {
+  box-shadow: inset 0 0 0 2px rgba(255, 214, 90, 0.95);
+}
+
+.disc {
+  width: 82%;
+  height: 82%;
+  border-radius: 50%;
+  display: block;
+  animation: disc-flip 420ms var(--ease);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.45);
+}
+
+.disc.B {
+  background: radial-gradient(circle at 35% 30%, #5d5d69, #17171d 72%);
+}
+
+.disc.W {
+  background: radial-gradient(circle at 35% 30%, #ffffff, #d6d1c5 78%);
+}
+
+@keyframes disc-flip {
+  from {
+    transform: rotateY(90deg) scale(0.8);
+  }
+}
+
+/* ---------- dots and boxes ---------- */
+
+.db-board {
+  width: min(100%, 400px);
+  background: var(--surface);
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-2);
+  touch-action: manipulation;
+  direction: ltr;
+}
+
+.db-line {
+  stroke: color-mix(in srgb, var(--text) 10%, transparent);
+  stroke-width: 5;
+  stroke-linecap: round;
+  transition: stroke var(--mid);
+}
+
+.db-board.live .db-line:not(.drawn) {
+  stroke: color-mix(in srgb, var(--brand) 26%, transparent);
+}
+
+.db-line.drawn {
+  stroke: var(--text);
+  stroke-width: 6;
+}
+
+.db-line.last {
+  stroke: var(--brand);
+}
+
+.db-hit {
+  stroke: transparent;
+  stroke-width: 26;
+  cursor: pointer;
+}
+
+.db-point {
+  fill: var(--text);
+}
+
+.db-box {
+  animation: pop 320ms var(--spring);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.db-box.p0 {
+  fill: color-mix(in srgb, #3a8bff 62%, transparent);
+}
+
+.db-box.p1 {
+  fill: color-mix(in srgb, #ff4f8b 62%, transparent);
+}
+
+.db-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.db-dot.p0 {
+  background: #3a8bff;
+}
+
+.db-dot.p1 {
+  background: #ff4f8b;
+}
+
+/* ---------- rock paper scissors ---------- */
+
+.rps {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.rps-arena {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 26px 12px;
+  border-radius: 26px;
+  background: linear-gradient(160deg, #2b2350, #4a2d7a);
+  color: #fff;
+  box-shadow: var(--shadow-3);
+}
+
+.rps-hand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.rps-hand span {
+  font-size: 64px;
+  line-height: 1;
+  transition: transform var(--mid) var(--spring), filter var(--mid);
+}
+
+.rps-arena.reveal .rps-hand span {
+  animation: rps-shake 520ms ease-in-out;
+}
+
+.rps-hand.win span {
+  transform: scale(1.18);
+  filter: drop-shadow(0 0 14px rgba(255, 205, 80, 0.95));
+}
+
+.rps-hand b {
+  font-size: 13px;
+  max-width: 100%;
+}
+
+.rps-vs {
+  font-weight: 900;
+  font-size: 15px;
+  text-align: center;
+  max-width: 104px;
+}
+
+@keyframes rps-shake {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  25%,
+  75% {
+    translate: 0 -14px;
+  }
+  50% {
+    translate: 0 6px;
+  }
+}
+
+.rps-pips {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 8px;
+  flex-direction: row-reverse;
+}
+
+.rps-pip-row {
+  display: flex;
+  gap: 6px;
+}
+
+.rps-pip-row i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  transition: background var(--mid), transform var(--mid) var(--spring);
+}
+
+.rps-pip-row i.on {
+  background: var(--gold);
+  transform: scale(1.15);
+}
+
+.rps-picks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+
+.rps-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 6px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-1);
+  font-weight: 700;
+  font-size: 13px;
+  transition: transform var(--fast) var(--spring), opacity var(--mid), box-shadow var(--mid);
+}
+
+.rps-pick span {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.rps-pick:active {
+  transform: scale(0.93);
+}
+
+.rps-pick[disabled] {
+  opacity: 0.45;
+}
+
+.rps-pick.chosen {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--brand) 60%, transparent);
+  box-shadow: var(--ring);
+}
+
+/* ---------- ludo ---------- */
+
+.ludo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ludo-players {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.ludo-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-inline-start: 5px solid var(--c);
+  min-width: 0;
+  transition: box-shadow var(--mid);
+}
+
+.ludo-player.on {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 50%, transparent);
+}
+
+.ludo-player .player-name span {
+  font-size: 11px;
+  color: var(--hint);
+}
+
+.ludo-board {
+  width: min(100%, 420px);
+  align-self: center;
+  border-radius: 16px;
+  box-shadow: var(--shadow-3);
+  direction: ltr;
+  touch-action: manipulation;
+}
+
+.lb-bg {
+  fill: #f6f1e6;
+}
+
+.lb-yard {
+  fill: rgba(255, 255, 255, 0.93);
+}
+
+.lb-cell {
+  stroke: rgba(40, 40, 60, 0.2);
+  stroke-width: 0.5;
+}
+
+.lb-star {
+  fill: #8b93a8;
+}
+
+.lp {
+  transition: transform 380ms var(--ease);
+}
+
+.lp.can {
+  cursor: pointer;
+}
+
+.lp-body {
+  stroke: #fff;
+  stroke-width: 1.1;
+  filter: drop-shadow(0 0.6px 0.6px rgba(0, 0, 0, 0.5));
+}
+
+.lp-dot {
+  fill: rgba(255, 255, 255, 0.78);
+}
+
+.lp-ring {
+  fill: rgba(255, 255, 255, 0.35);
+  stroke: #1d1d2b;
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+  animation: spin 2.6s linear infinite;
+}
+
+.ludo-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+}
+
+.ludo-hint {
+  font-weight: 700;
+  color: var(--brand);
+  animation: pop 320ms var(--spring);
+}
+
+/* ---------- chess ---------- */
+
+.ch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.ch-board {
+  position: relative;
+  width: min(100%, 420px);
+  aspect-ratio: 1;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-3);
+  direction: ltr;
+}
+
+.ch-sq {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+.ch-sq.light {
+  background: #ecdcbf;
+}
+
+.ch-sq.dark {
+  background: #a97c5b;
+}
+
+.ch-sq.last::before,
+.ch-sq.sel::before,
+.ch-sq.check::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.ch-sq.last::before {
+  background: rgba(255, 221, 87, 0.45);
+}
+
+.ch-sq.check::before {
+  background: radial-gradient(circle, rgba(255, 50, 50, 0.95), rgba(255, 50, 50, 0) 72%);
+}
+
+.ch-sq.sel::before {
+  background: rgba(116, 88, 255, 0.55);
+}
+
+.ch-piece {
+  position: relative;
+  width: 90%;
+  height: 90%;
+  display: block;
+}
+
+.ch-piece.moved {
+  animation: pop 260ms var(--spring);
+}
+
+.cp {
+  width: 100%;
+  height: 100%;
+  display: block;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
+}
+
+.cp.white {
+  fill: #fffdf7;
+  stroke: #3b3340;
+}
+
+.cp.black {
+  fill: #2c2833;
+  stroke: #0e0c12;
+}
+
+.cp .cp-eye {
+  stroke: none;
+}
+
+.cp.white .cp-eye {
+  fill: #3b3340;
+}
+
+.cp.black .cp-eye {
+  fill: #e9e4da;
+}
+
+.cp .cp-line {
+  fill: none;
+}
+
+.cp.black .cp-line {
+  stroke: #e9e4da;
+}
+
+.ch-dot {
+  position: absolute;
+  width: 28%;
+  height: 28%;
+  border-radius: 50%;
+  background: rgba(20, 20, 40, 0.34);
+}
+
+.ch-ring {
+  position: absolute;
+  inset: 5%;
+  border-radius: 50%;
+  border: 3.5px solid rgba(20, 20, 40, 0.4);
+}
+
+.ch-rank,
+.ch-file {
+  position: absolute;
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.6;
+  color: #3b2a1c;
+  line-height: 1;
+}
+
+.ch-rank {
+  top: 2px;
+  left: 3px;
+}
+
+.ch-file {
+  bottom: 2px;
+  right: 3px;
+}
+
+.ch-taken {
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 22px;
+  width: min(100%, 420px);
+  padding: 0 2px;
+}
+
+.ch-taken .cp {
+  width: 20px;
+  height: 20px;
+  margin-inline-end: -5px;
+  filter: none;
+}
+
+.ch-status {
+  text-align: center;
+  min-height: 22px;
+  font-size: 14px;
+}
+
+.ch-status .warn {
+  color: var(--bad);
+}
+
+.ch-promo {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 25, 0.55);
+  display: grid;
+  place-items: center;
+  z-index: 4;
+}
+
+.ch-promo-box {
+  background: var(--surface);
+  border-radius: 18px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--shadow-3);
+}
+
+.ch-promo-btn {
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  background: #cdb89a;
+  padding: 5px;
+}

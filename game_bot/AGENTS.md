@@ -156,43 +156,66 @@ The platform manages the bot's webhook for you, derived from your deployed
 ## This bot
 
 A game bot whose main surface is a **Mini App** (Preact + TypeScript + Vite in `app/`, built to
-`dist/`): tic-tac-toe, backgammon (takhte-nard), Hokm, Codeword and Fusion, in en / fr / ru / fa.
-Codeword and Fusion are this project's own designs (a word version of Bulls and Cows, and a placement
-merge puzzle) — not recreations of existing commercial games.
+`dist/`), in en / fr / ru / fa. Ten games: Hokm, backgammon, Ludo, chess, tic-tac-toe, Reversi, dots
+and boxes, rock-paper-scissors (rooms, 2–4 players, each playable against bots) and the solo games
+Codeword and Fusion. Codeword and Fusion are this project's own designs (a word version of Bulls and
+Cows, and a placement merge puzzle); the rest are traditional games. Don't add recreations of
+existing commercial games.
 
 - **Shared pure modules** — `tgcloud/lib/games/*` (rules), `tgcloud/lib/i18n/*` (every string),
   `tgcloud/lib/config.js`, `tgcloud/lib/payload.js` — are imported by the endpoints *and* by `app/`.
   They must never import `sdk` (Vite can't resolve it). Everything else in `tgcloud/lib/` is server-only.
-- **Rule modules** export `SEATS, TURN_SEC, create, turn, act, auto, outcome, rematch, view`
-  (multiplayer) and keep a `log` of events with sequence numbers; the Mini App replays the log to
-  animate (backgammon moves, Hokm card plays). `act` returns `{ state }` or `{ error: CODE }`.
+- **Rule modules** export `SEATS, TURN_SEC, create, turn, act, auto, outcome, rematch, view` and keep
+  a `log` of events with sequence numbers that the Mini App replays to animate. `act` returns
+  `{ state }` or `{ error: CODE }`; `auto` is both the bot and the move made for a player out of time.
+  Optional: `waiting(state)` (several players act at once: rps), `MIN_SEATS` (may start short of
+  full: ludo), `LEAVER_BECOMES_BOT` (a leaver is replaced by a bot instead of losing: ludo).
 - **Rooms** (`lib/rooms.js`): the server is the authority. Every write is a compare-and-set on
   `rooms.ver`. There is **no scheduler**: `advance()` runs on each request (bots, turn timeouts →
   auto move, `MAX_TIMEOUTS` → forfeit, the end of the game). `getState(room, since)` is the polling
-  endpoint (`{ same: true }` when unchanged). Stats are recorded only by the save that finished a game.
-- **Inline mode** is the entry point: results carry URL buttons to the Main Mini App,
-  `t.me/<bot>?startapp=<letter>_<roomId>` (`lib/links.js`, payloads in `lib/payload.js`), and reserve
-  the rooms with the inviter seated (`here: false` until they open it; joiners trigger a private
-  "… is waiting for you"). The lobby's Invite uses `prepareInvite` → `shareMessage`, then
-  `switchInlineQuery` (chat types: users / bots / groups / channels only), then `t.me/share/url`.
-  `chosen_inline_result` (inline feedback ON in BotFather) stores `inline_message_id`, and
-  `lib/invite.js` edits that message when a game starts / ends.
+  endpoint (`{ same: true }` when unchanged). A game is recorded (stats, points) only if humans
+  played on both sides — games against bots are practice.
+- **Invitations must work with no BotFather setup.** `lib/links.js` asks `getMe` (cached 10 min in
+  settings) whether the bot has a Main Mini App: if so links are `t.me/<bot>?startapp=<payload>`,
+  else `t.me/<bot>?start=<payload>` → the bot answers `/start <payload>` (`lib/bot.js`) with a
+  `web_app` button to `APP_URL?sp=<payload>`. The Mini App reads the payload from `start_param`,
+  `tgWebAppStartParam` or `sp`. Never hard-code a link form that depends on BotFather settings.
+- **Inline mode** is the entry point: every result reserves a room with the inviter seated
+  (`here: false` until they open it); a friend who joins triggers a private "… is waiting for you"
+  with a button. The lobby's Invite sheet uses `prepareInvite` → `shareMessage` (reading the real
+  failure from `shareMessageFailed`), then `switchInlineQuery` (chat types: users / bots / groups /
+  channels only), then `t.me/share/url`; plus "copy the link". `chosen_inline_result` (inline
+  feedback ON in BotFather, optional) stores `inline_message_id` so `lib/invite.js` can edit the
+  invitation with the result.
+- The bot sets its own menu button and command list (`ensureSetup` in `lib/bot.js`).
+- **Client log**: the Mini App reports launches and client-side failures (`logEvent` in `app/tg.ts` →
+  `endpoints/clientLog` → `client_log`, shown under 🧾 in the owner panel). When something "doesn't
+  work in Telegram", read it first.
 - `npm run test:ui` runs Telegram's **real** `telegram-web-app.js` (downloaded to `test/output/`), so its
   argument checks apply in tests too; never replace it with a permissive stub.
+- **Strings**: every user-visible string is in `lib/i18n/*` and must be HTML-safe (no bare `&`, `<`,
+  `>`): they are put into Telegram HTML messages. `npm test` checks this and that all four languages
+  have every key.
 - **Forced join** (`lib/join.js`) guards the bot, every endpoint (`lib/endpoint.js` → `NOT_JOINED`)
   and inline mode; passes are cached per user for `JOIN_CACHE_SEC` and per channel-list revision.
   Broken channels are skipped and the owner warned. The owner (`OWNER_ID` in `lib/config.js`) is exempt.
 - **Owner panel** (`lib/admin.js`, `/admin` in private, owner only, silent for others): stats,
-  channels (max 10, bot must be admin), broadcasts (`lib/broadcast.js`: copyMessage in locked
-  batches with a cursor, resumed by the "next batch" button or by the Mini App's `?page=broadcast` page
-  calling `broadcastTick` every second while open).
+  the Mini App's log, channels (max 10, bot must be admin), broadcasts (`lib/broadcast.js`:
+  copyMessage in locked batches with a cursor, resumed by the "next batch" button or by the Mini
+  App's `?page=broadcast` page calling `broadcastTick` every second while open).
 - **Codeword answers never reach the client** before the game ends; **Fusion scores are replayed**
   from the submitted moves and the server's seed (`lib/solo.js`).
-- `APP_URL` in `lib/config.js` must be set to the address `push` prints (thumbnails, Play buttons).
+- `APP_URL` in `lib/config.js` must be the address `push` prints (thumbnails, Play buttons).
+- CSS: a grid item with its own `aspect-ratio` is not stretched — square boards set
+  `grid-template-rows/columns: repeat(n, 1fr)` on the board instead (see `.rv-board`, `.ch-board`).
 - Word lists: `npm run words -- <sources>` (`scripts/build-words.mjs`) regenerates `lib/words/*`.
   Thumbnails: `npm run thumbs`. Only **block comments** in `tgcloud/` (`npm test` checks).
-- Tests: `npm test` (static checks, rule unit tests incl. backgammon/Hokm simulations, server e2e on
-  the sdk emulation in `test/sdk/` + strict Bot API mock), `npm run test:ui` (the built Mini App in
-  Chromium with two+ simulated accounts playing through the UI; screenshots in `test/output/`).
+- Tests: `npm test` (static checks; rule unit tests incl. chess perft and backgammon / Hokm / Ludo
+  simulations; server e2e on the sdk emulation in `test/sdk/` + strict Bot API mock), `npm run
+  test:ui` (the built Mini App in Chromium with several simulated accounts playing through the UI;
+  screenshots in `test/output/`).
 - **CLI**: behind an HTTPS proxy run it with `NODE_USE_ENV_PROXY=1`. It uses the nearest folder with
   `.tgcloud/`: make sure `game_bot/.tgcloud/` exists, or commands act on the repository root's bot.
+  This bot's token is in `GAME_BOT_TGCLOUD_TOKEN` (pass it as `TGCLOUD_TOKEN` for the command).
+- Measured platform limits (sibling projects' notes): ≈ 3 s CPU and ≈ 30 s wall clock per
+  invocation, no transactions (one statement = one atomic change), no scheduler or timers.

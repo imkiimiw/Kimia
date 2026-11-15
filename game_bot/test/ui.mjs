@@ -163,13 +163,13 @@ async function scenario(name, fn) {
 
 await scenario('home (light, English) and home (dark, Persian, RTL)', async () => {
   const sam = await open(users.sam);
-  await sam.waitForSelector('.game-row');
-  assert.equal(await sam.locator('.game-row').count(), 3);
+  await sam.waitForSelector('.game-card');
+  assert.equal(await sam.locator('.game-card').count(), 8);
   assert.equal(await sam.locator('.solo-card').count(), 2);
   await wait(400);
   await shot(sam, '01-home-en-light');
   const ali = await open(users.ali, { scheme: 'dark' });
-  await ali.waitForSelector('.game-row');
+  await ali.waitForSelector('.game-card');
   assert.equal(await ali.evaluate(() => document.documentElement.dir), 'rtl');
   assert.match(await ali.locator('h1').first().textContent(), /رمزواژه/);
   await wait(400);
@@ -185,7 +185,7 @@ await scenario('forced join: the gate lists the channels; joining lets the user 
   await shot(p, '03-join-gate-ru');
   for (const ch of mock.state.channels.values()) ch.members.add(users.newbie.id);
   await p.click('.join-gate .btn.primary');
-  await p.waitForSelector('.game-row');
+  await p.waitForSelector('.game-card');
   await p.context().close();
 });
 
@@ -241,7 +241,7 @@ await scenario('invitation as people send it: the inviter only sends it; the fri
   mock.state.started.add(users.ali.id);
   await H.message({ message_id: 1, from: users.ali, chat: { id: users.ali.id, type: 'private' }, date: 0, text: '/start' });
   await H.inline_query({ id: 'iq-ui', from: users.ali, query: '', offset: '' });
-  const url = mock.state.inlineAnswers.get('iq-ui').results[0].reply_markup.inline_keyboard[0][0].url;
+  const url = mock.state.inlineAnswers.get('iq-ui').results.find((r) => r.id.startsWith('ttt.')).reply_markup.inline_keyboard[0][0].url;
   const start = /\?start=(t_[A-Za-z0-9]{12})$/.exec(url)[1];
   // the friend's tap went through the bot chat (/start <payload>) and its "open the game" button
   const friend = await open(users.nina, { start, via: 'button' });
@@ -436,6 +436,98 @@ await scenario('fusion: tiles placed and fused through the UI', async () => {
   await shot(p, '15-fusion');
   assert.ok(await p.locator('.fu-cell .tile').count() > 0);
   await p.context().close();
+});
+
+await scenario('chess: two accounts move through the UI; Black sees the board from Black\'s side', async () => {
+  const id = 'ChessRoom001';
+  const w = await open(users.sam, { start: `s_${id}`, via: 'button' });
+  await w.waitForSelector('.lobby');
+  const b = await open(users.nina, { start: `s_${id}`, via: 'button' });
+  await b.waitForSelector('.ch-board');
+  await w.waitForSelector('.ch-board', { timeout: 6000 });
+  const sqr = (name) => (8 - Number(name[1])) * 8 + (name.charCodeAt(0) - 97);
+  await w.waitForSelector('.turn-banner.mine');
+  await w.locator('.ch-sq').nth(sqr('e2')).click();
+  assert.equal(await w.locator('.ch-dot').count(), 2, 'the pawn\'s two squares are marked');
+  await w.locator('.ch-sq').nth(sqr('e4')).click();
+  await b.waitForSelector('.turn-banner.mine', { timeout: 6000 });
+  await b.locator('.ch-sq').nth(63 - sqr('g8')).click();
+  await b.locator('.ch-sq').nth(63 - sqr('f6')).click();
+  await w.waitForSelector('.turn-banner.mine', { timeout: 6000 });
+  const board = JSON.parse(rawDatabase().prepare('SELECT state FROM rooms WHERE id = ?').get(id).state).b;
+  assert.equal(board[sqr('e4')] + board[sqr('f6')], 'Pn');
+  await w.locator('.ch-sq').nth(sqr('g1')).click();
+  await wait(500);
+  await shot(w, '19-chess-white');
+  await shot(b, '20-chess-black');
+  await w.context().close();
+  await b.context().close();
+});
+
+await scenario('ludo against bots: roll, move, and the bots\' turns are replayed', async () => {
+  const id = 'LudoRoom0001';
+  const p = await open(users.ali, { start: `l_${id}`, via: 'button', scheme: 'dark' });
+  await p.waitForSelector('.lobby');
+  await wait(300);
+  await shot(p, '21-ludo-lobby');
+  await p.click('.lobby .btn.secondary');
+  await p.waitForSelector('.ludo-board');
+  let acted = 0;
+  for (let i = 0; i < 60 && acted < 6; i += 1) {
+    if (await p.locator('.ludo-controls .btn.primary:not([disabled])').count()) {
+      await p.locator('.ludo-controls .btn.primary').click();
+      acted += 1;
+    } else if (await p.locator('.lp.can').count()) {
+      await p.locator('.lp.can').first().click({ force: true });
+      acted += 1;
+    }
+    await wait(500);
+  }
+  assert.ok(acted >= 4, `acted ${acted} times`);
+  const st = JSON.parse(rawDatabase().prepare('SELECT state FROM rooms WHERE id = ?').get(id).state);
+  assert.ok(st.log.some((e) => e.type === 'roll' && e.seat !== 0), 'the bots have rolled');
+  await wait(1500);
+  await shot(p, '22-ludo-board');
+  await p.context().close();
+});
+
+await scenario('reversi, dots and boxes, rock-paper-scissors against a bot through the UI', async () => {
+  const rv = await open(users.sam, { start: 'r_ReversiRoom1', via: 'button' });
+  await rv.waitForSelector('.lobby');
+  await rv.click('.lobby .btn.secondary');
+  await rv.waitForSelector('.rv-board');
+  for (let i = 0; i < 3; i += 1) {
+    await rv.waitForSelector('.rv-cell.hint', { timeout: 6000 });
+    await rv.locator('.rv-cell.hint').first().click();
+    await wait(600);
+  }
+  assert.ok(await rv.locator('.rv-cell .disc').count() >= 8);
+  await shot(rv, '23-reversi');
+  await rv.context().close();
+
+  const db = await open(users.nina, { start: 'd_DotsRoom0001', via: 'button' });
+  await db.waitForSelector('.lobby');
+  await db.click('.lobby .btn.secondary');
+  await db.waitForSelector('.db-board');
+  for (let i = 0; i < 6; i += 1) {
+    await db.waitForSelector('.turn-banner.mine', { timeout: 6000 });
+    await db.locator('.db-hit').nth(i * 3).click({ force: true });
+    await wait(500);
+  }
+  assert.ok(await db.locator('.db-line.drawn').count() >= 8, 'both sides have drawn lines');
+  await shot(db, '24-dots');
+  await db.context().close();
+
+  const rp = await open(users.ali, { start: 'p_RpsRoom00001', via: 'button' });
+  await rp.waitForSelector('.lobby');
+  await rp.click('.lobby .btn.secondary');
+  await rp.waitForSelector('.rps-picks');
+  await shot(rp, '25-rps-choose');
+  await rp.locator('.rps-pick').first().click();
+  await rp.waitForSelector('.rps-arena.reveal', { timeout: 6000 });
+  await wait(900);
+  await shot(rp, '26-rps-reveal');
+  await rp.context().close();
 });
 
 await scenario('ranks, profile and settings (switching to Persian turns the app right-to-left)', async () => {

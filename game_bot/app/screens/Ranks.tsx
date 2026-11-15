@@ -1,16 +1,16 @@
 // Leaderboards: per game, global or this chat (when the app was opened from a chat).
 import { useEffect, useState } from 'preact/hooks';
+import { GAMES } from '../ctx';
 import { n, t } from '../i18n';
 import { call } from '../tg';
 import { Avatar, Segmented, Spinner } from '../ui';
 
-const GAMES = ['ttt', 'bg', 'hokm', 'codeword', 'fusion'];
 const MEDALS = ['🥇', '🥈', '🥉'];
 
 type Board = { scope: string; hasChat: boolean; rank: number; me: number; top: { name: string; score: number; me: boolean }[] };
 
 export function Ranks() {
-  const [game, setGame] = useState('ttt');
+  const [game, setGame] = useState(GAMES[0]);
   const [scope, setScope] = useState<'global' | 'chat'>('global');
   const [data, setData] = useState<Board | null>(null);
 

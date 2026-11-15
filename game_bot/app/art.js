@@ -43,4 +43,33 @@ export const ART = {
 <rect x="18" y="64" width="38" height="38" rx="10" fill="url(#f3)"/><text x="37" y="89" font-size="20">3</text>
 <rect x="64" y="64" width="38" height="38" rx="10" fill="url(#f4)"/><text x="83" y="89" font-size="20">4</text></g>
 <g stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-opacity=".9"><path d="M60 50v20M50 60h20"/></g></svg>`,
+
+  ludo: `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><rect width="120" height="120" rx="28" fill="#f6f1e6"/>
+<rect x="12" y="12" width="42" height="42" rx="11" fill="#ef4444"/><rect x="66" y="12" width="42" height="42" rx="11" fill="#22c55e"/>
+<rect x="66" y="66" width="42" height="42" rx="11" fill="#f59e0b"/><rect x="12" y="66" width="42" height="42" rx="11" fill="#3b82f6"/>
+<g fill="#fff" opacity=".92"><circle cx="33" cy="33" r="10"/><circle cx="87" cy="33" r="10"/><circle cx="87" cy="87" r="10"/><circle cx="33" cy="87" r="10"/></g>
+<g transform="rotate(-10 60 60)"><rect x="44" y="44" width="32" height="32" rx="8" fill="#fff" stroke="rgba(0,0,0,.18)"/>
+<g fill="#22202a"><circle cx="52" cy="52" r="3"/><circle cx="68" cy="52" r="3"/><circle cx="60" cy="60" r="3"/><circle cx="52" cy="68" r="3"/><circle cx="68" cy="68" r="3"/></g></g></svg>`,
+
+  chess: `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><defs>${defs('cbg', '#3a2c22', '#6b4a33')}</defs>
+<rect width="120" height="120" rx="28" fill="url(#cbg)"/>
+<g opacity=".16" fill="#fff"><rect x="0" y="0" width="30" height="30"/><rect x="60" y="0" width="30" height="30"/><rect x="30" y="30" width="30" height="30"/><rect x="90" y="30" width="30" height="30"/><rect x="0" y="60" width="30" height="30"/><rect x="60" y="60" width="30" height="30"/><rect x="30" y="90" width="30" height="30"/><rect x="90" y="90" width="30" height="30"/></g>
+<g transform="translate(8 14) scale(2.3)" fill="#fffdf7" stroke="#2a2230" stroke-width="1.2" stroke-linejoin="round"><path d="M21 2.5h3v3h3v3h-3v4h-3v-4h-3v-3h3z"/><path d="M22.5 14c-6.4 0-11 3.4-11 8.4 0 3.2 1.5 6.2 3.3 8.600h15.400c1.8-2.4 3.3-5.4 3.3-8.6 0-5-4.6-8.4-11-8.400z"/><path d="M14 36l1.6-5h13.800l1.6 5z"/><path d="M10.5 40v-2.300c0-.9.8-1.7 1.7-1.700h20.600c.9 0 1.7.8 1.7 1.700V40z"/></g></svg>`,
+
+  reversi: `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><defs>${defs('rbg', '#12865f', '#06503c')}<radialGradient id="rdb" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#666672"/><stop offset="1" stop-color="#15151b"/></radialGradient><radialGradient id="rdw" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#d3cdc0"/></radialGradient></defs>
+<rect width="120" height="120" rx="28" fill="url(#rbg)"/>
+<g stroke="rgba(255,255,255,.2)" stroke-width="2"><path d="M60 16v88M16 60h88"/></g>
+<circle cx="38" cy="38" r="17" fill="url(#rdw)"/><circle cx="82" cy="38" r="17" fill="url(#rdb)"/><circle cx="38" cy="82" r="17" fill="url(#rdb)"/><circle cx="82" cy="82" r="17" fill="url(#rdw)"/></svg>`,
+
+  dots: `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><defs>${defs('dbg', '#fef6e4', '#f3e3c2')}</defs>
+<rect width="120" height="120" rx="28" fill="url(#dbg)"/>
+<rect x="33" y="33" width="27" height="27" rx="5" fill="#3a8bff" opacity=".75"/><rect x="60" y="60" width="27" height="27" rx="5" fill="#ff4f8b" opacity=".75"/>
+<g stroke="#2b2540" stroke-width="5" stroke-linecap="round"><path d="M30 30h60M30 30v30M60 30v60M30 60h60M90 60v30M60 90h30"/></g>
+<g fill="#2b2540"><circle cx="30" cy="30" r="6"/><circle cx="60" cy="30" r="6"/><circle cx="90" cy="30" r="6"/><circle cx="30" cy="60" r="6"/><circle cx="60" cy="60" r="6"/><circle cx="90" cy="60" r="6"/><circle cx="30" cy="90" r="6"/><circle cx="60" cy="90" r="6"/><circle cx="90" cy="90" r="6"/></g></svg>`,
+
+  rps: `<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><defs>${defs('pbg', '#ff7a59', '#d6336c')}</defs>
+<rect width="120" height="120" rx="28" fill="url(#pbg)"/>
+<circle cx="36" cy="44" r="19" fill="#e9ecf5" stroke="rgba(0,0,0,.12)" stroke-width="2"/><path d="M26 40q10-8 20 0M27 49q9 6 18 0" fill="none" stroke="#9aa3b8" stroke-width="3" stroke-linecap="round"/>
+<g transform="rotate(8 84 42)"><rect x="68" y="22" width="32" height="40" rx="5" fill="#fff" stroke="rgba(0,0,0,.12)" stroke-width="2"/><path d="M75 33h18M75 41h18M75 49h11" stroke="#c2c8d6" stroke-width="3" stroke-linecap="round"/></g>
+<g stroke="#fff" stroke-width="6" stroke-linecap="round" fill="none"><path d="M44 74l34 22M44 96l34-22"/><circle cx="36" cy="70" r="9"/><circle cx="36" cy="100" r="9"/></g></svg>`,
 };

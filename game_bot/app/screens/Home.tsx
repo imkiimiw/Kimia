@@ -1,13 +1,11 @@
-// Home: profile header, today's Codeword, multiplayer games (Invite creates a room and opens its
-// lobby), solo games.
+// Home: profile header, today's Codeword, the multiplayer games (a tap opens a new room's lobby:
+// invite friends there, or play against a bot), the solo games.
 import { useEffect, useState } from 'preact/hooks';
-import { ROOM_GAMES, SOLO_GAMES, useApp } from '../ctx';
+import { ROOM_GAMES, seatsText, SOLO_GAMES, useApp } from '../ctx';
 import { n, t } from '../i18n';
-import { call } from '../tg';
+import { call, haptic } from '../tg';
 import { errorText } from '../useRoom';
-import { Avatar, Button, GameArt, Icon, toast } from '../ui';
-
-const SEATS: Record<string, number> = { ttt: 2, bg: 2, hokm: 4 };
+import { Avatar, GameArt, Icon, toast } from '../ui';
 
 export function Home() {
   const { me, go } = useApp();
@@ -55,22 +53,13 @@ export function Home() {
       </button>
 
       <div class="section-title">{t('section_friends')}</div>
-      <div class="stack">
+      <div class="game-grid">
         {ROOM_GAMES.map((g) => (
-          <div key={g} class="card game-row">
-            <GameArt game={g} size={64} />
-            <div class="game-row-text">
-              <div class="row">
-                <h2>{t(`game_${g}`)}</h2>
-                <span class="chip">{t('players_n', { n: SEATS[g] })}</span>
-              </div>
-              <p class="hint">{t(`desc_${g}`)}</p>
-            </div>
-            <Button small onClick={() => invite(g)} disabled={!!busy}>
-              <Icon name="share" size={16} />
-              {t('invite')}
-            </Button>
-          </div>
+          <button key={g} class={`card game-card${busy === g ? ' busy' : ''}`} disabled={!!busy} onClick={() => { haptic.tap(); invite(g); }}>
+            <GameArt game={g} size={58} />
+            <h2>{t(`game_${g}`)}</h2>
+            <span class="chip">{seatsText(g, t)}</span>
+          </button>
         ))}
       </div>
 

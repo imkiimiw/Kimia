@@ -10,6 +10,10 @@ import { APP_URL, GAMES } from '../tgcloud/lib/config.js';
 import * as bgRules from '../tgcloud/lib/games/backgammon.js';
 import * as hokmRules from '../tgcloud/lib/games/hokm.js';
 import * as fusionRules from '../tgcloud/lib/games/fusion.js';
+import * as chessRules from '../tgcloud/lib/games/chess.js';
+import * as dotsRules from '../tgcloud/lib/games/dots.js';
+import * as ludoRules from '../tgcloud/lib/games/ludo.js';
+import * as reversiRules from '../tgcloud/lib/games/reversi.js';
 
 const BOT_ID = 7100000001;
 const OWNER = 5557901897;
@@ -178,7 +182,7 @@ await scenario('endpoints refuse users who haven\'t joined (with the channels to
 
 let inlineTtt;
 let tttRoom;
-await scenario('inline: not joined → no games, a button to the bot; joined → five games with valid Direct Link buttons', async () => {
+await scenario('inline: not joined → no games, a button to the bot; joined → every game with a valid link button', async () => {
   const no = await run(H.inline_query, { id: 'q1', from: U.dan, query: '', offset: '' });
   const a = no.find((c) => c.method === 'answerInlineQuery');
   assert.deepEqual(a.params.results, []);
@@ -468,6 +472,92 @@ await scenario('play with a bot: any game starts at once against a bot; it is pr
   const b = ok(await api('roomAction', U.eve, { room: bg.id, action: 'bots' }));
   assert.equal(b.status, 'playing');
   assert.equal(b.state.turn, 0, 'whoever won the opening roll, it is the human\'s turn again (the bot has played)');
+});
+
+// ---------- the newer games ----------
+
+const sq = (name) => (8 - Number(name[1])) * 8 + (name.charCodeAt(0) - 97);
+
+await scenario('chess: two players, illegal moves refused, checkmate ends the game and counts', async () => {
+  const r = ok(await api('createRoom', U.ali, { game: 'chess' }));
+  let s = ok(await api('joinRoom', U.bea, { room: r.id, game: 'chess' }));
+  assert.equal(s.status, 'playing');
+  assert.equal(s.turnSec, 180);
+  const mv = async (u, m) => api('move', u, { room: r.id, ver: s.ver, action: { type: 'move', from: sq(m.slice(0, 2)), to: sq(m.slice(2, 4)) } });
+  assert.equal((await mv(U.bea, 'e7e5')).code, 'NOT_YOUR_TURN');
+  assert.equal((await mv(U.ali, 'e2e5')).code, 'ILLEGAL_MOVE');
+  for (const [u, m] of [[U.ali, 'f2f3'], [U.bea, 'e7e5'], [U.ali, 'g2g4'], [U.bea, 'd8h4']]) s = ok(await mv(u, m));
+  assert.equal(s.status, 'finished');
+  assert.equal(s.state.result, 'mate');
+  assert.deepEqual(s.result.winners, [1]);
+  assert.deepEqual([stat(U.bea, 'chess').wins, stat(U.bea, 'chess').score, stat(U.ali, 'chess').losses], [1, 3, 1]);
+});
+
+await scenario('ludo: starts with two of four seats, the server rolls, a player who leaves is replaced by a bot and the game goes on to a winner', async () => {
+  const r = ok(await api('createRoom', U.ali, { game: 'ludo' }));
+  assert.equal(r.canStart, false);
+  assert.equal((await api('roomAction', U.ali, { room: r.id, action: 'start' })).code, 'NEED_PLAYERS');
+  const j = ok(await api('joinRoom', U.dan, { room: r.id, game: 'ludo' }));
+  assert.equal(j.status, 'waiting', 'four seats: it does not start by itself with two');
+  assert.equal((await api('roomAction', U.dan, { room: r.id, action: 'start' })).code, 'NOT_CREATOR');
+  let s = ok(await api('roomAction', U.ali, { room: r.id, action: 'start' }));
+  assert.equal(s.status, 'playing');
+  assert.deepEqual(s.state.active, [0, 1]);
+  assert.deepEqual(s.seats.map((x) => !!x), [true, true, false, false]);
+  const users = { 0: U.ali, 1: U.dan };
+  assert.equal((await api('move', users[1 - s.state.turn], { room: r.id, ver: s.ver, action: { type: 'roll' } })).code, 'NOT_YOUR_TURN');
+  for (let i = 0; i < 12; i += 1) {
+    const full = JSON.parse(row('SELECT state FROM rooms WHERE id = ?', r.id).state);
+    s = ok(await api('move', users[full.turn], { room: r.id, ver: s.ver, action: ludoRules.auto(full, full.turn, Math.random) }));
+  }
+  assert.ok(s.state.log.some((e) => e.type === 'roll'));
+  // Dan leaves: a bot takes his seat, the game continues, Ali plays on to the end
+  ok(await api('roomAction', U.dan, { room: r.id, action: 'leave' }));
+  s = ok(await api('getState', U.ali, { room: r.id }));
+  assert.equal(s.status, 'playing');
+  assert.deepEqual([s.seats[1].bot, s.seats[1].name], [true, 'Dan <b>']);
+  assert.equal(ok(await api('getState', U.dan, { room: r.id })).you, -1);
+  for (let i = 0; i < 4000 && s.status === 'playing'; i += 1) {
+    const full = JSON.parse(row('SELECT state FROM rooms WHERE id = ?', r.id).state);
+    assert.equal(full.turn, 0, 'the bot never keeps the turn');
+    s = ok(await api('move', U.ali, { room: r.id, ver: s.ver, action: ludoRules.auto(full, 0, Math.random) }));
+  }
+  assert.equal(s.status, 'finished');
+  assert.equal(stat(U.ali, 'ludo'), undefined, 'the opponent had become a bot: no points');
+});
+
+await scenario('rock paper scissors: both choose at once, a choice stays hidden until both are in, and a silent player is played for after the timer', async () => {
+  const r = ok(await api('createRoom', U.ali, { game: 'rps' }));
+  let s = ok(await api('joinRoom', U.bea, { room: r.id, game: 'rps' }));
+  assert.equal(s.status, 'playing');
+  const a = ok(await api('move', U.ali, { room: r.id, action: { type: 'pick', pick: 'r' } }));
+  assert.deepEqual(a.state.picks, ['r', null]);
+  const seenByBea = ok(await api('getState', U.bea, { room: r.id }));
+  assert.deepEqual(seenByBea.state.picks, ['?', null]);
+  assert.equal(seenByBea.state.turn, 1, 'it is Béa the game waits for');
+  assert.equal((await api('move', U.ali, { room: r.id, action: { type: 'pick', pick: 'p' } })).code, 'ALREADY_PICKED');
+  s = ok(await api('move', U.bea, { room: r.id, action: { type: 'pick', pick: 's' } }));
+  assert.deepEqual([s.state.last.picks, s.state.last.winner, s.state.score], [['r', 's'], 0, [1, 0]]);
+  // Béa goes quiet: Ali picks, the timer picks for her
+  ok(await api('move', U.ali, { room: r.id, action: { type: 'pick', pick: 'r' } }));
+  tick(23);
+  s = ok(await api('getState', U.ali, { room: r.id }));
+  assert.equal(s.state.round, 3, 'the round was completed for the silent player');
+  assert.equal(JSON.parse(row('SELECT meta FROM rooms WHERE id = ?', r.id).meta).timeouts[1], 1);
+});
+
+await scenario('reversi and dots & boxes: a full game against the bot through the endpoints', async () => {
+  for (const [game, rules] of [['reversi', reversiRules], ['dots', dotsRules]]) {
+    const r = ok(await api('createRoom', U.eve, { game }));
+    let s = ok(await api('roomAction', U.eve, { room: r.id, action: 'bots' }));
+    for (let i = 0; i < 80 && s.status === 'playing'; i += 1) {
+      assert.equal(s.state.turn, 0, `${game}: the bot has moved`);
+      s = ok(await api('move', U.eve, { room: r.id, ver: s.ver, action: rules.auto(s.state, 0, Math.random) }));
+    }
+    assert.equal(s.status, 'finished', game);
+    assert.ok(s.result.winners.length === 1 || s.result.draw);
+  }
+  assert.ok(chessRules.legalMoves(chessRules.create()).length === 20);
 });
 
 // ---------- codeword ----------

@@ -7,7 +7,7 @@ import { seatName } from '../ctx';
 import { n, t } from '../i18n';
 import type { BoardProps } from '../screens/Room';
 import { haptic } from '../tg';
-import { Button, Icon, toast } from '../ui';
+import { Button, Die, Icon, toast } from '../ui';
 import { myTurn } from '../useRoom';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -91,18 +91,6 @@ function positions(layout: Checker[], viewer: number) {
     }
   }
   return pos;
-}
-
-function Die({ v, used, rolling }: { v: number; used: boolean; rolling: boolean }) {
-  const PIPS: Record<number, number[][]> = {
-    1: [[1, 1]], 2: [[0, 0], [2, 2]], 3: [[0, 0], [1, 1], [2, 2]], 4: [[0, 0], [2, 0], [0, 2], [2, 2]],
-    5: [[0, 0], [2, 0], [1, 1], [0, 2], [2, 2]], 6: [[0, 0], [2, 0], [0, 1], [2, 1], [0, 2], [2, 2]],
-  };
-  return (
-    <div class={`die${used ? ' used' : ''}${rolling ? ' rolling' : ''}`}>
-      {PIPS[v]?.map(([x, y], i) => <i key={i} style={{ left: `${25 + x * 25}%`, top: `${25 + y * 25}%` }} />)}
-    </div>
-  );
 }
 
 export default function Backgammon({ room, busy, move }: BoardProps) {

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Telegram game bot with a Mini App (tic-tac-toe, backgammon, Hokm, Codeword, Fusion) on Telegram Serverless (tgcloud)",
+  "description": "Telegram game bot with a Mini App (Hokm, backgammon, ludo, chess, tic-tac-toe, reversi, dots and boxes, rock-paper-scissors, Codeword, Fusion) on Telegram Serverless (tgcloud)",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

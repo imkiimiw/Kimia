@@ -14,7 +14,16 @@ const BOARDS: Record<string, () => Promise<{ default: ComponentType<BoardProps> 
   ttt: () => import('../games/TicTacToe'),
   bg: () => import('../games/Backgammon'),
   hokm: () => import('../games/Hokm'),
+  ludo: () => import('../games/Ludo'),
+  chess: () => import('../games/Chess'),
+  reversi: () => import('../games/Reversi'),
+  dots: () => import('../games/Dots'),
+  rps: () => import('../games/Rps'),
 };
+
+/* Games whose board shows the players itself (more than two seats). */
+const OWN_HEADER = ['hokm', 'ludo'];
+const MARKS: Record<string, string[]> = { ttt: ['❌', '⭕'], bg: ['⚪', '⚫'], chess: ['⚪', '⚫'], reversi: ['⚫', '⚪'], dots: ['🔵', '🔴'] };
 
 function useBoard(game: string) {
   const [Board, setBoard] = useState<ComponentType<BoardProps> | null>(null);
@@ -31,7 +40,7 @@ function Seat({ seat, i, room, onSit }: { seat: RoomView; i: number; room: RoomV
       <div class="seat empty">
         <div class="avatar seat-empty">+</div>
         <span class="hint">{t('lobby_empty_seat')}</span>
-        {canSit && room.game === 'hokm' && <button class="chip brand" onClick={() => onSit(i)}>{t('lobby_sit')}</button>}
+        {canSit && room.seats.length > 2 && <button class="chip brand" onClick={() => onSit(i)}>{t('lobby_sit')}</button>}
       </div>
     );
   }
@@ -147,6 +156,12 @@ function Lobby({ room, act, busy }: { room: RoomView; act: (i: Record<string, un
             </div>
           ))}
         </div>
+      ) : room.seats.length > 2 ? (
+        <div class="seat-grid">
+          {room.seats.map((s: RoomView, i: number) => (
+            <div key={i} class={`seat-slot slot-${i}`}><Seat seat={s} i={i} room={room} onSit={sit} /></div>
+          ))}
+        </div>
       ) : (
         <div class="duel">
           <Seat seat={room.seats[0]} i={0} room={room} onSit={sit} />
@@ -196,9 +211,9 @@ function Lobby({ room, act, busy }: { room: RoomView; act: (i: Record<string, un
 
 /* The players across the top, with the turn highlighted and its timer. */
 function Players({ room }: { room: RoomView }) {
-  if (room.game === 'hokm') return null;
+  if (OWN_HEADER.includes(room.game)) return null;
   const turn = room.status === 'playing' ? room.state.turn : -1;
-  const marks = room.game === 'ttt' ? ['❌', '⭕'] : ['⚪', '⚫'];
+  const marks = MARKS[room.game] || (room.game === 'rps' ? room.state.score.map((x: number) => `⭐ ${n(x)}`) : ['', '']);
   return (
     <div class="players">
       {room.seats.map((s: RoomView, i: number) => (
@@ -238,6 +253,10 @@ function Result({ room, act, busy }: { room: RoomView; act: (i: Record<string, u
       {room.game === 'ttt' && <p class="hint">{t('ttt_score', { a: room.state.score[0], d: room.state.score[2], b: room.state.score[1] })}</p>}
       {room.game === 'bg' && <p class="hint">{t('bg_score', { a: room.state.score[0], b: room.state.score[1], target: room.state.target })}</p>}
       {room.game === 'hokm' && <p class="hint">{t('hokm_hands', { a: room.state.score[0], b: room.state.score[1], target: room.state.target })}</p>}
+      {room.game === 'reversi' && <p class="hint">⚫ {t('score_line', { a: room.state.count[0], b: room.state.count[1] })} ⚪</p>}
+      {room.game === 'dots' && <p class="hint">🔵 {t('score_line', { a: room.state.count[0], b: room.state.count[1] })} 🔴</p>}
+      {room.game === 'rps' && <p class="hint">{t('score_line', { a: room.state.score[0], b: room.state.score[1] })}</p>}
+      {room.game === 'chess' && room.state.result && <p class="hint">{t(`chess_${room.state.result}`)}</p>}
       <div class="stack" style={{ marginTop: '18px' }}>
         {mine && (
           <Button block disabled={busy || room.rematch.mine} onClick={() => act({ action: 'rematch' })}>
@@ -268,9 +287,11 @@ export function Room({ game, roomId }: { game: string; roomId: string }) {
   return (
     <div class={`room room-${room.game} screen-in`}>
       <Players room={room} />
-      {room.status === 'playing' && room.game !== 'hokm' && (
+      {room.status === 'playing' && !OWN_HEADER.includes(room.game) && room.state.turn >= 0 && (
         <div class={`turn-banner${mine ? ' mine' : ''}`}>
-          {mine ? t('turn_you') : t('turn_other', { name: seatName(room.seats[room.state.turn], t, n) })}
+          {room.game === 'rps'
+            ? (mine ? t('rps_choose') : t('rps_waiting', { name: seatName(room.seats[room.state.turn], t, n) }))
+            : (mine ? t('turn_you') : t('turn_other', { name: seatName(room.seats[room.state.turn], t, n) }))}
         </div>
       )}
       <Board room={room} busy={busy} move={move} />

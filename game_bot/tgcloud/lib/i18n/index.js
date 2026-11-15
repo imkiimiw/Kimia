@@ -37,4 +37,4 @@ export function t(lang, key, vars) {
   });
 }
 
-export const GAME_ICONS = { ttt: '❌⭕', bg: '🎲', hokm: '🃏', codeword: '🔤', fusion: '🧩' };
+export const GAME_ICONS = { ttt: '❌⭕', bg: '🎲', hokm: '🃏', codeword: '🔤', fusion: '🧩', ludo: '🚩', chess: '♟', reversi: '⚫⚪', dots: '✏️', rps: '✊' };

@@ -29,7 +29,10 @@ export const BROADCAST_BATCH = 25; /* messages per batch: Telegram allows about 
 export const BROADCAST_GAP_MS = 1000; /* at least this long between batches */
 export const BROADCAST_BUDGET_MS = 6000; /* stop a batch early after this long */
 
-export const GAMES = ['ttt', 'bg', 'hokm', 'codeword', 'fusion'];
-export const ROOM_GAMES = ['ttt', 'bg', 'hokm'];
-/* One letter per game in startapp payloads: <letter>_<room id>, or the letter alone for solo games. */
-export const PAYLOAD_LETTER = { ttt: 't', bg: 'b', hokm: 'h', codeword: 'c', fusion: 'f' };
+/* Every game, in the order they are offered (inline results, home screen, leaderboards). */
+export const GAMES = ['hokm', 'bg', 'ludo', 'chess', 'ttt', 'reversi', 'dots', 'rps', 'codeword', 'fusion'];
+export const ROOM_GAMES = ['hokm', 'bg', 'ludo', 'chess', 'ttt', 'reversi', 'dots', 'rps'];
+/* Seats per room game ([min, max] where a game can start short of full). */
+export const GAME_SEATS = { hokm: [4, 4], bg: [2, 2], ludo: [2, 4], chess: [2, 2], ttt: [2, 2], reversi: [2, 2], dots: [2, 2], rps: [2, 2] };
+/* One letter per game in start payloads: <letter>_<room id>, or the letter alone for solo games. */
+export const PAYLOAD_LETTER = { ttt: 't', bg: 'b', hokm: 'h', codeword: 'c', fusion: 'f', ludo: 'l', chess: 's', reversi: 'r', dots: 'd', rps: 'p' };

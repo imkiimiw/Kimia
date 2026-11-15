@@ -9,7 +9,7 @@
  * "room <id>" (from the Mini App's invite sheet) lists just that room.
  * Users who haven't joined the forced-join channels get no games, only a button to the bot's chat.
  */
-import { APP_URL, ROOM_GAMES } from './config.js';
+import { APP_URL, GAMES, GAME_SEATS, ROOM_GAMES } from './config.js';
 import { GAME_ICONS, t } from './i18n/index.js';
 import { joinStatus } from './join.js';
 import { botInfo, gameLink, payloadFor } from './links.js';
@@ -17,14 +17,17 @@ import { ensureRoom, loadRoom, newRoomId, playerName, reserveRooms } from './roo
 import * as store from './store.js';
 import { call, createCtx, esc, short } from './tg.js';
 
-const ORDER = ['ttt', 'bg', 'hokm', 'codeword', 'fusion'];
-const SEATS = { ttt: 2, bg: 2, hokm: 4 };
+/* "2 players", "2–4 players" */
+function seatsText(lang, game) {
+  const [min, max] = GAME_SEATS[game];
+  return min === max ? t(lang, 'players_n', { n: max }) : t(lang, 'players_range', { a: min, b: max });
+}
 
 export function article(lang, info, game, roomId, from) {
   const room = ROOM_GAMES.includes(game);
   const name = esc(short(from.first_name || 'A friend'));
   const vars = { icon: GAME_ICONS[game], game: t(lang, `game_${game}`), name };
-  const desc = room ? `${t(lang, 'players_n', { n: SEATS[game] })} · ${t(lang, `desc_${game}`)}` : `${t(lang, 'solo')} · ${t(lang, `desc_${game}`)}`;
+  const desc = room ? `${seatsText(lang, game)} · ${t(lang, `desc_${game}`)}` : `${t(lang, 'solo')} · ${t(lang, `desc_${game}`)}`;
   const r = {
     type: 'article',
     id: room ? `${game}.${roomId}` : game,
@@ -65,7 +68,7 @@ export async function onInlineQuery(iq) {
       const ids = {};
       for (const g of ROOM_GAMES) ids[g] = newRoomId();
       await reserveRooms(ROOM_GAMES.map((g) => ({ id: ids[g], game: g })), { id: iq.from.id, name: playerName(iq.from) }, lang);
-      results = ORDER.map((g) => article(lang, info, g, ids[g] || null, iq.from));
+      results = GAMES.map((g) => article(lang, info, g, ids[g] || null, iq.from));
     }
     await call(ctx, 'answerInlineQuery', { inline_query_id: iq.id, results, cache_time: 0, is_personal: true }, 'inline');
   } catch (err) {

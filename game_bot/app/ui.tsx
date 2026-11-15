@@ -107,6 +107,20 @@ export function Overlay({ children }: { children: ComponentChildren }) {
   );
 }
 
+const PIPS: Record<number, number[][]> = {
+  1: [[1, 1]], 2: [[0, 0], [2, 2]], 3: [[0, 0], [1, 1], [2, 2]], 4: [[0, 0], [2, 0], [0, 2], [2, 2]],
+  5: [[0, 0], [2, 0], [1, 1], [0, 2], [2, 2]], 6: [[0, 0], [2, 0], [0, 1], [2, 1], [0, 2], [2, 2]],
+};
+
+/* A die face (backgammon, Ludo). */
+export function Die({ v, used = false, rolling = false }: { v: number; used?: boolean; rolling?: boolean }) {
+  return (
+    <div class={`die${used ? ' used' : ''}${rolling ? ' rolling' : ''}`}>
+      {PIPS[v]?.map(([x, y], i) => <i key={i} style={{ left: `${25 + x * 25}%`, top: `${25 + y * 25}%` }} />)}
+    </div>
+  );
+}
+
 /* A ring that empties as the turn's time runs out. */
 export function TimerRing({ left, total, size = 34 }: { left: number; total: number; size?: number }) {
   const [now, setNow] = useState(Date.now());
