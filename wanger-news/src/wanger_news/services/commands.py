@@ -1,0 +1,187 @@
+"""Admin commands in the bot's private chat (spec §12). Everyone else is ignored silently.
+
+Replies arrive on the next run (no server: ADR-003), so /help says so.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+from typing import Any
+
+from wanger_news import PHASE, __version__
+from wanger_news.adapters.telegram.types import Message
+from wanger_news.config.models import AppConfig
+from wanger_news.db.repositories import Repositories
+from wanger_news.domain.jalali import format_tehran
+from wanger_news.domain.text import to_persian_digits
+from wanger_news.formatting.telegram_html import bold, esc, split_html
+from wanger_news.services.context import RunContext
+
+PAUSED_KEY = "publishing.paused"
+LATER_PHASE = {"news": 2, "pending": 2, "approve": 2, "reject": 2, "publish": 2, "settings": 5}
+
+STATUS_FA = {
+    "new": "در انتظار پردازش",
+    "queued": "در صف انتشار",
+    "pending_review": "در انتظار بررسی انسانی",
+    "published": "منتشرشده",
+    "duplicate": "تکراری",
+    "filtered": "فیلترشده",
+    "throttled": "محدودشده",
+    "stale": "قدیمی",
+    "expired": "منقضی",
+    "failed": "ناموفق",
+    "uncertain": "نامشخص",
+    "external": "پست دستی در کانال",
+}
+
+
+def parse_command(text: str) -> tuple[str, str] | None:
+    if not text.startswith("/"):
+        return None
+    head, _, rest = text.strip().partition(" ")
+    name = head[1:].split("@", 1)[0].lower()
+    return (name, rest.strip()) if name else None
+
+
+class CommandService:
+    def __init__(self, config: AppConfig) -> None:
+        self._cfg = config
+
+    async def handle(self, repos: Repositories, ctx: RunContext, message: Message) -> str:
+        sender = message.from_user.id if message.from_user else None
+        if message.chat.type != "private" or sender not in ctx.admin_ids:
+            return "ignored:not_admin"
+        parsed = parse_command(message.body)
+        if parsed is None:
+            return "ignored:not_command"
+        name, _args = parsed
+        handlers = {
+            "start": self._help,
+            "help": self._help,
+            "status": self._status,
+            "sources": self._sources,
+            "categories": self._categories,
+            "stats": self._stats,
+            "pause": self._pause,
+            "resume": self._resume,
+        }
+        if name in handlers:
+            text = await handlers[name](repos, ctx)
+        elif name in LATER_PHASE:
+            text = (
+                f"⏳ /{esc(name)} در فاز {to_persian_digits(str(LATER_PHASE[name]))} اضافه می‌شود."
+            )
+        else:
+            text = "دستور ناشناخته. /help"
+        await self._reply(ctx, message.chat.id, text)
+        return f"command:{name}"
+
+    async def _reply(self, ctx: RunContext, chat_id: int, text: str) -> None:
+        if ctx.dry_run or ctx.bot is None:
+            ctx.out(f"--- [reply to {chat_id}] ---\n{text}\n")
+            return
+        for chunk in split_html(text, self._cfg.pipeline.publish.message_limit):
+            await ctx.bot.call(
+                "sendMessage",
+                {
+                    "chat_id": chat_id,
+                    "text": chunk,
+                    "parse_mode": "HTML",
+                    "link_preview_options": {"is_disabled": True},
+                },
+            )
+
+    async def _help(self, repos: Repositories, ctx: RunContext) -> str:
+        return "\n".join(
+            [
+                bold(f"Wanger News — فاز {to_persian_digits(str(PHASE))}"),
+                "پاسخ دستورها در اجرای بعدی (هر چند دقیقه) می‌رسد.",
+                "",
+                "/status — وضعیت سیستم و صف",
+                "/sources — منابع و سلامت آن‌ها",
+                "/categories — دسته‌بندی‌ها",
+                "/stats — آمار ۲۴ ساعت اخیر",
+                "/pause — توقف انتشار (جمع‌آوری ادامه دارد)",
+                "/resume — ادامهٔ انتشار",
+                "/news /pending /approve /reject /publish — از فاز ۲",
+            ]
+        )
+
+    async def _status(self, repos: Repositories, ctx: RunContext) -> str:
+        paused = bool(await repos.settings.get(PAUSED_KEY, False))
+        runs = await repos.runs.latest(2)
+        previous = next((r for r in runs if r.id != ctx.run_id), None)
+        counts = await repos.articles.status_counts()
+        health = await repos.sources.all_health()
+        failing = [sid for sid, h in health.items() if h.state != "closed"]
+        target = str(ctx.target.chat) if ctx.target else "تنظیم نشده"
+        lines = [
+            bold("📊 وضعیت"),
+            f"نسخه: {esc(__version__)} · فاز {to_persian_digits(str(PHASE))}",
+            f"انتشار: {'⏸ متوقف' if paused else '▶️ فعال'} · مقصد: {esc(target)} (کانال تست)",
+        ]
+        if previous is not None:
+            when = format_tehran(previous.started_at, self._cfg.pipeline.timezone)
+            lines.append(f"اجرای قبلی: {esc(when)} — {esc(previous.status)}")
+        for key in ("queued", "pending_review", "uncertain", "failed"):
+            lines.append(f"{STATUS_FA[key]}: {to_persian_digits(str(counts.get(key, 0)))}")
+        lines.append(
+            f"منابع با مشکل: {to_persian_digits(str(len(failing)))}"
+            + (f" ({esc(', '.join(sorted(failing)))})" if failing else "")
+        )
+        recent = await repos.logs.recent(["error"], 3)
+        if recent:
+            lines.append("")
+            lines.append(bold("آخرین خطاها"))
+            lines.extend(f"• {esc(r.event)}" for r in recent)
+        return "\n".join(lines)
+
+    async def _sources(self, repos: Repositories, ctx: RunContext) -> str:
+        health = await repos.sources.all_health()
+        lines = [bold("📰 منابع")]
+        for source in self._cfg.sources.sources:
+            h = health.get(source.id)
+            if not source.active:
+                mark = "⚪️"
+            elif h is None:
+                mark = "🆕"
+            elif h.state == "closed":
+                mark = "🟢"
+            else:
+                mark = "🔴"
+            extra = ""
+            if h is not None and h.last_error and h.state != "closed":
+                extra = f" — {esc(h.last_error[:60])}"
+            lines.append(f"{mark} {esc(source.name)} <code>{esc(source.id)}</code>{extra}")
+        lines.append("")
+        lines.append("🟢 سالم · 🔴 مدار باز (موقتاً متوقف) · ⚪️ غیرفعال · 🆕 هنوز بررسی نشده")
+        return "\n".join(lines)
+
+    async def _categories(self, repos: Repositories, ctx: RunContext) -> str:
+        lines = [bold("🗂 دسته‌بندی‌ها")]
+        lines.extend(
+            f"• {esc(c.name_fa)} — #{esc(c.hashtag)}" for c in self._cfg.categories.categories
+        )
+        return "\n".join(lines)
+
+    async def _stats(self, repos: Repositories, ctx: RunContext) -> str:
+        since = ctx.now() - timedelta(hours=24)
+        counts = await repos.articles.status_counts(since)
+        posts: dict[str, Any] = await repos.posts.count_by_status(since)
+        lines = [
+            bold("📈 ۲۴ ساعت اخیر"),
+            f"خبر دریافت‌شده: {to_persian_digits(str(sum(counts.values())))}",
+        ]
+        for key, value in sorted(counts.items(), key=lambda kv: -kv[1]):
+            lines.append(f"• {esc(STATUS_FA.get(key, key))}: {to_persian_digits(str(value))}")
+        lines.append(f"پست ارسال‌شده: {to_persian_digits(str(posts.get('sent', 0)))}")
+        return "\n".join(lines)
+
+    async def _pause(self, repos: Repositories, ctx: RunContext) -> str:
+        await repos.settings.set(PAUSED_KEY, True, ctx.now())
+        return "⏸ انتشار متوقف شد. جمع‌آوری خبر ادامه دارد. /resume"
+
+    async def _resume(self, repos: Repositories, ctx: RunContext) -> str:
+        await repos.settings.set(PAUSED_KEY, False, ctx.now())
+        return "▶️ انتشار ادامه پیدا می‌کند."

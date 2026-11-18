@@ -1,0 +1,439 @@
+# Wanger News sources. Adding a source never needs a code change: add an entry, run
+#   python -m wanger_news check-sources --source <id>
+# and set `active: true` only after the live check passes. The latest live check is recorded in
+# docs/SOURCES_CHECK.md.
+#
+# Fields: id, name, domain, country (ISO alpha-2 or INT), language, category (config/categories.yaml),
+# source_type, transport (rss | telegram_channel | api | scrape), reliability_score (0-100),
+# active, inactive_reason, rss_url, api_config, scraping_config, telegram, rate_limit, priority,
+# owner_group (sources with the same owner_group are NOT independent confirmations), notes.
+#
+# reliability_score values are INITIAL estimates for the owner to review; from Phase 5 the system
+# only *suggests* changes (with history), a human applies them.
+# Strings may use ${VAR} or ${VAR:-default}; the value comes from the environment or .env.
+version: 1
+sources:
+  # ---------------------------------------------------------------- Telegram source channel
+  # Posts in this channel (the bot must be an admin there) are copied to the target channel
+  # unless the same post was published before (same message, same forwarded original, same media,
+  # same link or the same/near-identical text). Duplicates are reported to the owner instead.
+  - id: source-channel
+    name: کانال منبع
+    country: INT
+    language: fa
+    category: world
+    source_type: social_official_account
+    transport: telegram_channel
+    telegram:
+      chat: ${WANGER_NEWS_SOURCE_CHANNEL}
+    reliability_score: 70
+    priority: 80
+    owner_group: wanger
+    notes: Human-curated by the channel admins; treated as already reviewed (no AI, no review gate).
+
+  # ---------------------------------------------------------------- international (English)
+  - id: bbc-world
+    name: BBC News
+    domain: bbc.com
+    country: GB
+    language: en
+    category: world
+    source_type: tv
+    reliability_score: 85
+    rss_url: https://feeds.bbci.co.uk/news/world/rss.xml
+    priority: 70
+    owner_group: bbc
+
+  - id: guardian-world
+    name: The Guardian
+    domain: theguardian.com
+    country: GB
+    language: en
+    category: world
+    source_type: newspaper
+    reliability_score: 80
+    rss_url: https://www.theguardian.com/world/rss
+    priority: 60
+    owner_group: guardian-media-group
+
+  - id: aljazeera
+    name: Al Jazeera
+    domain: aljazeera.com
+    country: QA
+    language: en
+    category: world
+    source_type: tv
+    reliability_score: 75
+    rss_url: https://www.aljazeera.com/xml/rss/all.xml
+    priority: 60
+    owner_group: al-jazeera-media-network
+
+  - id: dw-en
+    name: DW
+    domain: dw.com
+    country: DE
+    language: en
+    category: world
+    source_type: tv
+    reliability_score: 80
+    rss_url: https://rss.dw.com/xml/rss-en-all
+    priority: 60
+    owner_group: deutsche-welle
+
+  - id: france24-en
+    name: France 24
+    domain: france24.com
+    country: FR
+    language: en
+    category: world
+    source_type: tv
+    reliability_score: 78
+    rss_url: https://www.france24.com/en/rss
+    priority: 60
+    owner_group: france-medias-monde
+
+  - id: npr-world
+    name: NPR
+    domain: npr.org
+    country: US
+    language: en
+    category: world
+    source_type: tv
+    reliability_score: 80
+    rss_url: https://feeds.npr.org/1004/rss.xml
+    priority: 55
+    owner_group: npr
+
+  - id: politico
+    name: Politico
+    domain: politico.com
+    country: US
+    language: en
+    category: politics
+    source_type: newspaper
+    reliability_score: 75
+    rss_url: https://rss.politico.com/politics-news.xml
+    priority: 50
+    owner_group: axel-springer
+
+  - id: reuters
+    name: Reuters
+    domain: reuters.com
+    country: GB
+    language: en
+    category: world
+    source_type: news_agency
+    reliability_score: 90
+    active: false
+    inactive_reason: No public RSS feed since 2020 (feeds.reuters.com was shut down); needs a licensed API.
+    owner_group: thomson-reuters
+
+  - id: ap
+    name: AP
+    domain: apnews.com
+    country: US
+    language: en
+    category: world
+    source_type: news_agency
+    reliability_score: 90
+    active: false
+    inactive_reason: No official public RSS feed; AP content is licensed (AP Media API).
+    owner_group: associated-press
+
+  - id: cnn-world
+    name: CNN
+    domain: cnn.com
+    country: US
+    language: en
+    category: world
+    source_type: tv
+    reliability_score: 75
+    active: false
+    inactive_reason: rss.cnn.com still answers but has not been updated since 2023-09 (checked 2026-11-18).
+    rss_url: http://rss.cnn.com/rss/edition_world.rss
+    owner_group: warner-bros-discovery
+
+  - id: cnbc
+    name: CNBC
+    domain: cnbc.com
+    country: US
+    language: en
+    category: economy
+    source_type: tv
+    reliability_score: 75
+    active: false
+    inactive_reason: The feed answers 403 to non-browser clients (checked 2026-11-18); not bypassed.
+    rss_url: https://www.cnbc.com/id/100727362/device/rss/rss.html
+    owner_group: comcast-nbcuniversal
+
+  - id: bloomberg
+    name: Bloomberg
+    domain: bloomberg.com
+    country: US
+    language: en
+    category: economy
+    source_type: news_agency
+    reliability_score: 85
+    active: false
+    inactive_reason: Articles are behind a paywall; the feed gives headlines only, which cannot be verified or summarized.
+    rss_url: https://feeds.bloomberg.com/politics/news.rss
+    owner_group: bloomberg-lp
+
+  - id: ft
+    name: Financial Times
+    domain: ft.com
+    country: GB
+    language: en
+    category: economy
+    source_type: newspaper
+    reliability_score: 85
+    active: false
+    inactive_reason: Paywall; headline-only feed.
+    rss_url: https://www.ft.com/rss/home
+    owner_group: nikkei
+
+  # ---------------------------------------------------------------- official organizations
+  - id: un-news
+    name: UN News
+    domain: news.un.org
+    country: INT
+    language: en
+    category: world
+    source_type: official_organization
+    reliability_score: 85
+    rss_url: https://news.un.org/feed/subscribe/en/news/all/rss.xml
+    priority: 55
+    owner_group: united-nations
+
+  - id: who-news
+    name: WHO
+    domain: who.int
+    country: INT
+    language: en
+    category: health
+    source_type: official_organization
+    reliability_score: 85
+    rss_url: https://www.who.int/rss-feeds/news-english.xml
+    priority: 50
+    owner_group: united-nations
+    rate_limit:
+      min_fetch_interval_minutes: 60
+      max_new_items_per_hour: 10
+
+  - id: nasa
+    name: NASA
+    domain: nasa.gov
+    country: US
+    language: en
+    category: science
+    source_type: government
+    reliability_score: 85
+    rss_url: https://www.nasa.gov/news-release/feed/
+    priority: 45
+    owner_group: us-government
+    rate_limit:
+      min_fetch_interval_minutes: 60
+      max_new_items_per_hour: 10
+
+  # ---------------------------------------------------------------- technology & science
+  - id: ars-technica
+    name: Ars Technica
+    domain: arstechnica.com
+    country: US
+    language: en
+    category: technology
+    source_type: specialized_media
+    reliability_score: 78
+    rss_url: https://feeds.arstechnica.com/arstechnica/index
+    priority: 45
+    owner_group: conde-nast
+
+  - id: the-verge
+    name: The Verge
+    domain: theverge.com
+    country: US
+    language: en
+    category: technology
+    source_type: specialized_media
+    reliability_score: 72
+    rss_url: https://www.theverge.com/rss/index.xml
+    priority: 40
+    owner_group: vox-media
+
+  - id: techcrunch
+    name: TechCrunch
+    domain: techcrunch.com
+    country: US
+    language: en
+    category: technology
+    source_type: specialized_media
+    reliability_score: 70
+    rss_url: https://techcrunch.com/feed/
+    priority: 40
+    owner_group: techcrunch
+
+  - id: mit-tech-review
+    name: MIT Technology Review
+    domain: technologyreview.com
+    country: US
+    language: en
+    category: technology
+    source_type: specialized_media
+    reliability_score: 80
+    rss_url: https://www.technologyreview.com/feed/
+    priority: 45
+    owner_group: mit
+
+  - id: nature
+    name: Nature
+    domain: nature.com
+    country: GB
+    language: en
+    category: science
+    source_type: specialized_media
+    reliability_score: 88
+    rss_url: https://www.nature.com/nature.rss
+    priority: 45
+    owner_group: springer-nature
+    rate_limit:
+      min_fetch_interval_minutes: 60
+      max_new_items_per_hour: 15
+
+  - id: sciencedaily
+    name: ScienceDaily
+    domain: sciencedaily.com
+    country: US
+    language: en
+    category: science
+    source_type: specialized_media
+    reliability_score: 68
+    rss_url: https://www.sciencedaily.com/rss/all.xml
+    priority: 35
+    owner_group: sciencedaily
+    notes: Mostly university press releases; good leads, weak as independent confirmation.
+
+  # ---------------------------------------------------------------- Persian-language CANDIDATES
+  # All inactive until the owner chooses (PLAN.md, "decisions"). The descriptions are factual
+  # ownership/funding notes for that decision, not quality judgements.
+  - id: bbc-persian
+    name: BBC Persian
+    domain: bbc.com/persian
+    country: GB
+    language: fa
+    category: world
+    source_type: tv
+    reliability_score: 80
+    active: false
+    inactive_reason: Candidate — waiting for the owner's choice. Feed works (2026-11-18). Same owner_group as bbc-world.
+    rss_url: https://feeds.bbci.co.uk/persian/rss.xml
+    owner_group: bbc
+
+  - id: dw-persian
+    name: DW فارسی
+    domain: dw.com/fa-ir
+    country: DE
+    language: fa
+    category: world
+    source_type: tv
+    reliability_score: 78
+    active: false
+    inactive_reason: Candidate — waiting for the owner's choice. Feed works (2026-11-18).
+    rss_url: https://rss.dw.com/xml/rss-per-all
+    owner_group: deutsche-welle
+
+  - id: euronews-persian
+    name: یورونیوز فارسی
+    domain: parsi.euronews.com
+    country: FR
+    language: fa
+    category: world
+    source_type: tv
+    reliability_score: 72
+    active: false
+    inactive_reason: Candidate — waiting for the owner's choice. Feed works (2026-11-18).
+    rss_url: https://parsi.euronews.com/rss
+    owner_group: euronews
+
+  - id: independent-persian
+    name: ایندیپندنت فارسی
+    domain: independentpersian.com
+    country: GB
+    language: fa
+    category: world
+    source_type: newspaper
+    reliability_score: 65
+    active: false
+    inactive_reason: Candidate — waiting for the owner's choice. Feed works (2026-11-18).
+    rss_url: https://www.independentpersian.com/rss.xml
+    owner_group: srmg
+    notes: Published in partnership with Saudi Research & Media Group.
+
+  - id: radio-farda
+    name: رادیو فردا
+    domain: radiofarda.com
+    country: CZ
+    language: fa
+    category: iran
+    source_type: tv
+    reliability_score: 70
+    active: false
+    inactive_reason: Candidate — waiting for the owner's choice. Feed works (2026-11-18).
+    rss_url: https://www.radiofarda.com/api/
+    owner_group: us-agency-for-global-media
+    notes: RFE/RL, funded by the US government (USAGM).
+
+  - id: voa-persian
+    name: صدای آمریکا
+    domain: ir.voanews.com
+    country: US
+    language: fa
+    category: iran
+    source_type: tv
+    reliability_score: 65
+    active: false
+    inactive_reason: Candidate — waiting for the owner's choice. Feed works (2026-11-18).
+    rss_url: https://ir.voanews.com/api/
+    owner_group: us-agency-for-global-media
+    notes: US government broadcaster (USAGM) — same owner_group as Radio Farda.
+
+  - id: iran-international
+    name: ایران اینترنشنال
+    domain: iranintl.com
+    country: GB
+    language: fa
+    category: iran
+    source_type: tv
+    reliability_score: 60
+    active: false
+    inactive_reason: Candidate — waiting for the owner's choice. Feed works (2026-11-18).
+    rss_url: https://www.iranintl.com/feed
+    owner_group: volant-media
+    notes: Privately owned (Volant Media, London); its funding is publicly disputed.
+
+  - id: irna
+    name: ایرنا
+    domain: irna.ir
+    country: IR
+    language: fa
+    category: iran
+    source_type: news_agency
+    reliability_score: 60
+    active: false
+    inactive_reason: Candidate. Unreachable from the test network and likely from GitHub runners (connection refused/timeout outside Iran, 2026-11-18).
+    rss_url: https://www.irna.ir/rss
+    owner_group: iran-government
+    notes: The Islamic Republic's official news agency (government-owned).
+
+  - id: isna
+    name: ایسنا
+    domain: isna.ir
+    country: IR
+    language: fa
+    category: iran
+    source_type: news_agency
+    reliability_score: 60
+    active: false
+    inactive_reason: Candidate. Unreachable from the test network (2026-11-18).
+    rss_url: https://www.isna.ir/rss
+    owner_group: isna
+    notes: Iranian Students' News Agency (affiliated with ACECR, a state body).

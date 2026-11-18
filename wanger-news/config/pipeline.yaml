@@ -1,0 +1,96 @@
+# Every threshold and limit of the pipeline. No magic numbers in code: defaults in
+# src/wanger_news/config/models.py match the values below.
+timezone: Asia/Tehran          # display only; the database stores UTC
+
+http:
+  # Generic on purpose. Add a contact URL here if you want publishers to be able to reach you.
+  user_agent: "WangerNewsBot/0.1 (RSS reader)"
+  robots_user_agent: WangerNewsBot
+  timeout_seconds: 15
+  connect_timeout_seconds: 5
+  max_response_bytes: 5000000
+  max_redirects: 5
+  retries: 2                     # extra attempts for timeouts, connection errors, 429 and 5xx
+  backoff_base_seconds: 0.5      # exponential backoff with jitter
+  backoff_max_seconds: 8
+  retry_after_max_seconds: 20    # a longer Retry-After ends the attempt for this run
+  concurrency: 6
+  allowed_ports: [80, 443]
+  respect_robots_txt: true
+  robots_cache_hours: 24
+
+circuit_breaker:
+  failure_threshold: 4           # consecutive failed runs before the source is paused
+  cooldown_minutes: 30           # doubles on every failed half-open try
+  max_cooldown_minutes: 1440
+
+ingest:
+  max_entries_per_feed: 50
+  max_item_age_hours: 12         # older items are stored as `stale` and never published
+  max_future_skew_minutes: 30
+  min_title_chars: 8
+  max_title_chars: 400
+  max_description_chars: 4000
+  max_content_chars: 20000
+
+dedup:
+  # Level 1: normalized URLs. Parameters dropped from every URL (case-insensitive):
+  tracking_params: [fbclid, gclid, dclid, msclkid, yclid, mc_cid, mc_eid, ocid, cmpid, cmp, ito,
+                    smid, s_cid, ref, ref_src, refsrc, src, source, feature, igshid, spm, rss,
+                    xtor, guccounter, __twitter_impression, _ga, _gl, mkt_tok, sh, sr_share]
+  tracking_param_prefixes: [utm_, at_, ns_, pk_, mtm_, hsa_, oly_]
+  strip_host_prefixes: ["www.", "m."]
+  # Level 2, two steps (ARCHITECTURE.md ADR-007, chosen by measurement on 720 real items):
+  # a cheap SimHash prefilter over 2-word shingles, then an exact confirmation on the few
+  # candidates: token-set Jaccard, and the same numbers (a changed figure is an update).
+  near_duplicate_max_hamming: 12
+  near_duplicate_min_jaccard: 0.8
+  near_duplicate_same_numbers: true
+  near_duplicate_window_hours: 72
+  near_duplicate_min_tokens: 8   # shorter texts are only compared exactly
+  near_duplicate_max_candidates: 5000
+  shingle_size: 2
+
+classification:
+  title_weight: 3
+  body_weight: 1
+  min_category_score: 2
+  secondary_hashtag_min_score: 4
+  max_hashtags: 3
+
+gate:
+  min_priority: 50               # only items with priority >= this continue (spec §6 gate)
+
+publish:
+  max_posts_per_run: 6
+  min_interval_seconds: 3        # between two posts in one channel
+  max_publish_age_hours: 12      # a queued item older than this expires instead of being posted
+  description_excerpt_chars: 300 # the feed's own teaser, never full article text
+  use_feed_images: true          # only images published in the feed itself, credited
+  link_preview: false
+  max_attempts: 3
+  message_limit: 4096
+  caption_limit: 1024
+
+telegram:
+  request_timeout_seconds: 20
+  rate_limit_max_wait_seconds: 30  # a longer retry_after stops publishing for this run
+  poll_max_pages: 5                # getUpdates pages (100 updates each) per run
+  album_settle_seconds: 20         # an album is copied once its last part is this old
+  source_post_priority: 80
+  notify_owner_on_duplicate: true  # tell the owner when a source-channel post was a repeat
+  observe_target_channels: true    # posts made by hand in the target channels count as published
+  max_owner_notices_per_run: 5
+
+locks:
+  pipeline_ttl_minutes: 15
+
+retention:
+  articles_days: 30
+  jobs_days: 14
+  updates_days: 7
+  logs_days: 14
+  batch_size: 2000
+
+worker:
+  interval_seconds: 600            # option B (Docker): pause between two runs

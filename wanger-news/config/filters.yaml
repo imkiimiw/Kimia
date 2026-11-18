@@ -1,0 +1,13 @@
+# Black/whitelists (spec §11). Applied at the gate, before anything expensive.
+# Blacklist always wins. A NON-EMPTY whitelist dimension means "only these pass".
+# keywords use the same matching as categories.yaml (whole words, trailing * allowed).
+blacklist:
+  sources: []
+  keywords: [horoscope, crossword, sponsored, advertorial, "تبلیغ", "رپورتاژ"]
+  countries: []
+  categories: []
+whitelist:
+  sources: []
+  keywords: []
+  countries: []
+  categories: []

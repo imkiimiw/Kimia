@@ -1,0 +1,49 @@
+# Option B (a server): `docker compose up -d`. Secrets come from .env (see .env.example).
+# Phase 1 needs only postgres + migrate + worker. The services the spec lists for option B that
+# later phases add are sketched at the bottom (ARCHITECTURE.md §Deployment).
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: wanger_news
+      POSTGRES_USER: wanger
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wanger -d wanger_news"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  migrate:
+    build: .
+    command: ["migrate"]
+    env_file: .env
+    environment:
+      WANGER_NEWS_DATABASE_URL: postgresql://wanger:${POSTGRES_PASSWORD}@postgres:5432/wanger_news
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  worker:
+    build: .
+    command: ["worker", "--trigger", "worker"]
+    env_file: .env
+    environment:
+      WANGER_NEWS_DATABASE_URL: postgresql://wanger:${POSTGRES_PASSWORD}@postgres:5432/wanger_news
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # --- later phases (not built yet) ---------------------------------------------------------
+  # app:        FastAPI admin/dashboard API + Telegram webhook endpoint (Phase 5)
+  # scheduler:  time-based jobs (daily brief, trend windows) once the worker is split (Phase 4)
+  # redis:      job queue / rate-limit buckets when more than one worker runs (Phase 4+)
+  #   image: redis:7-alpine
+
+volumes:
+  pgdata:

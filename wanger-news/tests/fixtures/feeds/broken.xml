@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Delta (broken)</title>
+    <item>
+      <title>Museum returns looted artefacts to their country of origin</title>
+      <link>https://delta.example/culture/1</link>
+      <description>The museum said the artefacts would be handed over at a ceremony & a festival.</description>
+      <pubDate>Wed, 18 Nov 2026 10:30:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Unclosed item
