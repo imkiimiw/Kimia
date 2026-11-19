@@ -1067,6 +1067,16 @@ export const mediaJobs = table('aegis_media_jobs', {
 }));
 
 /* A member's own sticker pack, made by Aegis (name ends in _by_<bot>). */
+/* A member's private dream journal (/dreamlog, private chat only): the last DREAM_KEEP dreams per member. */
+export const dreams = table('aegis_dreams', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  at: integer('at').notNull(),
+  text: text('text').notNull(),
+}, (t) => ({
+  byUser: index('idx_aegis_dreams_user').on(t.userId, t.at),
+}));
+
 export const stickerPacks = table('aegis_sticker_packs', {
   userId: integer('user_id').primaryKey(),
   name: text('name').notNull(),

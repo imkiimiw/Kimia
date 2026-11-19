@@ -88,5 +88,8 @@
   "ptest": "personality test",
   "spirit": "spirit games|spirit animal",
   "match": "compatibility test",
-  "knowme": "how well do you know me"
+  "knowme": "how well do you know me",
+  "dream": "dream meaning|interpret my dream",
+  "lucid": "lucid dreaming|lucid dream",
+  "dreamlog": "dream journal"
 }

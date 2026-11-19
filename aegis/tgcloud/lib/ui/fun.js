@@ -17,7 +17,7 @@
  *   · fn:<game>:r|p|s rock-paper-scissors · fn:<game>:t:<cell> tic-tac-toe
  *   · fn:f:<code>[:<arg>] run a fortune command (tarot 1|3, horo <sign 0–11>) · fn:f:horo:p the sign buttons
  *   · fn:d:<a|b|e…> the decision helper's answers so far (only the one who asked)
- *   · fn:q:<test>[:<answers>] · fn:q:m:<self|spirit> a questionnaire (only the one who asked) · fn:m / fn:k:<A's answers>[:j|:<id>:<answers>] /match, /knowme
+ *   · fn:dl:i|c|y|n the dream journal (private) · fn:q:<test>[:<answers>] · fn:q:m:<self|spirit> a questionnaire (only the one who asked) · fn:m / fn:k:<A's answers>[:j|:<id>:<answers>] /match, /knowme
  *   · fn:r:<m|u|b>[:g|l|a:<page>|p:<r|g<i>|l<i>|a<i>>] film, music and book recommendations (menu, lists, a pick), for the one who asked
  *   · fn:t:<page>[:<part>] a page of /font (combo, mix, tg, uni, look, mark, fa, frame, extra), for the one who asked
  * Panel: g:c:fn  ·  g:c:fn:s:<key>  ·  g:c:fn:c:<cat>  ·  g:c:fn:m:<cat> (who may use the group: a → s → d)  ·  g:c:fn:f:<code>[:o|w|c|d|r]
@@ -44,7 +44,7 @@ import { toggle } from './panel_channel.js';
 const flag = settings.flag;
 const RLM = /[\u200F\u200E]/g;
 /* A content list from funlist (one item per line), without direction marks. */
-const list = (lang, key) => t(lang, `funlist.${key}`).split('\n').map((x) => x.replace(RLM, '').trim()).filter(Boolean);
+const list = (lang, key, ns = 'funlist') => t(lang, `${ns}.${key}`).split('\n').map((x) => x.replace(RLM, '').trim()).filter(Boolean);
 /* The same for the fortune-telling lists (fallist). */
 /* a t() string used inside a line (its right-to-left mark belongs at the line's start, not here) */
 const inline = (lang, key, vars) => t(lang, key, vars).replace(RLM, '');
@@ -210,6 +210,7 @@ export async function command(ctx, message, privUser = null, press = null) {
 
 /* True when the command will only ask for input: no sign or saved birthday, no birth date or year. */
 async function promptOnly(parsed, pre, priv, chatId, userId) {
+  if (parsed.code === 'dreamlog') return true; /* the member's own journal, in private: no limits */
   if (['chinese', 'lifepath', 'weekday'].includes(parsed.code)) return !pre.date && !pre.year;
   if (['horo', 'birthmonth', 'weekly'].includes(parsed.code) && pre.sign === null) return priv || !(await fun.birthdayOf(chatId, userId));
   return false;
@@ -363,6 +364,16 @@ function prepare(parsed, message, lang, s) {
     }
     case 'likely':
       return human ? { target: human } : {};
+    case 'dream': {
+      const body = restOf(message.text, parsed.words || 1).text;
+      if (!body) return {};
+      return [...body].length <= fun.DREAM_MAX ? { text: body } : { bad: true };
+    }
+    case 'dreamlog': {
+      if (message.chat.type !== 'private') return { bad: true };
+      const body = restOf(message.text, parsed.words || 1).text;
+      return [...body].length <= fun.DREAM_MAX ? { text: body } : { bad: true };
+    }
     case 'ptest':
     case 'spirit': {
       if (!a.length) return {};
@@ -510,6 +521,16 @@ async function run(ctx, x) {
       const sc = pre.test ? testScreen(lang, pre.test, '', me) : testMenu(lang, g);
       return say(ctx, chatId, s, sc.text, sc.rows, `fun-${parsed.code}`, r);
     }
+    case 'dream':
+      return say(ctx, chatId, s, pre.text ? dreamText(lang, pre.text, me) : dreamList(lang), null, 'fun-dream', r);
+    case 'lucid': {
+      const ex = list(lang, 'lucid_ex', 'dreamlist');
+      const text = [t(lang, 'fun.lucid_title'), '', ...list(lang, 'lucid', 'dreamlist').map((l) => rtl(lang, `• ${esc(l)}`)), '',
+        t(lang, 'fun.lucid_ex', { text: esc(ex[fun.hash(`lucid:${from.id}:${day}`) % ex.length]) })].join('\n');
+      return say(ctx, chatId, s, text, null, 'fun-lucid', r);
+    }
+    case 'dreamlog':
+      return dreamJournal(ctx, x);
     case 'match':
     case 'knowme': {
       const sc = pairScreen(lang, code, '', null, '', me, null);
@@ -1279,6 +1300,107 @@ async function decideButton(ctx, cq, parts) {
   return answer(ctx);
 }
 
+/* ---------- dreams: /dream (symbols found in the text), /lucid, /dreamlog (private) ---------- */
+
+/* Persian and English endings a keyword may take; a two-letter keyword only the plural (آب, not آبی «blue») */
+const DREAM_SUFFIX = '(?:ها|های|هایم|ی|ای|ام|ات|اش|ه|ش|م|ت|مان|تان|شان|s|es)?';
+const DREAM_SUFFIX_SHORT = '(?:ها|های|s)?';
+const dreamRe = new Map();
+const keywordsOf = (lang, code) => inline(lang, `dreamlist.k_${code}`).split('|').map((k) => norm(k)).filter(Boolean);
+/*
+ * The symbols of the dictionary found in a dream, in the order they appear: a keyword of any language as a whole word (Persian and
+ * English endings allowed), or anywhere for Chinese.
+ */
+export function dreamSymbols(text) {
+  const src = ` ${norm(text).replace(/[.,!?؛،:;()«»"'’\-–—…/\\]+/g, ' ')} `;
+  const found = [];
+  for (const [code] of fun.DREAMS) {
+    let at = -1;
+    for (const lang of LANGS) {
+      for (const k of keywordsOf(lang, code)) {
+        let i;
+        if (/[぀-鿿]/.test(k)) i = src.indexOf(k);
+        else {
+          if (!dreamRe.has(k)) dreamRe.set(k, new RegExp(`\\s${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${[...k].length <= 2 ? DREAM_SUFFIX_SHORT : DREAM_SUFFIX}(?=\\s)`));
+          const m = dreamRe.get(k).exec(src);
+          i = m ? m.index : -1;
+        }
+        if (i >= 0 && (at < 0 || i < at)) at = i;
+      }
+    }
+    if (at >= 0) found.push([at, code]);
+  }
+  return found.sort((a, b) => a[0] - b[0]).map((f) => f[1]);
+}
+const dreamName = (lang, code) => inline(lang, `dreamlist.k_${code}`).split('|')[0].trim();
+const DREAM_EMOJI = new Map(fun.DREAMS);
+const DREAM_SHOW = 6;
+function dreamText(lang, text, user) {
+  const codes = dreamSymbols(text);
+  if (!codes.length) return t(lang, 'fun.dream_none');
+  const lines = [t(lang, 'fun.dream_title', { user }), ''];
+  for (const code of codes.slice(0, DREAM_SHOW)) {
+    lines.push(t(lang, 'fun.dream_line', { emoji: DREAM_EMOJI.get(code), name: esc(dreamName(lang, code)), text: esc(inline(lang, `dreamlist.m_${code}`)) }));
+  }
+  if (codes.length > DREAM_SHOW) lines.push(t(lang, 'fun.dream_more', { n: num(lang, codes.length - DREAM_SHOW) }));
+  lines.push('', t(lang, 'fun.dream_note'));
+  return lines.join('\n');
+}
+function dreamList(lang) {
+  const some = [...fun.DREAMS].sort(() => Math.random() - 0.5).slice(0, 12).map(([code, emoji]) => `${emoji} ${esc(dreamName(lang, code))}`);
+  return t(lang, 'fun.dream_list', { list: some.join(isRtl(lang) ? '، ' : ', ') });
+}
+function dreamDate(lang, at) {
+  const g = dateOf(at, tzOf('auto', lang));
+  if (lang === 'fa') {
+    const [, m, d] = toJalali(g.y, g.m, g.d);
+    return inline(lang, 'fun.bday_date_j', { month: inline(lang, `fun.month_j_${m}`), day: num(lang, d) });
+  }
+  return inline(lang, 'fun.bday_date_g', { month: inline(lang, `fun.month_g_${g.m}`), day: num(lang, g.d) });
+}
+async function journalScreen(lang, userId) {
+  const total = await fun.dreamlog.count(userId);
+  if (!total) return { text: t(lang, 'fun.dl_empty'), rows: [] };
+  const rows = await fun.dreamlog.recent(userId, 5);
+  const lines = [t(lang, 'fun.dl_title', { n: num(lang, rows.length), total: num(lang, total) }), ''];
+  for (const r of rows) lines.push(t(lang, 'fun.dl_line', { date: dreamDate(lang, Number(r.at)), text: esc([...String(r.text)].slice(0, 300).join('')) }));
+  return { text: lines.join('\n'), rows: [[btn(inline(lang, 'fun.btn_dream_meaning'), 'fn:dl:i'), btn(inline(lang, 'fun.btn_dl_clear'), 'fn:dl:c')]] };
+}
+async function dreamJournal(ctx, x) {
+  const { chatId, s, lang, pre, message } = x;
+  const userId = message.from.id;
+  if (pre.text) {
+    const r = await fun.dreamlog.add(userId, pre.text);
+    const text = [t(lang, 'fun.dl_saved', { n: num(lang, r.n) })];
+    if (r.trimmed) text.push(t(lang, 'fun.dl_full', { n: num(lang, fun.DREAM_KEEP) }));
+    return say(ctx, chatId, s, text.join('\n'), [[btn(inline(lang, 'fun.btn_dream_meaning'), 'fn:dl:i')]], 'fun-dreamlog', reply(message));
+  }
+  const sc = await journalScreen(lang, userId);
+  return say(ctx, chatId, s, sc.text, sc.rows, 'fun-dreamlog', reply(message));
+}
+/* fn:dl:i the meanings of the last dream saved · fn:dl:c delete (asks first) · fn:dl:y yes — private chat, the presser's own journal only */
+async function dreamButton(ctx, cq, parts) {
+  const msg = cq.message;
+  if (!msg || msg.chat.type !== 'private') return answer(ctx);
+  const u = await users.get(cq.from.id);
+  const lang = u ? u.lang : pickLang(cq.from.language_code);
+  const a = parts[2];
+  if (a === 'i') {
+    const [last] = await fun.dreamlog.recent(cq.from.id, 1);
+    await send(ctx, cq.from.id, last ? dreamText(lang, last.text, nameOf(cq.from)) : t(lang, 'fun.dl_empty'), null, 'fun-dream');
+  } else if (a === 'c') {
+    await edit(ctx, { chat_id: msg.chat.id, message_id: msg.message_id }, msg.text ? esc(msg.text) : t(lang, 'fun.dl_empty'),
+      [[btn(`✅ ${inline(lang, 'fun.btn_dl_clear')}`, 'fn:dl:y'), btn(inline(lang, 'common.cancel'), 'fn:dl:n')]], 'fun-dreamlog');
+  } else if (a === 'y') {
+    await fun.dreamlog.clear(cq.from.id);
+    await edit(ctx, { chat_id: msg.chat.id, message_id: msg.message_id }, t(lang, 'fun.dl_cleared'), [], 'fun-dreamlog');
+  } else if (a === 'n') {
+    const sc = await journalScreen(lang, cq.from.id);
+    await edit(ctx, { chat_id: msg.chat.id, message_id: msg.message_id }, sc.text, sc.rows, 'fun-dreamlog');
+  }
+  return answer(ctx);
+}
+
 /* ---------- questionnaires: /ptest, /spirit, /match, /knowme ---------- */
 
 const TQ = fun.tests;
@@ -1887,6 +2009,7 @@ export async function callback(ctx, cq, parts) {
   if (parts[1] === 'r') return recButton(ctx, cq, parts);
   if (parts[1] === 'd') return decideButton(ctx, cq, parts);
   if (parts[1] === 'q') return testButton(ctx, cq, parts);
+  if (parts[1] === 'dl') return dreamButton(ctx, cq, parts);
   if (parts[1] === 'm' || parts[1] === 'k') return pairButton(ctx, cq, parts);
   if (parts[1] === 't') return fontPage(ctx, cq, parts);
   const from = cq.from;

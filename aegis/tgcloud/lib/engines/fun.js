@@ -88,6 +88,9 @@ export const FEATURES = [
   { code: 'spirit', cat: 'mind', emoji: '🪬', cmds: ['spirit'], def: '1,a,30,10,0', args: true },
   { code: 'match', cat: 'mind', emoji: '💞', cmds: ['match'], def: '1,a,60,10,0' },
   { code: 'knowme', cat: 'mind', emoji: '🎯', cmds: ['knowme'], def: '1,a,60,10,0' },
+  { code: 'dream', cat: 'dream', emoji: '🌙', cmds: ['dream'], def: '1,a,30,10,0', args: true },
+  { code: 'lucid', cat: 'dream', emoji: '🌌', cmds: ['lucid'], def: '1,a,60,5,0' },
+  { code: 'dreamlog', cat: 'dream', emoji: '📔', cmds: ['dreamlog'], def: '1,a,10,30,0', args: true },
   { code: 'dialogue', cat: 'culture', emoji: '🎬', cmds: ['dialogue'], def: '1,a,30,10,0', args: true },
   { code: 'bookquote', cat: 'culture', emoji: '🔖', cmds: ['bookquote', 'excerpt'], def: '1,a,30,10,0', args: true },
   { code: 'movie', cat: 'culture', emoji: '🎞', cmds: ['movie', 'film'], def: '1,a,30,10,0', args: true },
@@ -102,7 +105,7 @@ export const FEATURES = [
   { code: 'repeat', cat: 'hours', emoji: '🔂', cmds: ['repeat'], def: '1,a,10,20,0', args: true },
   { code: 'number', cat: 'numbers', emoji: '🔢', cmds: ['number', 'num'], def: '1,a,10,20,0', args: true },
 ];
-export const CATS = ['dice', 'luck', 'fal', 'hours', 'numbers', 'social', 'daily', 'games', 'duel', 'text', 'culture', 'mind'];
+export const CATS = ['dice', 'luck', 'fal', 'hours', 'numbers', 'social', 'daily', 'games', 'duel', 'text', 'culture', 'mind', 'dream'];
 export const CODES = FEATURES.map((f) => f.code);
 export const byCode = (code) => FEATURES.find((f) => f.code === code) || null;
 export const SLASH = Object.fromEntries(FEATURES.flatMap((f) => f.cmds.map((c) => [c, f.code])));
@@ -1182,3 +1185,40 @@ export const tests = (() => {
   const same = (a, b) => [...a].filter((c, i) => c === b[i]).length;
   return { CODES, of, inGroup, choices, valid, result, same, AXES };
 })();
+
+/* ---------- dreams: the dictionary of symbols (texts in the locales, dreamlist) and the private dream journal ---------- */
+
+export const DREAMS = [
+  ['water', '💧'], ['sea', '🌊'], ['river', '🏞'], ['rain', '🌧'], ['fire', '🔥'], ['snake', '🐍'],
+  ['dog', '🐕'], ['cat', '🐈'], ['horse', '🐎'], ['bird', '🐦'], ['fish', '🐟'], ['spider', '🕷'],
+  ['lion', '🦁'], ['wolf', '🐺'], ['baby', '👶'], ['wedding', '💍'], ['death', '🕯'], ['funeral', '⚱️'],
+  ['flying', '🕊'], ['falling', '⬇️'], ['chased', '🏃'], ['teeth', '🦷'], ['hair', '💇'], ['blood', '🩸'],
+  ['money', '💰'], ['gold', '🥇'], ['house', '🏠'], ['door', '🚪'], ['key', '🔑'], ['car', '🚗'],
+  ['train', '🚆'], ['airplane', '✈️'], ['road', '🛣'], ['bridge', '🌉'], ['mountain', '⛰'], ['tree', '🌳'],
+  ['flower', '🌸'], ['garden', '🌷'], ['moon', '🌙'], ['sun', '☀️'], ['star', '⭐'], ['light', '💡'],
+  ['dark', '🌑'], ['exam', '📝'], ['naked', '🫣'], ['mirror', '🪞'], ['phone', '📱'], ['letter', '✉️'],
+  ['food', '🍲'], ['bread', '🍞'], ['fruit', '🍎'], ['egg', '🥚'], ['milk', '🥛'], ['shoes', '👟'],
+  ['clothes', '👗'], ['ring', '💎'], ['king', '👑'], ['police', '👮'], ['thief', '🦹'], ['war', '⚔️'],
+  ['knife', '🔪'], ['ghost', '👻'], ['angel', '😇'], ['mother', '👩'], ['father', '👨'], ['ex', '💔'],
+  ['friend', '🤝'], ['stranger', '🕴'], ['doctor', '🏥'], ['sick', '🤒'], ['pregnant', '🤰'], ['kiss', '💋'],
+  ['crying', '😢'], ['laughing', '😂'], ['earthquake', '🌋'], ['storm', '⛈'], ['snow', '❄️'], ['flood', '🌊'],
+  ['forest', '🌲'], ['desert', '🏜'], ['island', '🏝'], ['ship', '🚢'], ['swimming', '🏊'], ['stairs', '🪜'],
+  ['prison', '⛓'], ['lost', '🧭'], ['late', '⏰'], ['book', '📚'], ['gift', '🎁'], ['mouse', '🐭'],
+  ['bee', '🐝'], ['butterfly', '🦋'],
+];
+export const DREAM_KEEP = 50;
+export const DREAM_MAX = 1000;
+export const dreamlog = {
+  async add(userId, body, now = nowSec()) {
+    await db.run(sql`INSERT INTO aegis_dreams (user_id, at, text) VALUES (${userId}, ${now}, ${String(body).slice(0, DREAM_MAX)})`);
+    const n = Number((await db.get(sql`SELECT count(*) AS n FROM aegis_dreams WHERE user_id = ${userId}`)).n);
+    if (n > DREAM_KEEP) {
+      await db.run(sql`DELETE FROM aegis_dreams WHERE id IN (SELECT id FROM aegis_dreams WHERE user_id = ${userId} ORDER BY id LIMIT ${n - DREAM_KEEP})`);
+      return { n: DREAM_KEEP, trimmed: true };
+    }
+    return { n, trimmed: false };
+  },
+  recent: (userId, limit = 5) => db.all(sql`SELECT id, at, text FROM aegis_dreams WHERE user_id = ${userId} ORDER BY id DESC LIMIT ${limit}`),
+  count: async (userId) => Number((await db.get(sql`SELECT count(*) AS n FROM aegis_dreams WHERE user_id = ${userId}`)).n),
+  clear: (userId) => db.run(sql`DELETE FROM aegis_dreams WHERE user_id = ${userId}`),
+};

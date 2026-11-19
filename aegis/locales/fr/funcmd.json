@@ -88,5 +88,8 @@
   "ptest": "test de personnalité",
   "spirit": "jeux spirituels",
   "match": "test de compatibilité",
-  "knowme": "me connais-tu bien"
+  "knowme": "me connais-tu bien",
+  "dream": "interprétation du rêve|sens du rêve",
+  "lucid": "rêve lucide",
+  "dreamlog": "journal de rêves"
 }

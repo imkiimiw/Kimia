@@ -3902,7 +3902,7 @@ mock.addFile('p9_m', fixture('base420.jpg'));
 mock.addFile('p9_s', fixture('base420.jpg'));
 const mediaEndpoint = (await import('../tgcloud/endpoints/media.js')).default;
 
-await scenario('phase 9 — 🎮 the Fun panel: 81 features in twelve groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
+await scenario('phase 9 — 🎮 the Fun panel: 84 features in thirteen groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
   tick(600);
   iota = mock.addChat({ id: IOTA, type: 'supergroup', title: 'Iota', count: 15, botRights: { can_manage_chat: true, can_change_info: true, can_delete_messages: true,
     can_restrict_members: true, can_invite_users: true, can_pin_messages: true, can_promote_members: true } });
@@ -3921,8 +3921,8 @@ await scenario('phase 9 — 🎮 the Fun panel: 81 features in twelve groups, ea
   assert.ok(dataOf(olgaScreen()).includes(I('fn')) && dataOf(olgaScreen()).includes(I('md')));
   await olga(I('fn'));
   assert.match(olgaScreen().plain, /🎮 Fun — \u2068Iota\u2069/);
-  assert.match(olgaScreen().plain, /On: 81 of 81/);
-  assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 12);
+  assert.match(olgaScreen().plain, /On: 84 of 84/);
+  assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 13);
   await olga(I('fn:c:dice'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:f:/.test(d)).length, 6);
   assert.match(olgaScreen().plain, /✅ 🎲 Dice — everyone · cooldown 30 s · per day 20/);
@@ -3934,7 +3934,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 81 features in twelve groups, ea
   await olga(I('fn:s:fun_rate'));
   assert.equal(iVal('fun_rate'), '20');
   await olga(I('fn'));
-  assert.match(olgaScreen().plain, /On: 80 of 81/);
+  assert.match(olgaScreen().plain, /On: 83 of 84/);
   const s = row("SELECT count(*) AS n FROM aegis_audit WHERE chat_id = ? AND action = 'settings.set' AND target LIKE 'fx_%'", IOTA).n;
   assert.equal(s, 5, 'every change is logged');
 });
@@ -4755,6 +4755,42 @@ await scenario('🧠 questionnaires — personality tests and spiritual games wi
   assert.match(edits(done.calls)[0].params.text, /<b>کلمات تأییدآمیز<\/b> و <b>وقت باکیفیت<\/b>/, 'a tie shows both');
 });
 
+await scenario('🌙 dreams — the symbols of a dream in any language, the dictionary, lucid dreaming and today\'s exercise, the private dream journal (save, list, meanings, delete)', async () => {
+  tick(600);
+  iSet('fun_rate', '0');
+  const d = inIota(await imsg(P9.kit, '/dream I was flying over the sea and a snake bit me'))[0];
+  assert.match(d, /^🌙 ⁨Kit⁩, the symbols in your dream:\n\n🕊 <b>flying<\/b> — Freedom and rising above a problem\..*\n🌊 <b>sea<\/b> — .+\n🐍 <b>snake<\/b> — .+\n\n<i>Symbolic readings/);
+  assert.match(inIota(await imsg(P9.lux, '/dream zzz qqq'))[0], /^🌙 No symbol from the dictionary/);
+  assert.match(inIota(await imsg(P9.nia, '/dream'))[0], /^🌙 <b>Dream dictionary<\/b> — some symbols:\n/);
+  const l = inIota(await imsg(P9.ivy, '/lucid'))[0];
+  assert.match(l, /^🌌 <b>Lucid dreaming<\/b>\n\n• Lucid dreaming means knowing that you are dreaming/);
+  assert.match(l, /🏅 <b>Your exercise for today:<\/b> .+$/);
+  assert.equal(inIota(await imsg(P9.jay, '/dreamlog I dreamt of a door'))[0], 'Use (in private): /dreamlog and your dream to save it; /dreamlog alone to see your journal', 'never in a group');
+  assert.equal(row('SELECT count(*) AS n FROM aegis_dreams').n, 0);
+  /* the journal, in private */
+  const pm = async (text) => lastSentTo(await dm(P9.ivy, text), P9.ivy.id);
+  assert.match((await pm('/dreamlog')).params.text, /^📔 Your dream journal is empty/);
+  const saved = await pm('/dreamlog Last night I was swimming in a river with my dog');
+  assert.equal(saved.params.text, '📔 Saved in your dream journal (1 dreams). Only you can see it.');
+  await pm('/dreamlog A second dream: a house with many doors');
+  const j = await pm('/dreamlog');
+  assert.match(j.params.text, /^📔 <b>Your dream journal<\/b> — the last 2 of 2:\n\n• .+: A second dream: a house with many doors\n• .+: Last night I was swimming/);
+  assert.deepEqual(dataOf(mock.get(P9.ivy.id, midOf(j))), ['fn:dl:i', 'fn:dl:c']);
+  const mean = await press(P9.ivy, 'fn:dl:i', midOf(j));
+  assert.match(lastSentTo(mean.calls, P9.ivy.id).params.text, /🏠 <b>house<\/b>.*\n🚪 <b>door<\/b>/s);
+  await press(P9.ivy, 'fn:dl:c', midOf(j));
+  assert.deepEqual(dataOf(mock.get(P9.ivy.id, midOf(j))), ['fn:dl:y', 'fn:dl:n'], 'asks first');
+  await press(P9.ivy, 'fn:dl:y', midOf(j));
+  assert.equal(mock.get(P9.ivy.id, midOf(j)).text, '📔 Your dream journal was deleted.');
+  assert.equal(row('SELECT count(*) AS n FROM aegis_dreams WHERE user_id = ?', P9.ivy.id).n, 0);
+  /* Persian */
+  const tara = { id: 800000490, is_bot: false, first_name: 'تارا', language_code: 'fa' };
+  faUsers.add(tara.id);
+  await onboard(tara, 'fa');
+  const fd = lastSentTo(await dm(tara, 'تعبیر خواب خواب دیدم دندانم افتاد'), tara.id).params.text;
+  assert.match(fd, /^‏🌙 ⁨تارا⁩، نمادهای خوابت:\n\n‏🦷 <b>دندان<\/b> — .+\n‏⬇️ <b>افتادن<\/b> — /);
+});
+
 await scenario('phase 9 — 🖼 media in private: image tools, a sticker in the member\'s own pack, sticker → photo, a QR code made and read back, a GIF from photos, video → GIF, the PDF check', async () => {
   const tools = await dm(P9.ivy, null, { photo: PHOTO });
   const msg = lastSentTo(tools, P9.ivy.id);
@@ -4917,7 +4953,7 @@ await scenario('phase 10 — 🛠 Management from the owner panel: version, heal
   for (const d of ['sa:c:f:a:0', 'sa:h', 'sa:e', 'sa:q', 'sa:v', 'sa:l:a:0', 'sa:s', 'sa:g', 'sa:b', 'sy:st', 'op']) assert.ok(saData().includes(d), d);
   await saPress('sa:v');
   assert.match(saText(), /Aegis 1\.0\.0 · فاز ۱۰ · انتشار 2026-10-31/);
-  assert.match(saText(), /جدول‌های پایگاه داده: ۶۸/);
+  assert.match(saText(), /جدول‌های پایگاه داده: ۶۹/);
   await saPress('sa:h');
   assert.match(saText(), /سلامت سرویس/);
   assert.match(saText(), /Bot API: پاسخ می‌دهد/);
