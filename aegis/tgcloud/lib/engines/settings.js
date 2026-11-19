@@ -32,7 +32,7 @@ import * as audit from '../core/audit.js';
 import { nowSec, parseJson } from '../core/util.js';
 import { CLEAN_MAX_TIMES, FAKES_MAX, FJ_MAX_CHANNELS, FOOTER_MAX, MAX_STEPS, NEW_WINDOWS } from '../config.js';
 import { asciiDigits, parseDuration, TZ_OFFSETS } from '../core/clock.js';
-import { DEFAULTS as FX_DEFAULTS, validConf } from './fun.js';
+import { CAT_MODES, DEFAULTS as FX_DEFAULTS, validConf } from './fun.js';
 
 /* ========== warning steps (was engines/steps.js) ========== */
 /*
@@ -132,7 +132,7 @@ export const DEFAULTS = {
   ch_footer: '', ch_buttons: '', ch_post_ttl: '0', ch_protect: '0', ch_silent: '0', ch_mirror: '0',
   /* Phase 8 */
   stats_on: '1', pts_on: '0', pts_msg: '1', pts_gap: '60', pts_thanks: '1', pts_announce: '1', qa_on: '1', anon_on: '0', appeals_on: '1', review_all: '0',
-  /* Phase 9: fun (the 36 features: fx_<code>, see engines/fun.js) and media tools */
+  /* Phase 9: fun (the features: fx_<code>; who may use each group: fcat_<group>; see engines/fun.js) and media tools */
   fun_on: '1', fun_rate: '10', fun_clean: '0', fun_reward: '1', fun_free: '1', bday_cal: 'auto',
   media_on: '1', media_who: 'a', media_daily: '10',
   ...FX_DEFAULTS,
@@ -168,6 +168,7 @@ function valid(key, value) {
   const v = String(value);
   if (FLAGS.has(key)) return v === '0' || v === '1';
   if (key.startsWith('fx_')) return validConf(v);
+  if (key.startsWith('fcat_')) return CAT_MODES.includes(v);
   if (key === 'warn_ttl') return WARN_TTLS.includes(Number(v));
   if (key === 'betray_n') return BETRAY_NS.includes(Number(v));
   if (key === 'betray_sec') return BETRAY_SECS.includes(Number(v));

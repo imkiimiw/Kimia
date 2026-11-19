@@ -113,5 +113,6 @@
   "chat_refresh": "（Aegis 团队）向 Telegram 重新核对了聊天",
   "chat_backup": "（Aegis 团队）下载了配置备份",
   "chat_message": "（Aegis 团队）发布了一条消息",
-  "chat_refused": "Aegis 已退出：不接受新聊天"
+  "chat_refused": "Aegis 已退出：不接受新聊天",
+  "fun_echo": "让 Aegis 发送了一条消息（/echo）"
 }

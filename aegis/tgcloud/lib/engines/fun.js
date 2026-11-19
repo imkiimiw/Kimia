@@ -14,6 +14,7 @@ import { db, fetch } from 'sdk';
 import { sql } from 'sdk/db';
 import { inflateRaw, unbase64 } from '../core/files.js';
 import { nowSec, parseJson, utf8Text } from '../core/util.js';
+import * as lists from './lists.js';
 import { HAFEZ, HAFEZ_COUNT, HAFEZ_PER, TAROT_IMG } from '../data/fal.js';
 import { BABATAHER, BABATAHER_COUNT, KHAYYAM, KHAYYAM_COUNT, POEMS_PER, QURAN, SURAH_AR, SURAH_EN, SURAH_FA } from '../data/fal2.js';
 
@@ -69,6 +70,7 @@ export const FEATURES = [
   { code: 'tasbih', cat: 'fal', emoji: '📿', cmds: ['tasbih'], def: '1,a,60,5,0' },
   { code: 'anbia', cat: 'fal', emoji: '🌟', cmds: ['prophets'], def: '1,a,60,5,0' },
   { code: 'font', cat: 'text', emoji: '🔠', cmds: ['font', 'fonts'], def: '1,a,10,20,0', args: true },
+  { code: 'echo', cat: 'text', emoji: '🗣', cmds: ['echo', 'say'], def: '1,d,10,20,0', args: true },
   { code: 'clock', cat: 'hours', emoji: '🕰', cmds: ['clock', 'hour'], def: '1,a,10,20,0', args: true },
   { code: 'mirror', cat: 'hours', emoji: '🪞', cmds: ['mirror'], def: '1,a,10,20,0', args: true },
   { code: 'reversed', cat: 'hours', emoji: '🔁', cmds: ['reversed'], def: '1,a,10,20,0', args: true },
@@ -86,7 +88,14 @@ export const ACTS = ['hug', 'pat', 'highfive', 'wave', 'cheer'];
 export const COOLDOWNS = [0, 10, 30, 60, 120, 300];
 export const DAILIES = [0, 3, 5, 10, 20, 30, 50];
 export const REWARDS = [0, 1, 2, 5, 10];
-export const DEFAULTS = Object.fromEntries(FEATURES.map((f) => [`fx_${f.code}`, f.def]));
+/* Who may use a whole group of features: a everyone · s the chat's special members (list «fun») and its admins · d its owner and admins */
+export const CAT_MODES = ['a', 's', 'd'];
+export const DEFAULTS = Object.fromEntries([...FEATURES.map((f) => [`fx_${f.code}`, f.def]), ...CATS.map((cat) => [`fcat_${cat}`, 'a'])]);
+export function catMode(s, cat) {
+  const v = String((s && s[`fcat_${cat}`]) || 'a');
+  return CAT_MODES.includes(v) ? v : 'a';
+}
+export const isSpecial = (chatId, userId) => lists.has(chatId, 'fun', String(userId));
 /* how long a game waits for its answer (seconds) */
 export const GAME_TIME = { guess: 600, math: 180, scramble: 180, typing: 180, trivia: 600, click: 120, rps: 600, ttt: 600 };
 

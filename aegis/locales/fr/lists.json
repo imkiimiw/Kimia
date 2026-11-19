@@ -104,5 +104,7 @@
   "fail_vip": "• {name} est sur la liste VIP.",
   "fail_tg": "• {name} : Telegram a refusé (<code>{error}</code>).",
   "fail_full": "• {name} : la liste est pleine.",
-  "note_only": "ℹ️ Une note pour les admins : aucun verrou ni contrôle n’utilise cette liste."
+  "note_only": "ℹ️ Une note pour les admins : aucun verrou ni contrôle n’utilise cette liste.",
+  "n_fun": "Membres spéciaux (divertissement)",
+  "d_fun": "Peuvent utiliser les groupes de divertissement réservés aux « membres spéciaux » (panneau → Divertissement → chaque groupe). Ajout aussi en répondant à un membre avec /special."
 }

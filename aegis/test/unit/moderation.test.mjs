@@ -50,9 +50,9 @@ test('the step ladder: parsing in Persian and English, errors with line numbers,
   assert.equal(DEFAULTS.audit, '0', 'Audit Mode is off by default');
 });
 
-test('the 18 lists, and typed entries per kind', () => {
-  assert.equal(lists.LISTS.length, 18);
-  assert.equal(new Set(lists.LISTS.map((l) => l.code)).size, 18);
+test('the 19 lists, and typed entries per kind', () => {
+  assert.equal(lists.LISTS.length, 19);
+  assert.equal(new Set(lists.LISTS.map((l) => l.code)).size, 19);
   for (const [kind, list] of Object.entries(lists.MIRRORS)) assert.equal(lists.get(list).effect, kind, `${list} mirrors ${kind}`);
   assert.deepEqual(lists.parseEntries('domain', 'https://www.Example.com/path?q=1\nt.me\nnot a domain'),
     { entries: [{ ekey: 'example.com', value: 'example.com' }, { ekey: 't.me', value: 't.me' }], bad: [3], tooMany: false });

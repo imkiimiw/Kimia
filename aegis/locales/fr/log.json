@@ -113,5 +113,6 @@
   "chat_refresh": "(équipe Aegis) a revérifié la discussion auprès de Telegram",
   "chat_backup": "(équipe Aegis) a téléchargé la sauvegarde de configuration",
   "chat_message": "(équipe Aegis) a publié un message",
-  "chat_refused": "Aegis est parti : nouvelles discussions fermées"
+  "chat_refused": "Aegis est parti : nouvelles discussions fermées",
+  "fun_echo": "a fait envoyer un message à Aegis (/echo)"
 }

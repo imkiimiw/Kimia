@@ -383,7 +383,7 @@ export function onEditedChannelPost(message, pctx) {
 
 /* «Delete commands» (del_cmds): the command message goes once Aegis has acted on it. */
 async function deleteCommand(ctx, chat, message) {
-  if (!chat || message.sender_chat) return;
+  if (!chat || message.sender_chat || ctx.deletedCommand === message.message_id) return;
   const s = await settings.all(ctx, chat.chat_id);
   if (settings.flag(s, 'del_cmds')) await tryCall(ctx, 'deleteMessage', { chat_id: chat.chat_id, message_id: message.message_id }, 'delete-command');
 }

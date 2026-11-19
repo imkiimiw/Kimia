@@ -1331,13 +1331,13 @@ await scenario('phase 3 — warnings and steps: 3 → mute 1 d, /unwarn, 5 → b
   tick(120);
 });
 
-await scenario('phase 3 — the panel: 18 lists; add, search, details, note, edit, remove (asks first), history, CSV export; levels', async () => {
+await scenario('phase 3 — the panel: 19 lists; add, search, details, note, edit, remove (asks first), history, CSV export; levels', async () => {
   const c = await olgaSays('/config');
   olgaPanel = midOf(sent(c)[0]);
   await olga(`g:${BETA}`);
   assert.deepEqual(dataOf(olgaScreen()).slice(0, 19), [B('K'), B('S'), B('L'), B('P'), B('W'), B('B'), B('F'), B('U'), B('V'), B('T'), B('st'), B('pt'), B('ct'), B('pl'), B('qa'), B('ap'), B('fn'), B('md'), B('O')]);
   await olga(B('L'));
-  assert.equal(dataOf(olgaScreen()).filter((d) => /:L:[a-z]{3}$/.test(d)).length, 18);
+  assert.equal(dataOf(olgaScreen()).filter((d) => /:L:[a-z]{3}$/.test(d)).length, 19);
   assert.match(olgaScreen().plain, /Each list belongs to this chat only/);
   assert.ok(labelsOf(Q.olga, olgaPanel).includes('⭐ VIP · 1'));
   await olga(B('L:bwd'));
@@ -3902,7 +3902,7 @@ mock.addFile('p9_m', fixture('base420.jpg'));
 mock.addFile('p9_s', fixture('base420.jpg'));
 const mediaEndpoint = (await import('../tgcloud/endpoints/media.js')).default;
 
-await scenario('phase 9 — 🎮 the Fun panel: 58 features in ten groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
+await scenario('phase 9 — 🎮 the Fun panel: 59 features in ten groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
   tick(600);
   iota = mock.addChat({ id: IOTA, type: 'supergroup', title: 'Iota', count: 15, botRights: { can_manage_chat: true, can_change_info: true, can_delete_messages: true,
     can_restrict_members: true, can_invite_users: true, can_pin_messages: true, can_promote_members: true } });
@@ -3921,7 +3921,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 58 features in ten groups, each 
   assert.ok(dataOf(olgaScreen()).includes(I('fn')) && dataOf(olgaScreen()).includes(I('md')));
   await olga(I('fn'));
   assert.match(olgaScreen().plain, /🎮 Fun — \u2068Iota\u2069/);
-  assert.match(olgaScreen().plain, /On: 58 of 58/);
+  assert.match(olgaScreen().plain, /On: 59 of 59/);
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 10);
   await olga(I('fn:c:dice'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:f:/.test(d)).length, 6);
@@ -3934,7 +3934,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 58 features in ten groups, each 
   await olga(I('fn:s:fun_rate'));
   assert.equal(iVal('fun_rate'), '20');
   await olga(I('fn'));
-  assert.match(olgaScreen().plain, /On: 57 of 58/);
+  assert.match(olgaScreen().plain, /On: 58 of 59/);
   const s = row("SELECT count(*) AS n FROM aegis_audit WHERE chat_id = ? AND action = 'settings.set' AND target LIKE 'fx_%'", IOTA).n;
   assert.equal(s, 5, 'every change is logged');
 });
@@ -4491,6 +4491,72 @@ await scenario('🍷 poetry readings — a quatrain of Khayyam and a dobeyti of 
   const pm = async (text) => lastSentTo(await dm(roya, text), roya.id).params.text;
   assert.match(await pm('فال خیام ۳۰'), /^‏🍷 ⁨رویا⁩، فال خیام تو — رباعی ۳۰:\n‏<blockquote>‏خاکی/);
   assert.match(await pm('فال بابا طاهر'), /^‏🏔 ⁨رویا⁩، فال باباطاهر تو — دوبیتی [۰-۹]+:\n‏<blockquote>‏/);
+});
+
+await scenario('🗣 /echo («بگو») and who may use each fun group — everyone, special members (chosen by the owner and admins with /special), the owner and admins only', async () => {
+  tick(600);
+  iSet('fun_rate', '0');
+  assert.equal(inIota(await imsg(P9.kit, '/echo hello')).length, 0, '/echo is for the owner and admins by default');
+  /* an admin: the command goes, Aegis says the text with its formatting, on its own */
+  let id = msgId;
+  const e1 = await imsg(Q.abe, '/echo Hello world', { entities: [{ type: 'bot_command', offset: 0, length: 5 }, { type: 'bold', offset: 12, length: 5 }] });
+  assert.deepEqual(sent(e1, 'deleteMessage').map((c) => c.params.message_id), [id], 'the command is deleted once');
+  const s1 = toChat(e1, IOTA)[0];
+  assert.equal(s1.params.text, 'Hello world');
+  assert.equal(s1.params.parse_mode, undefined);
+  assert.deepEqual(s1.params.entities, [{ type: 'bold', offset: 6, length: 5 }]);
+  assert.equal(s1.params.reply_parameters, undefined, 'no reply when the command was not a reply');
+  /* a reply: Aegis answers the same message; line breaks kept; the Persian word */
+  id = msgId;
+  const e2 = await imsg(Q.abe, 'بگو سلام دوستان\nخط دوم', iReply(P9.jay, 55));
+  assert.ok(ids(e2).includes(id));
+  const s2 = toChat(e2, IOTA)[0];
+  assert.equal(s2.params.text, 'سلام دوستان\nخط دوم');
+  assert.equal(s2.params.reply_parameters.message_id, 55);
+  assert.ok(row("SELECT id FROM aegis_audit WHERE chat_id = ? AND action = 'fun.echo' AND actor_id = ?", IOTA, Q.abe.id), 'the change log says who');
+  assert.equal(inIota(await imsg(Q.abe, '/echo')).length, 1, 'no text: how to use it');
+  /* for everyone: a member's echo works */
+  iSet('fx_echo', '1,a,0,0,0');
+  assert.deepEqual(inIota(await imsg(P9.kit, '/echo hi all')), ['hi all']);
+  /* the group «Text» for special members only: Kit can't, until an admin marks Kit */
+  iSet('fcat_text', 's');
+  assert.equal(inIota(await imsg(P9.kit, '/echo hi again')).length, 0);
+  assert.equal(inIota(await imsg(P9.kit, '/font abc')).length, 0);
+  assert.equal(inIota(await imsg(P9.lux, '/special', iReply(P9.kit))).length, 0, 'a member cannot mark anyone');
+  const add = inIota(await imsg(Q.olga, '/special', iReply(P9.kit)))[0];
+  assert.equal(add, `🎟 ${n('Kit')} is now a special member and may use the groups set to «special members».`);
+  assert.ok(row("SELECT id FROM aegis_list_entries WHERE chat_id = ? AND list = 'fun' AND ekey = ?", IOTA, String(P9.kit.id)));
+  assert.deepEqual(inIota(await imsg(P9.kit, '/echo now I can')), ['now I can']);
+  assert.match(inIota(await imsg(Q.olga, '/special', iReply(P9.kit)))[0], /was already a special member/);
+  assert.match(inIota(await imsg(Q.abe, 'عضو ویژه @lux_p9'))[0], /Lux.* is now a special member/, 'by @username, the Persian words');
+  assert.match(inIota(await imsg(Q.olga, '/special'))[0], /^🎟 Reply to a member with \/special/);
+  assert.match(inIota(await imsg(Q.olga, '/unspecial', iReply(P9.kit)))[0], /is no longer a special member/);
+  assert.equal(inIota(await imsg(P9.kit, '/echo and now?')).length, 0);
+  assert.match(inIota(await imsg(Q.olga, '/unspecial', iReply(P9.kit)))[0], /wasn't a special member/);
+  /* owner and admins only: special members can't either */
+  iSet('fcat_text', 'd');
+  assert.equal(inIota(await imsg(P9.lux, '/font abc')).length, 0);
+  assert.equal(inIota(await imsg(Q.abe, '/font abc')).length, 1, 'admins always can');
+  /* the panel: the group's mode, its button cycles everyone → special → admins; the special list */
+  await olga(I('fn:c:text'));
+  assert.match(olgaScreen().plain, /👥 Who can use this group: Owner and admins only/);
+  assert.ok(dataOf(olgaScreen()).includes(I('L:fun')));
+  assert.ok(labelsOf(Q.olga, olgaPanel).includes('🎟 Special members (1)'));
+  await olga(I('fn:m:text'));
+  assert.equal(iVal('fcat_text'), 'a');
+  assert.match(olgaScreen().plain, /Who can use this group: Everyone/);
+  await olga(I('fn:m:text'));
+  assert.equal(iVal('fcat_text'), 's');
+  /* a fortune button pressed by someone the group refuses: an alert */
+  iSet('fcat_fal', 'd');
+  const h = toChat(await imsg(Q.olga, '/hafez 1'), IOTA)[0];
+  const deny = await gpress(P9.kit, IOTA, 'fn:f:hafez', midOf(h));
+  assert.ok(deny.alert && deny.toast === 'In this group this command is for the owner and admins only.', deny.toast);
+  assert.equal(toChat(deny.calls, IOTA).length, 0);
+  assert.ok(inIota(await imsg(P9.kit, '/fun'))[0].includes('🔮 Fortune telling · 🛡 owner and admins only — /fal'), 'the fun list says so');
+  iSet('fcat_fal', 'a');
+  iSet('fcat_text', 'a');
+  iSet('fx_echo', '1,d,10,20,0');
 });
 
 await scenario('phase 9 — 🖼 media in private: image tools, a sticker in the member\'s own pack, sticker → photo, a QR code made and read back, a GIF from photos, video → GIF, the PDF check', async () => {

@@ -104,5 +104,7 @@
   "fail_vip": "• {name} is on the VIP list.",
   "fail_tg": "• {name}: Telegram refused (<code>{error}</code>).",
   "fail_full": "• {name}: the list is full.",
-  "note_only": "ℹ️ A note for the admins: no lock or check acts on this list."
+  "note_only": "ℹ️ A note for the admins: no lock or check acts on this list.",
+  "n_fun": "Fun special members",
+  "d_fun": "May use the fun groups set to «special members» (panel → Fun → each group). Also added by replying to a member with /special."
 }

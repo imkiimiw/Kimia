@@ -17,14 +17,18 @@
  *   · fn:<game>:r|p|s rock-paper-scissors · fn:<game>:t:<cell> tic-tac-toe
  *   · fn:f:<code>[:<arg>] run a fortune command (tarot 1|3, horo <sign 0–11>) · fn:f:horo:p the sign buttons
  *   · fn:t:<page>[:<part>] a page of /font (combo, tg, uni, look, mark, fa, frame, extra), for the one who asked
- * Panel: g:c:fn  ·  g:c:fn:s:<key>  ·  g:c:fn:c:<cat>  ·  g:c:fn:f:<code>[:o|w|c|d|r]
+ * Panel: g:c:fn  ·  g:c:fn:s:<key>  ·  g:c:fn:c:<cat>  ·  g:c:fn:m:<cat> (who may use the group: a → s → d)  ·  g:c:fn:f:<code>[:o|w|c|d|r]
+ * /special, /unspecial (a reply, an id or @username; the chat's owner and admins): the «fun» list of special members.
  */
+import { LIST_MAX_ENTRIES } from '../config.js';
+import * as audit from '../core/audit.js';
 import { asciiDigits, dateOf, toJalali, tzOf } from '../core/clock.js';
 import { answer, btn, edit, markup, me, screen, send, tryCall, urlBtn } from '../core/tg.js';
 import { esc, fullName, iso, normalizeWord, nowSec, toInt } from '../core/util.js';
 import * as admins from '../engines/admins.js';
 import * as chats from '../engines/chats.js';
 import * as fun from '../engines/fun.js';
+import * as lists from '../engines/lists.js';
 import * as msglog from '../engines/msglog.js';
 import * as settings from '../engines/settings.js';
 import { stats } from '../engines/social.js';
@@ -48,6 +52,9 @@ const GROUP_ONLY = new Set(['love', 'wyr', 'act', 'couple', 'motd', 'bday', 'dai
 const PRIVATE_OK = new Set(fun.CODES.filter((c) => !GROUP_ONLY.has(c)));
 const KEY_CODE = { hug: 'act', pat: 'act', highfive: 'act', wave: 'act', cheer: 'act', birthday: 'bday', birthdays: 'bday', fun: 'fun', fal: 'fal' };
 const MENUS = new Set(['fun', 'fal']);
+/* not features: an admin marks or unmarks a fun special member (a reply, an id or @username) */
+const MANAGE = new Set(['special', 'unspecial']);
+const ECHO_MAX = 4000;
 const FONT_MAX = 40;
 const LRI = (x) => `\u2068${x}\u2069`;
 /* Lines built here (not by t()) get the right-to-left mark a Persian line needs. */
@@ -61,14 +68,14 @@ const nameOf = (u) => iso(fullName(u), 32);
 
 export function parseCommand(text) {
   const s = String(text || '').trim();
-  if (!s || s.length > 300) return null;
+  if (!s || s.length > ECHO_MAX) return null; /* longer than 300 characters: only /echo */
   const tokens = s.split(/\s+/);
   const m = /^\/([A-Za-z_]{2,20})(?:@([A-Za-z0-9_]+))?$/.exec(tokens[0]);
   if (m) {
     const name = m[1].toLowerCase();
-    const code = MENUS.has(name) ? name : fun.SLASH[name];
-    if (!code) return null;
-    return { code, sub: name, args: tokens.slice(1), slash: true, mention: m[2] ? m[2].toLowerCase() : null };
+    const code = MENUS.has(name) || MANAGE.has(name) ? name : fun.SLASH[name];
+    if (!code || (s.length > 300 && code !== 'echo')) return null;
+    return { code, sub: name, args: tokens.slice(1), slash: true, mention: m[2] ? m[2].toLowerCase() : null, words: 1 };
   }
   for (let n = Math.min(4, tokens.length); n >= 1; n -= 1) {
     const key = wordCommand('funcmd', tokens.slice(0, n).join(' '));
@@ -76,10 +83,22 @@ export function parseCommand(text) {
     const code = KEY_CODE[key] || key;
     const args = tokens.slice(n);
     const f = fun.byCode(code);
-    if (args.length && !(f && f.args) && !(code === 'bday' && key === 'birthday')) continue;
-    return { code, sub: key, args, slash: false, mention: null };
+    if (args.length && !(f && f.args) && !MANAGE.has(code) && !(code === 'bday' && key === 'birthday')) continue;
+    if (s.length > 300 && code !== 'echo') return null;
+    return { code, sub: key, args, slash: false, mention: null, words: n };
   }
   return null;
+}
+
+/*
+ * The text after the command's first `words` words, as typed (line breaks kept), and where it starts
+ * (UTF-16 units, as Telegram counts entity offsets).
+ */
+export function restOf(text, words) {
+  const raw = String(text || '');
+  const m = new RegExp(`^\\s*\\S+(?:\\s+\\S+){${Math.max(0, words - 1)}}\\s*`).exec(raw);
+  const start = m ? m[0].length : raw.length;
+  return { text: raw.slice(start).replace(/\s+$/, ''), start };
 }
 
 /* ---------- helpers ---------- */
@@ -140,6 +159,10 @@ export async function command(ctx, message, privUser = null, press = null) {
     await say(ctx, chatId, s, menu.text, menu.rows, 'fun-fal', reply(message));
     return true;
   }
+  if (MANAGE.has(parsed.code)) {
+    await special(ctx, message, chat, s, lang, parsed);
+    return true;
+  }
   const notice = async (text, view) => {
     if (!press) return say(ctx, chatId, s, text, null, view, reply(message));
     press.answered = true;
@@ -148,8 +171,18 @@ export async function command(ctx, message, privUser = null, press = null) {
   const c = fun.conf(s, parsed.code);
   if (!c.on) return parsed.slash;
   const admin = !priv && (await isAdmin(chatId, from.id));
-  if (c.who === 'd' && !admin) return parsed.slash;
   const f = fun.byCode(parsed.code);
+  if (!priv && !admin) {
+    /* the feature's own «who», then its group's: everyone, special members (and admins), or the owner and admins */
+    const mode = fun.catMode(s, f.cat);
+    const deny = c.who === 'd' || mode === 'd' ? 'admins' : (mode === 's' && !(await fun.isSpecial(chatId, from.id)) ? 'special' : null);
+    if (deny) {
+      if (!press) return parsed.slash;
+      press.answered = true;
+      await answer(ctx, inline(lang, `fun.only_${deny}`), true);
+      return true;
+    }
+  }
   const pre = prepare(parsed, message, lang, s);
   if (pre && pre.bad) {
     if (parsed.slash) await notice(t(lang, pre.long ? 'fal.font_long' : `fun.usage_${parsed.code}`, { n: num(lang, FONT_MAX) }), 'fun-usage');
@@ -262,6 +295,10 @@ function prepare(parsed, message, lang, s) {
       const n = fun.numbers.parseNumber(asciiDigits(text).replace(/[:.٫]/g, ''));
       return n ? { num: n } : { bad: true };
     }
+    case 'echo': {
+      const r = restOf(message.text, parsed.words || 1);
+      return r.text ? { text: r.text, start: r.start } : { bad: true };
+    }
     case 'font': {
       const src = text || (message.reply_to_message && (message.reply_to_message.text || message.reply_to_message.caption)) || '';
       const clean = String(src).replace(/[\u0000-\u001F\u200E\u200F\u202A-\u202E\u2066-\u2069]+/g, ' ').replace(/ {2,}/g, ' ').trim();
@@ -338,11 +375,13 @@ function funList(lang, s, priv) {
   for (const cat of fun.CATS) {
     const feats = fun.FEATURES.filter((f) => f.cat === cat && (priv ? PRIVATE_OK.has(f.code) : fun.conf(s, f.code).on));
     if (!feats.length) continue;
+    const mode = priv ? 'a' : fun.catMode(s, cat);
+    const name = `${t(lang, `fun.cat_${cat}`)}${mode === 'a' ? '' : ` ${inline(lang, `fun.tag_${mode}`)}`}`;
     if (MENU_CAT[cat]) {
-      lines.push('', t(lang, 'fun.list_menu', { cat: t(lang, `fun.cat_${cat}`), cmd: MENU_CAT[cat], n: num(lang, feats.length) }));
+      lines.push('', t(lang, 'fun.list_menu', { cat: name, cmd: MENU_CAT[cat], n: num(lang, feats.length) }));
       continue;
     }
-    lines.push('', t(lang, `fun.cat_${cat}`));
+    lines.push('', rtl(lang, name));
     for (const f of feats) lines.push(rtl(lang, `${f.emoji} ${f.cmds.map((c) => `/${c}`).join(' ')} — ${t(lang, `fun.n_${f.code}`)}`));
   }
   if (!priv) lines.push('', t(lang, 'fun.list_words'));
@@ -394,6 +433,8 @@ async function run(ctx, x) {
       return coffee(ctx, x);
     case 'font':
       return font(ctx, x);
+    case 'echo':
+      return echo(ctx, x);
     case 'clock':
     case 'mirror':
     case 'reversed':
@@ -846,6 +887,81 @@ async function hours(ctx, x) {
 /* ---------- fonts ---------- */
 
 /* Messages of at most `max` characters, cut between lines. */
+/* ---------- /echo and fun special members ---------- */
+
+/* The message a command really answers: not a forum topic's first message (every message in a topic «replies» to it). */
+function repliedTo(message) {
+  const r = message.reply_to_message;
+  if (!r || r.forum_topic_created || (message.is_topic_message && r.message_id === message.message_thread_id)) return null;
+  return r;
+}
+
+/* The formatting of the echoed part, moved to where it starts (no command, mention or custom-emoji entities). */
+const ECHO_ENTITIES = new Set(['bold', 'italic', 'underline', 'strikethrough', 'spoiler', 'code', 'pre', 'text_link', 'text_mention', 'blockquote',
+  'expandable_blockquote']);
+export function shiftEntities(entities, start, length) {
+  const out = [];
+  for (const e of Array.isArray(entities) ? entities : []) {
+    if (!e || !ECHO_ENTITIES.has(e.type)) continue;
+    const a = Math.max(e.offset, start) - start;
+    const b = Math.min(e.offset + e.length, start + length) - start;
+    if (b > a) out.push({ ...e, offset: a, length: b - a });
+  }
+  return out;
+}
+
+/*
+ * /echo text («بگو»): Aegis deletes the command and says the text itself — as a reply to the message the
+ * command replied to, else on its own (in the same forum topic). The chat's change log records who.
+ */
+async function echo(ctx, x) {
+  const { message, chatId, priv, pre } = x;
+  const target = repliedTo(message);
+  if (await tryCall(ctx, 'deleteMessage', { chat_id: chatId, message_id: message.message_id }, 'fun-echo-delete')) ctx.deletedCommand = message.message_id;
+  const params = { chat_id: chatId, text: pre.text, link_preview_options: { is_disabled: true } };
+  const entities = shiftEntities(message.entities, pre.start, pre.text.length);
+  if (entities.length) params.entities = entities;
+  if (target) params.reply_parameters = { message_id: target.message_id, allow_sending_without_reply: true };
+  else if (message.is_topic_message && message.message_thread_id) params.message_thread_id = message.message_thread_id;
+  const m = await tryCall(ctx, 'sendMessage', params, 'fun-echo');
+  if (m && !priv) await audit.log(message.from.id, 'fun.echo', { chatId, details: { message: m.message_id, length: [...pre.text].length } });
+}
+
+/* The member a /special command names: the replied message's author, or an id or @username (known to Aegis). */
+async function specialTarget(ctx, message, parsed, chatId) {
+  const r = repliedTo(message);
+  if (r && r.from) return r.from;
+  const a = String(parsed.args[0] || '');
+  let id = /^\d{4,16}$/.test(asciiDigits(a)) ? toInt(asciiDigits(a)) : null;
+  if (id === null && /^@[A-Za-z][A-Za-z0-9_]{3,31}$/.test(a)) {
+    const known = await users.byUsername(a.slice(1));
+    if (known) id = Number(known.user_id);
+  }
+  if (id === null) return null;
+  const member = await tryCall(ctx, 'getChatMember', { chat_id: chatId, user_id: id }, 'fun-special-target');
+  return member && member.user ? member.user : { id, unknown: true };
+}
+
+/* /special and /unspecial (a reply, an id or @username): the chat's owner and admins mark who may use «special members» groups. */
+async function special(ctx, message, chat, s, lang, parsed) {
+  const chatId = chat.chat_id;
+  const acc = await admins.liveAccess(ctx, chatId, message.from.id);
+  if (!acc.member || !['creator', 'administrator'].includes(acc.member.status) || acc.level < admins.L.view) return;
+  const out = (key, vars = {}) => say(ctx, chatId, s, t(lang, `fun.${key}`, vars), null, `fun-${parsed.code}`, reply(message));
+  const target = await specialTarget(ctx, message, parsed, chatId);
+  if (!target) return out('special_usage');
+  if (target.unknown) return out('special_unknown');
+  if (target.is_bot) return out('special_bot');
+  const user = nameOf(target);
+  if (parsed.code === 'special') {
+    await users.remember(target);
+    const r = await lists.upsert(chatId, 'fun', { ekey: String(target.id), value: fullName(target) || String(target.id), userId: target.id }, message.from.id);
+    if (r === 'full') return out('special_full', { n: num(lang, LIST_MAX_ENTRIES) });
+    return out(r === 'added' ? 'special_added' : 'special_already', { user });
+  }
+  return out((await lists.remove(chatId, 'fun', String(target.id), message.from.id)) ? 'special_removed' : 'special_not', { user });
+}
+
 function chunks(lines, max = 3800) {
   const out = [];
   let cur = '';
@@ -1377,8 +1493,10 @@ export const panelFun = (() => {
     const lang = user.lang;
     const c = g.chat.chat_id;
     const s = await settings.all(ctx, c);
-    const lines = [t(lang, 'fun.cat_title', { cat: t(lang, `fun.cat_${cat}`), title: title(g) }), ''];
-    const kb = [];
+    const mode = fun.catMode(s, cat);
+    const lines = [t(lang, 'fun.cat_title', { cat: t(lang, `fun.cat_${cat}`), title: title(g) }), t(lang, 'fun.cat_mode', { v: t(lang, `fun.mode_${mode}`) }), ''];
+    const kb = [[btn(t(lang, 'fun.btn_mode', { v: inline(lang, `fun.mode_${mode}`) }), `g:${c}:fn:m:${cat}`),
+      btn(t(lang, 'fun.btn_special', { n: num(lang, await lists.count(c, 'fun')) }), `g:${c}:L:fun`)]];
     for (const f of fun.FEATURES.filter((x) => x.cat === cat)) {
       const cf = fun.conf(s, f.code);
       lines.push(`${cf.on ? '✅' : '▫\uFE0F'} ${f.emoji} ${t(lang, `fun.n_${f.code}`)} — ${limitsText(lang, cf)}`);
@@ -1414,6 +1532,13 @@ export const panelFun = (() => {
       return home(ctx, user, g, place);
     }
     if (a === 'c' && fun.CATS.includes(parts[4])) return category(ctx, user, g, parts[4], place);
+    if (a === 'm' && fun.CATS.includes(parts[4])) {
+      if (!(await needLevel(ctx, user, g, admins.L.settings))) return null;
+      const s = await settings.all(ctx, g.chat.chat_id);
+      const modes = fun.CAT_MODES;
+      await settings.set(ctx, g.chat.chat_id, `fcat_${parts[4]}`, modes[(modes.indexOf(fun.catMode(s, parts[4])) + 1) % modes.length], user.user_id);
+      return category(ctx, user, g, parts[4], place);
+    }
     if (a === 'f' && fun.byCode(parts[4])) {
       const code = parts[4];
       const field = FIELDS[parts[5]];

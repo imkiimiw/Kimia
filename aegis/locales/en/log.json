@@ -113,5 +113,6 @@
   "chat_refresh": "(Aegis team) re-checked the chat with Telegram",
   "chat_backup": "(Aegis team) downloaded the configuration backup",
   "chat_message": "(Aegis team) posted a message",
-  "chat_refused": "Aegis left: new chats are closed"
+  "chat_refused": "Aegis left: new chats are closed",
+  "fun_echo": "made Aegis say a message (/echo)"
 }

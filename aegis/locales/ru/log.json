@@ -113,5 +113,6 @@
   "chat_refresh": "(команда Aegis) перепроверила чат в Telegram",
   "chat_backup": "(команда Aegis) скачала копию настроек",
   "chat_message": "(команда Aegis) опубликовала сообщение",
-  "chat_refused": "Aegis вышел: новые чаты закрыты"
+  "chat_refused": "Aegis вышел: новые чаты закрыты",
+  "fun_echo": "заставил Aegis отправить сообщение (/echo)"
 }

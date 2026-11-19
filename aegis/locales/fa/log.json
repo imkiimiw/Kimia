@@ -113,5 +113,6 @@
   "chat_refresh": "(تیم Aegis) چت را دوباره از تلگرام بررسی کرد",
   "chat_backup": "(تیم Aegis) پشتیبان پیکربندی را گرفت",
   "chat_message": "(تیم Aegis) پیامی گذاشت",
-  "chat_refused": "Aegis خارج شد: پذیرش چت جدید بسته است"
+  "chat_refused": "Aegis خارج شد: پذیرش چت جدید بسته است",
+  "fun_echo": "Aegis را وادار کرد پیامی بفرستد (/echo)"
 }

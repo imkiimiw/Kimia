@@ -215,12 +215,12 @@ test('every locale key the code names exists (literal keys and the dynamic famil
   const HOURS = ['clock', 'mirror', 'reversed', 'triple', 'angel', 'sequence', 'repeat', 'number'];
   const TIME_TYPES = ['mirror', 'reversed', 'triple'];
   const p9 = {
-    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt', 'hafez', 'khayyam', 'babataher', 'tarot', 'horo', 'abjad', 'font', ...HOURS, 'birthmonth', 'chinese', 'lifepath', 'weekday', 'cards', 'runes', 'iching', 'lenormand'], 'fun.who_': ['a', 'd'],
+    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt', 'hafez', 'khayyam', 'babataher', 'tarot', 'horo', 'abjad', 'font', 'echo', ...HOURS, 'birthmonth', 'chinese', 'lifepath', 'weekday', 'cards', 'runes', 'iching', 'lenormand'], 'fun.who_': ['a', 'd'],
     'fun.act_': [...fun.ACTS, ...fun.ACTS.map((a) => `${a}_all`)], 'fun.bday_date_': ['g', 'j'], 'fun.bday_how_': ['g', 'j'],
     'fun.month_g_': [...Array(12).keys()].map((i) => i + 1), 'fun.month_j_': [...Array(12).keys()].map((i) => i + 1),
     'fun.': [...DICE.flatMap((d) => [`${d}_win`, `${d}_lose`]), 'math_win', 'scramble_win', 'typing_win', 'couple', 'couple_none', 'motd', 'motd_none', 'truth', 'dare'],
     'funlist.': ['ball8', 'fortune', 'truth', 'dare', 'wyr', 'quote', 'scramble', 'typing', 'trivia'],
-    'funcmd.': [...fun.CODES.filter((c) => c !== 'act' && c !== 'bday'), ...fun.ACTS, 'birthday', 'birthdays', 'fun', 'fal'],
+    'funcmd.': [...fun.CODES.filter((c) => c !== 'act' && c !== 'bday'), ...fun.ACTS, 'birthday', 'birthdays', 'fun', 'fal', 'special', 'unspecial'],
     /* fortune telling and fonts */
     'fallist.': ['tarot_names', 'tarot_up', 'tarot_rev', 'signs', 'horo_love', 'horo_work', 'horo_health', 'horo_advice', 'colors', 'numbers', 'coffee',
       'mirror', 'reversed', 'angel3', 'angelx', 'seqx', 'rep2', 'rep4', 'digits', 'bm_traits', 'bm_love', 'bm_work', 'bm_good', 'bm_bad', 'bm_lucky',

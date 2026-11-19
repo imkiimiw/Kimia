@@ -1,5 +1,5 @@
 /*
- * The 18 per-chat lists (aegis_list_entries + append-only aegis_list_history).
+ * The 19 per-chat lists (aegis_list_entries + append-only aegis_list_history).
  *
  * kind: user (a member, by id) · bot (@username of a bot) · word · domain · chat (@channel or -100id)
  * · sticker (sticker set name) · pattern (text found in names).
@@ -8,7 +8,8 @@
  *     removing lifts it; engines/punish.js keeps them in sync, also for punishments by command);
  *   warn: a view of members with active warnings (adding warns, removing clears them);
  *   mod: members who may use Aegis's moderation commands in the group without being admins;
- *   none: stored for the locks and filters of later phases (the panel says so).
+ *   none: stored for the locks and filters of later phases (the panel says so); «fun» holds the special
+ *     members who may use fun groups set to «special members» (engines/fun.js catMode).
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
@@ -34,6 +35,7 @@ export const LISTS = [
   { code: 'fwd', kind: 'chat', effect: 'none', icon: '📢' },
   { code: 'stk', kind: 'sticker', effect: 'none', icon: '🎭' },
   { code: 'nam', kind: 'pattern', effect: 'none', icon: '🏷' },
+  { code: 'fun', kind: 'user', effect: 'none', icon: '🎟' },
 ];
 const BY_CODE = new Map(LISTS.map((l) => [l.code, l]));
 export const get = (code) => BY_CODE.get(code) || null;

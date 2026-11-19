@@ -104,5 +104,7 @@
   "fail_vip": "• {name} 在 VIP 名单中。",
   "fail_tg": "• {name}：Telegram 拒绝（<code>{error}</code>）。",
   "fail_full": "• {name}：名单已满。",
-  "note_only": "ℹ️ 给管理员的备注：没有任何锁或检查使用此列表。"
+  "note_only": "ℹ️ 给管理员的备注：没有任何锁或检查使用此列表。",
+  "n_fun": "娱乐特别成员",
+  "d_fun": "可以使用设为“特别成员”的娱乐类别（面板 → 娱乐 → 各类别）。也可回复成员并发送 /special 添加。"
 }
