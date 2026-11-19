@@ -328,9 +328,12 @@ export function parseBirthday(text, cal) {
 
 /*
  * Telegram has no fonts to choose from. What a bot can give is (1) Telegram's own text styles —
- * entities, rendered by every client in every language — and (2) Unicode letters that look like other
- * fonts (mathematical alphanumerics and friends), which exist only for Latin letters and digits. For
- * other scripts there are decorations: Persian/Arabic stretched with kashida, spaced letters, frames.
+ * entities, rendered by every client in every language — also over the fonts below; (2) Unicode letters
+ * that look like other fonts (the 13 mathematical alphabets, enclosed, wide, small and turned letters),
+ * which exist only for Latin letters and digits, and look-alike letters from other scripts; (3) marks
+ * drawn on each letter and signs between letters; (4) for Persian: kashida with or without marks and
+ * signs, harakat and other marks on each letter, disconnected or spaced letters; (5) frames; and
+ * (6) chosen combinations of these. Pages: combo, tg, uni, look, mark, fa, frame.
  */
 export const fonts = (() => {
   const cp = (n) => String.fromCodePoint(n);
@@ -343,20 +346,28 @@ export const fonts = (() => {
     if (c >= 48 && c <= 57 && d !== null) return cp(d + c - 48);
     return ch;
   };
+  /* a character table: from (a string) → to (a string of the same length, or a list) */
   const table = (from, to, { lower = false } = {}) => {
     const src = [...from];
-    const dst = [...to];
+    const dst = Array.isArray(to) ? to : [...to];
     const m = new Map(src.map((c, i) => [c, dst[i]]));
     return (ch) => m.get(lower ? ch.toLowerCase() : ch) || ch;
   };
+  const AZ = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  /* a look-alike set: 26 capitals and (optionally) 26 small letters */
+  const alike = (caps, small = caps) => table(AZ + AZ.toLowerCase(), [...[...caps], ...[...small]]);
   const upper = (fn) => (ch) => fn(ch >= 'a' && ch <= 'z' ? ch.toUpperCase() : ch);
   const digits = (zero, one) => (ch) => (ch === '0' ? (zero ? cp(zero) : ch) : (ch >= '1' && ch <= '9' ? cp(one + Number(ch) - 1) : null));
   const both = (letters, nums) => (ch) => nums(ch) || letters(ch);
   const SCRIPT = { B: 'ℬ', E: 'ℰ', F: 'ℱ', H: 'ℋ', I: 'ℐ', L: 'ℒ', M: 'ℳ', R: 'ℛ', e: 'ℯ', g: 'ℊ', o: 'ℴ' };
   const FRAKTUR = { C: 'ℭ', H: 'ℌ', I: 'ℑ', R: 'ℜ', Z: 'ℨ' };
   const DOUBLE = { C: 'ℂ', H: 'ℍ', N: 'ℕ', P: 'ℙ', Q: 'ℚ', R: 'ℝ', Z: 'ℤ' };
-  const wide = (ch) => (ch === ' ' ? '　' : (ch > ' ' && ch <= '~' ? cp(ch.charCodeAt(0) + 0xFEE0) : ch));
-  /* Latin letter styles, in the order shown */
+  const wide = (ch) => (ch === ' ' ? '\u3000' : (ch > ' ' && ch <= '~' ? cp(ch.charCodeAt(0) + 0xFEE0) : ch));
+  const SUB = table('aehijklmnoprstuvx0123456789+-=()', 'ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎', { lower: true });
+  const UPSIDE = table('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,?!\'"()[]{}<>_&',
+    'ɐqɔpǝɟƃɥᴉɾʞlɯuodbɹsʇnʌʍxʎz∀ᗺƆᗡƎℲ⅁HIſʞ˥WNOԀΌᴚS⊥∩ΛMX⅄Z0ƖᄅƐㄣϛ9ㄥ86˙\'¿¡,„)(][}{><‾⅋');
+  const MIRROR = alike('AᗺƆᗡƎꟻᎮHIႱꓘ⅃MИOꟼỌЯꙄTUVWXYƸ', 'ɒdɔbɘʇǫʜiꞁʞlmnoqpɿꙅƚuvwxʏƹ');
+  /* one character at a time; whole words (upside down, mirrored, flags) are done in `styled` */
   const LATIN = [
     ['bold', math(0x1D400, 0x1D41A, 0x1D7CE)],
     ['italic', math(0x1D434, 0x1D44E, null, { h: 'ℎ' })],
@@ -372,60 +383,136 @@ export const fonts = (() => {
     ['sansbolditalic', math(0x1D63C, 0x1D656, null)],
     ['mono', math(0x1D670, 0x1D68A, 0x1D7F6)],
     ['wide', wide],
+    ['smallcaps', table('abcdefghijklmnopqrstuvwxyz', 'ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢ', { lower: true })],
+    ['super', table('abcdefghijklmnopqrstuvwxyz0123456789+-=()', 'ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᑫʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾', { lower: true })],
+    ['sub', SUB],
     ['circled', both(math(0x24B6, 0x24D0, null), digits(0x24EA, 0x2460))],
     ['circledneg', both(upper(math(0x1F150, null, null)), digits(0x24FF, 0x2776))],
     ['squared', upper(math(0x1F130, null, null))],
     ['squaredneg', upper(math(0x1F170, null, null))],
     ['paren', both(table('abcdefghijklmnopqrstuvwxyz', '⒜⒝⒞⒟⒠⒡⒢⒣⒤⒥⒦⒧⒨⒩⒪⒫⒬⒭⒮⒯⒰⒱⒲⒳⒴⒵', { lower: true }), digits(0, 0x2474))],
-    ['smallcaps', table('abcdefghijklmnopqrstuvwxyz', 'ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢ', { lower: true })],
-    ['super', table('abcdefghijklmnopqrstuvwxyz0123456789+-=()', 'ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᑫʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾', { lower: true })],
+    ['flags', null], ['upside', null], ['mirror', null],
   ];
-  const UPSIDE = table('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,?!\'"()[]{}<>_&',
-    'ɐqɔpǝɟƃɥᴉɾʞlɯuodbɹsʇnʌʍxʎz∀ᗺƆᗡƎℲ⅁HIſʞ˥WNOԀΌᴚS⊥∩ΛMX⅄Z0ƖᄅƐㄣϛ9ㄥ8' + '6˙\'¿¡,„)(][}{><‾⅋');
-  /* combining marks drawn over each character */
-  const COMBINING = [['strike', '̶'], ['underline', '̲'], ['dunderline', '̳'], ['overline', '̅']];
+  /* look-alike letters from other scripts (all written left to right) */
+  const LOOK = [
+    ['currency', alike('₳฿₵ĐɆ₣₲ⱧłJ₭Ⱡ₥₦Ø₱QⱤ₴₮ɄV₩ӾɎⱫ')],
+    ['cyrillic', alike('ДБСDЄFGНЇЈКŁМИФРQЯЅТЦVШЖЧZ', 'дбсdєfgнїјкłмифрqяѕтцvшжчz')],
+    ['asian', alike('卂乃匚ᗪ乇千Ꮆ卄丨ﾌҜㄥ爪几ㄖ卩Ɋ尺丂ㄒㄩᐯ山乂ㄚ乙')],
+    ['greek', alike('ΛßϾÐΞŦGΉΊJҠĹϺΠΘΡϘЯΣͲЦVШΧΨΖ', 'αв¢∂єƒgнιјкℓмησρqяѕтυνωχуz')],
+    ['runic', alike('ᚨᛒᚲᛞᛖᚠᚷᚺᛁᛃᚲᛚᛗᚾᛟᛈᚲᚱᛋᛏᚢᚡᚹᛪᛃᛉ')],
+    ['thai', alike('ค๒ς๔єŦງђเʝкɭ๓ภ๏ρợгรՇยงฬϰฯչ')],
+  ];
+  const ALL = new Map([...LATIN, ...LOOK]);
   const ARABIC = /[؀-ۿ]/;
+  const ARABIC_LETTER = /[ء-يٱ-ۓۺ-ۿ]/;
   const LATIN_CHAR = /[A-Za-z0-9]/;
   const OTHER_LETTER = /[À-ɏͰ-ϿЀ-ӿ]/;
-  /* letters that join to the next one (a kashida can follow them) and those that don't */
+  /* a style over a text: Persian/Arabic letters are left as they are */
+  function styled(s, code) {
+    const chars = [...s];
+    if (code === 'upside') return chars.map(UPSIDE).reverse().join('');
+    if (code === 'mirror') return chars.map(MIRROR).reverse().join('');
+    if (code === 'flags') {
+      return s.split(' ').map((w) => [...w].map((ch) => (/[A-Za-z]/.test(ch) ? cp(0x1F1E6 + ch.toUpperCase().charCodeAt(0) - 65) : ch)).join(' ')).join('   ');
+    }
+    const fn = ALL.get(code);
+    return fn ? chars.map((ch) => (ARABIC.test(ch) ? ch : fn(ch))).join('') : s;
+  }
+  /* marks drawn on each character (not on spaces or Persian letters) */
+  const MARKS = [['strike', '̶'], ['short', '̵'], ['slash', '̸'], ['underline', '̲'], ['dunderline', '̳'], ['overline', '̅'],
+    ['doubleover', '̿'], ['tilde', '̰'], ['dots', '̤'], ['arrow', '͎'], ['cross', '̽'], ['seagull', '̼'], ['circle', '⃝'],
+    ['square', '⃞'], ['glitch', '̷̢']];
+  const MARK = new Map(MARKS);
+  const marked = (s, code) => [...s].map((ch) => (ch === ' ' || ARABIC.test(ch) ? ch : ch + MARK.get(code))).join('');
+  /* a sign between the letters of each word */
+  const SEPS = [['hearts', '♥'], ['stars', '★'], ['dots', '·'], ['sparkle', '✦'], ['flower', '❀'], ['spaced', ' ']];
+  const SEP = new Map(SEPS);
+  const between = (s, sign) => s.split(' ').map((w) => [...w].join(sign)).join(sign === ' ' ? '   ' : ' ');
+
+  /* Persian: letters that join to the next one (a kashida can follow them) and those that don't */
   const DUAL = new Set([...'بپتثجچحخسشصضطظعغفقکكگلمنهیيئـ']);
   const RIGHT = new Set([...'اآأإدذرزژوؤة']);
   const joins = (ch) => DUAL.has(ch) || RIGHT.has(ch);
-  function kashida(s, n) {
+  /* `fill` (n kashidas by default) between two letters that join */
+  function kashida(s, n, fill = 'ـ'.repeat(n)) {
     const chars = [...s];
-    return chars.map((ch, i) => (DUAL.has(ch) && i + 1 < chars.length && joins(chars[i + 1]) ? ch + 'ـ'.repeat(n) : ch)).join('');
+    return chars.map((ch, i) => (DUAL.has(ch) && i + 1 < chars.length && joins(chars[i + 1]) ? ch + fill : ch)).join('');
   }
-  const FRAMES = [['꧁ ', ' ꧂'], ['✿ ', ' ✿'], ['★彡 ', ' 彡★'], ['【', '】'], ['『', '』'], ['♡ ', ' ♡'],
-    ['─═ ', ' ═─'], ['⊱ ', ' ⊰']];
-  /* Telegram's own styles: [code, opening tags, closing tags] */
+  const onLetters = (s, marks) => [...s].map((ch) => (ARABIC_LETTER.test(ch) ? ch + marks : ch)).join('');
+  const PERSIAN = [
+    ['kashida', (s) => kashida(s, 1)], ['kashida3', (s) => kashida(s, 3)],
+    ['apart', (s) => s.split(' ').map((w) => [...w].join('\u200C')).join(' ')], ['spaced', (s) => between(s, ' ')],
+    ['crown', (s) => onLetters(s, 'ٰٖ')], ['harakat', (s) => onLetters(s, 'َِ')], ['madd', (s) => onLetters(s, 'ٓ')],
+    ['sukun', (s) => onLetters(s, 'ْ')], ['shadda', (s) => onLetters(s, 'ّ')], ['tanwin', (s) => onLetters(s, 'ٍّ')],
+    ['kmarks', (s) => kashida(s, 1, 'ـَِـ')], ['kwave', (s) => kashida(s, 1, 'ـ͜͡ـ')], ['kflower', (s) => kashida(s, 1, 'ـ۪ٜـ')],
+    ['kcrown', (s) => kashida(s, 1, 'ـٰـ')], ['kheart', (s) => kashida(s, 1, 'ـ♡ـ')], ['kstar', (s) => kashida(s, 1, 'ـ★ـ')],
+  ];
+  const PERSIAN_FN = new Map(PERSIAN);
+
+  const FRAMES = [['꧁ ', ' ꧂'], ['꧁༺ ', ' ༻꧂'], ['✿ ', ' ✿'], ['❀ ', ' ❀'], ['★彡 ', ' 彡★'], ['【', '】'], ['『', '』'], ['「', '」'], ['《', '》'],
+    ['〖', '〗'], ['♡ ', ' ♡'], ['❥ ', ' ❥'], ['─═ ', ' ═─'], ['⊱ ', ' ⊰'], ['•°¯`•• ', ' ••´¯°•'], ['༺ ', ' ༻'], ['✧･ﾟ: ', ' :･ﾟ✧'], ['⋆｡°✩ ', ' ✩°｡⋆'],
+    ['☾ ', ' ☽'], ['⸙ ', ' ⸙'], ['𓆩♡𓆪 ', ' 𓆩♡𓆪'], ['♔ ', ' ♔'], ['⫷ ', ' ⫸'], ['◦•●◉✿ ', ' ✿◉●•◦'], ['▁ ▂ ▄ ▅ ▆ ▇ █ ', ' █ ▇ ▆ ▅ ▄ ▂ ▁'],
+    ['¸.·´¯`·.¸ ', ' ¸.·´¯`·.¸'], ['ღ ', ' ღ'], ['☆ﾟ.*･｡ﾟ ', ' ﾟ｡･*.ﾟ☆'], ['▓▒░ ', ' ░▒▓'], ['⟬ ', ' ⟭']];
+  const frame = (s, i) => `${FRAMES[i][0]}${s}${FRAMES[i][1]}`;
+  /* The combinations: a style, then marks or a sign between letters, then a frame (or its own ends) */
+  const COMBOS = [
+    ['boldscript', null, 1], ['sansbolditalic', null, 4], ['double', null, ['✦ ', ' ✦']], ['boldfraktur', null, 21], ['circled', null, 10],
+    ['wide', null, 5], ['mono', null, 6], ['script', null, 14], ['smallcaps', null, ['✧ ', ' ✧']], ['bolditalic', null, 17],
+    ['bold', 'm:underline', ['➶ ', '']], ['fraktur', null, 13], ['boldscript', null, 20], ['sansitalic', null, 18], ['double', null, 23],
+    ['squaredneg', null, ['➤ ', '']], ['script', 'm:underline', null], ['sansbold', 'm:strike', null], ['smallcaps', 's:sparkle', null],
+    ['wide', 's:spaced', 28], ['bolditalic', 's:hearts', null], ['circledneg', null, ['★ ', ' ★']], ['super', null, ['˚₊‧ ', ' ‧₊˚']],
+    ['thai', null, 0], ['asian', null, 5], ['mono', 'm:dunderline', null], ['boldfraktur', 'm:glitch', null], ['sans', 'm:dots', 19],
+    ['script', null, 25], ['runic', null, ['᛭ ', ' ᛭']], ['currency', null, 22], ['sansbold', null, 24], ['italic', 'm:underline', 26],
+    ['greek', null, 29], ['bold', null, 16], ['squared', null, ['⚡ ', ' ⚡']]];
+  const PERSIAN_COMBOS = [['kmarks', 0], ['crown', 5], ['kashida', 2], ['kashida3', ['★ ', ' ★']], ['kheart', 11], ['harakat', 21], ['apart', 19],
+    ['kwave', ['◥ ', ' ◤']], ['sukun', 18], ['madd', 1], ['kflower', 14], ['kcrown', 17], ['kstar', 6], ['shadda', 23], ['tanwin', 28], ['kashida', 20]];
+  const ends = (s, f) => (f === null ? s : (Array.isArray(f) ? `${f[0]}${s}${f[1]}` : frame(s, f)));
+  function combo([style, extra, f]) {
+    let s = styled(this, style);
+    if (extra && extra.startsWith('m:')) s = marked(s, extra.slice(2));
+    if (extra && extra.startsWith('s:')) s = between(s, SEP.get(extra.slice(2)));
+    return ends(s, f);
+  }
+
+  /* Telegram's own styles: [code, opening tags, closing tags]; then Telegram's styles over a font */
   const TELEGRAM = [['bold', '<b>', '</b>'], ['italic', '<i>', '</i>'], ['underline', '<u>', '</u>'], ['strike', '<s>', '</s>'], ['spoiler', '<tg-spoiler>', '</tg-spoiler>'],
     ['mono', '<code>', '</code>'], ['bolditalic', '<b><i>', '</i></b>'], ['boldunderline', '<b><u>', '</u></b>'], ['italicunderline', '<i><u>', '</u></i>'],
     ['bolditalicunderline', '<b><i><u>', '</u></i></b>'], ['pre', '<pre>', '</pre>'], ['quote', '<blockquote>', '</blockquote>']];
+  const TG_COMBOS = [['script_u', '<u>', '</u>', 'script'], ['double_spoiler', '<tg-spoiler>', '</tg-spoiler>', 'double'], ['sans_s', '<s>', '</s>', 'sansbolditalic'],
+    ['circled_u', '<u>', '</u>', 'circled'], ['smallcaps_b', '<b>', '</b>', 'smallcaps'], ['fraktur_quote', '<blockquote>', '</blockquote>', 'boldfraktur']];
+  const TG_PERSIAN = [['fa_bu', '<b><u>', '</u></b>', 'kashida'], ['fa_i', '<i>', '</i>', 'kmarks'], ['fa_spoiler', '<tg-spoiler>', '</tg-spoiler>', 'kheart'],
+    ['fa_quote', '<blockquote>', '</blockquote>', 'crown']];
 
-  /* All the styles that apply to `text`: { telegram: [[code, open, close]], latin: [[code, styled]], deco: [[code, styled]], hasLatin, hasArabic } */
+  /*
+   * Everything for `text`, by page: tg [[code, open, close, text]] (Telegram's styles, then over fonts),
+   * uni / look / mark / fa [[code, styled]], combo / frame [styled]. Pages that don't apply are left out.
+   */
   function render(text) {
     const s = String(text || '');
-    const chars = [...s];
     const hasLatin = LATIN_CHAR.test(s);
     const hasArabic = ARABIC.test(s);
-    const latin = [];
+    const letters = hasLatin || OTHER_LETTER.test(s);
+    const pages = { tg: TELEGRAM.map(([code, open, close]) => [code, open, close, s]) };
+    if (hasLatin) pages.tg.push(...TG_COMBOS.map(([code, open, close, style]) => [code, open, close, styled(s, style)]));
+    if (hasArabic) pages.tg.push(...TG_PERSIAN.map(([code, open, close, style]) => [code, open, close, PERSIAN_FN.get(style)(s)]));
     if (hasLatin) {
-      for (const [code, fn] of LATIN) latin.push([code, chars.map(fn).join('')]);
-      if (!hasArabic) latin.push(['upside', chars.map(UPSIDE).reverse().join('')]);
+      pages.uni = LATIN.filter(([code]) => !(hasArabic && (code === 'upside' || code === 'mirror'))).map(([code]) => [code, styled(s, code)]);
+      pages.look = LOOK.map(([code]) => [code, styled(s, code)]);
     }
-    if (hasLatin || OTHER_LETTER.test(s)) {
-      for (const [code, mark] of COMBINING) latin.push([code, chars.map((ch) => (ch === ' ' || ARABIC.test(ch) ? ch : ch + mark)).join('')]);
-    }
-    const deco = [];
-    if (hasArabic) {
-      deco.push(['kashida', kashida(s, 1)], ['kashida3', kashida(s, 3)]);
-    }
-    deco.push(['spaced', chars.map((ch) => (ch === '\u200C' ? ' ' : ch)).join(' ').replace(/ {3,}/g, '  ')]);
-    FRAMES.forEach(([a, b], i) => deco.push([`frame${i + 1}`, `${a}${s}${b}`]));
-    return { telegram: TELEGRAM, latin, deco, hasLatin, hasArabic };
+    if (letters) pages.mark = [...MARKS.map(([code]) => [code, marked(s, code)]), ...SEPS.map(([code, sign]) => [`s_${code}`, between(s, sign)])];
+    if (hasArabic) pages.fa = PERSIAN.map(([code, fn]) => [code, fn(s)]);
+    pages.combo = [...(hasArabic ? PERSIAN_COMBOS.map(([p, f]) => ends(PERSIAN_FN.get(p)(s), f)) : []), ...(hasLatin ? COMBOS.map(combo, s) : [])];
+    if (!pages.combo.length) pages.combo = FRAMES.slice(0, 12).map((f, i) => frame(between(s, i % 2 ? '✦' : ' '), i));
+    pages.frame = FRAMES.map((f, i) => frame(s, i));
+    return { pages, hasLatin, hasArabic };
   }
 
-  return { render, kashida, LATIN: LATIN.map(([c]) => c), COMBINING: COMBINING.map(([c]) => c), FRAMES: FRAMES.length, TELEGRAM: TELEGRAM.map(([c]) => c) };
+  return {
+    render, styled, marked, between, kashida, PAGES: ['combo', 'tg', 'uni', 'look', 'mark', 'fa', 'frame'],
+    TELEGRAM: TELEGRAM.map(([c]) => c), TG_COMBOS: [...TG_COMBOS, ...TG_PERSIAN].map(([c]) => c), LATIN: LATIN.map(([c]) => c), LOOK: LOOK.map(([c]) => c),
+    MARKS: [...MARKS.map(([c]) => c), ...SEPS.map(([c]) => `s_${c}`)], PERSIAN: PERSIAN.map(([c]) => c), FRAMES: FRAMES.length,
+    COMBOS: COMBOS.length, PERSIAN_COMBOS: PERSIAN_COMBOS.length,
+  };
 })();
 
 /* ---------- fal: Hafez, tarot, horoscope, numerology, coffee ---------- */

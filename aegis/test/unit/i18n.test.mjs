@@ -221,7 +221,8 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'funcmd.': [...fun.CODES.filter((c) => c !== 'act' && c !== 'bday'), ...fun.ACTS, 'birthday', 'birthdays', 'fun', 'fal'],
     /* fortune telling and fonts */
     'fallist.': ['tarot_names', 'tarot_up', 'tarot_rev', 'signs', 'horo_love', 'horo_work', 'horo_health', 'horo_advice', 'colors', 'numbers', 'coffee'],
-    'fal.t_': fun.fonts.TELEGRAM, 'fal.u_': [...fun.fonts.LATIN, 'upside', ...fun.fonts.COMBINING], 'fal.d_': ['kashida', 'kashida3', 'spaced', 'frame'],
+    'fal.t_': fun.fonts.TELEGRAM, 'fal.tc_': fun.fonts.TG_COMBOS, 'fal.u_': [...fun.fonts.LATIN, ...fun.fonts.LOOK], 'fal.m_': fun.fonts.MARKS,
+    'fal.p_': fun.fonts.PERSIAN, 'fal.fp_': fun.fonts.PAGES, 'fal.fi_': fun.fonts.PAGES,
     'fal.pos_': [1, 2, 3], 'fal.yn_': ['yes', 'no', 'maybe'], 'fal.el_': fun.fal.ELEMENTS, 'fal.sys_': ['abjad', 'latin', 'cyrillic'],
     'fal.': ['card_up', 'card_rev'],
     'mediacmd.': ['sticker', 'tophoto', 'gif', 'qr', 'readqr', 'ocr', 'pdf', 'tools'],

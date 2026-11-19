@@ -16,6 +16,7 @@
  * callback_data: fn:<game>:c:<i> quick click · fn:<game>:a accept · fn:<game>:x cancel (the challenger)
  *   · fn:<game>:r|p|s rock-paper-scissors · fn:<game>:t:<cell> tic-tac-toe
  *   · fn:f:<code>[:<arg>] run a fortune command (tarot 1|3, horo <sign 0–11>) · fn:f:horo:p the sign buttons
+ *   · fn:t:<page>[:<part>] a page of /font (combo, tg, uni, look, mark, fa, frame), for the one who asked
  * Panel: g:c:fn  ·  g:c:fn:s:<key>  ·  g:c:fn:c:<cat>  ·  g:c:fn:f:<code>[:o|w|c|d|r]
  */
 import { asciiDigits, dateOf, toJalali, tzOf } from '../core/clock.js';
@@ -491,37 +492,67 @@ function chunks(lines, max = 3800) {
   return out;
 }
 
+/* Lines of one page of /font. tg: Telegram's styles (live); the others in copy-on-tap code boxes. */
+const FONT_BLOCK = new Set(['pre', 'quote', 'fraktur_quote', 'fa_quote']);
+const FONT_PREFIX = { uni: 'u', look: 'u', mark: 'm', fa: 'p' };
+function fontLines(lang, page, items) {
+  const box = (x) => LRI(`<code>${esc(x)}</code>`);
+  if (page === 'tg') {
+    return items.map(([c, open, close, x]) => {
+      const label = t(lang, fun.fonts.TELEGRAM.includes(c) ? `fal.t_${c}` : `fal.tc_${c}`);
+      if (FONT_BLOCK.has(c)) return `${rtl(lang, `${label}:`)}\n${isRtl(lang) ? '\u200F' : ''}${open}${esc(x)}${close}`;
+      return rtl(lang, `${label}: ${LRI(`${open}${esc(x)}${close}`)}`);
+    });
+  }
+  if (page === 'combo' || page === 'frame') return items.map((x, i) => rtl(lang, `${num(lang, i + 1)}. ${box(x)}`));
+  return items.map(([c, x]) => rtl(lang, `${t(lang, `fal.${FONT_PREFIX[page]}_${c}`)}: ${box(x)}`));
+}
+
+/* One message for /font: the text's name, a page of styles, a button per page (and ◀ ▶ when a page is long). */
+export function fontScreen(lang, text, page0, part0 = 0) {
+  const r = fun.fonts.render(text);
+  const pages = fun.fonts.PAGES.filter((p) => r.pages[p]);
+  const page = pages.includes(page0) ? page0 : pages[0];
+  const head = [t(lang, 'fal.font_head', { text: LRI(esc(text)) }), t(lang, `fal.fi_${page}`), ''];
+  const lines = fontLines(lang, page, r.pages[page]);
+  if (page === 'fa' && !r.hasLatin) lines.push('', t(lang, 'fal.font_uni_none'));
+  const parts = chunks(lines, 3600 - head.join('\n').length);
+  const n = Math.min(Math.max(0, part0), parts.length - 1);
+  const body = [...head, parts[n]];
+  if (page !== 'tg') body.push('', t(lang, 'fal.font_tap'));
+  const rows = pairs(pages.map((p) => btn(`${p === page ? '• ' : ''}${t(lang, `fal.fp_${p}`)}`, `fn:t:${p}`)));
+  if (parts.length > 1) {
+    rows.push([btn('◀', `fn:t:${page}:${(n + parts.length - 1) % parts.length}`), btn(`${num(lang, n + 1)}/${num(lang, parts.length)}`, 'nop'),
+      btn('▶', `fn:t:${page}:${(n + 1) % parts.length}`)]);
+  }
+  return { text: body.join('\n'), rows };
+}
+
 async function font(ctx, x) {
   const { chatId, s, lang, pre, message } = x;
-  const text = pre.text;
-  const r = fun.fonts.render(text);
-  const plain = esc(text);
-  const lines = [t(lang, 'fal.font_tg_title')];
-  for (const [code, open, close] of r.telegram) {
-    const block = code === 'pre' || code === 'quote';
-    const label = t(lang, `fal.t_${code}`);
-    if (block) lines.push(`${label}:`, `${isRtl(lang) ? '\u200F' : ''}${open}${plain}${close}`);
-    else lines.push(rtl(lang, `${label}: ${LRI(`${open}${plain}${close}`)}`));
+  const sc = fontScreen(lang, pre.text, 'combo');
+  return say(ctx, chatId, s, sc.text, sc.rows, 'fun-font', reply(message));
+}
+
+/* A page button of /font: the text is read back from the message's first line; only the one who asked turns pages. */
+async function fontPage(ctx, cq, parts) {
+  const msg = cq.message;
+  const from = cq.from;
+  const u = await users.get(from.id);
+  const mine = u && Number(u.lang_set) ? u.lang : pickLang(from.language_code);
+  const chat = msg.chat.id < 0 ? await chats.get(msg.chat.id) : null;
+  if (chat) {
+    const s = await settings.all(ctx, chat.chat_id);
+    if (!flag(s, 'fun_on') || !fun.conf(s, 'font').on) return answer(ctx);
   }
-  const out = [lines.join('\n')];
-  const more = [];
-  if (r.latin.length) {
-    more.push(t(lang, 'fal.font_uni_title'));
-    for (const [code, styled] of r.latin) more.push(rtl(lang, `${t(lang, `fal.u_${code}`)}: ${LRI(`<code>${esc(styled)}</code>`)}`));
-  } else more.push(t(lang, 'fal.font_uni_none'));
-  more.push('', t(lang, 'fal.font_deco_title'));
-  for (const [code, styled] of r.deco) {
-    const frame = /^frame(\d+)$/.exec(code);
-    const label = frame ? t(lang, 'fal.d_frame', { n: num(lang, Number(frame[1])) }) : t(lang, `fal.d_${code}`);
-    more.push(rtl(lang, `${label}: ${LRI(`<code>${esc(styled)}</code>`)}`));
-  }
-  out.push(...chunks(more));
-  let first = null;
-  for (const [i, part] of out.entries()) {
-    const m = await say(ctx, chatId, s, part, null, i ? 'fun-font-more' : 'fun-font', i ? {} : reply(message));
-    if (!first) first = m;
-  }
-  return first;
+  const asker = msg.reply_to_message && msg.reply_to_message.from;
+  if (asker && !asker.is_bot && asker.id !== from.id) return answer(ctx, t(mine, 'fal.font_not_yours'), true);
+  const m = /\u2068([^\u2069]*)\u2069/.exec(String(msg.text || '').split('\n')[0]);
+  if (!m || !m[1].trim() || [...m[1]].length > FONT_MAX) return answer(ctx, t(mine, 'fal.font_gone'), true);
+  const lang = chat ? chat.lang : (u ? u.lang : mine);
+  const sc = fontScreen(lang, m[1], parts[2], toInt(parts[3]) || 0);
+  await edit(ctx, { chat_id: msg.chat.id, message_id: msg.message_id }, sc.text, sc.rows, 'fun-font');
+  return answer(ctx);
 }
 
 /* A button of a fortune: runs the command for whoever pressed it, as if they had typed it. */
@@ -819,6 +850,7 @@ export async function onPollAnswer(ctx, a) {
 
 export async function callback(ctx, cq, parts) {
   if (parts[1] === 'f') return falButton(ctx, cq, parts);
+  if (parts[1] === 't') return fontPage(ctx, cq, parts);
   const from = cq.from;
   const u = await users.get(from.id);
   const lang0 = u && Number(u.lang_set) ? u.lang : pickLang(from.language_code);

@@ -42,6 +42,7 @@ import { checkPdf, deflate, inflate, sha256 } from '../lib/core/files.js';
 import * as system from '../lib/engines/system.js';
 import { allChats, globalBackup, seals, staff } from '../lib/engines/system.js';
 import { stickerPng } from '../lib/ui/media.js';
+import { fontScreen } from '../lib/ui/fun.js';
 import { createCtx, me } from '../lib/core/tg.js';
 import { appeals, badges, contests, polls, questions, stats } from '../lib/engines/social.js';
 import { healthScore, isThanks, levelOf } from '../lib/core/levels.js';
@@ -97,10 +98,12 @@ export default async function (input) {
     const all = Array.from({ length: fun.fal.HAFEZ_COUNT }, (_, i) => fun.fal.ghazal(i + 1));
     const whole = all.filter((g) => g.v.length >= 5 && g.v.every((b) => b.length === 2) && g.f.length >= 60).length;
     const f = fun.fonts.render('Hello 2026 سلام');
-    const by = Object.fromEntries(f.latin);
+    const by = Object.fromEntries(f.pages.uni);
+    const long = 'W'.repeat(20) + 'ش'.repeat(20);
+    const screens = fun.fonts.PAGES.map((p) => fontScreen('fa', long, p).text.length);
     return {
       hafez: [whole, all[254].v[0][1].slice(-7), all[0].n, all[494].n],
-      fonts: [f.latin.length, by.bold, Object.fromEntries(f.deco).kashida],
+      fonts: [f.pages.uni.length, by.bold, Object.fromEntries(f.pages.fa).kashida, f.pages.combo.length, Math.max(...screens) < 4096],
       tarot: [fun.fal.CARDS, fun.fal.image(17).slice(0, 52), new Set(fun.fal.draw(3).map((c) => c.card)).size],
       sign: [fun.fal.signOf('j', 7, 1), fun.fal.signOf('g', 3, 21)], num: [fun.fal.numerology('علی').total, fun.fal.numerology('Kimia').number],
     };

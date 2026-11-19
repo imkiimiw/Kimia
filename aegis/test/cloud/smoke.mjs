@@ -138,7 +138,7 @@ try {
     && p10.backup.join() === 'globals,true,globals', JSON.stringify(p10));
   const fal = dev('fal');
   check('Hafez in the isolate: all 495 ghazals inflated from the data module in one call, each with its interpretation', fal.hafez.join() === '495,غم مخور,1,495', JSON.stringify(fal.hafez));
-  check('fonts, tarot, zodiac and name numbers in the isolate', fal.fonts.join() === '25,𝐇𝐞𝐥𝐥𝐨 𝟐𝟎𝟐𝟔 سلام,Hello 2026 سـلـام' && fal.tarot.join() === '78,https://upload.wikimedia.org/wikipedia/commons/thumb,3'
+  check('fonts (every page of a 40-character text under 4096), tarot, zodiac and name numbers in the isolate', fal.fonts.join() === '23,𝐇𝐞𝐥𝐥𝐨 𝟐𝟎𝟐𝟔 سلام,Hello 2026 سـلـام,52,true' && fal.tarot.join() === '78,https://upload.wikimedia.org/wikipedia/commons/thumb,3'
     && fal.sign.join() === '6,0' && fal.num.join() === '110,7', JSON.stringify(fal));
 
   const cq = { id: 'smoke', from: user(A, 'fa'), chat_instance: 'x', data: 'lg:fa', message: { message_id: 1, chat: { id: A, type: 'private' }, date: 0, text: 'x' } };

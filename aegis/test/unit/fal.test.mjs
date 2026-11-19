@@ -136,9 +136,10 @@ test('name numbers: abjad, Pythagorean and Cyrillic values, master numbers, and 
   }
 });
 
-test('fonts: every Unicode style, upside down, combining marks, Persian stretching, frames, and Telegram styles', () => {
+test('fonts: every page — Telegram styles, Unicode fonts, look-alikes, marks, Persian styles, combinations and frames', () => {
   const r = fonts.render('Hello 2026');
-  const by = Object.fromEntries(r.latin);
+  assert.deepEqual(Object.keys(r.pages), ['tg', 'uni', 'look', 'mark', 'combo', 'frame'], 'no Persian page for Latin text');
+  const by = Object.fromEntries(r.pages.uni);
   assert.equal(by.bold, '𝐇𝐞𝐥𝐥𝐨 𝟐𝟎𝟐𝟔');
   assert.equal(by.italic, '𝐻𝑒𝑙𝑙𝑜 2026');
   assert.equal(by.script, 'ℋℯ𝓁𝓁ℴ 2026');
@@ -147,31 +148,66 @@ test('fonts: every Unicode style, upside down, combining marks, Persian stretchi
   assert.equal(by.mono, '𝙷𝚎𝚕𝚕𝚘 𝟸𝟶𝟸𝟼');
   assert.equal(by.circled, 'Ⓗⓔⓛⓛⓞ ②⓪②⑥');
   assert.equal(by.smallcaps, 'ʜᴇʟʟᴏ 2026');
+  assert.equal(by.sub, 'ₕₑₗₗₒ ₂₀₂₆');
   assert.equal(by.upside, '9ᄅ0ᄅ ollǝH', 'upside down, read backwards');
-  assert.equal(by.strike, 'H̶e̶l̶l̶o̶ 2̶0̶2̶6̶');
-  assert.deepEqual(r.latin.map(([c]) => c), [...fonts.LATIN, 'upside', ...fonts.COMBINING]);
-  assert.equal(r.telegram.length, fonts.TELEGRAM.length);
-  assert.ok(r.telegram.every(([, open, close]) => open.startsWith('<') && close.startsWith('</')));
+  assert.equal(by.mirror, '6202 ollɘH');
+  assert.equal(by.flags, '🇭 🇪 🇱 🇱 🇴   2 0 2 6');
+  assert.deepEqual(r.pages.uni.map(([c]) => c), fonts.LATIN);
+  const look = Object.fromEntries(r.pages.look);
+  assert.equal(look.asian, '卄乇ㄥㄥㄖ 2026');
+  assert.equal(look.currency, 'ⱧɆⱠⱠØ 2026');
+  assert.deepEqual(r.pages.look.map(([c]) => c), fonts.LOOK);
+  for (const [c, x] of r.pages.look) assert.ok(![...x].some((ch) => /[֐-ࣿיִ-﻿]/.test(ch)), `${c}: no right-to-left letters that would turn the word around`);
+  const mark = Object.fromEntries(r.pages.mark);
+  assert.equal(mark.strike, 'H̶e̶l̶l̶o̶ 2̶0̶2̶6̶');
+  assert.equal(mark.circle, 'H⃝e⃝l⃝l⃝o⃝ 2⃝0⃝2⃝6⃝');
+  assert.equal(mark.s_hearts, 'H♥e♥l♥l♥o 2♥0♥2♥6');
+  assert.deepEqual(r.pages.mark.map(([c]) => c), fonts.MARKS);
+  assert.equal(r.pages.combo.length, fonts.COMBOS);
+  assert.equal(r.pages.combo[0], '꧁༺ 𝓗𝓮𝓵𝓵𝓸 2026 ༻꧂');
+  assert.ok(r.pages.combo.includes('➶ 𝐇̲𝐞̲𝐥̲𝐥̲𝐨̲ 𝟐̲𝟎̲𝟐̲𝟔̲'), 'bold with an underline');
+  assert.equal(new Set(r.pages.combo).size, r.pages.combo.length, 'every combination is different');
+  assert.equal(r.pages.frame.length, fonts.FRAMES);
+  assert.equal(r.pages.tg.length, fonts.TELEGRAM.length + 6, "Telegram's styles, then over fonts");
+  assert.ok(r.pages.tg.every(([, open, close]) => open.startsWith('<') && close.startsWith('</')));
   const fa = fonts.render('سلام دوست من');
-  assert.equal(fa.hasLatin, false);
-  assert.equal(fa.hasArabic, true);
-  assert.equal(fa.latin.length, 0, 'no Unicode fonts for Persian letters');
-  assert.equal(Object.fromEntries(fa.deco).kashida, 'سـلـام دوسـت مـن');
+  assert.deepEqual(Object.keys(fa.pages), ['tg', 'fa', 'combo', 'frame'], 'no Unicode fonts for Persian letters');
+  const p = Object.fromEntries(fa.pages.fa);
+  assert.deepEqual(fa.pages.fa.map(([c]) => c), fonts.PERSIAN);
+  assert.equal(p.kashida, 'سـلـام دوسـت مـن');
+  assert.equal(p.apart, 'س‌ل‌ا‌م د‌و‌س‌ت م‌ن');
+  assert.equal(p.harakat, 'سَِلَِاَِمَِ دَِوَِسَِتَِ مَِنَِ');
+  assert.equal(p.kheart, 'سـ♡ـلـ♡ـام دوسـ♡ـت مـ♡ـن');
+  assert.equal(p.kmarks, 'سـَِـلـَِـام دوسـَِـت مـَِـن');
+  assert.equal(fa.pages.combo.length, fonts.PERSIAN_COMBOS);
+  assert.equal(fa.pages.combo[0], '꧁ سـَِـلـَِـام دوسـَِـت مـَِـن ꧂');
+  assert.equal(fa.pages.tg.length, fonts.TELEGRAM.length + 4);
   assert.equal(fonts.kashida('دار', 1), 'دار', 'no stretch after a letter that does not join forward');
   assert.equal(fonts.kashida('لا', 1), 'لـا', 'lam joins forward');
-  assert.equal(fa.deco.filter(([c]) => c.startsWith('frame')).length, fonts.FRAMES);
   const mixed = fonts.render('Hi سلام');
-  assert.ok(!mixed.latin.some(([c]) => c === 'upside'), 'no upside-down text when Persian is mixed in');
-  assert.equal(Object.fromEntries(mixed.latin).bold, '𝐇𝐢 سلام');
-  /* the longest input in the widest styles stays well inside one message per part */
-  const long = fonts.render('W'.repeat(40));
-  const uni = long.latin.map(([, s]) => s.length + 40).reduce((a, b) => a + b, 0);
-  assert.ok(uni < 3800, `unicode part: ${uni}`);
+  assert.ok(!mixed.pages.uni.some(([c]) => c === 'upside' || c === 'mirror'), 'no turned text when Persian is mixed in');
+  assert.equal(Object.fromEntries(mixed.pages.uni).bold, '𝐇𝐢 سلام', 'fonts leave Persian letters alone');
+  assert.equal(mixed.pages.combo.length, fonts.PERSIAN_COMBOS + fonts.COMBOS);
+  const ru = fonts.render('Привет');
+  assert.deepEqual(Object.keys(ru.pages), ['tg', 'mark', 'combo', 'frame'], 'Cyrillic: marks, combinations of frames and signs');
+  assert.ok(ru.pages.combo.length >= 10);
   for (const lang of LANGS) {
-    for (const code of fonts.TELEGRAM) assert.ok(!/[<>&]/.test(t(lang, `fal.t_${code}`)), `${lang} fal.t_${code} is plain`);
-    for (const code of [...fonts.LATIN, 'upside', ...fonts.COMBINING]) assert.ok(!/[<>&]/.test(t(lang, `fal.u_${code}`)), `${lang} fal.u_${code} is plain`);
+    for (const code of [...fonts.TELEGRAM, ...fonts.TG_COMBOS]) assert.ok(!/[<>&]/.test(t(lang, fonts.TELEGRAM.includes(code) ? `fal.t_${code}` : `fal.tc_${code}`)), `${lang} ${code} label is plain`);
+    for (const page of fonts.PAGES) assert.ok(t(lang, `fal.fp_${page}`).length <= 24 && !/[<>&]/.test(t(lang, `fal.fp_${page}`)), `${lang} fal.fp_${page} is a short plain button`);
     for (const k of ['btn_hafez', 'btn_tarot1', 'btn_tarot3', 'btn_horo', 'btn_abjad', 'btn_coffee', 'btn_fortune', 'btn_hafez_again', 'btn_ganjoor', 'btn_signs']) {
       assert.ok(!/[<>&]/.test(t(lang, `fal.${k}`)) && t(lang, `fal.${k}`).length <= 40, `${lang} fal.${k} is a plain, short button`);
+    }
+  }
+});
+
+test('fonts: the longest input stays inside Telegram limits on every page', () => {
+  for (const text of ['W'.repeat(40), 'ش'.repeat(40), `${'W'.repeat(20)}${'ش'.repeat(20)}`, 'Hello world, this is forty characters!!']) {
+    const r = fonts.render(text);
+    for (const [page, items] of Object.entries(r.pages)) {
+      for (const it of items) {
+        const x = Array.isArray(it) ? it[it.length - 1] : it;
+        assert.ok(x.length <= 400, `${page}: one line of ${x.length}`);
+      }
     }
   }
 });

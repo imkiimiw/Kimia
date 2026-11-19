@@ -4206,20 +4206,46 @@ await scenario('🔮 fortune telling and 🔠 fonts — /fal and its buttons, Ha
   /* coffee */
   const cof = inIota(await imsg(P9.nia, '/coffee'))[0];
   assert.match(cof, /^☕ ⁨Nia⁩, in your cup I see:\n\n.+ <b>[^<]+<\/b> — .+\n.+ <b>[^<]+<\/b> — .+\n.+ <b>[^<]+<\/b> — .+\n\n<i>A symbolic reading: Aegis can't look at a photo of your cup/);
-  /* fonts: Telegram styles, then Unicode fonts and decorations, each part one message */
+  /* fonts: one message — the combinations first, a button per page; only the one who asked turns pages */
   const f = toChat(await imsg(P9.lux, '/font Hello'), IOTA);
-  assert.ok(f.length >= 2 && f.every((c) => c.result.ok), JSON.stringify(f.map((c) => c.result)));
-  assert.match(f[0].params.text, /^🔠 <b>Telegram styles<\/b>/);
-  for (const s of ['<b>Hello</b>', '<i>Hello</i>', '<u>Hello</u>', '<s>Hello</s>', '<tg-spoiler>Hello</tg-spoiler>', '<code>Hello</code>', '<pre>Hello</pre>', '<blockquote>Hello</blockquote>']) {
-    assert.ok(f[0].params.text.includes(s), s);
-  }
-  const rest = f.slice(1).map((c) => c.params.text).join('\n');
-  for (const s of ['𝐇𝐞𝐥𝐥𝐨', 'ℍ𝕖𝕝𝕝𝕠', 'ℌ𝔢𝔩𝔩𝔬', 'ʜᴇʟʟᴏ', 'ollǝH', 'Ⓗⓔⓛⓛⓞ', '꧁ Hello ꧂']) assert.ok(rest.includes(`<code>${s}</code>`), s);
+  assert.equal(f.length, 1, 'one message');
+  assert.ok(f[0].result.ok, JSON.stringify(f[0].result));
+  const fm = midOf(f[0]);
+  assert.match(f[0].params.text, /^🔠 Fonts for «⁨Hello⁩»\n✨ <b>Beautiful combinations<\/b>/);
+  for (const x of ['꧁༺ 𝓗𝓮𝓵𝓵𝓸 ༻꧂', '★彡 𝙃𝙚𝙡𝙡𝙤 彡★', '➶ 𝐇̲𝐞̲𝐥̲𝐥̲𝐨̲']) assert.ok(f[0].params.text.includes(`<code>${x}</code>`), x);
+  assert.deepEqual(dataOf(mock.get(IOTA, fm)), ['fn:t:combo', 'fn:t:tg', 'fn:t:uni', 'fn:t:look', 'fn:t:mark', 'fn:t:frame']);
+  const page = async (u, data, mid = fm) => gpress(u, IOTA, data, mid);
+  const shown = (r) => {
+    assert.equal(r.toast, '');
+    const e = edits(r.calls)[0];
+    assert.ok(e && e.result.ok, JSON.stringify(e && e.result));
+    return e.params.text;
+  };
+  const tgp = shown(await page(P9.lux, 'fn:t:tg'));
+  for (const x of ['<b>Hello</b>', '<i>Hello</i>', '<u>Hello</u>', '<s>Hello</s>', '<tg-spoiler>Hello</tg-spoiler>', '<code>Hello</code>', '<pre>Hello</pre>',
+    '<blockquote>Hello</blockquote>', '<u>ℋℯ𝓁𝓁ℴ</u>', '<tg-spoiler>ℍ𝕖𝕝𝕝𝕠</tg-spoiler>']) assert.ok(tgp.includes(x), x);
+  assert.ok(dataOf(mock.get(IOTA, fm)).includes('fn:t:tg'));
+  const uni = shown(await page(P9.lux, 'fn:t:uni'));
+  for (const x of ['𝐇𝐞𝐥𝐥𝐨', 'ℍ𝕖𝕝𝕝𝕠', 'ℌ𝔢𝔩𝔩𝔬', 'ʜᴇʟʟᴏ', 'ollǝH', 'Ⓗⓔⓛⓛⓞ', '🇭 🇪 🇱 🇱 🇴']) assert.ok(uni.includes(`<code>${x}</code>`), x);
+  assert.ok(shown(await page(P9.lux, 'fn:t:look')).includes('<code>卄乇ㄥㄥㄖ</code>'));
+  assert.ok(shown(await page(P9.lux, 'fn:t:mark')).includes('<code>H⃝e⃝l⃝l⃝o⃝</code>'));
+  assert.ok(shown(await page(P9.lux, 'fn:t:frame')).includes('<code>꧁ Hello ꧂</code>'));
+  const other = await page(P9.kit, 'fn:t:tg');
+  assert.ok(other.alert && /someone else/.test(other.toast), `only the asker turns pages: ${other.toast}`);
+  assert.equal(edits(other.calls).length, 0);
+  tick(11);
+  const long = toChat(await imsg(P9.lux, `/font ${'W'.repeat(40)}`), IOTA)[0];
+  const lm = midOf(long);
+  assert.ok(dataOf(mock.get(IOTA, lm)).includes('fn:t:combo:1'), 'a long page has ◀ ▶');
+  const part2 = shown(await page(P9.lux, 'fn:t:combo:1', lm));
+  assert.notEqual(part2, long.params.text);
+  assert.ok(part2.length < 4096 && long.params.text.length < 4096);
   tick(11);
   assert.equal(inIota(await imsg(P9.lux, `/font ${'x'.repeat(41)}`))[0], 'Send at most 40 characters, e.g. /font Hello');
   tick(11);
-  const fr = toChat(await imsg(P9.lux, '/font', iReply(P9.kit, 1, 'Nice & <b>')), IOTA);
-  assert.ok(fr[0].params.text.includes('<b>Nice &amp; &lt;b&gt;</b>'), 'the replied text, escaped');
+  const fr = toChat(await imsg(P9.lux, '/font', iReply(P9.kit, 1, 'Nice & <b>')), IOTA)[0];
+  assert.ok(fr.params.text.startsWith('🔠 Fonts for «⁨Nice &amp; &lt;b&gt;⁩»'), 'the replied text, escaped');
+  assert.ok(shown(await page(P9.lux, 'fn:t:tg', midOf(fr))).includes('<b>Nice &amp; &lt;b&gt;</b>'), 'read back from the message and escaped again');
   assert.equal(inIota(await imsg(P9.lux, 'font')).length, 0, 'the word alone with nothing to style is just chat');
   /* off in the panel: the command is ignored and its button does nothing */
   iSet('fx_coffee', '0,a,60,5,0');
@@ -4236,10 +4262,14 @@ await scenario('🔮 fortune telling and 🔠 fonts — /fal and its buttons, Ha
   assert.match(lastSentTo(await dm(zari, 'فال حافظ'), zari.id).params.text, /^‏📜 ⁨زری⁩، فال حافظ تو — غزل [۰-۹]+:\n‏<blockquote expandable>/);
   assert.match(lastSentTo(await dm(zari, 'طالع مهر'), zari.id).params.text, /^‏♎ <b>میزان<\/b> · متولدین مهر\n‏عنصر: 💨 باد/);
   assert.match(lastSentTo(await dm(zari, 'فال اسم علی'), zari.id).params.text, /جمع به حساب ابجد: ۱۱۰\n‏عدد: <b>۲<\/b> — صلح‌جو/);
-  const zf = sent(await dm(zari, 'فونت سلام دوست'), 'sendMessage').filter((c) => c.params.chat_id === zari.id);
-  const zall = zf.map((c) => c.params.text).join('\n');
-  assert.ok(zall.includes('<b>سلام دوست</b>') && zall.includes('<code>سـلـام دوسـت</code>'), 'Telegram styles and kashida for Persian');
-  assert.ok(zall.includes('فونت‌های یونیکد فقط برای حروف لاتین'), 'says why there are no Unicode fonts');
+  const zf = lastSentTo(await dm(zari, 'فونت سلام دوست'), zari.id);
+  assert.match(zf.params.text, /^\u200F🔠 فونت‌های «\u2068سلام دوست\u2069»\n\u200F✨ <b>ترکیب‌های زیبا<\/b>/);
+  assert.ok(zf.params.text.includes('<code>꧁ سـَِـلـَِـام دوسـَِـت ꧂</code>'), 'Persian combinations first');
+  assert.deepEqual(dataOf(mock.get(zari.id, midOf(zf))), ['fn:t:combo', 'fn:t:tg', 'fn:t:fa', 'fn:t:frame']);
+  const zfa = edits((await press(zari, 'fn:t:fa', midOf(zf))).calls)[0].params.text;
+  for (const x of ['سـلـام دوسـت', 'سـ♡ـلـ♡ـام دوسـ♡ـت', 'سَِلَِاَِمَِ دَِوَِسَِتَِ', 'س\u200Cل\u200Cا\u200Cم د\u200Cو\u200Cس\u200Cت']) assert.ok(zfa.includes(`<code>${x}</code>`), x);
+  assert.ok(zfa.includes('فونت‌های یونیکد فقط برای حروف لاتین'), 'says why there are no Unicode fonts');
+  assert.ok(edits((await press(zari, 'fn:t:tg', midOf(zf))).calls)[0].params.text.includes('<b>سلام دوست</b>'), 'Telegram styles for Persian');
   assert.match(lastSentTo(await dm(zari, 'فال تاروت ۳'), zari.id).params.text, /^‏🔮 ⁨زری⁩، سه کارت تو:\n\n‏🕰 گذشته: <b>/);
   const zc = await press(zari, 'fn:f:coffee', midOf(zm));
   assert.match(lastSentTo(zc.calls, zari.id).params.text, /^‏☕ ⁨زری⁩، در فنجانت می‌بینم:/);

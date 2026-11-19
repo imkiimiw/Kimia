@@ -99,13 +99,22 @@ the other languages) — words only as the whole message, or with valid argument
     master numbers) with its meaning. With no name: the member's own.
   - **☕ /coffee** — a symbolic coffee-cup reading: three of 30 symbols and their meanings (Aegis
     can't look at a photo of the cup, and says so). **🥠 /fortune** — the fortune cookie.
-- **🔠 /font** (/fonts, «فونت») — a sentence (up to 40 characters, or reply to a message) in every
-  style Telegram supports (bold, italic, underline, strikethrough, spoiler, monospace, their
-  combinations, code block, quote) and in 26 Unicode «fonts» that work anywhere (bold, italic,
-  script, gothic, double-struck, sans, typewriter, wide, circled, squared, small caps, superscript,
-  upside down, struck through, underlined, overline …; tap one to copy). Persian text gets the
-  Telegram styles and decorations (kashida stretching, spacing, frames) — Unicode has no such
-  letter sets for Persian.
+- **🔠 /font** (/fonts, «فونت») — a sentence (up to 40 characters, or reply to a message) in one
+  message with a button per page (◀ ▶ when a page is long; only the one who asked turns pages); every
+  line is a copy-on-tap box:
+  - **✨ Combinations** (shown first): 36 chosen mixes of a font, marks and a frame
+    (`꧁༺ 𝓗𝓮𝓵𝓵𝓸 ༻꧂`, `★彡 𝙃𝙚𝙡𝙡𝙤 彡★`, `➶ 𝐇̲𝐞̲𝐥̲𝐥̲𝐨̲` …) and 16 for Persian (`꧁ سـَِـلـَِـام ꧂` …).
+  - **✍️ Telegram**: all 12 of Telegram's styles (bold, italic, underline, strikethrough, spoiler,
+    monospace, their combinations, code block, quote), then Telegram's styles over fonts.
+  - **🔤 Fonts**: 25 Unicode alphabets — the 13 mathematical ones (bold, italic, script, gothic,
+    double-struck, sans, typewriter …), wide, small caps, superscript, subscript, circled, squared,
+    parenthesized, flag letters, upside down, mirrored. **🎭 Look-alikes**: 6 sets of letters from
+    other scripts (currency, Cyrillic, Asian, Greek, runic, Thai style).
+  - **〰️ Lines and marks**: 15 marks on every letter (strokes, slashes, underlines, overlines, waves,
+    dots, circles and boxes round letters, glitch) and 6 signs between letters (hearts, stars …).
+  - **🌙 Persian**: 16 styles — kashida (also with harakat, waves, flowers, a crown, hearts or stars
+    in it), harakat, madda, sukun, shadda or tanwin on every letter, letters apart, spaced.
+  - **🖼 Frames**: 30.
 Some features (dice, luck, quotes, truth or dare, rating, the solo games, fortune telling and fonts)
 also work in private.
 

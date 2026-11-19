@@ -485,7 +485,7 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       if (bad) return bad;
       const m = checkMarkup(p.reply_markup, { privateChat: Number(p.chat_id) > 0 });
       if (m) return err(400, `Bad Request: ${m}`);
-      const id = store(p.chat_id, { text: p.text, plain: plainOf(p), markup: markupOf(p), kind: 'text' });
+      const id = store(p.chat_id, { text: p.text, plain: plainOf(p), markup: markupOf(p), kind: 'text', replyTo: (p.reply_parameters && Number(p.reply_parameters.message_id)) || 0 });
       const ct = Number(p.chat_id) > 0 ? 'private' : ((state.chats.get(Number(p.chat_id)) || {}).type || 'supergroup');
       return ok({ message_id: id, from: bot, chat: { id: Number(p.chat_id), type: ct }, date: 0, text: p.text });
     },
@@ -818,7 +818,10 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       const m = state.messages.get(k(chatId, id));
       if (!m) return null;
       const type = m.chat > 0 ? 'private' : ((state.chats.get(m.chat) || {}).type || 'supergroup');
-      return { message_id: m.message_id, from: m.from, chat: { id: m.chat, type }, date: 0, text: m.plain, ...(m.markup ? { reply_markup: m.markup } : {}) };
+      /* like Telegram: the message it answers, one level deep */
+      const to = m.replyTo && state.messages.get(k(chatId, m.replyTo));
+      const reply = to ? { reply_to_message: { message_id: to.message_id, from: to.from, chat: { id: to.chat, type }, date: 0, text: to.plain || to.text || '' } } : {};
+      return { message_id: m.message_id, from: m.from, chat: { id: m.chat, type }, date: 0, text: m.plain, ...reply, ...(m.markup ? { reply_markup: m.markup } : {}) };
     },
     listen: () => new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port))),
     close: () => new Promise((resolve) => server.close(resolve)),
