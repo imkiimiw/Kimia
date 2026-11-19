@@ -1,6 +1,6 @@
 // Runs the tgcloud CLI for Aegis only:
 //   npm run tg -- <command> [args]   any CLI command (status, push, migrate, run, webhook, …)
-//   npm run deploy                   build (locales + env.js) → push → migrate --safe → webhook check
+//   npm run deploy                   build (locales + fal data + env.js) → push → migrate --safe → webhook check
 //
 // - The token comes from Aegis_BOT_TGCLOUD_TOKEN (environment or aegis/.env) and is handed to the
 //   CLI as TGCLOUD_TOKEN for the child process only. It is never printed or written to disk.
@@ -43,6 +43,7 @@ const args = process.argv.slice(2);
 if (args[0] === 'deploy') {
   for (const step of [
     () => node('scripts/build-locales.mjs'),
+    () => node('scripts/build-fal.mjs'),
     () => node('scripts/gen-env.mjs'),
     () => cli(['push', ...args.slice(1)]),
     () => cli(['migrate', '--safe']),

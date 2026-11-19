@@ -8,7 +8,7 @@ Telegram; no VPS, no paid service). **Release 1.0.0** — all 10 phases are buil
   and its admins open the chat's panel with «پیکربندی» / `/config` (or from Aegis's private chat).
 - Each chat has its own settings: lists, punishments with undo, warnings, 42 locks, security (anti-link,
   anti-flood, anti-raid, captcha, …), advanced settings, topics, channel tools, statistics, points,
-  contests, polls, questions, appeals, 30 fun features and media tools — in five languages (fa, en, ru,
+  contests, polls, questions, appeals, 36 fun features (fortune telling and fonts included) and media tools — in five languages (fa, en, ru,
   zh, fr; Persian right-to-left), with commands also as Persian and English words.
 - The owner (`AEGIS_OWNER_ID`) has the Super Admin panel: statistics, forced join, broadcasts, the
   global switch, and 🛠 Management — every chat, the bot's team with access levels, the sealed audit
@@ -24,7 +24,7 @@ Telegram; no VPS, no paid service). **Release 1.0.0** — all 10 phases are buil
 | 6 | Advanced group settings (26 + extras: welcome/goodbye, forced join/add for members, scheduled cleanup, night lock, time zone, message length, member reports, event channel, linked-channel posts) and forum topics | ✅ deployed |
 | 7 | Channel panel: join requests and joins, members, invite links, impersonation and fakes, admin alerts, post protection (approval, versions, edit history), discussion group, direct messages, crisis/SOS, multi-channel dashboard, backups, extras | ✅ deployed |
 | 8 | Reports, stats & social: group statistics and CSV, points, levels and badges, contests, polls, questions to the admins, moderated anonymous Q&A, appeals, review of decisions; channel analytics and health score | ✅ deployed |
-| 9 | Fun & media: 30 fun features with per-feature settings and anti-abuse limits; media tools (sticker↔photo, sticker packs, GIF maker, image tools, QR, OCR, PDF check); QR and PDF security checks | ✅ deployed |
+| 9 | Fun & media: 30 fun features with per-feature settings and anti-abuse limits; media tools (sticker↔photo, sticker packs, GIF maker, image tools, QR, OCR, PDF check); QR and PDF security checks. **Added after the release:** fortune telling (Hafez with an interpretation of every ghazal, tarot, horoscope, name numbers, coffee cup) and a font tool — 36 fun features | ✅ deployed |
 | 10 | Full Super Admin panel & release: global chat management, the bot's team with access levels, a sealed (append-only, hash-chained) audit log, system settings, version, health, errors, queues and timed work, global backup/restore, global stop; security, load and failure-injection tests | ✅ deployed |
 
 Design decisions taken without the master spec (it was never added to the repository) are listed in
@@ -65,7 +65,7 @@ pressed button is always answered once. See *Error handling* below.
 
 ## What Phase 9 does
 
-**🎮 Fun** — 30 features, each with its own switch, who may use it (everyone or admins), a cooldown
+**🎮 Fun** — 36 features, each with its own switch, who may use it (everyone or admins), a cooldown
 and a daily limit per member, and points for a win (with Phase 8's points). The chat also has a
 limit per minute for all fun commands (beyond it they're ignored), can delete fun replies after a
 while, and can exempt its admins from the limits. Commands are slash commands or words (Persian and
@@ -82,7 +82,32 @@ the other languages) — words only as the whole message, or with valid argument
   wins), /click (tap the right emoji first; one wrong tap and you're out).
 - **⚔️ Duels**: /rps (against Aegis, or a challenge with hidden picks) and /ttt (tic-tac-toe).
   Duels must be accepted; one game of each kind runs at a time; games end lazily when their time is up.
-Some features (dice, luck, quotes, truth or dare, rating and the solo games) also work in private.
+- **🔮 Fortune telling** — /fal (or «فال») opens a menu with a button for each reading; a button
+  reads for whoever presses it, with that member's own limits. For fun only, and each reading says so.
+  - **📜 /hafez** — a ghazal from Hafez's Divan (all 495, from Ganjoor, public domain), folded in an
+    expandable quote, with an **interpretation written for every ghazal** (in Persian), a link to the
+    ghazal on Ganjoor and «another ghazal». `/hafez 255` opens a chosen one.
+  - **🃏 /tarot** — one card of the 78 Rider–Waite–Smith cards (the public-domain pictures from
+    Wikimedia Commons) upright or reversed with its meaning; `/tarot 3` past–present–future;
+    `/tarot` and a question gives yes, no or maybe. Meanings in all five languages.
+  - **✨ /horoscope** — today's reading for a sign (love, work and money, health with stars, advice,
+    lucky colour and number), the same for everyone of that sign all day. The sign comes from its
+    name in any language, a symbol, a Persian or Gregorian month (`/horoscope مهر`), a birth date
+    (`1370/7/15`, `21.03`), the birthday saved in the group, or 12 sign buttons.
+  - **🧮 /abjad** (/numerology) — the number of a name: abjad values for Persian/Arabic letters,
+    the Pythagorean table for Latin, a Cyrillic table for Russian; reduced to 1–9 (11 and 22 kept as
+    master numbers) with its meaning. With no name: the member's own.
+  - **☕ /coffee** — a symbolic coffee-cup reading: three of 30 symbols and their meanings (Aegis
+    can't look at a photo of the cup, and says so). **🥠 /fortune** — the fortune cookie.
+- **🔠 /font** (/fonts, «فونت») — a sentence (up to 40 characters, or reply to a message) in every
+  style Telegram supports (bold, italic, underline, strikethrough, spoiler, monospace, their
+  combinations, code block, quote) and in 26 Unicode «fonts» that work anywhere (bold, italic,
+  script, gothic, double-struck, sans, typewriter, wide, circled, squared, small caps, superscript,
+  upside down, struck through, underlined, overline …; tap one to copy). Persian text gets the
+  Telegram styles and decorations (kashida stretching, spacing, frames) — Unicode has no such
+  letter sets for Persian.
+Some features (dice, luck, quotes, truth or dare, rating, the solo games, fortune telling and fonts)
+also work in private.
 
 **🖼 Media tools** — everything is computed by Aegis itself (pure JavaScript codecs written for this
 project, no paid service): send a photo, sticker, video, GIF or PDF to Aegis in private and pick a
@@ -578,10 +603,12 @@ aegis/
       engines/                users, chats, join, broadcast, rights, admins, system (the global switch, status;
                               Phase 10 sections staff, globals, seals, allChats, globalBackup; health,
                               queues), settings (+ warning steps),
-                              lists, punish, betrayal (+ adminActions), logs, locks, members, guards, feds,
-                              msglog, schedules, groupdata, events, channels, invites, posts, crisis, backup,
-                              social (stats, badges, contests, polls, questions, appeals), fun (the 30
-                              features, limits, games, birthdays, media jobs, sticker packs)
+                              lists, punish, betrayal (+ adminActions), logs (+ events), locks, members, guards,
+                              feds, msglog, schedules, groupdata, channels, invites, posts, crisis, backup,
+                              social (stats, badges, contests, polls, questions, appeals), fun (the 36
+                              features, limits, games, birthdays, media jobs, sticker packs; fonts; fal:
+                              Hafez, tarot, zodiac, numerology, coffee)
+      data/fal.js             generated: the 495 Hafez ghazals with interpretations (compressed), tarot pictures
       ui/                     start, owner, owner_bc, group (in-group messages), moderation (group commands,
                               undo buttons, bans/joins), enforce (locks at work), security (security at
                               work, captcha, lockdowns, federation bans), advanced (advanced settings at
@@ -595,9 +622,10 @@ aegis/
                               and the team panel, the global switch)
       i18n/                   t(), digits, RTL; strings/ is generated from ../../locales
   locales/<lang>/*.json       fa, en, ru, zh, fr
+  data/                       hafez.json (Divan of Hafez from Ganjoor + an interpretation per ghazal), tarot.json
   webapp/                     Mini App pages (plain HTML/JS): 📡 live broadcast, join-request captcha, media
                               (OCR with Tesseract.js and QR reading with jsQR, from the jsDelivr CDN)
-  scripts/                    tg.mjs (CLI wrapper), build-locales.mjs, gen-env.mjs
+  scripts/                    tg.mjs (CLI wrapper), build-locales.mjs, build-fal.mjs (data/ → lib/data/fal.js), gen-env.mjs
   test/                       static.mjs, unit/, e2e.mjs (sdk emulation + strict mock Bot API), security.mjs,
                               load.mjs (load, rate limits, 429, failure injection), harness.mjs (their
                               shared setup), cloud/smoke.mjs (the real platform)

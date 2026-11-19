@@ -7,7 +7,7 @@
  * schedules, member flags, reports, topics, anonymous commands, join requests, channel stats, invite
  * links, posts and their versions, the post queue, crises; member stats, badges, contests, polls,
  * questions, appeals and reviews; Phase 9: fun limits, games, birthdays, picks, media jobs; Phase 10: one fake team
- * member, added and removed). It never writes to the audit log (federations are not created here for that
+ * member, added and removed; fortune telling and fonts: pure, nothing written). It never writes to the audit log (federations are not created here for that
  * reason; Phase 10 seals the rows already there, as housekeeping would, and checks the seals).
  */
 import { db } from 'sdk';
@@ -90,6 +90,19 @@ export default async function (input) {
       health: [health.api, !!(health.webhook && (health.webhook.set || health.webhook.managed)), typeof system.lateTotal(health.queues), health.seals.guard],
       chats: [Array.isArray(page.rows), page.total >= 0],
       backup: [g.part, g.join.length >= 3, back.part],
+    };
+  }
+  if (action === 'fal') {
+    /* Fortune telling and fonts in the isolate: all 495 ghazals inflated in one call (a reading needs one chunk of 50) */
+    const all = Array.from({ length: fun.fal.HAFEZ_COUNT }, (_, i) => fun.fal.ghazal(i + 1));
+    const whole = all.filter((g) => g.v.length >= 5 && g.v.every((b) => b.length === 2) && g.f.length >= 60).length;
+    const f = fun.fonts.render('Hello 2026 سلام');
+    const by = Object.fromEntries(f.latin);
+    return {
+      hafez: [whole, all[254].v[0][1].slice(-7), all[0].n, all[494].n],
+      fonts: [f.latin.length, by.bold, Object.fromEntries(f.deco).kashida],
+      tarot: [fun.fal.CARDS, fun.fal.image(17).slice(0, 52), new Set(fun.fal.draw(3).map((c) => c.card)).size],
+      sign: [fun.fal.signOf('j', 7, 1), fun.fal.signOf('g', 3, 21)], num: [fun.fal.numerology('علی').total, fun.fal.numerology('Kimia').number],
     };
   }
   if (action === 'shabench') {

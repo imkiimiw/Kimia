@@ -136,6 +136,10 @@ try {
   check('team levels read fresh: a fake member\'s level, then none once removed', p10.staff.join() === 'support,', JSON.stringify(p10.staff));
   check('health, queues, the chat list and the global backup on the real platform', p10.health.join() === 'true,true,number,true' && p10.chats.join() === 'true,true'
     && p10.backup.join() === 'globals,true,globals', JSON.stringify(p10));
+  const fal = dev('fal');
+  check('Hafez in the isolate: all 495 ghazals inflated from the data module in one call, each with its interpretation', fal.hafez.join() === '495,غم مخور,1,495', JSON.stringify(fal.hafez));
+  check('fonts, tarot, zodiac and name numbers in the isolate', fal.fonts.join() === '25,𝐇𝐞𝐥𝐥𝐨 𝟐𝟎𝟐𝟔 سلام,Hello 2026 سـلـام' && fal.tarot.join() === '78,https://upload.wikimedia.org/wikipedia/commons/thumb,3'
+    && fal.sign.join() === '6,0' && fal.num.join() === '110,7', JSON.stringify(fal));
 
   const cq = { id: 'smoke', from: user(A, 'fa'), chat_instance: 'x', data: 'lg:fa', message: { message_id: 1, chat: { id: A, type: 'private' }, date: 0, text: 'x' } };
   const r2 = tg(['handlers/callback_query', JSON5.stringify(cq)]);

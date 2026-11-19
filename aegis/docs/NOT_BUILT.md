@@ -8,7 +8,7 @@ or tier; only what Telegram Serverless and the Bot API allow.
 > while Phases 1–10 were built (searched the working tree, all branches on GitHub, and the
 > container). They were built from their descriptions in the build instructions (Phases 3–10 by the
 > owner's decision to go ahead without it — the 42 locks, the security modules, the 26 advanced
-> settings, the channel panel, the social features, the 30 fun features and the Super Admin panel's
+> settings, the channel panel, the social features, the 30 fun features (36 with fortune telling and fonts) and the Super Admin panel's
 > sections and team levels are Aegis's own design); details the spec would normally settle are listed
 > in [ASSUMPTIONS.md](ASSUMPTIONS.md). Everything here should be re-checked against the spec once it is
 > added.
@@ -161,6 +161,18 @@ or tier; only what Telegram Serverless and the Bot API allow.
 | Games and timed endings **exactly on time** | **Partial** | No scheduler: a game whose time is up ends (and the answer is shown) on the first update after, checked at most once a minute. | A platform scheduler. |
 | A **verifiable** random choice (dice, raffles, picks) | **Not possible for the bot** | Telegram's own dice are random on Telegram's side; Aegis's coin, picks and games use the isolate's random numbers. | — |
 | PDF check of **every** PDF technique | **Partial** | Known risky features are found in the raw file and in Flate-compressed streams; other compression methods (LZW, ASCII85…), encrypted PDFs and broken files can hide content — the report says when parts couldn't be read. | More decoders (free to add later). |
+
+### After the release — fortune telling and fonts
+
+| Feature | State | Why | What it would need |
+|---|---|---|---|
+| Coffee-cup reading **from a photo of the cup** | **Not built** | Reading shapes in a photo needs image recognition; no free vision model fits the isolate (CPU ≈ 3 s per update) and no free service is used. The reading is symbolic — three of 30 symbols drawn at random — and says so. | A free image-recognition model or service. |
+| Unicode «fonts» for **Persian/Arabic, Cyrillic, CJK** | **Not possible** | Unicode has styled letter sets (bold, script, gothic, double-struck …) only for Latin letters, digits and Greek. Persian text gets Telegram's own styles and decorations (kashida, spacing, frames) instead; the message says why. Greek letters are left as they are (not built). | — (Unicode). |
+| Changing the **typeface** of a message | **Not possible** | Telegram shows every message in the reader's own app font; a bot can only use Telegram's formatting and Unicode characters — which is what /font gives. | — (Telegram). |
+| **Reversed** tarot pictures | **Partial** | Telegram can't turn a picture sent by URL, so a reversed card is labelled «reversed» with its reversed meaning while the picture stays upright. Turning it would mean downloading and re-encoding the JPEG in the isolate on every reading. | — (possible with the JPEG codec; not built for the CPU cost). |
+| Tarot pictures when Wikimedia Commons can't be reached | **Partial** | Telegram fetches the pictures from Wikimedia Commons; if that fails, the same reading is sent as text. | — |
+| Hafez interpretations **in other languages** | **Not built** | The 495 interpretations are in Persian; in other languages the poem and its interpretation are shown in Persian, with a label. | Translations of the 495 interpretations. |
+| An **astronomical** horoscope (real planet positions) | **Not built** | The daily readings are general texts picked per sign and day; no ephemeris is computed. | An ephemeris (free to compute; not built) and texts for each aspect. |
 
 ## Phase 10 — Super Admin panel, the bot's team, release
 

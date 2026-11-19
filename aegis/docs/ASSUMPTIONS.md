@@ -154,6 +154,22 @@ renames a feature from the instructions.
 | Module cap | 94 modules after Phase 9 (6 new: core/files, core/image, engines/fun, ui/fun, ui/media, endpoints/media). |
 
 
+### After the release — fortune telling and fonts (the owner's request)
+
+| Topic | Decision |
+|---|---|
+| Six more features | Group **🔮 Fortune telling** (`fal`): Hafez, tarot, horoscope, name numbers, coffee cup, and the fortune cookie moved here from Luck. Group **🔠 Text**: fonts. 36 features in eight groups; each has the same settings as the others. Defaults: on, everyone, 30 s cooldown and 10 a day (coffee 60 s / 5, fonts 10 s / 20). |
+| The words | «فال» alone opens the /fal menu (it used to be the fortune cookie, which is now «فال کلوچه» / «فال شیرینی»). Persian: «فال حافظ», «فال تاروت» / «تاروت», «طالع» / «طالع بینی» / «فال روزانه» / «فال ماه تولد», «ابجد» / «فال اسم» / «عدد اسم», «فال قهوه», «فونت» / «فونت ساز»; the other languages have their own words. |
+| Buttons | A reading's button runs the command again for **whoever presses it**, under that member's own cooldown and daily limit (shown as an alert instead of a message); the sign button only changes the buttons of that message. |
+| Hafez text | The 495 ghazals of Ganjoor's edition of the Divan (the Qazvini–Ghani numbering, `ganjoor.net/hafez/ghazal/sh<n>`), with their diacritics, public domain. Stored compressed (raw deflate + base64, 10 chunks of 50) in `lib/data/fal.js`, built from `data/hafez.json` by `scripts/build-fal.mjs` (checked by `npm test`); a reading inflates one chunk. |
+| Hafez interpretations | One interpretation per ghazal (131–241 characters), written for this project in Persian — the usual way a «فال حافظ» is read: what the ghazal says to the one who made a wish. In other languages the poem and its interpretation stay Persian, with a label saying so. |
+| Tarot | The Rider–Waite–Smith deck (Pamela Colman Smith, 1909, public domain): the 500 px pictures on Wikimedia Commons, sent by URL (Telegram fetches them); a text reading if the picture can't be sent. A card is reversed 3 times in 10. Yes/no: upright yes, reversed no; the High Priestess, the Wheel of Fortune, the Hanged Man and the Moon say «maybe». Names and upright/reversed meanings written for this project in five languages. |
+| Horoscope | Not astronomical: general texts (20 for love, 20 for work and money, 12 for health, 20 pieces of advice, 12 colours) picked by a hash of the sign and the local day, so a sign reads the same for everyone all day and changes the next day. Tropical zodiac dates; Persian chats show the Persian month (Farvardin = Aries … Esfand = Pisces). A date without a year uses the group's birthday calendar; a first number above 12 is the day (`21.03`). |
+| Name numbers | Abjad: the standard values (ا 1 … غ 1000; پ چ ژ گ count as ب ج ز ک, ة as ه, ى/ئ as ی); diacritics, ZWNJ and kashida ignored. Latin: the Pythagorean table (A = 1 … I = 9, J = 1 …). Cyrillic: the 33 Russian letters in order, 1–9 repeating. The script most of the name is in decides the table. Reduced digit by digit to 1–9, stopping at 11 and 22. |
+| Coffee cup | 30 symbols in five languages; three different ones drawn at random. The reading says it is symbolic. |
+| Fonts | Input: up to 40 characters (or the text of the replied message), control and direction characters removed. Part 1: Telegram's 12 styles (as HTML, so they stay when the message is forwarded or copied inside Telegram). Part 2: 26 Unicode styles (Mathematical Alphanumeric Symbols, enclosed and fullwidth forms, small capitals, superscripts, upside-down letters, combining strokes and lines) and decorations (kashida for Persian, spacing, 8 frames), each in a copy-on-tap code box; messages cut under 3,800 characters. |
+| Module cap | 94 modules: `lib/data/fal.js` is new; `engines/events.js` was merged into `engines/logs.js` (section `events`). |
+
 ## Phase 10
 
 | Topic | Decision |
