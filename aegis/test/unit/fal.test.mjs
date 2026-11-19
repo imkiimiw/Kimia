@@ -138,7 +138,7 @@ test('name numbers: abjad, Pythagorean and Cyrillic values, master numbers, and 
 
 test('fonts: every page — Telegram styles, Unicode fonts, look-alikes, marks, Persian styles, combinations and frames', () => {
   const r = fonts.render('Hello 2026');
-  assert.deepEqual(Object.keys(r.pages), ['tg', 'uni', 'look', 'mark', 'combo', 'frame'], 'no Persian page for Latin text');
+  assert.deepEqual(Object.keys(r.pages), ['tg', 'uni', 'look', 'mark', 'combo', 'frame', 'extra'], 'no Persian page for Latin text');
   const by = Object.fromEntries(r.pages.uni);
   assert.equal(by.bold, '𝐇𝐞𝐥𝐥𝐨 𝟐𝟎𝟐𝟔');
   assert.equal(by.italic, '𝐻𝑒𝑙𝑙𝑜 2026');
@@ -171,7 +171,7 @@ test('fonts: every page — Telegram styles, Unicode fonts, look-alikes, marks, 
   assert.equal(r.pages.tg.length, fonts.TELEGRAM.length + 6, "Telegram's styles, then over fonts");
   assert.ok(r.pages.tg.every(([, open, close]) => open.startsWith('<') && close.startsWith('</')));
   const fa = fonts.render('سلام دوست من');
-  assert.deepEqual(Object.keys(fa.pages), ['tg', 'fa', 'combo', 'frame'], 'no Unicode fonts for Persian letters');
+  assert.deepEqual(Object.keys(fa.pages), ['tg', 'fa', 'combo', 'frame', 'extra'], 'no Unicode fonts for Persian letters');
   const p = Object.fromEntries(fa.pages.fa);
   assert.deepEqual(fa.pages.fa.map(([c]) => c), fonts.PERSIAN);
   assert.equal(p.kashida, 'سـلـام دوسـت مـن');
@@ -189,7 +189,7 @@ test('fonts: every page — Telegram styles, Unicode fonts, look-alikes, marks, 
   assert.equal(Object.fromEntries(mixed.pages.uni).bold, '𝐇𝐢 سلام', 'fonts leave Persian letters alone');
   assert.equal(mixed.pages.combo.length, fonts.PERSIAN_COMBOS + fonts.COMBOS);
   const ru = fonts.render('Привет');
-  assert.deepEqual(Object.keys(ru.pages), ['tg', 'mark', 'combo', 'frame'], 'Cyrillic: marks, combinations of frames and signs');
+  assert.deepEqual(Object.keys(ru.pages), ['tg', 'mark', 'combo', 'frame', 'extra'], 'Cyrillic: marks, combinations of frames and signs');
   assert.ok(ru.pages.combo.length >= 10);
   for (const lang of LANGS) {
     for (const code of [...fonts.TELEGRAM, ...fonts.TG_COMBOS]) assert.ok(!/[<>&]/.test(t(lang, fonts.TELEGRAM.includes(code) ? `fal.t_${code}` : `fal.tc_${code}`)), `${lang} ${code} label is plain`);
@@ -200,12 +200,43 @@ test('fonts: every page — Telegram styles, Unicode fonts, look-alikes, marks, 
   }
 });
 
+test('fonts: the 🎨 Special page — folding quote, code with a language, accented, Braille, more look-alikes, glitch, marks, combinations', () => {
+  const r = fonts.render('Hello 2026');
+  const x = r.pages.extra;
+  const of = (type, code) => (x.find((e) => e[0] === type && e[1] === code) || [])[2];
+  assert.deepEqual(x.filter((e) => e[0] === 'h').map((e) => e[1]), ['tg', 'fonts', 'combo', 'marks']);
+  assert.deepEqual(x.filter((e) => e[0] === 'tg').map((e) => [e[1], e[3], e[4]]), [['expand', '<blockquote expandable>', '</blockquote>'],
+    ['codelang', '<pre><code class="language-python">', '</code></pre>']]);
+  assert.equal(of('u', 'accented'), 'Ḧéĺĺő 2026');
+  assert.equal(of('u', 'braille'), '⠓⠑⠇⠇⠕ ⠼⠃⠚⠃⠋', 'English Braille, digits after the number sign');
+  assert.equal(fonts.styled('a1b22', 'braille'), '⠁⠼⠁⠃⠼⠃⠃');
+  assert.equal(of('u', 'ethiopic'), 'ዘቿረረዐ 2026');
+  assert.equal(of('u', 'canadian'), 'ᕼEᒪᒪO 2026');
+  for (const code of fonts.XLATIN) assert.ok(![...of('u', code)].some((ch) => /[֐-ࣿיִ-﻿]/.test(ch)), `${code}: left to right only`);
+  assert.equal(of('m', 'keycap'), 'H⃣e⃣l⃣l⃣o⃣ 2⃣0⃣2⃣6⃣');
+  assert.equal(of('m', 'zalgo1'), fonts.zalgo('Hello 2026', 1), 'glitch is the same every time for the same text');
+  assert.equal([...of('m', 'zalgo2')].length, 'Hello2026'.length * 8 + 1, 'full glitch: 3 above, 1 through, 3 below each letter');
+  assert.equal(x.filter((e) => e[0] === 'n').length, fonts.XCOMBOS);
+  assert.equal(new Set([...r.pages.combo, ...x.filter((e) => e[0] === 'n').map((e) => e[2])]).size, fonts.COMBOS + fonts.XCOMBOS, 'new combinations, none repeated');
+  const fa = fonts.render('سلام دوست').pages.extra;
+  assert.deepEqual(fa.filter((e) => e[0] === 'h').map((e) => e[1]), ['tg', 'fa', 'facombo']);
+  const pf = Object.fromEntries(fa.filter((e) => e[0] === 'p').map((e) => [e[1], e[2]]));
+  assert.deepEqual(Object.keys(pf), fonts.PERSIAN_EXTRA);
+  assert.equal(pf.kdiamond, 'سـ◈ـلـ◈ـام دوسـ◈ـت');
+  assert.equal(pf.apartmarks, 'سَ‌لَ‌اَ‌مَ دَ‌وَ‌سَ‌تَ');
+  assert.equal(fa.filter((e) => e[0] === 'n').length, fonts.PERSIAN_XCOMBOS);
+  const all = fonts.TELEGRAM.length + fonts.TG_COMBOS.length + fonts.TG_EXTRA.length + fonts.LATIN.length + fonts.LOOK.length + fonts.XLATIN.length
+    + fonts.MARKS.length + fonts.XMARKS.length + fonts.PERSIAN.length + fonts.PERSIAN_EXTRA.length + fonts.COMBOS + fonts.XCOMBOS + fonts.PERSIAN_COMBOS
+    + fonts.PERSIAN_XCOMBOS + fonts.FRAMES;
+  assert.ok(all > 220, `${all} styles: the feature's description says 220+`);
+});
+
 test('fonts: the longest input stays inside Telegram limits on every page', () => {
   for (const text of ['W'.repeat(40), 'ش'.repeat(40), `${'W'.repeat(20)}${'ش'.repeat(20)}`, 'Hello world, this is forty characters!!']) {
     const r = fonts.render(text);
     for (const [page, items] of Object.entries(r.pages)) {
       for (const it of items) {
-        const x = Array.isArray(it) ? it[it.length - 1] : it;
+        const x = Array.isArray(it) ? String(it[2] === undefined ? it[it.length - 1] : it[2]) : it;
         assert.ok(x.length <= 400, `${page}: one line of ${x.length}`);
       }
     }

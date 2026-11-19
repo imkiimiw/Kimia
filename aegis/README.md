@@ -115,6 +115,12 @@ the other languages) — words only as the whole message, or with valid argument
   - **🌙 Persian**: 16 styles — kashida (also with harakat, waves, flowers, a crown, hearts or stars
     in it), harakat, madda, sukun, shadda or tanwin on every letter, letters apart, spaced.
   - **🖼 Frames**: 30.
+  - **🎨 Special** (a page of its own): a folding quote and a code block with colours (Telegram);
+    accented letters (`Ḧéĺĺő`), Braille (`⠓⠑⠇⠇⠕`) and four more look-alike sets (Cherokee, Ethiopic,
+    Yi, Canadian style); light and full glitch and six more marks (keycaps, diamonds, banned …);
+    14 more combinations; 7 more Persian styles (letters apart with harakat, kashida with shadda,
+    diamonds, blossoms, sparkles, a wave) and 16 more Persian combinations with new frames.
+  225 styles in all.
 Some features (dice, luck, quotes, truth or dare, rating, the solo games, fortune telling and fonts)
 also work in private.
 

@@ -333,7 +333,9 @@ export function parseBirthday(text, cal) {
  * which exist only for Latin letters and digits, and look-alike letters from other scripts; (3) marks
  * drawn on each letter and signs between letters; (4) for Persian: kashida with or without marks and
  * signs, harakat and other marks on each letter, disconnected or spaced letters; (5) frames; and
- * (6) chosen combinations of these. Pages: combo, tg, uni, look, mark, fa, frame.
+ * (6) chosen combinations of these. Pages: combo, tg, uni, look, mark, fa, frame, and extra (🎨 Special:
+ * a folding quote and a code block with a language, accented letters, Braille, four more look-alike
+ * sets, glitch text, enclosing marks, more combinations and Persian styles).
  */
 export const fonts = (() => {
   const cp = (n) => String.fromCodePoint(n);
@@ -402,7 +404,27 @@ export const fonts = (() => {
     ['runic', alike('ᚨᛒᚲᛞᛖᚠᚷᚺᛁᛃᚲᛚᛗᚾᛟᛈᚲᚱᛋᛏᚢᚡᚹᛪᛃᛉ')],
     ['thai', alike('ค๒ς๔єŦງђเʝкɭ๓ภ๏ρợгรՇยงฬϰฯչ')],
   ];
-  const ALL = new Map([...LATIN, ...LOOK]);
+  /* the 🎨 Special page: more letter sets (Braille is written in `styled`) */
+  const XLATIN = [
+    ['accented', alike('ÁḂĆḊÉḞǴḦÍĴḰĹḾŃŐṔQŔŚŤŰṼẂẌŸŹ', 'áḃćḋéḟǵḧíĵḱĺḿńőṕqŕśťúṽẃẍÿź')], ['braille', null],
+    ['cherokee', alike('ᏗᏰፈᎴᏋᎦᎶᏂᎥᏠᏦᏝᎷᏁᎧᎮᎤᏒᏕᏖᏬᏉᏇጀᎩፚ')], ['ethiopic', alike('ልጌርዕቿቻኗዘጎጋጕረጠክዐየዒዪነፕሁሀሠሸሃጊ')],
+    ['yi', alike('ꍏꌃꉓꀸꍟꎇꁅꃅꀤꀭꀘ꒒ꂵꈤꂦꉣꆰꋪꌗ꓄ꀎꃴꅏꊼꌩꁴ')], ['canadian', alike('ᗩᗷᑕᗪEᖴGᕼIᒍKᒪᗰᑎOᑭᑫᖇᔕTᑌᐯᗯ᙭Yᘔ')],
+  ];
+  const BRAILLE = [...'⠁⠃⠉⠙⠑⠋⠛⠓⠊⠚⠅⠇⠍⠝⠕⠏⠟⠗⠎⠞⠥⠧⠺⠭⠽⠵'];
+  /* English Braille, letter by letter; digits after the number sign ⠼ (1–9, 0 as a–j) */
+  function braille(s) {
+    let out = '';
+    let digit = false;
+    for (const ch of s) {
+      const c = ch.toLowerCase();
+      if (c >= 'a' && c <= 'z') out += BRAILLE[c.charCodeAt(0) - 97];
+      else if (c >= '0' && c <= '9') out += (digit ? '' : '⠼') + BRAILLE[c === '0' ? 9 : Number(c) - 1];
+      else out += ch;
+      digit = c >= '0' && c <= '9';
+    }
+    return out;
+  }
+  const ALL = new Map([...LATIN, ...LOOK, ...XLATIN]);
   const ARABIC = /[؀-ۿ]/;
   const ARABIC_LETTER = /[ء-يٱ-ۓۺ-ۿ]/;
   const LATIN_CHAR = /[A-Za-z0-9]/;
@@ -412,6 +434,7 @@ export const fonts = (() => {
     const chars = [...s];
     if (code === 'upside') return chars.map(UPSIDE).reverse().join('');
     if (code === 'mirror') return chars.map(MIRROR).reverse().join('');
+    if (code === 'braille') return braille(s);
     if (code === 'flags') {
       return s.split(' ').map((w) => [...w].map((ch) => (/[A-Za-z]/.test(ch) ? cp(0x1F1E6 + ch.toUpperCase().charCodeAt(0) - 65) : ch)).join(' ')).join('   ');
     }
@@ -419,10 +442,26 @@ export const fonts = (() => {
     return fn ? chars.map((ch) => (ARABIC.test(ch) ? ch : fn(ch))).join('') : s;
   }
   /* marks drawn on each character (not on spaces or Persian letters) */
-  const MARKS = [['strike', '̶'], ['short', '̵'], ['slash', '̸'], ['underline', '̲'], ['dunderline', '̳'], ['overline', '̅'],
-    ['doubleover', '̿'], ['tilde', '̰'], ['dots', '̤'], ['arrow', '͎'], ['cross', '̽'], ['seagull', '̼'], ['circle', '⃝'],
-    ['square', '⃞'], ['glitch', '̷̢']];
-  const MARK = new Map(MARKS);
+  const MARKS = [['strike', '\u0336'], ['short', '\u0335'], ['slash', '\u0338'], ['underline', '\u0332'], ['dunderline', '\u0333'], ['overline', '\u0305'],
+    ['doubleover', '\u033F'], ['tilde', '\u0330'], ['dots', '\u0324'], ['arrow', '\u034E'], ['cross', '\u033D'], ['seagull', '\u033C'], ['circle', '\u20DD'],
+    ['square', '\u20DE'], ['glitch', '\u0337\u0322']];
+  /* the 🎨 Special page's marks: enclosing ones and a few below the letter */
+  const XMARKS = [['keycap', '\u20E3'], ['diamond', '\u20DF'], ['banned', '\u20E0'], ['asterisk', '\u0359'], ['xbelow', '\u0353'], ['bridge', '\u032A']];
+  const MARK = new Map([...MARKS, ...XMARKS]);
+  /* glitch text: marks above, through and below each letter, the same every time for the same text */
+  const ZUP = [...'\u030D\u030E\u0304\u0305\u033F\u0311\u0306\u0310\u0352\u0357\u0351\u0307\u0308\u030A\u0342\u0343\u0344\u034A\u034B\u034C\u0303\u0302\u030C\u0350\u0300\u0301\u030B\u030F\u0312\u0313\u0314\u033D\u0309\u0363\u0364\u0365\u0366\u0367\u0368\u0369\u036A\u036B\u036C\u036D\u036E\u036F\u033E\u035B\u0346\u031A'];
+  const ZMID = [...'\u0315\u031B\u0340\u0341\u0358\u0321\u0322\u0327\u0328\u0334\u0335\u0336\u035C\u035D\u035E\u035F\u0360\u0362\u0338\u0337\u0361'];
+  const ZDOWN = [...'\u0316\u0317\u0318\u0319\u031C\u031D\u031E\u031F\u0320\u0324\u0325\u0326\u0329\u032A\u032B\u032C\u032D\u032E\u032F\u0330\u0331\u0339\u033A\u033B\u033C\u0345\u0347\u0348\u0349\u034D\u034E\u0353\u0354\u0355\u0356\u0359\u035A\u0323'];
+  function zalgo(s, n) {
+    let seed = (hash(s) % 2147483646) + 1;
+    const rnd = (list) => {
+      seed = (seed * 48271) % 2147483647;
+      return list[seed % list.length];
+    };
+    const marks = () => [...Array(n)].map(() => rnd(ZUP)).join('') + rnd(ZMID) + [...Array(n)].map(() => rnd(ZDOWN)).join('');
+    return [...s].map((ch) => (ch === ' ' || ARABIC.test(ch) ? ch : ch + marks())).join('');
+  }
+  const XGLITCH = [['zalgo1', 1], ['zalgo2', 3]];
   const marked = (s, code) => [...s].map((ch) => (ch === ' ' || ARABIC.test(ch) ? ch : ch + MARK.get(code))).join('');
   /* a sign between the letters of each word */
   const SEPS = [['hearts', '♥'], ['stars', '★'], ['dots', '·'], ['sparkle', '✦'], ['flower', '❀'], ['spaced', ' ']];
@@ -442,12 +481,18 @@ export const fonts = (() => {
   const PERSIAN = [
     ['kashida', (s) => kashida(s, 1)], ['kashida3', (s) => kashida(s, 3)],
     ['apart', (s) => s.split(' ').map((w) => [...w].join('\u200C')).join(' ')], ['spaced', (s) => between(s, ' ')],
-    ['crown', (s) => onLetters(s, 'ٰٖ')], ['harakat', (s) => onLetters(s, 'َِ')], ['madd', (s) => onLetters(s, 'ٓ')],
-    ['sukun', (s) => onLetters(s, 'ْ')], ['shadda', (s) => onLetters(s, 'ّ')], ['tanwin', (s) => onLetters(s, 'ٍّ')],
-    ['kmarks', (s) => kashida(s, 1, 'ـَِـ')], ['kwave', (s) => kashida(s, 1, 'ـ͜͡ـ')], ['kflower', (s) => kashida(s, 1, 'ـ۪ٜـ')],
-    ['kcrown', (s) => kashida(s, 1, 'ـٰـ')], ['kheart', (s) => kashida(s, 1, 'ـ♡ـ')], ['kstar', (s) => kashida(s, 1, 'ـ★ـ')],
+    ['crown', (s) => onLetters(s, '\u0670\u0656')], ['harakat', (s) => onLetters(s, '\u064E\u0650')], ['madd', (s) => onLetters(s, '\u0653')],
+    ['sukun', (s) => onLetters(s, '\u0652')], ['shadda', (s) => onLetters(s, '\u0651')], ['tanwin', (s) => onLetters(s, '\u064D\u0651')],
+    ['kmarks', (s) => kashida(s, 1, 'ـ\u064E\u0650ـ')], ['kwave', (s) => kashida(s, 1, 'ـ\u035C\u0361ـ')], ['kflower', (s) => kashida(s, 1, 'ـ\u06EA\u065Cـ')],
+    ['kcrown', (s) => kashida(s, 1, 'ـ\u0670ـ')], ['kheart', (s) => kashida(s, 1, 'ـ♡ـ')], ['kstar', (s) => kashida(s, 1, 'ـ★ـ')],
   ];
-  const PERSIAN_FN = new Map(PERSIAN);
+  /* the 🎨 Special page's Persian styles */
+  const PERSIAN_EXTRA = [
+    ['apartmarks', (s) => s.split(' ').map((w) => [...w].map((ch) => (ARABIC_LETTER.test(ch) ? `${ch}\u064E` : ch)).join('\u200C')).join(' ')],
+    ['k3marks', (s) => kashida(s, 1, 'ــ\u064E\u0650ــ')], ['kshadda', (s) => kashida(s, 1, 'ـ\u0651ـ')], ['kdiamond', (s) => kashida(s, 1, 'ـ◈ـ')],
+    ['kflower2', (s) => kashida(s, 1, 'ـ❀ـ')], ['ksparkle', (s) => kashida(s, 1, 'ـ✧ـ')], ['kwavy2', (s) => kashida(s, 1, 'ـ\u0360ـ')],
+  ];
+  const PERSIAN_FN = new Map([...PERSIAN, ...PERSIAN_EXTRA]);
 
   const FRAMES = [['꧁ ', ' ꧂'], ['꧁༺ ', ' ༻꧂'], ['✿ ', ' ✿'], ['❀ ', ' ❀'], ['★彡 ', ' 彡★'], ['【', '】'], ['『', '』'], ['「', '」'], ['《', '》'],
     ['〖', '〗'], ['♡ ', ' ♡'], ['❥ ', ' ❥'], ['─═ ', ' ═─'], ['⊱ ', ' ⊰'], ['•°¯`•• ', ' ••´¯°•'], ['༺ ', ' ༻'], ['✧･ﾟ: ', ' :･ﾟ✧'], ['⋆｡°✩ ', ' ✩°｡⋆'],
@@ -467,10 +512,21 @@ export const fonts = (() => {
   const PERSIAN_COMBOS = [['kmarks', 0], ['crown', 5], ['kashida', 2], ['kashida3', ['★ ', ' ★']], ['kheart', 11], ['harakat', 21], ['apart', 19],
     ['kwave', ['◥ ', ' ◤']], ['sukun', 18], ['madd', 1], ['kflower', 14], ['kcrown', 17], ['kstar', 6], ['shadda', 23], ['tanwin', 28], ['kashida', 20]];
   const ends = (s, f) => (f === null ? s : (Array.isArray(f) ? `${f[0]}${s}${f[1]}` : frame(s, f)));
+  /* more frames and combinations, for the 🎨 Special page */
+  const XCOMBOS = [['accented', null, ['꒰ ', ' ꒱']], ['cherokee', null, ['ᯓ★ ', ' ★ᯓ']], ['ethiopic', null, ['꧁⎝ ', ' ⎠꧂']],
+    ['yi', null, ['⋆ ˚｡⋆୨୧˚ ', ' ˚୨୧⋆｡˚ ⋆']], ['canadian', null, ['ʚ ', ' ɞ']], ['boldfraktur', 'z:1', ['▓▒░ ', ' ░▒▓']],
+    ['boldscript', null, ['✩₊˚.⋆☾⋆⁺₊✧ ', ' ✧₊⁺⋆☾⋆.˚₊✩']], ['smallcaps', null, ['⋆⭒˚.⋆ ', ' ⋆.˚⭒⋆']], ['double', null, ['𖤐 ', ' 𖤐']],
+    ['script', null, ['⌜ ', ' ⌟']], ['sansitalic', null, ['✮⋆˙ ', ' ˙⋆✮']], ['bold', null, ['╰┈➤ ', '']], ['braille', null, ['⠿ ', ' ⠿']],
+    ['mono', 'm:keycap', null]];
+  const PERSIAN_XCOMBOS = [['apartmarks', ['꒰ ', ' ꒱']], ['k3marks', ['꧁⎝ ', ' ⎠꧂']], ['kshadda', ['ʚ ', ' ɞ']], ['kdiamond', ['⋆ ˚｡⋆୨୧˚ ', ' ˚୨୧⋆｡˚ ⋆']],
+    ['kflower2', ['✿ ', ' ✿']], ['ksparkle', ['✮⋆˙ ', ' ˙⋆✮']], ['kwavy2', ['ᯓ★ ', ' ★ᯓ']], ['crown', ['𖤐 ', ' 𖤐']], ['kmarks', ['⋆⭒˚.⋆ ', ' ⋆.˚⭒⋆']],
+    ['kheart', ['ʚ ', ' ɞ']], ['harakat', ['⌜ ', ' ⌟']], ['kflower', ['꒰ ', ' ꒱']], ['kashida3', ['✩₊˚.⋆☾⋆⁺₊✧ ', ' ✧₊⁺⋆☾⋆.˚₊✩']], ['kstar', ['╰┈➤ ', '']],
+    ['madd', ['⊹ ', ' ⊹']], ['kcrown', ['꧁⎝ ', ' ⎠꧂']]];
   function combo([style, extra, f]) {
     let s = styled(this, style);
     if (extra && extra.startsWith('m:')) s = marked(s, extra.slice(2));
     if (extra && extra.startsWith('s:')) s = between(s, SEP.get(extra.slice(2)));
+    if (extra && extra.startsWith('z:')) s = zalgo(s, Number(extra.slice(2)));
     return ends(s, f);
   }
 
@@ -480,6 +536,8 @@ export const fonts = (() => {
     ['bolditalicunderline', '<b><i><u>', '</u></i></b>'], ['pre', '<pre>', '</pre>'], ['quote', '<blockquote>', '</blockquote>']];
   const TG_COMBOS = [['script_u', '<u>', '</u>', 'script'], ['double_spoiler', '<tg-spoiler>', '</tg-spoiler>', 'double'], ['sans_s', '<s>', '</s>', 'sansbolditalic'],
     ['circled_u', '<u>', '</u>', 'circled'], ['smallcaps_b', '<b>', '</b>', 'smallcaps'], ['fraktur_quote', '<blockquote>', '</blockquote>', 'boldfraktur']];
+  /* the 🎨 Special page's Telegram styles: a quote that folds, a code block with a language */
+  const TG_EXTRA = [['expand', '<blockquote expandable>', '</blockquote>'], ['codelang', '<pre><code class="language-python">', '</code></pre>']];
   const TG_PERSIAN = [['fa_bu', '<b><u>', '</u></b>', 'kashida'], ['fa_i', '<i>', '</i>', 'kmarks'], ['fa_spoiler', '<tg-spoiler>', '</tg-spoiler>', 'kheart'],
     ['fa_quote', '<blockquote>', '</blockquote>', 'crown']];
 
@@ -504,11 +562,25 @@ export const fonts = (() => {
     pages.combo = [...(hasArabic ? PERSIAN_COMBOS.map(([p, f]) => ends(PERSIAN_FN.get(p)(s), f)) : []), ...(hasLatin ? COMBOS.map(combo, s) : [])];
     if (!pages.combo.length) pages.combo = FRAMES.slice(0, 12).map((f, i) => frame(between(s, i % 2 ? '✦' : ' '), i));
     pages.frame = FRAMES.map((f, i) => frame(s, i));
+    /* 🎨 Special: [type, code, text, open, close] — h a heading · tg a Telegram style · u m p a labelled line · n a numbered one */
+    const x = [['h', 'tg'], ...TG_EXTRA.map(([code, open, close]) => ['tg', code, s, open, close])];
+    if (hasLatin) {
+      x.push(['h', 'fonts'], ...XLATIN.map(([code]) => ['u', code, styled(s, code)]));
+      x.push(['h', 'combo'], ...XCOMBOS.map((c, i) => ['n', i + 1, combo.call(s, c)]));
+    }
+    if (letters) x.push(['h', 'marks'], ...XGLITCH.map(([code, n]) => ['m', code, zalgo(s, n)]), ...XMARKS.map(([code]) => ['m', code, marked(s, code)]));
+    if (hasArabic) {
+      x.push(['h', 'fa'], ...PERSIAN_EXTRA.map(([code, fn]) => ['p', code, fn(s)]));
+      x.push(['h', 'facombo'], ...PERSIAN_XCOMBOS.map(([p, f], i) => ['n', i + 1, ends(PERSIAN_FN.get(p)(s), f)]));
+    }
+    pages.extra = x;
     return { pages, hasLatin, hasArabic };
   }
 
   return {
-    render, styled, marked, between, kashida, PAGES: ['combo', 'tg', 'uni', 'look', 'mark', 'fa', 'frame'],
+    render, styled, marked, between, kashida, zalgo, PAGES: ['combo', 'tg', 'uni', 'look', 'mark', 'fa', 'frame', 'extra'],
+    TG_EXTRA: TG_EXTRA.map(([c]) => c), XLATIN: XLATIN.map(([c]) => c), XMARKS: [...XGLITCH, ...XMARKS].map(([c]) => c), PERSIAN_EXTRA: PERSIAN_EXTRA.map(([c]) => c),
+    XCOMBOS: XCOMBOS.length, PERSIAN_XCOMBOS: PERSIAN_XCOMBOS.length, XHEADS: ['tg', 'fonts', 'combo', 'marks', 'fa', 'facombo'],
     TELEGRAM: TELEGRAM.map(([c]) => c), TG_COMBOS: [...TG_COMBOS, ...TG_PERSIAN].map(([c]) => c), LATIN: LATIN.map(([c]) => c), LOOK: LOOK.map(([c]) => c),
     MARKS: [...MARKS.map(([c]) => c), ...SEPS.map(([c]) => `s_${c}`)], PERSIAN: PERSIAN.map(([c]) => c), FRAMES: FRAMES.length,
     COMBOS: COMBOS.length, PERSIAN_COMBOS: PERSIAN_COMBOS.length,

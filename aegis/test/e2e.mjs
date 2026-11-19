@@ -4213,7 +4213,7 @@ await scenario('🔮 fortune telling and 🔠 fonts — /fal and its buttons, Ha
   const fm = midOf(f[0]);
   assert.match(f[0].params.text, /^🔠 Fonts for «⁨Hello⁩»\n✨ <b>Beautiful combinations<\/b>/);
   for (const x of ['꧁༺ 𝓗𝓮𝓵𝓵𝓸 ༻꧂', '★彡 𝙃𝙚𝙡𝙡𝙤 彡★', '➶ 𝐇̲𝐞̲𝐥̲𝐥̲𝐨̲']) assert.ok(f[0].params.text.includes(`<code>${x}</code>`), x);
-  assert.deepEqual(dataOf(mock.get(IOTA, fm)), ['fn:t:combo', 'fn:t:tg', 'fn:t:uni', 'fn:t:look', 'fn:t:mark', 'fn:t:frame']);
+  assert.deepEqual(dataOf(mock.get(IOTA, fm)), ['fn:t:combo', 'fn:t:tg', 'fn:t:uni', 'fn:t:look', 'fn:t:mark', 'fn:t:frame', 'fn:t:extra']);
   const page = async (u, data, mid = fm) => gpress(u, IOTA, data, mid);
   const shown = (r) => {
     assert.equal(r.toast, '');
@@ -4230,6 +4230,10 @@ await scenario('🔮 fortune telling and 🔠 fonts — /fal and its buttons, Ha
   assert.ok(shown(await page(P9.lux, 'fn:t:look')).includes('<code>卄乇ㄥㄥㄖ</code>'));
   assert.ok(shown(await page(P9.lux, 'fn:t:mark')).includes('<code>H⃝e⃝l⃝l⃝o⃝</code>'));
   assert.ok(shown(await page(P9.lux, 'fn:t:frame')).includes('<code>꧁ Hello ꧂</code>'));
+  const special = shown(await page(P9.lux, 'fn:t:extra'));
+  assert.match(special, /^🔠 Fonts for «\u2068Hello\u2069»\n🎨 <b>Special<\/b>/);
+  for (const x of ['<blockquote expandable>Hello</blockquote>', '<pre><code class="language-python">Hello</code></pre>', '<code>Ḧéĺĺő</code>', '<code>⠓⠑⠇⠇⠕</code>',
+    '<code>ዘቿረረዐ</code>', '<code>꒰ Ḧéĺĺő ꒱</code>', '<b>〰️ Glitch and more marks</b>']) assert.ok(special.includes(x), x);
   const other = await page(P9.kit, 'fn:t:tg');
   assert.ok(other.alert && /someone else/.test(other.toast), `only the asker turns pages: ${other.toast}`);
   assert.equal(edits(other.calls).length, 0);
@@ -4265,11 +4269,15 @@ await scenario('🔮 fortune telling and 🔠 fonts — /fal and its buttons, Ha
   const zf = lastSentTo(await dm(zari, 'فونت سلام دوست'), zari.id);
   assert.match(zf.params.text, /^\u200F🔠 فونت‌های «\u2068سلام دوست\u2069»\n\u200F✨ <b>ترکیب‌های زیبا<\/b>/);
   assert.ok(zf.params.text.includes('<code>꧁ سـَِـلـَِـام دوسـَِـت ꧂</code>'), 'Persian combinations first');
-  assert.deepEqual(dataOf(mock.get(zari.id, midOf(zf))), ['fn:t:combo', 'fn:t:tg', 'fn:t:fa', 'fn:t:frame']);
+  assert.deepEqual(dataOf(mock.get(zari.id, midOf(zf))), ['fn:t:combo', 'fn:t:tg', 'fn:t:fa', 'fn:t:frame', 'fn:t:extra']);
   const zfa = edits((await press(zari, 'fn:t:fa', midOf(zf))).calls)[0].params.text;
   for (const x of ['سـلـام دوسـت', 'سـ♡ـلـ♡ـام دوسـ♡ـت', 'سَِلَِاَِمَِ دَِوَِسَِتَِ', 'س\u200Cل\u200Cا\u200Cم د\u200Cو\u200Cس\u200Cت']) assert.ok(zfa.includes(`<code>${x}</code>`), x);
   assert.ok(zfa.includes('فونت‌های یونیکد فقط برای حروف لاتین'), 'says why there are no Unicode fonts');
   assert.ok(edits((await press(zari, 'fn:t:tg', midOf(zf))).calls)[0].params.text.includes('<b>سلام دوست</b>'), 'Telegram styles for Persian');
+  const zx = edits((await press(zari, 'fn:t:extra', midOf(zf))).calls)[0].params.text;
+  for (const x of ['<blockquote expandable>سلام دوست</blockquote>', '<code>سـ◈ـلـ◈ـام دوسـ◈ـت</code>', '<code>꒰ سَ\u200Cلَ\u200Cاَ\u200Cمَ دَ\u200Cوَ\u200Cسَ\u200Cتَ ꒱</code>']) {
+    assert.ok(zx.includes(x), x);
+  }
   assert.match(lastSentTo(await dm(zari, 'فال تاروت ۳'), zari.id).params.text, /^‏🔮 ⁨زری⁩، سه کارت تو:\n\n‏🕰 گذشته: <b>/);
   const zc = await press(zari, 'fn:f:coffee', midOf(zm));
   assert.match(lastSentTo(zc.calls, zari.id).params.text, /^‏☕ ⁨زری⁩، در فنجانت می‌بینم:/);

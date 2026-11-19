@@ -16,7 +16,7 @@
  * callback_data: fn:<game>:c:<i> quick click · fn:<game>:a accept · fn:<game>:x cancel (the challenger)
  *   · fn:<game>:r|p|s rock-paper-scissors · fn:<game>:t:<cell> tic-tac-toe
  *   · fn:f:<code>[:<arg>] run a fortune command (tarot 1|3, horo <sign 0–11>) · fn:f:horo:p the sign buttons
- *   · fn:t:<page>[:<part>] a page of /font (combo, tg, uni, look, mark, fa, frame), for the one who asked
+ *   · fn:t:<page>[:<part>] a page of /font (combo, tg, uni, look, mark, fa, frame, extra), for the one who asked
  * Panel: g:c:fn  ·  g:c:fn:s:<key>  ·  g:c:fn:c:<cat>  ·  g:c:fn:f:<code>[:o|w|c|d|r]
  */
 import { asciiDigits, dateOf, toJalali, tzOf } from '../core/clock.js';
@@ -505,6 +505,14 @@ function fontLines(lang, page, items) {
     });
   }
   if (page === 'combo' || page === 'frame') return items.map((x, i) => rtl(lang, `${num(lang, i + 1)}. ${box(x)}`));
+  if (page === 'extra') {
+    return items.map(([type, code, x, open, close], i) => {
+      if (type === 'h') return `${i ? '\n' : ''}${t(lang, `fal.xh_${code}`)}`;
+      if (type === 'tg') return `${rtl(lang, `${t(lang, `fal.tx_${code}`)}:`)}\n${isRtl(lang) ? '\u200F' : ''}${open}${esc(x)}${close}`;
+      if (type === 'n') return rtl(lang, `${num(lang, code)}. ${box(x)}`);
+      return rtl(lang, `${t(lang, `fal.${type}_${code}`)}: ${box(x)}`);
+    });
+  }
   return items.map(([c, x]) => rtl(lang, `${t(lang, `fal.${FONT_PREFIX[page]}_${c}`)}: ${box(x)}`));
 }
 
