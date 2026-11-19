@@ -84,5 +84,9 @@
   "vote": "vote rapide",
   "decide": "aide-moi à décider",
   "likely": "qui est le plus susceptible",
-  "lie": "deux vérités et un mensonge"
+  "lie": "deux vérités et un mensonge",
+  "ptest": "test de personnalité",
+  "spirit": "jeux spirituels",
+  "match": "test de compatibilité",
+  "knowme": "me connais-tu bien"
 }

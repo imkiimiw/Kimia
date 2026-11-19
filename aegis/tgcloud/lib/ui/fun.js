@@ -17,6 +17,7 @@
  *   · fn:<game>:r|p|s rock-paper-scissors · fn:<game>:t:<cell> tic-tac-toe
  *   · fn:f:<code>[:<arg>] run a fortune command (tarot 1|3, horo <sign 0–11>) · fn:f:horo:p the sign buttons
  *   · fn:d:<a|b|e…> the decision helper's answers so far (only the one who asked)
+ *   · fn:q:<test>[:<answers>] · fn:q:m:<self|spirit> a questionnaire (only the one who asked) · fn:m / fn:k:<A's answers>[:j|:<id>:<answers>] /match, /knowme
  *   · fn:r:<m|u|b>[:g|l|a:<page>|p:<r|g<i>|l<i>|a<i>>] film, music and book recommendations (menu, lists, a pick), for the one who asked
  *   · fn:t:<page>[:<part>] a page of /font (combo, mix, tg, uni, look, mark, fa, frame, extra), for the one who asked
  * Panel: g:c:fn  ·  g:c:fn:s:<key>  ·  g:c:fn:c:<cat>  ·  g:c:fn:m:<cat> (who may use the group: a → s → d)  ·  g:c:fn:f:<code>[:o|w|c|d|r]
@@ -50,7 +51,7 @@ const inline = (lang, key, vars) => t(lang, key, vars).replace(RLM, '');
 const flist = (lang, key) => t(lang, `fallist.${key}`).split('\n').map((x) => x.replace(RLM, '').trim()).filter(Boolean);
 const norm = (s) => normalizeWord(String(s || '').replace(RLM, '').replace(new RegExp(fun.PASTE_MARK, 'g'), ''));
 /* features that need a group (members, replies, the group's own lists); the rest also work in private */
-const GROUP_ONLY = new Set(['love', 'wyr', 'act', 'couple', 'motd', 'bday', 'daily', 'click', 'ttt', 'lottery', 'vote', 'likely', 'lie']);
+const GROUP_ONLY = new Set(['love', 'wyr', 'act', 'couple', 'motd', 'bday', 'daily', 'click', 'ttt', 'lottery', 'vote', 'likely', 'lie', 'match', 'knowme']);
 const PRIVATE_OK = new Set(fun.CODES.filter((c) => !GROUP_ONLY.has(c)));
 const KEY_CODE = { hug: 'act', pat: 'act', highfive: 'act', wave: 'act', cheer: 'act', birthday: 'bday', birthdays: 'bday', fun: 'fun', fal: 'fal' };
 const MENUS = new Set(['fun', 'fal']);
@@ -362,6 +363,13 @@ function prepare(parsed, message, lang, s) {
     }
     case 'likely':
       return human ? { target: human } : {};
+    case 'ptest':
+    case 'spirit': {
+      if (!a.length) return {};
+      const code = norm(text);
+      const t = fun.tests.of(code);
+      return t && t.g === (parsed.code === 'ptest' ? 'self' : 'spirit') ? { test: code } : { bad: true };
+    }
     case 'weekly': {
       if (!a.length) return { sign: null };
       const sign = signFrom(text, lang, s);
@@ -496,6 +504,17 @@ async function run(ctx, x) {
     }
     case 'likely':
       return likely(ctx, x);
+    case 'ptest':
+    case 'spirit': {
+      const g = parsed.code === 'ptest' ? 'self' : 'spirit';
+      const sc = pre.test ? testScreen(lang, pre.test, '', me) : testMenu(lang, g);
+      return say(ctx, chatId, s, sc.text, sc.rows, `fun-${parsed.code}`, r);
+    }
+    case 'match':
+    case 'knowme': {
+      const sc = pairScreen(lang, code, '', null, '', me, null);
+      return say(ctx, chatId, s, sc.text, sc.rows, `fun-${code}`, r);
+    }
     case 'lie': {
       if (await tryCall(ctx, 'deleteMessage', { chat_id: chatId, message_id: message.message_id }, 'fun-lie-delete')) ctx.deletedCommand = message.message_id;
       const extra = message.is_topic_message && message.message_thread_id ? { message_thread_id: message.message_thread_id } : {};
@@ -1260,6 +1279,154 @@ async function decideButton(ctx, cq, parts) {
   return answer(ctx);
 }
 
+/* ---------- questionnaires: /ptest, /spirit, /match, /knowme ---------- */
+
+const TQ = fun.tests;
+const ptx = (lang, key) => inline(lang, `ptest.${key}`);
+const ptList = (lang, key) => ptx(lang, key).split('|').map((x) => x.trim());
+const ptName = (lang, code) => ptx(lang, `name_${code}`);
+/* a result line from the locales: «name|text» */
+const ptResult = (lang, code, i) => {
+  const [name, text] = ptList(lang, `${code}_r${i}`);
+  return { name: esc(name || ''), text: esc(text || '') };
+};
+
+function testMenu(lang, g) {
+  const rows = pairs(TQ.inGroup(g).map((c) => btn(`${TQ.of(c).icon} ${ptName(lang, c)}`, `fn:q:${c}`)));
+  return { text: t(lang, g === 'self' ? 'fun.pt_menu' : 'fun.sp_menu'), rows };
+}
+
+/* A question of a test with its answers as buttons, or the result when every question is answered. */
+function testScreen(lang, code, answers, user) {
+  const test = TQ.of(code);
+  const i = answers.length;
+  if (i < test.n) {
+    const opts = test.scale ? ptList(lang, `scale${test.scale}`) : ptList(lang, `${code}_o${i + 1}`);
+    const text = t(lang, 'fun.pt_q', { icon: test.icon, name: esc(ptName(lang, code)), i: num(lang, i + 1), n: num(lang, test.n), q: esc(ptx(lang, `${code}_q${i + 1}`)) });
+    return { text, rows: opts.map((o, j) => [btn(o, `fn:q:${code}:${answers}${j}`)]) };
+  }
+  const res = TQ.result(code, answers);
+  const lines = [t(lang, 'fun.pt_res', { icon: test.icon, name: esc(ptName(lang, code)), user }), ''];
+  if (res.kind === 'axes') {
+    lines.push(t(lang, 'fun.type_res', { code: res.type, nick: esc(ptx(lang, `type_n_${res.type}`)) }));
+    for (const l of res.type) lines.push(t(lang, 'fun.type_letter', { l, text: esc(ptx(lang, `type_l_${l}`)) }));
+  } else if (res.kind === 'top') {
+    const top = ptResult(lang, code, res.top);
+    if (code === 'love' && res.second !== null) {
+      const sec = ptResult(lang, code, res.second);
+      lines.push(t(lang, 'fun.two_res', { a: top.name, b: sec.name, text: `${top.text}\n${sec.text}` }));
+    } else lines.push(t(lang, 'fun.top_res', { name: top.name, text: top.text }));
+  } else if (res.kind === 'band') {
+    const r = ptResult(lang, code, res.band);
+    lines.push(t(lang, 'fun.top_res', { name: r.name, text: r.text }));
+  } else if (res.kind === 'chakra') {
+    lines.push(t(lang, 'fun.ch_strong', { name: ptResult(lang, code, res.strong).name }));
+    const w = ptResult(lang, code, res.weak);
+    lines.push(t(lang, 'fun.ch_weak', { name: w.name, text: w.text }));
+  } else if (res.kind === 'story') {
+    const piece = (k) => ptList(lang, `past_f${k + 1}`)[res.parts[k]] || '';
+    const story = ptx(lang, 'past_tpl').replace(/\{(era|place|role|trait|lesson)\}/g, (m, k) => piece(['era', 'place', 'role', 'trait', 'lesson'].indexOf(k)));
+    lines.push(rtl(lang, `🌀 ${esc(story)}`));
+  }
+  lines.push('', t(lang, test.g === 'spirit' ? 'fun.sp_note' : 'fun.pt_note'));
+  const again = [btn(inline(lang, 'fun.btn_again'), `fn:q:${code}`), btn(inline(lang, test.g === 'spirit' ? 'fun.btn_spirits' : 'fun.btn_tests'), `fn:q:m:${test.g}`)];
+  return { text: lines.join('\n'), rows: [again] };
+}
+
+/* fn:q:<code>[:<answers>] · fn:q:m:<self|spirit> — only the one who asked answers (the message replies to their command). */
+async function testButton(ctx, cq, parts) {
+  const msg = cq.message;
+  if (!msg || msg.chat.type === 'channel') return answer(ctx);
+  const u = await users.get(cq.from.id);
+  const mine = u ? u.lang : pickLang(cq.from.language_code);
+  const asker = msg.reply_to_message && msg.reply_to_message.from;
+  if (asker && !asker.is_bot && asker.id !== cq.from.id) return answer(ctx, inline(mine, 'fun.pt_not_yours'), true);
+  const chat = msg.chat.id < 0 ? await chats.get(msg.chat.id) : null;
+  const lang = chat ? chat.lang : mine;
+  let sc = null;
+  if (parts[2] === 'm' && (parts[3] === 'self' || parts[3] === 'spirit')) sc = testMenu(lang, parts[3]);
+  else {
+    const test = TQ.of(parts[2]);
+    const answers = parts[3] || '';
+    if (!test || test.g === 'two' || !TQ.valid(test, answers)) return answer(ctx);
+    sc = testScreen(lang, parts[2], answers, nameOf(cq.from));
+  }
+  await edit(ctx, { chat_id: msg.chat.id, message_id: msg.message_id }, sc.text, sc.rows, 'fun-test');
+  return answer(ctx);
+}
+
+/*
+ * /match and /knowme: the one who asked (A) answers first — fn:m:<A's answers>; then anyone else joins — fn:m:<A>:j — and answers in turn:
+ * fn:m:<A>:<their id>:<their answers>. /knowme is the same with fn:k (the others guess A's answers).
+ */
+function pairScreen(lang, code, aAns, other, oAns, aName, oName) {
+  const test = TQ.of(code);
+  const head = code === 'match' ? 'm' : 'k';
+  const q = (i, ans, prefix) => {
+    const opts = ptList(lang, `${code}_o${i + 1}`);
+    return { text: t(lang, 'fun.pt_q', { icon: test.icon, name: esc(ptName(lang, code)), i: num(lang, i + 1), n: num(lang, test.n), q: esc(ptx(lang, `${code}_q${i + 1}`)) }),
+      rows: opts.map((o, j) => [btn(o, `${prefix}${ans}${j}`)]) };
+  };
+  if (aAns.length < test.n) return q(aAns.length, aAns, `fn:${head}:`);
+  const join = [[btn(inline(lang, code === 'match' ? 'fun.btn_join_match' : 'fun.btn_join_know'), `fn:${head}:${aAns}:j`)]];
+  if (!other) return { text: t(lang, code === 'match' ? 'fun.match_wait' : 'fun.know_wait', { a: aName }), rows: join };
+  if (oAns.length < test.n) {
+    const sc = q(oAns.length, oAns, `fn:${head}:${aAns}:${other}:`);
+    return { text: `${oName}\n${sc.text}`, rows: sc.rows };
+  }
+  const same = TQ.same(aAns, oAns);
+  const lines = [];
+  if (code === 'match') {
+    const pct = Math.round((same / test.n) * 100);
+    lines.push(t(lang, 'fun.match_res', { a: aName, b: oName, pct: num(lang, pct), label: esc(ptList(lang, 'match_l')[pct >= 75 ? 3 : pct >= 50 ? 2 : pct >= 25 ? 1 : 0]) }));
+    const diff = [...aAns].map((c, i) => (c === oAns[i] ? null : i)).filter((i) => i !== null);
+    if (diff.length) {
+      lines.push('', t(lang, 'fun.match_diff'));
+      for (const i of diff) {
+        const opts = ptList(lang, `${code}_o${i + 1}`);
+        lines.push(rtl(lang, `• ${esc(ptx(lang, `${code}_q${i + 1}`))} ${esc(opts[Number(aAns[i])])} / ${esc(opts[Number(oAns[i])])}`));
+      }
+    } else lines.push('', t(lang, 'fun.match_same'));
+  } else {
+    lines.push(t(lang, 'fun.know_res', { a: aName, b: oName, n: num(lang, same), label: esc(ptList(lang, 'know_l')[same >= 6 ? 3 : same >= 4 ? 2 : same >= 2 ? 1 : 0]) }));
+  }
+  lines.push('', t(lang, 'fun.pt_note'));
+  return { text: lines.join('\n'), rows: join };
+}
+
+async function pairButton(ctx, cq, parts) {
+  const msg = cq.message;
+  const code = parts[1] === 'm' ? 'match' : 'knowme';
+  const test = TQ.of(code);
+  if (!msg || msg.chat.type === 'channel') return answer(ctx);
+  const aAns = parts[2] || '';
+  if (!TQ.valid(test, aAns)) return answer(ctx);
+  const u = await users.get(cq.from.id);
+  const mine = u ? u.lang : pickLang(cq.from.language_code);
+  const asker = msg.reply_to_message && msg.reply_to_message.from;
+  if (!asker) return answer(ctx);
+  const chat = msg.chat.id < 0 ? await chats.get(msg.chat.id) : null;
+  const lang = chat ? chat.lang : mine;
+  const aName = nameOf(asker);
+  let sc;
+  if (aAns.length < test.n || parts[3] === undefined) {
+    /* A is still answering */
+    if (asker.id !== cq.from.id) return answer(ctx, inline(mine, 'fun.pt_not_yours'), true);
+    sc = pairScreen(lang, code, aAns, null, '', aName, null);
+  } else if (parts[3] === 'j') {
+    if (asker.id === cq.from.id) return answer(ctx, inline(mine, code === 'match' ? 'fun.match_self' : 'fun.know_self'), true);
+    sc = pairScreen(lang, code, aAns, cq.from.id, '', aName, nameOf(cq.from));
+  } else {
+    const other = toInt(parts[3]);
+    const oAns = parts[4] || '';
+    if (other !== cq.from.id) return answer(ctx, inline(mine, 'fun.pt_not_yours'), true);
+    if (!TQ.valid(test, oAns)) return answer(ctx);
+    sc = pairScreen(lang, code, aAns, other, oAns, aName, nameOf(cq.from));
+  }
+  await edit(ctx, { chat_id: msg.chat.id, message_id: msg.message_id }, sc.text, sc.rows, `fun-${code}`);
+  return answer(ctx);
+}
+
 /* ---------- /echo and fun special members ---------- */
 
 /* The message a command really answers: not a forum topic's first message (every message in a topic «replies» to it). */
@@ -1719,6 +1886,8 @@ export async function callback(ctx, cq, parts) {
   if (parts[1] === 'f') return falButton(ctx, cq, parts);
   if (parts[1] === 'r') return recButton(ctx, cq, parts);
   if (parts[1] === 'd') return decideButton(ctx, cq, parts);
+  if (parts[1] === 'q') return testButton(ctx, cq, parts);
+  if (parts[1] === 'm' || parts[1] === 'k') return pairButton(ctx, cq, parts);
   if (parts[1] === 't') return fontPage(ctx, cq, parts);
   const from = cq.from;
   const u = await users.get(from.id);

@@ -84,5 +84,9 @@
   "vote": "quick vote",
   "decide": "help me decide",
   "likely": "who is more likely",
-  "lie": "two truths and a lie"
+  "lie": "two truths and a lie",
+  "ptest": "personality test",
+  "spirit": "spirit games|spirit animal",
+  "match": "compatibility test",
+  "knowme": "how well do you know me"
 }

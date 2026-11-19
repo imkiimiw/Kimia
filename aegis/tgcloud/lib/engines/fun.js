@@ -84,6 +84,10 @@ export const FEATURES = [
   { code: 'anbia', cat: 'fal', emoji: '🌟', cmds: ['prophets'], def: '1,a,60,5,0' },
   { code: 'font', cat: 'text', emoji: '🔠', cmds: ['font', 'fonts'], def: '1,a,10,20,0', args: true },
   { code: 'echo', cat: 'text', emoji: '🗣', cmds: ['echo', 'say'], def: '1,d,10,20,0', args: true },
+  { code: 'ptest', cat: 'mind', emoji: '🧠', cmds: ['ptest', 'test'], def: '1,a,30,10,0', args: true },
+  { code: 'spirit', cat: 'mind', emoji: '🪬', cmds: ['spirit'], def: '1,a,30,10,0', args: true },
+  { code: 'match', cat: 'mind', emoji: '💞', cmds: ['match'], def: '1,a,60,10,0' },
+  { code: 'knowme', cat: 'mind', emoji: '🎯', cmds: ['knowme'], def: '1,a,60,10,0' },
   { code: 'dialogue', cat: 'culture', emoji: '🎬', cmds: ['dialogue'], def: '1,a,30,10,0', args: true },
   { code: 'bookquote', cat: 'culture', emoji: '🔖', cmds: ['bookquote', 'excerpt'], def: '1,a,30,10,0', args: true },
   { code: 'movie', cat: 'culture', emoji: '🎞', cmds: ['movie', 'film'], def: '1,a,30,10,0', args: true },
@@ -98,7 +102,7 @@ export const FEATURES = [
   { code: 'repeat', cat: 'hours', emoji: '🔂', cmds: ['repeat'], def: '1,a,10,20,0', args: true },
   { code: 'number', cat: 'numbers', emoji: '🔢', cmds: ['number', 'num'], def: '1,a,10,20,0', args: true },
 ];
-export const CATS = ['dice', 'luck', 'fal', 'hours', 'numbers', 'social', 'daily', 'games', 'duel', 'text', 'culture'];
+export const CATS = ['dice', 'luck', 'fal', 'hours', 'numbers', 'social', 'daily', 'games', 'duel', 'text', 'culture', 'mind'];
 export const CODES = FEATURES.map((f) => f.code);
 export const byCode = (code) => FEATURES.find((f) => f.code === code) || null;
 export const SLASH = Object.fromEntries(FEATURES.flatMap((f) => f.cmds.map((c) => [c, f.code])));
@@ -1093,4 +1097,88 @@ export const culture = (() => {
   const excerpt = (n) => all().excerpts[Math.max(1, Math.min(all().excerpts.length, Math.floor(Number(n)) || 1)) - 1];
   const count = (what) => all()[what].length;
   return { all, KINDS, items, genres, langs, people, select, dialogue, excerpt, count };
+})();
+
+/* ---------- questionnaires: personality tests, spiritual games, the two-person tests ---------- */
+
+/*
+ * Each test: its group, icon, number of questions (n), and either a scale (3 or 4 answers to a statement) or a number of options.
+ * Answers are digits (the answer's index), carried in callback_data, so nothing is stored. The texts are in the locales (ptest).
+ * kinds: axes (four letters) · top (the dimension most agreed with; dim(i) gives a statement's dimension) · choice (each option counts
+ * for one dimension, map[i][j]) · band (a total cut into three; rev: statements counted backwards) · pts (points per option) ·
+ * attach (two totals) · chakra (strongest and weakest) · story (each answer is a piece of a story).
+ */
+export const tests = (() => {
+  const T = {
+    type: { g: 'self', icon: '🧩', n: 12, opts: 2, kind: 'axes' },
+    ennea: { g: 'self', icon: '🔢', n: 9, scale: 3, kind: 'top', dims: 9, dim: (i) => i },
+    attach: { g: 'self', icon: '🤝', n: 8, scale: 3, kind: 'attach' },
+    esteem: { g: 'self', icon: '🌟', n: 8, scale: 4, kind: 'band', rev: [4, 5, 6, 7], cuts: [12, 19] },
+    intro: { g: 'self', icon: '🌗', n: 8, scale: 3, kind: 'band', rev: [0, 1, 2, 3], cuts: [6, 11] },
+    eq: { g: 'self', icon: '💗', n: 8, opts: 3, kind: 'pts', pts: [[2, 1, 0], [2, 0, 1], [0, 2, 1], [2, 0, 1], [2, 1, 0], [0, 2, 1], [1, 2, 0], [2, 0, 1]], cuts: [7, 12] },
+    love: { g: 'self', icon: '💝', n: 10, opts: 2, kind: 'choice', dims: 5, map: [[0, 1], [2, 3], [4, 0], [1, 2], [3, 4], [0, 2], [1, 3], [4, 1], [2, 0], [3, 4]] },
+    risk: { g: 'self', icon: '🎲', n: 6, opts: 3, kind: 'pts', pts: Array(6).fill([0, 1, 2]), cuts: [5, 9] },
+    dstyle: { g: 'self', icon: '🧭', n: 8, scale: 3, kind: 'top', dims: 4, dim: (i) => Math.floor(i / 2) },
+    jealous: { g: 'self', icon: '💚', n: 6, scale: 3, kind: 'band', rev: [], cuts: [4, 8] },
+    life: { g: 'self', icon: '🌍', n: 8, scale: 3, kind: 'top', dims: 4, dim: (i) => Math.floor(i / 2) },
+    recall: { g: 'self', icon: '🌙', n: 6, scale: 3, kind: 'band', rev: [], cuts: [4, 8] },
+    animal: { g: 'spirit', icon: '🐾', n: 6, opts: 4, kind: 'choice', dims: 8, map: [[0, 1, 2, 3], [4, 5, 6, 7], [1, 5, 6, 4], [0, 3, 7, 2], [3, 1, 5, 4], [2, 6, 7, 0]] },
+    aura: { g: 'spirit', icon: '🌈', n: 6, opts: 4, kind: 'choice', dims: 7, map: [[0, 2, 4, 6], [1, 3, 4, 5], [0, 1, 3, 5], [2, 3, 5, 6], [0, 2, 6, 4], [1, 3, 5, 2]] },
+    chakra: { g: 'spirit', icon: '🌀', n: 7, scale: 3, kind: 'chakra' },
+    past: { g: 'spirit', icon: '⏳', n: 5, opts: 4, kind: 'story' },
+    energy: { g: 'spirit', icon: '🔋', n: 6, scale: 3, kind: 'band', rev: [], cuts: [5, 9] },
+    match: { g: 'two', icon: '💞', n: 8, opts: 3, kind: 'pair' },
+    knowme: { g: 'two', icon: '🎯', n: 6, opts: 4, kind: 'pair' },
+  };
+  const CODES = Object.keys(T);
+  const of = (code) => T[code] || null;
+  const inGroup = (g) => CODES.filter((c) => T[c].g === g);
+  const choices = (q) => q.scale || q.opts;
+  /* true when `answers` is a valid (possibly unfinished) answer string for the test */
+  const valid = (q, answers) => !!q && typeof answers === 'string' && answers.length <= q.n && [...answers].every((c) => /^\d$/.test(c) && Number(c) < choices(q));
+  const band = (score, cuts) => (score < cuts[0] ? 0 : score < cuts[1] ? 1 : 2);
+  const AXES = ['EI', 'SN', 'TF', 'JP'];
+  /* the result of a finished test (null when unfinished or invalid) */
+  function result(code, answers) {
+    const q = of(code);
+    if (!valid(q, answers) || answers.length !== q.n) return null;
+    const a = [...answers].map(Number);
+    if (q.kind === 'axes') {
+      const letters = AXES.map((pair, x) => {
+        const firsts = a.filter((v, i) => i % 4 === x && v === 0).length;
+        return firsts * 2 > a.filter((v, i) => i % 4 === x).length ? pair[0] : pair[1];
+      });
+      return { kind: 'axes', type: letters.join('') };
+    }
+    if (q.kind === 'top' || q.kind === 'choice') {
+      const counts = Array(q.dims).fill(0);
+      a.forEach((v, i) => { if (q.kind === 'top') counts[q.dim(i)] += v; else counts[q.map[i][v]] += 1; });
+      const order = counts.map((c, i) => [c, i]).sort((x, y) => y[0] - x[0] || x[1] - y[1]);
+      return { kind: 'top', top: order[0][1], second: order[1][0] === order[0][0] ? order[1][1] : null, counts };
+    }
+    if (q.kind === 'band') {
+      const score = a.reduce((sum, v, i) => sum + ((q.rev || []).includes(i) ? (q.scale - 1) - v : v), 0);
+      return { kind: 'band', band: band(score, q.cuts), score };
+    }
+    if (q.kind === 'pts') {
+      const score = a.reduce((sum, v, i) => sum + q.pts[i][v], 0);
+      return { kind: 'band', band: band(score, q.cuts), score };
+    }
+    if (q.kind === 'attach') {
+      const anx = a.slice(0, 4).reduce((x, y) => x + y, 0);
+      const avo = a.slice(4).reduce((x, y) => x + y, 0);
+      return { kind: 'band', band: (anx >= 5 ? 1 : 0) + (avo >= 5 ? 2 : 0), anx, avo };
+    }
+    if (q.kind === 'chakra') {
+      const order = a.map((v, i) => [v, i]);
+      const strong = [...order].sort((x, y) => y[0] - x[0] || x[1] - y[1])[0][1];
+      const weak = [...order].filter(([, i]) => i !== strong).sort((x, y) => x[0] - y[0] || x[1] - y[1])[0][1];
+      return { kind: 'chakra', strong, weak };
+    }
+    if (q.kind === 'story') return { kind: 'story', parts: a };
+    return { kind: 'pair', answers: a };
+  }
+  /* the two-person tests: how many answers are the same */
+  const same = (a, b) => [...a].filter((c, i) => c === b[i]).length;
+  return { CODES, of, inGroup, choices, valid, result, same, AXES };
 })();

@@ -3902,7 +3902,7 @@ mock.addFile('p9_m', fixture('base420.jpg'));
 mock.addFile('p9_s', fixture('base420.jpg'));
 const mediaEndpoint = (await import('../tgcloud/endpoints/media.js')).default;
 
-await scenario('phase 9 — 🎮 the Fun panel: 77 features in eleven groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
+await scenario('phase 9 — 🎮 the Fun panel: 81 features in twelve groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
   tick(600);
   iota = mock.addChat({ id: IOTA, type: 'supergroup', title: 'Iota', count: 15, botRights: { can_manage_chat: true, can_change_info: true, can_delete_messages: true,
     can_restrict_members: true, can_invite_users: true, can_pin_messages: true, can_promote_members: true } });
@@ -3921,8 +3921,8 @@ await scenario('phase 9 — 🎮 the Fun panel: 77 features in eleven groups, ea
   assert.ok(dataOf(olgaScreen()).includes(I('fn')) && dataOf(olgaScreen()).includes(I('md')));
   await olga(I('fn'));
   assert.match(olgaScreen().plain, /🎮 Fun — \u2068Iota\u2069/);
-  assert.match(olgaScreen().plain, /On: 77 of 77/);
-  assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 11);
+  assert.match(olgaScreen().plain, /On: 81 of 81/);
+  assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 12);
   await olga(I('fn:c:dice'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:f:/.test(d)).length, 6);
   assert.match(olgaScreen().plain, /✅ 🎲 Dice — everyone · cooldown 30 s · per day 20/);
@@ -3934,7 +3934,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 77 features in eleven groups, ea
   await olga(I('fn:s:fun_rate'));
   assert.equal(iVal('fun_rate'), '20');
   await olga(I('fn'));
-  assert.match(olgaScreen().plain, /On: 76 of 77/);
+  assert.match(olgaScreen().plain, /On: 80 of 81/);
   const s = row("SELECT count(*) AS n FROM aegis_audit WHERE chat_id = ? AND action = 'settings.set' AND target LIKE 'fx_%'", IOTA).n;
   assert.equal(s, 5, 'every change is logged');
 });
@@ -4685,6 +4685,74 @@ await scenario('🌌 more readings and tools — weekly horoscope, message of th
   assert.match(await pm('تعیین نوبت علی، سارا'), /^‏🔀 ترتیب:\n‏۱\. ⁨(علی|سارا)⁩\n‏۲\. /);
   assert.match(await pm('کمک به تصمیم بمانم یا بروم'), /^‏⚖️ تصمیم: ⁨بمانم⁩ یا ⁨بروم⁩؟\n‏⁨نوا⁩، به ۸ سؤال سریع جواب بده\.\n\n‏<b>سؤال ۱ از ۸<\/b>/);
   assert.match(await pm('سؤال عمیق'), /^‏💬 یک سؤال عمیق:/);
+});
+
+await scenario('🧠 questionnaires — personality tests and spiritual games with buttons (answers carried in the buttons), results; compatibility of two and «how well do you know me»; Persian in private', async () => {
+  tick(600);
+  iSet('fun_rate', '0');
+  const m = toChat(await imsg(P9.kit, '/ptest'), IOTA)[0];
+  assert.match(m.params.text, /^🧠 <b>Personality tests<\/b>/);
+  const mid = midOf(m);
+  assert.equal(dataOf(mock.get(IOTA, mid)).length, 12);
+  assert.ok(dataOf(mock.get(IOTA, mid)).includes('fn:q:type') && !dataOf(mock.get(IOTA, mid)).includes('fn:q:aura'));
+  await gpress(P9.kit, IOTA, 'fn:q:type', mid);
+  assert.match(mock.get(IOTA, mid).text, /^🧩 <b>16 personality types<\/b> · 1\/12\nAfter a long week you recharge by…$/);
+  assert.deepEqual(dataOf(mock.get(IOTA, mid)), ['fn:q:type:0', 'fn:q:type:1']);
+  const other = await gpress(P9.lux, IOTA, 'fn:q:type:0', mid);
+  assert.ok(other.alert && other.toast === 'Only the one who started this can answer.');
+  let ans = '';
+  for (const c of '010101010101') {
+    ans += c;
+    await gpress(P9.kit, IOTA, `fn:q:type:${ans}`, mid);
+  }
+  const res = mock.get(IOTA, mid).text;
+  assert.match(res, /^🧩 <b>16 personality types<\/b> — ⁨Kit⁩, your result:\n\n<b>ENTP<\/b> — The Visionary\n• <b>E<\/b>: gets energy from people and action\n• <b>N<\/b>: /);
+  assert.ok(res.endsWith('<i>A self-reflection for fun — not a psychological assessment.</i>'));
+  assert.deepEqual(dataOf(mock.get(IOTA, mid)), ['fn:q:type', 'fn:q:m:self']);
+  /* a scale test, typed by its code; the spiritual games */
+  const es = toChat(await imsg(P9.lux, '/ptest esteem'), IOTA)[0];
+  assert.deepEqual(dataOf(mock.get(IOTA, midOf(es))), ['fn:q:esteem:0', 'fn:q:esteem:1', 'fn:q:esteem:2', 'fn:q:esteem:3']);
+  await gpress(P9.lux, IOTA, 'fn:q:esteem:33330000', midOf(es));
+  assert.match(mock.get(IOTA, midOf(es)).text, /<b>Healthy self-esteem<\/b>/);
+  const sp = toChat(await imsg(P9.nia, '/spirit past'), IOTA)[0];
+  await gpress(P9.nia, IOTA, 'fn:q:past:01230', midOf(sp));
+  assert.match(mock.get(IOTA, midOf(sp)).text, /🌀 In a past life you lived in ancient Persia, at a royal court\. You were a poet and a teacher, known for your endless patience\. The lesson you carried into this life: to love without fear\./);
+  assert.match(mock.get(IOTA, midOf(sp)).text, /not a claim about energy, spirits or past lives/);
+  assert.equal(inIota(await imsg(P9.nia, '/spirit type'))[0], 'Use: /spirit, then choose with the buttons', 'a personality test is not a spiritual game');
+  /* compatibility: Kit answers, Jay joins and answers */
+  const mt = toChat(await imsg(P9.kit, '/match'), IOTA)[0];
+  const mm = midOf(mt);
+  await gpress(P9.kit, IOTA, 'fn:m:01201201', mm);
+  assert.match(mock.get(IOTA, mm).text, /^💞 <b>Compatibility<\/b>: ⁨Kit⁩ has answered\./);
+  assert.deepEqual(dataOf(mock.get(IOTA, mm)), ['fn:m:01201201:j']);
+  const self = await gpress(P9.kit, IOTA, 'fn:m:01201201:j', mm);
+  assert.ok(self.alert && self.toast === 'Someone else has to answer this time.');
+  await gpress(P9.jay, IOTA, 'fn:m:01201201:j', mm);
+  assert.match(mock.get(IOTA, mm).text, /^⁨Jay⁩\n💞 <b>Compatibility<\/b> · 1\/8\nA perfect evening:$/);
+  assert.deepEqual(dataOf(mock.get(IOTA, mm))[0], `fn:m:01201201:${P9.jay.id}:0`);
+  const steal = await gpress(P9.ivy, IOTA, `fn:m:01201201:${P9.jay.id}:0`, mm);
+  assert.ok(steal.alert, 'only the one who joined answers');
+  await gpress(P9.jay, IOTA, `fn:m:01201201:${P9.jay.id}:01201222`, mm);
+  const mr = mock.get(IOTA, mm).text;
+  assert.match(mr, /^💞 ⁨Kit⁩ and ⁨Jay⁩: <b>75% alike<\/b> — Soulmates\n\nYou differ on:\n• Plans or surprises\? plans \/ a mix\n• What matters most in life\? freedom \/ success\n/);
+  assert.deepEqual(dataOf(mock.get(IOTA, mm)), ['fn:m:01201201:j'], 'someone else can compare too');
+  /* how well do you know me */
+  const km = toChat(await imsg(P9.ivy, '/knowme'), IOTA)[0];
+  await gpress(P9.ivy, IOTA, 'fn:k:012301', midOf(km));
+  assert.match(mock.get(IOTA, midOf(km)).text, /^🎯 How well do you know ⁨Ivy⁩\?/);
+  await gpress(P9.nia, IOTA, 'fn:k:012301:j', midOf(km));
+  await gpress(P9.nia, IOTA, `fn:k:012301:${P9.nia.id}:012333`, midOf(km));
+  assert.match(mock.get(IOTA, midOf(km)).text, /^🎯 ⁨Nia⁩ knows ⁨Ivy⁩: <b>4 of 6<\/b> — Good friend/);
+  /* Persian, in private */
+  const sina = { id: 800000491, is_bot: false, first_name: 'سینا', language_code: 'fa' };
+  faUsers.add(sina.id);
+  await onboard(sina, 'fa');
+  const pt = lastSentTo(await dm(sina, 'تست شخصیت'), sina.id);
+  assert.match(pt.params.text, /^‏🧠 <b>تست‌های شخصیت<\/b>/);
+  const pr = await press(sina, 'fn:q:love', midOf(pt));
+  assert.match(edits(pr.calls)[0].params.text, /^‏💝 <b>زبان عشق<\/b> · ۱\/۱۰\n‏کدام برایت معنای بیشتری دارد؟$/);
+  const done = await press(sina, 'fn:q:love:0000000000', midOf(pt));
+  assert.match(edits(done.calls)[0].params.text, /<b>کلمات تأییدآمیز<\/b> و <b>وقت باکیفیت<\/b>/, 'a tie shows both');
 });
 
 await scenario('phase 9 — 🖼 media in private: image tools, a sticker in the member\'s own pack, sticker → photo, a QR code made and read back, a GIF from photos, video → GIF, the PDF check', async () => {

@@ -481,3 +481,41 @@ test('films, books and music: the data, a translation of every line and excerpt 
   }
   assert.ok(data.dialogues.every((d) => [...d.q].length <= 160), 'film lines stay short quotations');
 });
+
+test('questionnaires: every question, answer and result of the 19 tests in every language; scoring', () => {
+  const T = fun.tests;
+  assert.equal(T.CODES.length, 19);
+  assert.deepEqual(T.inGroup('self').length, 12);
+  assert.deepEqual(T.inGroup('spirit').length, 5);
+  for (const lang of LANGS) {
+    const x = (k) => t(lang, `ptest.${k}`).replace(/[‏‎]/g, '').trim();
+    for (const s of [3, 4]) assert.equal(x(`scale${s}`).split('|').length, s, `${lang} scale${s}`);
+    for (const code of T.CODES) {
+      const q = T.of(code);
+      assert.ok(x(`name_${code}`), `${lang} ${code} name`);
+      for (let i = 1; i <= q.n; i += 1) {
+        assert.ok(x(`${code}_q${i}`), `${lang} ${code} q${i}`);
+        if (q.opts) assert.equal(x(`${code}_o${i}`).split('|').length, q.opts, `${lang} ${code} o${i}`);
+      }
+      const results = { top: q.dims, choice: q.dims, band: 3, pts: 3, attach: 4, chakra: 7 }[q.kind];
+      for (let i = 0; i < (results || 0); i += 1) assert.equal(x(`${code}_r${i}`).split('|').length, 2, `${lang} ${code} r${i}`);
+    }
+    for (const k of ['ISTJ', 'ENFP', 'INTP', 'ESFJ']) assert.ok(x(`type_n_${k}`), `${lang} ${k}`);
+    for (const l of 'EISNTFJP') assert.ok(x(`type_l_${l}`));
+    for (let i = 1; i <= 5; i += 1) assert.equal(x(`past_f${i}`).split('|').length, 4, `${lang} past f${i}`);
+    assert.match(x('past_tpl'), /\{era\}[^]*\{place\}[^]*\{role\}[^]*\{trait\}[^]*\{lesson\}/);
+  }
+  assert.equal(T.result('type', '010101010101').type, 'ENTP');
+  assert.equal(T.result('type', '111111111111').type, 'INFP');
+  assert.equal(T.result('esteem', '33330000').band, 2, 'all good statements agreed, all bad ones refused');
+  assert.equal(T.result('esteem', '00003333').band, 0);
+  assert.equal(T.result('intro', '22220000').band, 0, 'introvert');
+  assert.equal(T.result('intro', '00002222').band, 2, 'extrovert');
+  assert.equal(T.result('attach', '00000000').band, 0, 'secure');
+  assert.equal(T.result('attach', '22222222').band, 3, 'fearful');
+  assert.deepEqual([T.result('chakra', '2101210').strong, T.result('chakra', '2101210').weak], [0, 2]);
+  assert.equal(T.result('animal', '000000').top, 0, 'the wolf');
+  assert.equal(T.result('eq', '0000'), null, 'unfinished');
+  assert.ok(!T.valid(T.of('eq'), '03'), 'no fourth option');
+  assert.equal(T.same('01230', '01111'), 2);
+});
