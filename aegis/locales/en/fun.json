@@ -287,5 +287,11 @@
   "n_anbia": "The prophets' fortune",
   "d_quran": "The first verse of a random page of the mushaf, with a translation and the traditional way to read it; read it yourself or ask a scholar.",
   "d_tasbih": "Istikhara the prayer-bead way: beads counted two by two — good or not.",
-  "d_anbia": "The old prophets' fortune: one of the prophets and a message from his story."
+  "d_anbia": "The old prophets' fortune: one of the prophets and a message from his story.",
+  "n_khayyam": "Khayyam reading",
+  "n_babataher": "Baba Taher reading",
+  "d_khayyam": "A quatrain of Omar Khayyam with its interpretation (/khayyam, or /khayyam 1–178 for a chosen one).",
+  "d_babataher": "A dobeyti (Persian couplet pair) of Baba Taher with its interpretation (/babataher, or /babataher 1–366 for a chosen one).",
+  "usage_khayyam": "Use: /khayyam, or /khayyam 1–178 for a chosen quatrain",
+  "usage_babataher": "Use: /babataher, or /babataher 1–366 for a chosen dobeyti"
 }

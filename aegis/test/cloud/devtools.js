@@ -108,6 +108,9 @@ export default async function (input) {
       sign: [fun.fal.signOf('j', 7, 1), fun.fal.signOf('g', 3, 21)], num: [fun.fal.numerology('علی').total, fun.fal.numerology('Kimia').number],
       faith: [fun.faith.verse(2).text, fun.faith.verse(604).surah, ((await fun.faith.translation(1, 1, 'en')) || '').slice(0, 13)],
       draw: [fun.draw.hexOf([1, 0, 1, 0, 1, 0]), fun.birth.chinese(2026, 5, 1).animal, fun.birth.lifePath(1990, 11, 8).number],
+      poems: ['khayyam', 'babataher'].map((b) => Array.from({ length: fun.poems.count(b) }, (_, i) => fun.poems.poem(b, i + 1))
+        .filter((p) => p.v.length === 2 && p.v.every((x) => x.length === 2 && x[0] && x[1]) && p.f.length >= 40).length)
+        .concat(fun.poems.poem('babataher', 249).v[1][1]),
     };
   }
   if (action === 'shabench') {

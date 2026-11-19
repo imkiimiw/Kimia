@@ -15,7 +15,7 @@ import { sql } from 'sdk/db';
 import { inflateRaw, unbase64 } from '../core/files.js';
 import { nowSec, parseJson, utf8Text } from '../core/util.js';
 import { HAFEZ, HAFEZ_COUNT, HAFEZ_PER, TAROT_IMG } from '../data/fal.js';
-import { QURAN, SURAH_AR, SURAH_EN, SURAH_FA } from '../data/fal2.js';
+import { BABATAHER, BABATAHER_COUNT, KHAYYAM, KHAYYAM_COUNT, POEMS_PER, QURAN, SURAH_AR, SURAH_EN, SURAH_FA } from '../data/fal2.js';
 
 /* cat: dice (Telegram's animated dice) · luck · fal (fortune telling) · hours (symbolic hours) · numbers · social · daily · games · duel · text */
 export const FEATURES = [
@@ -49,6 +49,8 @@ export const FEATURES = [
   { code: 'rps', cat: 'duel', emoji: '✊', cmds: ['rps'], def: '1,a,30,20,1', game: true },
   { code: 'ttt', cat: 'duel', emoji: '❌', cmds: ['ttt'], def: '1,a,60,10,2', game: true },
   { code: 'hafez', cat: 'fal', emoji: '📜', cmds: ['hafez'], def: '1,a,30,10,0', args: true },
+  { code: 'khayyam', cat: 'fal', emoji: '🍷', cmds: ['khayyam'], def: '1,a,30,10,0', args: true },
+  { code: 'babataher', cat: 'fal', emoji: '🏔', cmds: ['babataher'], def: '1,a,30,10,0', args: true },
   { code: 'tarot', cat: 'fal', emoji: '🃏', cmds: ['tarot'], def: '1,a,30,10,0', args: true },
   { code: 'horo', cat: 'fal', emoji: '✨', cmds: ['horoscope', 'horo'], def: '1,a,30,10,0', args: true },
   { code: 'abjad', cat: 'fal', emoji: '🧮', cmds: ['abjad', 'numerology'], def: '1,a,30,10,0', args: true },
@@ -956,4 +958,26 @@ export const faith = (() => {
   };
   const PROPHETS = 24;
   return { istikhara, verse, surahName, surahArabic, translation, EDITION, tasbih, PROPHETS };
+})();
+
+/* ---------- poetry readings: a quatrain of Khayyam or a dobeyti of Baba Taher, with its interpretation ---------- */
+
+export const poems = (() => {
+  const BOOKS = {
+    khayyam: { chunks: KHAYYAM, count: KHAYYAM_COUNT, url: (n) => `https://ganjoor.net/khayyam/robaee/sh${n}` },
+    babataher: { chunks: BABATAHER, count: BABATAHER_COUNT, url: (n) => `https://ganjoor.net/babataher/2beytiha/sh${n}` },
+  };
+  const cache = new Map();
+  /* poem n (1-based, clamped) of a book: { n, v: [[line, line], [line, line]], f: interpretation, url } */
+  function poem(book, n) {
+    const b = BOOKS[book];
+    const k = Math.max(1, Math.min(b.count, Math.floor(Number(n)) || 1));
+    const i = Math.floor((k - 1) / POEMS_PER);
+    const key = `${book}:${i}`;
+    if (!cache.has(key)) cache.set(key, JSON.parse(utf8Text(inflateRaw(unbase64(b.chunks[i])).data)));
+    const p = cache.get(key)[(k - 1) % POEMS_PER];
+    return { n: k, v: p.v, f: p.f, url: b.url(k) };
+  }
+  const count = (book) => BOOKS[book].count;
+  return { poem, count, BOOKS: Object.keys(BOOKS) };
 })();

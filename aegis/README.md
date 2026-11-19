@@ -8,7 +8,7 @@ Telegram; no VPS, no paid service). **Release 1.0.0** — all 10 phases are buil
   and its admins open the chat's panel with «پیکربندی» / `/config` (or from Aegis's private chat).
 - Each chat has its own settings: lists, punishments with undo, warnings, 42 locks, security (anti-link,
   anti-flood, anti-raid, captcha, …), advanced settings, topics, channel tools, statistics, points,
-  contests, polls, questions, appeals, 36 fun features (fortune telling and fonts included) and media tools — in five languages (fa, en, ru,
+  contests, polls, questions, appeals, 58 fun features (fortune telling, symbolic hours, number meanings and fonts included) and media tools — in five languages (fa, en, ru,
   zh, fr; Persian right-to-left), with commands also as Persian and English words.
 - The owner (`AEGIS_OWNER_ID`) has the Super Admin panel: statistics, forced join, broadcasts, the
   global switch, and 🛠 Management — every chat, the bot's team with access levels, the sealed audit
@@ -24,7 +24,7 @@ Telegram; no VPS, no paid service). **Release 1.0.0** — all 10 phases are buil
 | 6 | Advanced group settings (26 + extras: welcome/goodbye, forced join/add for members, scheduled cleanup, night lock, time zone, message length, member reports, event channel, linked-channel posts) and forum topics | ✅ deployed |
 | 7 | Channel panel: join requests and joins, members, invite links, impersonation and fakes, admin alerts, post protection (approval, versions, edit history), discussion group, direct messages, crisis/SOS, multi-channel dashboard, backups, extras | ✅ deployed |
 | 8 | Reports, stats & social: group statistics and CSV, points, levels and badges, contests, polls, questions to the admins, moderated anonymous Q&A, appeals, review of decisions; channel analytics and health score | ✅ deployed |
-| 9 | Fun & media: 30 fun features with per-feature settings and anti-abuse limits; media tools (sticker↔photo, sticker packs, GIF maker, image tools, QR, OCR, PDF check); QR and PDF security checks. **Added after the release:** fortune telling (Hafez with an interpretation of every ghazal, tarot, horoscope, name numbers, coffee cup) and a font tool — 36 fun features | ✅ deployed |
+| 9 | Fun & media: 30 fun features with per-feature settings and anti-abuse limits; media tools (sticker↔photo, sticker packs, GIF maker, image tools, QR, OCR, PDF check); QR and PDF security checks. **Added after the release:** fortune telling (Hafez with an interpretation of every ghazal, tarot, horoscope, name numbers, coffee cup) and a font tool; then symbolic hours, number meanings, birth, drawn, religious and poetry readings — 58 fun features | ✅ deployed |
 | 10 | Full Super Admin panel & release: global chat management, the bot's team with access levels, a sealed (append-only, hash-chained) audit log, system settings, version, health, errors, queues and timed work, global backup/restore, global stop; security, load and failure-injection tests | ✅ deployed |
 
 Design decisions taken without the master spec (it was never added to the repository) are listed in
@@ -65,7 +65,7 @@ pressed button is always answered once. See *Error handling* below.
 
 ## What Phase 9 does
 
-**🎮 Fun** — 36 features, each with its own switch, who may use it (everyone or admins), a cooldown
+**🎮 Fun** — 58 features in ten groups, each with its own switch, who may use it (everyone or admins), a cooldown
 and a daily limit per member, and points for a win (with Phase 8's points). The chat also has a
 limit per minute for all fun commands (beyond it they're ignored), can delete fun replies after a
 while, and can exempt its admins from the limits. Commands are slash commands or words (Persian and
@@ -99,6 +99,35 @@ the other languages) — words only as the whole message, or with valid argument
     master numbers) with its meaning. With no name: the member's own.
   - **☕ /coffee** — a symbolic coffee-cup reading: three of 30 symbols and their meanings (Aegis
     can't look at a photo of the cup, and says so). **🥠 /fortune** — the fortune cookie.
+  - **🍷 /khayyam** and **🏔 /babataher** — a quatrain of Khayyam (all 178) or a dobeyti of Baba
+    Taher (all 366), from Ganjoor (public domain), with an **interpretation written for every poem**
+    (in Persian), a link to Ganjoor and «another». `/khayyam 30` or `/babataher 249` opens a chosen one.
+  - **Birth readings**: **🗓 /birthmonth** (character, love, work, strengths and weaknesses, lucky
+    colour, stone, day and number of a sign — from a sign, a Persian or Gregorian month, a birth date
+    or the saved birthday, or 12 month buttons); **🐉 /chinese** (the animal and element of a birth
+    year — the year starts on 4 February, a Persian year is converted — and how this year treats it:
+    same sign, clash, best and good matches); **🧭 /lifepath** (the life path number of a birth date,
+    with the sums shown, 11/22/33 kept); **📆 /weekday** (the weekday of a birth date and its meaning).
+    Dates are Gregorian (`15.10.1991`, `1991/10/15`) or Persian (`1370/7/23`).
+  - **Drawn readings**: **♠️ /cards** (three playing cards for past, present and future, or one);
+    **🪨 /runes** (a rune of the Elder Futhark, upright or reversed — the eight symmetric runes never
+    reverse — or three); **☯️ /iching** (six three-coin throws make a hexagram of the King Wen order,
+    with its changing lines and the hexagram it turns into); **⚄ /dicefortune** (three dice and the
+    old meaning of their sum); **🌹 /lenormand** (three of the 36 Lenormand cards read together, or one).
+  - **Religious readings**: **📖 /istikhara** (the first verse of a random right-hand page of the
+    Medina mushaf, Tanzil's Uthmani text, with a translation fetched from the free api.alquran.cloud
+    in the chat's language — the verse alone if it can't be loaded — the traditional way of reading
+    it, and a link to the verse on Quran.com; Aegis never gives a verdict of its own); **📿 /tasbih**
+    (the prayer-bead way: a random number of beads counted two by two); **🌟 /prophets** (the old
+    folk «fal of the prophets»: one of 24 prophets and a message from his story).
+- **🕰 Symbolic hours** — **/clock** (/hour) reads the time now (in the chat's time zone) or any time
+  sent (`/clock 12:21`) and lists today's next symbolic times; **🪞 /mirror** (the 24 mirror hours
+  00:00 … 23:23, each with its meaning), **🔁 /reversed** (12:21, 21:12, 15:51 …), **🔱 /triple**
+  (03:33, 04:44 …), **👼 /angel** (111, 222, 777 …), **📈 /sequence** (1234, 2345, 12321 …) and
+  **🔂 /repeat** (1111, 2222, 8888 …) list a type, or read the one sent.
+- **🔢 Number meanings** — **/number** (/num) gives the meaning of every repeated number from 00 to
+  9999 (00, 111, 2222, 1212 …), and for any other number of up to six digits its kind, its digits and
+  their root with its meaning.
 - **🔠 /font** (/fonts, «فونت») — a sentence (up to 40 characters, or reply to a message) in one
   message with a button per page (◀ ▶ when a page is long; only the one who asked turns pages); every
   line is a copy-on-tap box:
@@ -121,8 +150,9 @@ the other languages) — words only as the whole message, or with valid argument
     14 more combinations; 7 more Persian styles (letters apart with harakat, kashida with shadda,
     diamonds, blossoms, sparkles, a wave) and 16 more Persian combinations with new frames.
   225 styles in all.
-Some features (dice, luck, quotes, truth or dare, rating, the solo games, fortune telling and fonts)
-also work in private.
+Some features (dice, luck, quotes, truth or dare, rating, the solo games, fortune telling, symbolic
+hours, number meanings and fonts) also work in private. /fal lists every reading; the fun list shows
+fortune telling, symbolic hours and number meanings as one line each.
 
 **🖼 Media tools** — everything is computed by Aegis itself (pure JavaScript codecs written for this
 project, no paid service): send a photo, sticker, video, GIF or PDF to Aegis in private and pick a
@@ -620,10 +650,14 @@ aegis/
                               queues), settings (+ warning steps),
                               lists, punish, betrayal (+ adminActions), logs (+ events), locks, members, guards,
                               feds, msglog, schedules, groupdata, channels, invites, posts, crisis, backup,
-                              social (stats, badges, contests, polls, questions, appeals), fun (the 36
+                              social (stats, badges, contests, polls, questions, appeals), fun (the 58
                               features, limits, games, birthdays, media jobs, sticker packs; fonts; fal:
-                              Hafez, tarot, zodiac, numerology, coffee)
+                              Hafez, tarot, zodiac, numerology, coffee; numbers: symbolic hours and number
+                              meanings; birth; draw: cards, runes, I Ching, dice, Lenormand; faith:
+                              istikhara, prayer beads, prophets; poems: Khayyam, Baba Taher)
       data/fal.js             generated: the 495 Hafez ghazals with interpretations (compressed), tarot pictures
+      data/fal2.js            generated: the Quran pages and surah names; Khayyam and Baba Taher with
+                              interpretations (compressed)
       ui/                     start, owner, owner_bc, group (in-group messages), moderation (group commands,
                               undo buttons, bans/joins), enforce (locks at work), security (security at
                               work, captcha, lockdowns, federation bans), advanced (advanced settings at
@@ -637,10 +671,11 @@ aegis/
                               and the team panel, the global switch)
       i18n/                   t(), digits, RTL; strings/ is generated from ../../locales
   locales/<lang>/*.json       fa, en, ru, zh, fr
-  data/                       hafez.json (Divan of Hafez from Ganjoor + an interpretation per ghazal), tarot.json
+  data/                       hafez.json (Divan of Hafez from Ganjoor + an interpretation per ghazal), tarot.json,
+                              quran.json (Tanzil), khayyam.json and babataher.json (Ganjoor + an interpretation per poem)
   webapp/                     Mini App pages (plain HTML/JS): 📡 live broadcast, join-request captcha, media
                               (OCR with Tesseract.js and QR reading with jsQR, from the jsDelivr CDN)
-  scripts/                    tg.mjs (CLI wrapper), build-locales.mjs, build-fal.mjs (data/ → lib/data/fal.js), gen-env.mjs
+  scripts/                    tg.mjs (CLI wrapper), build-locales.mjs, build-fal.mjs (data/ → lib/data/fal.js, fal2.js), gen-env.mjs
   test/                       static.mjs, unit/, e2e.mjs (sdk emulation + strict mock Bot API), security.mjs,
                               load.mjs (load, rate limits, 429, failure injection), harness.mjs (their
                               shared setup), cloud/smoke.mjs (the real platform)

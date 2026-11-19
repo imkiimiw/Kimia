@@ -8,7 +8,7 @@ or tier; only what Telegram Serverless and the Bot API allow.
 > while Phases 1–10 were built (searched the working tree, all branches on GitHub, and the
 > container). They were built from their descriptions in the build instructions (Phases 3–10 by the
 > owner's decision to go ahead without it — the 42 locks, the security modules, the 26 advanced
-> settings, the channel panel, the social features, the 30 fun features (36 with fortune telling and fonts) and the Super Admin panel's
+> settings, the channel panel, the social features, the 30 fun features (58 with fortune telling, symbolic hours, number meanings and fonts) and the Super Admin panel's
 > sections and team levels are Aegis's own design); details the spec would normally settle are listed
 > in [ASSUMPTIONS.md](ASSUMPTIONS.md). Everything here should be re-checked against the spec once it is
 > added.
@@ -177,6 +177,17 @@ or tier; only what Telegram Serverless and the Bot API allow.
 | Hafez interpretations **in other languages** | **Not built** | The 495 interpretations are in Persian; in other languages the poem and its interpretation are shown in Persian, with a label. | Translations of the 495 interpretations. |
 | An **astronomical** horoscope (real planet positions) | **Not built** | The daily readings are general texts picked per sign and day; no ephemeris is computed. | An ephemeris (free to compute; not built) and texts for each aspect. |
 
+### After the release — more readings, symbolic hours, number meanings
+
+| Feature | State | Why | What it would need |
+|---|---|---|---|
+| A **verdict** for the istikhara («do it» / «don't») | **Not built (by design)** | Istikhara is a matter of faith; Aegis shows the verse, its translation, the traditional way of reading it and a link to Quran.com, and says to ask a scholar for a sure reading. It never invents an answer. | — |
+| The istikhara **translation** | **Partial** | Fetched from the free api.alquran.cloud on each reading; when that service is down or slow the verse is shown alone, with a note. The Arabic text is in the bot, so the reading always works. | — (an outside free service). |
+| Interpretations of **Khayyam and Baba Taher in other languages** | **Not built** | The 544 interpretations are in Persian, like Hafez's; in other languages the poem and its interpretation are shown in Persian, with a label. | Translations of the 544 interpretations. |
+| The **Chinese zodiac by the lunar new year** | **Partial** | The year changes on 4 February (Lichun, the solar start of the year); the lunar new year falls between 21 January and 20 February, so someone born in that window may be given the year before or after the lunar count. | A table of lunar new-year dates. |
+| Prayer beads and the prophets' fortune **as real practice** | **Partial** | Both are random: the number of beads and the prophet are drawn by the bot, not by the member's hand, and each reading says so. | — |
+| Symbolic hours **sent when they come** (a 11:11 alert) | **Not possible** | There is no scheduler, so nothing can be sent at a given time; /clock shows the time now and the next symbolic times today. | A platform scheduler. |
+
 ## Phase 10 — Super Admin panel, the bot's team, release
 
 | Feature | State | Why | What it would need |
@@ -194,5 +205,5 @@ or tier; only what Telegram Serverless and the Bot API allow.
 | «Message the chat» with **media** | **Not built** | The team posts text only (it is shown under «Message from the Aegis team»); copying media would post a message without that header. | Spec decision. |
 | Telling team members who **never opened** Aegis | **Not possible** | A bot can't write first to a user. They are added anyway (the owner is shown that they weren't told) and /staff works for them, typed, once they open Aegis. Only members who had already opened Aegis get /staff in their command menu (in their language at that moment — it doesn't follow a later language change). | The member opens the bot. |
 | A suspended chat **fully frozen** | **Partial (by design)** | While suspended, Aegis ignores the chat's messages, commands, buttons, join requests and posts, and its panel is closed; timed items already due there (scheduled posts, ends of locks and raid mode) still run so nothing stays locked, and membership changes are still recorded. | — |
-| Load tests **on the real platform** | **Partial** | The load, 429 and failure-injection tests run against the local emulation (the same handlers, a strict mock Bot API and SQLite): flooding the real Telegram with fake traffic would hit Telegram's limits and other users. The real platform is checked by the cloud smoke test (96 checks, CPU-heavy codecs and SHA-256 in the isolate). | A staging bot and Telegram's test environment (free, but not set up for this project). |
+| Load tests **on the real platform** | **Partial** | The load, 429 and failure-injection tests run against the local emulation (the same handlers, a strict mock Bot API and SQLite): flooding the real Telegram with fake traffic would hit Telegram's limits and other users. The real platform is checked by the cloud smoke test (101 checks, CPU-heavy codecs and SHA-256 in the isolate). | A staging bot and Telegram's test environment (free, but not set up for this project). |
 

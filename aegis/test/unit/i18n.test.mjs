@@ -215,7 +215,7 @@ test('every locale key the code names exists (literal keys and the dynamic famil
   const HOURS = ['clock', 'mirror', 'reversed', 'triple', 'angel', 'sequence', 'repeat', 'number'];
   const TIME_TYPES = ['mirror', 'reversed', 'triple'];
   const p9 = {
-    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt', 'hafez', 'tarot', 'horo', 'abjad', 'font', ...HOURS, 'birthmonth', 'chinese', 'lifepath', 'weekday', 'cards', 'runes', 'iching', 'lenormand'], 'fun.who_': ['a', 'd'],
+    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt', 'hafez', 'khayyam', 'babataher', 'tarot', 'horo', 'abjad', 'font', ...HOURS, 'birthmonth', 'chinese', 'lifepath', 'weekday', 'cards', 'runes', 'iching', 'lenormand'], 'fun.who_': ['a', 'd'],
     'fun.act_': [...fun.ACTS, ...fun.ACTS.map((a) => `${a}_all`)], 'fun.bday_date_': ['g', 'j'], 'fun.bday_how_': ['g', 'j'],
     'fun.month_g_': [...Array(12).keys()].map((i) => i + 1), 'fun.month_j_': [...Array(12).keys()].map((i) => i + 1),
     'fun.': [...DICE.flatMap((d) => [`${d}_win`, `${d}_lose`]), 'math_win', 'scramble_win', 'typing_win', 'couple', 'couple_none', 'motd', 'motd_none', 'truth', 'dare'],

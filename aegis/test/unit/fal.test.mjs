@@ -401,3 +401,26 @@ test('religious readings: the first verse of a right-hand page, surah names, the
   for (const lang of LANGS) assert.equal(list(lang, 'anbia').length, 24, `${lang} anbia`);
 });
 
+
+test('poetry readings: all 178 quatrains of Khayyam and 366 dobeytis of Baba Taher decode exactly as in data/, each with its own interpretation', () => {
+  for (const [book, count, url] of [['khayyam', 178, 'https://ganjoor.net/khayyam/robaee/sh'], ['babataher', 366, 'https://ganjoor.net/babataher/2beytiha/sh']]) {
+    const src = JSON.parse(fs.readFileSync(path.join(ROOT, `data/${book}.json`), 'utf8')).poems;
+    assert.equal(fun.poems.count(book), count);
+    assert.equal(src.length, count);
+    const seen = new Set();
+    for (const p of src) {
+      const got = fun.poems.poem(book, p.n);
+      assert.equal(got.n, p.n);
+      assert.deepEqual(got.v, p.v, `${book} ${p.n} text`);
+      assert.equal(got.f, p.f, `${book} ${p.n} interpretation`);
+      assert.equal(got.url, `${url}${p.n}`);
+      assert.ok(got.v.length === 2 && got.v.every((b) => b.length === 2 && b[0] && b[1]), `${book} ${p.n}: four lines`);
+      assert.ok(got.f.length >= 40 && got.f.length < 400, `${book} ${p.n}: an interpretation`);
+      seen.add(got.f);
+    }
+    assert.equal(seen.size, count, `${book}: no interpretation is repeated`);
+    assert.equal(fun.poems.poem(book, 0).n, 1, 'clamped');
+    assert.equal(fun.poems.poem(book, 9999).n, count, 'clamped');
+  }
+  assert.deepEqual(fun.poems.BOOKS, ['khayyam', 'babataher']);
+});

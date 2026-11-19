@@ -61,5 +61,7 @@
   "lenormand": "lenormand|tirage lenormand",
   "quran": "istikhara|istikhara coran",
   "tasbih": "istikhara chapelet|chapelet",
-  "anbia": "présage des prophètes"
+  "anbia": "présage des prophètes",
+  "khayyam": "khayyam|tirage de khayyam",
+  "babataher": "baba taher|tirage de baba taher"
 }

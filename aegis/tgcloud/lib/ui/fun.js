@@ -192,6 +192,13 @@ function prepare(parsed, message, lang, s) {
       if (n !== null) return n >= 1 && n <= fun.fal.HAFEZ_COUNT ? { n } : { bad: true };
       return parsed.slash ? {} : { bad: true }; /* a slash command may carry an intention; a word, only a number */
     }
+    case 'khayyam':
+    case 'babataher': {
+      if (!a.length) return {};
+      const n = toInt(asciiDigits(text));
+      if (n !== null) return n >= 1 && n <= fun.poems.count(parsed.code) ? { n } : { bad: true };
+      return parsed.slash ? {} : { bad: true };
+    }
     case 'tarot': {
       if (!a.length) return { mode: 'one' };
       const n = toInt(asciiDigits(text));
@@ -374,6 +381,9 @@ async function run(ctx, x) {
       return say(ctx, chatId, s, t(lang, 'fun.quote', { text: esc(fun.pick(list(lang, 'quote'))) }), null, 'fun-quote', r);
     case 'hafez':
       return hafez(ctx, x);
+    case 'khayyam':
+    case 'babataher':
+      return poemReading(ctx, x);
     case 'tarot':
       return tarot(ctx, x);
     case 'horo':
@@ -471,6 +481,18 @@ async function hafez(ctx, x) {
     t(lang, 'fal.hafez_meaning'), `\u200F${esc(g.f)}`, '', t(lang, 'fal.hafez_note')].join('\n');
   const rows = [[btn(t(lang, 'fal.btn_hafez_again'), 'fn:f:hafez'), urlBtn(t(lang, 'fal.btn_ganjoor'), `https://ganjoor.net/hafez/ghazal/sh${g.n}`)]];
   return say(ctx, chatId, s, text, rows, 'fun-hafez', reply(message));
+}
+
+/* Khayyam / Baba Taher: one quatrain (or dobeyti) with its interpretation, like the Hafez reading. */
+async function poemReading(ctx, x) {
+  const { chatId, s, lang, pre, message, parsed } = x;
+  const code = parsed.code;
+  const p = fun.poems.poem(code, pre.n || fun.randInt(1, fun.poems.count(code)));
+  const verses = p.v.map(([a, b]) => `\u200F${esc(a)}\n\u200F${esc(b)}`).join('\n');
+  const text = [t(lang, `fal.${code}_title`, { user: nameOf(message.from), n: num(lang, p.n) }), `\u200F<blockquote>${verses}</blockquote>`,
+    t(lang, 'fal.hafez_meaning'), `\u200F${esc(p.f)}`, '', t(lang, `fal.${code}_note`)].join('\n');
+  const rows = [[btn(t(lang, `fal.btn_${code}_again`), `fn:f:${code}`), urlBtn(t(lang, 'fal.btn_ganjoor'), p.url)]];
+  return say(ctx, chatId, s, text, rows, `fun-${code}`, reply(message));
 }
 
 /* A card's name and meaning in the language: { name, meaning } (a reversed card has its own meaning). */

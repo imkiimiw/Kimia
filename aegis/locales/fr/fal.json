@@ -323,5 +323,11 @@
   "tb_note": "<i>Traditionnellement, après l’intention et une prière sur le Prophète, on compte une poignée de grains deux par deux ; ici le nombre de grains est aléatoire. L’istikhara relève de la foi.</i>",
   "an_title": "🌟 {user}, le présage des prophètes :",
   "an_note": "<i>Une vieille coutume populaire, pour réfléchir — pas une prophétie.</i>",
-  "btn_anbia": "🌟 Encore"
+  "btn_anbia": "🌟 Encore",
+  "khayyam_title": "🍷 {user}, votre tirage de Khayyam — quatrain {n} :",
+  "babataher_title": "🏔 {user}, votre tirage de Baba Taher — dobeyti {n} :",
+  "khayyam_note": "<i>Les Rubaïyat d’Omar Khayyam (domaine public, texte de Ganjoor). Faites un vœu, puis lisez.</i>",
+  "babataher_note": "<i>Les dobeytis de Baba Taher (domaine public, texte de Ganjoor). Faites un vœu, puis lisez.</i>",
+  "btn_khayyam_again": "🍷 Un autre quatrain",
+  "btn_babataher_again": "🏔 Un autre dobeyti"
 }

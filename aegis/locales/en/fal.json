@@ -323,5 +323,11 @@
   "tb_note": "<i>Traditionally, after the intention and a blessing on the Prophet, a handful of beads is counted two by two; here the number of beads is random. Istikhara is a matter of faith.</i>",
   "an_title": "🌟 {user}, the prophets' fortune:",
   "an_note": "<i>An old folk custom, for reflection — not a prophecy.</i>",
-  "btn_anbia": "🌟 Again"
+  "btn_anbia": "🌟 Again",
+  "khayyam_title": "🍷 {user}, your Khayyam reading — quatrain {n}:",
+  "babataher_title": "🏔 {user}, your Baba Taher reading — dobeyti {n}:",
+  "khayyam_note": "<i>The Rubaiyat of Omar Khayyam (public domain, text from Ganjoor). Make a wish, then read.</i>",
+  "babataher_note": "<i>The dobeytis of Baba Taher (public domain, text from Ganjoor). Make a wish, then read.</i>",
+  "btn_khayyam_again": "🍷 Another quatrain",
+  "btn_babataher_again": "🏔 Another dobeyti"
 }

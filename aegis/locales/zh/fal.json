@@ -323,5 +323,11 @@
   "tb_note": "<i>按传统，立意并赞圣之后，抓一把念珠两颗两颗地数；这里念珠的数目是随机的。求选属于信仰之事。</i>",
   "an_title": "🌟 {user}，众先知占：",
   "an_note": "<i>古老的民间习俗，供思考——并非预言。</i>",
-  "btn_anbia": "🌟 再来一次"
+  "btn_anbia": "🌟 再来一次",
+  "khayyam_title": "🍷 {user}，你的海亚姆占卜——第 {n} 首四行诗：",
+  "babataher_title": "🏔 {user}，你的巴巴·塔希尔占卜——第 {n} 首双行诗：",
+  "khayyam_note": "<i>欧玛尔·海亚姆《鲁拜集》（公有领域，文本来自 Ganjoor）。先许个愿，再读。</i>",
+  "babataher_note": "<i>巴巴·塔希尔的双行诗（公有领域，文本来自 Ganjoor）。先许个愿，再读。</i>",
+  "btn_khayyam_again": "🍷 再来一首",
+  "btn_babataher_again": "🏔 再来一首"
 }

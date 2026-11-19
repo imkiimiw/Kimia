@@ -287,5 +287,11 @@
   "n_anbia": "众先知占",
   "d_quran": "随机一页经卷的第一节经文，附译文和传统读法；请自己体会或请教学者。",
   "d_tasbih": "以念珠求选：两颗两颗地数——吉或不吉。",
-  "d_anbia": "古老的众先知占：一位先知及其故事中的启示。"
+  "d_anbia": "古老的众先知占：一位先知及其故事中的启示。",
+  "n_khayyam": "海亚姆占卜",
+  "n_babataher": "巴巴·塔希尔占卜",
+  "d_khayyam": "欧玛尔·海亚姆的一首四行诗及其释义（/khayyam，或 /khayyam 1–178 指定一首）。",
+  "d_babataher": "巴巴·塔希尔的一首双行诗及其释义（/babataher，或 /babataher 1–366 指定一首）。",
+  "usage_khayyam": "用法：/khayyam，或 /khayyam 1–178 指定一首",
+  "usage_babataher": "用法：/babataher，或 /babataher 1–366 指定一首"
 }

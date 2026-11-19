@@ -61,5 +61,7 @@
   "lenormand": "lenormand|lenormand reading",
   "quran": "istikhara|quran istikhara",
   "tasbih": "tasbih istikhara|prayer beads istikhara",
-  "anbia": "prophets' fortune|prophets fortune"
+  "anbia": "prophets' fortune|prophets fortune",
+  "khayyam": "khayyam|khayyam reading|fal khayyam",
+  "babataher": "baba taher|babataher|baba taher reading"
 }

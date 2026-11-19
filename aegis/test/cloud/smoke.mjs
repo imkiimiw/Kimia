@@ -143,6 +143,7 @@ try {
   check('Quran pages in the isolate, and a translation fetched from api.alquran.cloud by the platform', fal.faith[0] === 'الٓمٓ' && fal.faith[1] === 112
     && fal.faith[2] === 'In the name o', JSON.stringify(fal.faith));
   check('I Ching table, Chinese year and life path in the isolate', fal.draw.join() === '63,6,11', JSON.stringify(fal.draw));
+  check('poetry in the isolate: the 178 quatrains of Khayyam and 366 dobeytis of Baba Taher, each with its interpretation', fal.poems.join() === '178,366,اجل سنگست و آدم مثل شیشه', JSON.stringify(fal.poems));
 
   const cq = { id: 'smoke', from: user(A, 'fa'), chat_instance: 'x', data: 'lg:fa', message: { message_id: 1, chat: { id: A, type: 'private' }, date: 0, text: 'x' } };
   const r2 = tg(['handlers/callback_query', JSON5.stringify(cq)]);

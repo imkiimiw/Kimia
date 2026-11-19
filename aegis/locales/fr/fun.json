@@ -287,5 +287,11 @@
   "n_anbia": "Présage des prophètes",
   "d_quran": "Le premier verset d’une page au hasard du mushaf, avec une traduction et la façon traditionnelle de le lire ; lisez-le vous-même ou demandez à un savant.",
   "d_tasbih": "L’istikhara au chapelet : des grains comptés deux par deux — bon ou non.",
-  "d_anbia": "Le vieux présage des prophètes : l’un des prophètes et un message tiré de son histoire."
+  "d_anbia": "Le vieux présage des prophètes : l’un des prophètes et un message tiré de son histoire.",
+  "n_khayyam": "Tirage de Khayyam",
+  "n_babataher": "Tirage de Baba Taher",
+  "d_khayyam": "Un quatrain d’Omar Khayyam avec son interprétation (/khayyam, ou /khayyam 1–178 pour en choisir un).",
+  "d_babataher": "Un dobeyti (quatrain persan) de Baba Taher avec son interprétation (/babataher, ou /babataher 1–366 pour en choisir un).",
+  "usage_khayyam": "Exemple : /khayyam, ou /khayyam 1–178 pour un quatrain choisi",
+  "usage_babataher": "Exemple : /babataher, ou /babataher 1–366 pour un dobeyti choisi"
 }
