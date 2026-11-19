@@ -129,8 +129,8 @@ test('the PDF check: JavaScript with an automatic action, hidden names, compress
 });
 
 test('fun rules: settings, stable picks, sums, scrambles, the anti-paste marks, duels, birthdays, the Persian calendar', () => {
-  assert.equal(fun.FEATURES.length, 64);
-  assert.equal(new Set(fun.CODES).size, 64);
+  assert.equal(fun.FEATURES.length, 77);
+  assert.equal(new Set(fun.CODES).size, 77);
   assert.ok(fun.FEATURES.every((f) => fun.validConf(f.def)), 'every default is valid');
   assert.ok(!fun.validConf('1,a,7,20,0') && !fun.validConf('1,x,10,20,0') && !fun.validConf('1,a,10,20'));
   const c = fun.conf({ fx_dice: '0,d,60,5,2' }, 'dice');

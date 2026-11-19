@@ -3902,7 +3902,7 @@ mock.addFile('p9_m', fixture('base420.jpg'));
 mock.addFile('p9_s', fixture('base420.jpg'));
 const mediaEndpoint = (await import('../tgcloud/endpoints/media.js')).default;
 
-await scenario('phase 9 — 🎮 the Fun panel: 64 features in eleven groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
+await scenario('phase 9 — 🎮 the Fun panel: 77 features in eleven groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
   tick(600);
   iota = mock.addChat({ id: IOTA, type: 'supergroup', title: 'Iota', count: 15, botRights: { can_manage_chat: true, can_change_info: true, can_delete_messages: true,
     can_restrict_members: true, can_invite_users: true, can_pin_messages: true, can_promote_members: true } });
@@ -3921,7 +3921,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 64 features in eleven groups, ea
   assert.ok(dataOf(olgaScreen()).includes(I('fn')) && dataOf(olgaScreen()).includes(I('md')));
   await olga(I('fn'));
   assert.match(olgaScreen().plain, /🎮 Fun — \u2068Iota\u2069/);
-  assert.match(olgaScreen().plain, /On: 64 of 64/);
+  assert.match(olgaScreen().plain, /On: 77 of 77/);
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 11);
   await olga(I('fn:c:dice'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:f:/.test(d)).length, 6);
@@ -3934,7 +3934,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 64 features in eleven groups, ea
   await olga(I('fn:s:fun_rate'));
   assert.equal(iVal('fun_rate'), '20');
   await olga(I('fn'));
-  assert.match(olgaScreen().plain, /On: 63 of 64/);
+  assert.match(olgaScreen().plain, /On: 76 of 77/);
   const s = row("SELECT count(*) AS n FROM aegis_audit WHERE chat_id = ? AND action = 'settings.set' AND target LIKE 'fx_%'", IOTA).n;
   assert.equal(s, 5, 'every change is logged');
 });
@@ -4141,7 +4141,7 @@ await scenario('🔮 fortune telling and 🔠 fonts — /fal and its buttons, Ha
   assert.match(menu.params.text, /^🔮 <b>Fortune telling<\/b>/);
   for (const c of ['/hafez', '/tarot', '/horoscope', '/abjad', '/coffee', '/fortune']) assert.ok(menu.params.text.includes(c), c);
   const mm = midOf(menu);
-  assert.deepEqual(dataOf(mock.get(IOTA, mm)), ['fn:f:hafez', 'fn:f:khayyam', 'fn:f:babataher', 'fn:f:tarot:1', 'fn:f:tarot:3', 'fn:f:horo:p', 'fn:f:abjad', 'fn:f:coffee', 'fn:f:fortune', 'fn:f:birthmonth',
+  assert.deepEqual(dataOf(mock.get(IOTA, mm)), ['fn:f:hafez', 'fn:f:khayyam', 'fn:f:babataher', 'fn:f:tarot:1', 'fn:f:tarot:3', 'fn:f:horo:p', 'fn:f:abjad', 'fn:f:coffee', 'fn:f:fortune', 'fn:f:weekly:p', 'fn:f:universe', 'fn:f:lovefal', 'fn:f:jobfal', 'fn:f:birthmonth',
     'fn:f:chinese', 'fn:f:lifepath', 'fn:f:weekday', 'fn:f:cards', 'fn:f:runes', 'fn:f:iching', 'fn:f:tas', 'fn:f:lenormand',
     'fn:f:quran', 'fn:f:tasbih', 'fn:f:anbia']);
   /* Hafez: a chosen ghazal, the poem folded in an expandable quote, the interpretation, Ganjoor */
@@ -4330,7 +4330,7 @@ await scenario('🕰 symbolic hours and 🔢 number meanings — the time now, a
   /* /fun lists the category with its menu */
   tick(61);
   const funl = await at(P9.ivy, '/fun');
-  assert.ok(funl.includes('🕰 Symbolic hours — /clock (7)') && funl.includes('🔢 Number meanings — /number (1)') && funl.includes('🔮 Fortune telling — /fal (20)'), funl);
+  assert.ok(funl.includes('🕰 Symbolic hours — /clock (7)') && funl.includes('🔢 Number meanings — /number (1)') && funl.includes('🔮 Fortune telling — /fal (24)'), funl);
   /* Persian, in private */
   const bahar = { id: 800000498, is_bot: false, first_name: 'بهار', language_code: 'fa' };
   faUsers.add(bahar.id);
@@ -4612,6 +4612,79 @@ await scenario('🎬 films, books and music — famous film lines, public-domain
   const fb = await pm('تیکه کتاب ۱');
   assert.ok(!fb.includes('ترجمه:') && fb.includes('✍️ <b>سعدی</b> — گلستان · ۱۲۵۸'), 'a Persian work: no translation');
   assert.match(await pm('پیشنهاد آهنگ گوگوش'), /🎤 گوگوش\n‏🎭 پاپ · 🌍 فارسی/);
+});
+
+await scenario('🌌 more readings and tools — weekly horoscope, message of the universe, love and work readings, daily challenge, coin with two options, turn order, lottery, quick vote, the decision helper, who is more likely, two truths and a lie; Persian in private', async () => {
+  tick(600);
+  iSet('fun_rate', '0');
+  const w = toChat(await imsg(P9.kit, '/weekly libra'), IOTA)[0];
+  assert.match(w.params.text, /^♎ <b>Libra<\/b> — this week\n\n🗓 .+\n⭐ Your best day: <b>(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)<\/b>\n💡 .+\n🎨 Lucky colour: .+ · 🔢 number: \d\n\n<i>/);
+  assert.equal(inIota(await imsg(P9.lux, '/weekly libra'))[0], w.params.text, 'the same for everyone of the sign all week');
+  const pickW = toChat(await imsg(P9.nia, '/weekly'), IOTA)[0];
+  assert.deepEqual(dataOf(mock.get(IOTA, midOf(pickW))), [...Array(12).keys()].map((i) => `fn:f:weekly:${i}`));
+  const u1 = inIota(await imsg(P9.ivy, '/universe'))[0];
+  assert.match(u1, /^🌌 ⁨Ivy⁩, the universe’s message for you today:\n\n<i>.+<\/i>$/);
+  tick(61);
+  assert.equal(inIota(await imsg(P9.ivy, '/universe'))[0], u1, 'the same all day');
+  assert.match(inIota(await imsg(P9.jay, '/lovefal'))[0], /^💘 ⁨Jay⁩, your love reading:\n\n.+\n\n<i>For fun only\.<\/i>$/);
+  assert.match(inIota(await imsg(P9.jay, '/jobfal'))[0], /^💼 ⁨Jay⁩, your work reading:/);
+  assert.match(inIota(await imsg(P9.kit, '/challenge'))[0], /^🏅 ⁨Kit⁩, today’s challenge:\n\n<b>.+<\/b>/);
+  assert.match(inIota(await imsg(P9.lux, '/deepq'))[0], /^💬 A deep question:\n\n<b>.+\?<\/b>$/);
+  assert.match(inIota(await imsg(P9.lux, '/dateidea'))[0], /^💑 A date idea:\n\n<b>.+<\/b>$/);
+  /* luck and decisions */
+  iSet('fx_coin', '1,a,0,0,0');
+  assert.match(inIota(await imsg(P9.nia, '/coin tea | coffee'))[0], /^🪙 ⁨Nia⁩ flipped a coin: (heads → <b>⁨tea⁩|tails → <b>⁨coffee⁩)<\/b>$/);
+  assert.match(inIota(await imsg(P9.ivy, '/wheel pizza, sushi, kebab'))[0], /pizza|sushi|kebab/, '/wheel spins /choose');
+  const o = inIota(await imsg(P9.ivy, '/order Ali, Sara, Reza'))[0];
+  assert.match(o, /^🔀 The order:\n1\. ⁨(Ali|Sara|Reza)⁩\n2\. ⁨(Ali|Sara|Reza)⁩\n3\. ⁨(Ali|Sara|Reza)⁩$/);
+  assert.equal(new Set(o.match(/Ali|Sara|Reza/g)).size, 3);
+  const lot = inIota(await imsg(P9.jay, '/lottery 2 movie tickets'))[0];
+  assert.match(lot, /^🎉 Lottery — ⁨movie tickets⁩\nAmong \d+ active members:\n1\. ⁨.+⁩\n2\. ⁨.+⁩$/);
+  assert.equal(inIota(await imsg(P9.kit, '/lottery 11'))[0], 'Use: /lottery, or /lottery 3 and what it is for (up to 10 winners)');
+  const v = sent(await imsg(P9.lux, '/vote Pizza or burger? | Pizza | Burger'), 'sendPoll')[0];
+  assert.equal(v.params.question, 'Pizza or burger?');
+  assert.deepEqual(v.params.options.map((x) => x.text), ['Pizza', 'Burger']);
+  assert.equal(v.params.is_anonymous, true);
+  /* the decision helper: eight questions with buttons, then a suggestion and the case against it */
+  const dmsg = toChat(await imsg(P9.nia, '/decide stay | move'), IOTA)[0];
+  const dm1 = midOf(dmsg);
+  assert.match(dmsg.params.text, /^⚖️ Decision: ⁨stay⁩ or ⁨move⁩\?\n⁨Nia⁩, answer 8 quick questions\.\n\n<b>Question 1 of 8<\/b>\nWhich one fits your values better\?$/);
+  assert.deepEqual(dataOf(mock.get(IOTA, dm1)), ['fn:d:a', 'fn:d:b', 'fn:d:e']);
+  const nope = await gpress(P9.kit, IOTA, 'fn:d:a', dm1);
+  assert.ok(nope.alert && nope.toast === 'Only the one who asked can answer.');
+  let ans = '';
+  for (const c of 'abbbbbbe') {
+    ans += c;
+    await gpress(P9.nia, IOTA, `fn:d:${ans}`, dm1);
+  }
+  const res = mock.get(IOTA, dm1).text;
+  assert.match(res, /⚖️ <b>Suggestion: ⁨move⁩<\/b>\n⁨stay⁩: 3 · ⁨move⁩: 11 \(out of 16\)\n🔮 The regret question leaned to ⁨move⁩\.\n\n😈 <b>The case against it:<\/b> before you choose ⁨move⁩, ask yourself what would make ⁨stay⁩ the right choice/);
+  assert.deepEqual(dataOf(mock.get(IOTA, dm1)), [], 'no buttons at the end');
+  /* who is more likely: the two of you, by reply */
+  const lk = sent(await imsg(P9.ivy, '/likely', iReply(P9.jay)), 'sendPoll')[0];
+  assert.match(lk.params.question, /^Who is more likely to .+\?$/);
+  assert.deepEqual(lk.params.options.map((x) => x.text), ['Ivy', 'Jay']);
+  assert.equal(lk.params.is_anonymous, false);
+  /* two truths and a lie: the command is deleted, the quiz has no star */
+  const id = msgId;
+  const lie = await imsg(P9.kit, '/lie I can swim | *I have been to Mars | I like tea');
+  assert.ok(ids(lie).includes(id), 'the message with the star is deleted');
+  const quiz = sent(lie, 'sendPoll')[0];
+  assert.equal(quiz.params.type, 'quiz');
+  assert.deepEqual(quiz.params.options.map((x) => x.text), ['I can swim', 'I have been to Mars', 'I like tea']);
+  assert.equal(quiz.params.correct_option_id, 1);
+  assert.match(quiz.params.question, /^🤥 Kit: two truths and a lie/);
+  assert.equal(inIota(await imsg(P9.lux, '/lie a | b | c'))[0], 'Use: /lie statement | statement | *the lie (3 or 4 statements, exactly one with *)');
+  /* Persian, in private */
+  const nava = { id: 800000492, is_bot: false, first_name: 'نوا', language_code: 'fa' };
+  faUsers.add(nava.id);
+  await onboard(nava, 'fa');
+  const pm = async (text) => lastSentTo(await dm(nava, text), nava.id).params.text;
+  assert.match(await pm('فال هفتگی میزان'), /^‏♎ <b>میزان<\/b> — این هفته\n\n‏🗓 /);
+  assert.match(await pm('پیام کائنات'), /^‏🌌 ⁨نوا⁩، پیام امروز کائنات برای تو:/);
+  assert.match(await pm('تعیین نوبت علی، سارا'), /^‏🔀 ترتیب:\n‏۱\. ⁨(علی|سارا)⁩\n‏۲\. /);
+  assert.match(await pm('کمک به تصمیم بمانم یا بروم'), /^‏⚖️ تصمیم: ⁨بمانم⁩ یا ⁨بروم⁩؟\n‏⁨نوا⁩، به ۸ سؤال سریع جواب بده\.\n\n‏<b>سؤال ۱ از ۸<\/b>/);
+  assert.match(await pm('سؤال عمیق'), /^‏💬 یک سؤال عمیق:/);
 });
 
 await scenario('phase 9 — 🖼 media in private: image tools, a sticker in the member\'s own pack, sticker → photo, a QR code made and read back, a GIF from photos, video → GIF, the PDF check', async () => {

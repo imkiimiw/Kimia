@@ -7,7 +7,7 @@
   "slot": "machine à sous",
   "coin": "pile ou face",
   "rand": "nombre au hasard",
-  "choose": "choisis",
+  "choose": "choisis|roue de la fortune",
   "ball8": "boule magique",
   "fortune": "biscuit chinois|prédiction",
   "love": "lovomètre",
@@ -71,5 +71,18 @@
   "bookquote": "extrait de livre|citation de livre",
   "movie": "conseille un film",
   "music": "conseille une musique|conseille une chanson",
-  "book": "conseille un livre"
+  "book": "conseille un livre",
+  "universe": "message de l'univers",
+  "weekly": "horoscope de la semaine",
+  "lovefal": "tirage de l'amour",
+  "jobfal": "tirage du travail",
+  "challenge": "défi du jour",
+  "deepq": "question profonde",
+  "dateidea": "idée de rendez-vous",
+  "shuffle": "ordre de passage",
+  "lottery": "tirage au sort",
+  "vote": "vote rapide",
+  "decide": "aide-moi à décider",
+  "likely": "qui est le plus susceptible",
+  "lie": "deux vérités et un mensonge"
 }

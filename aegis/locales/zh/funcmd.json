@@ -7,7 +7,7 @@
   "slot": "老虎机",
   "coin": "抛硬币",
   "rand": "随机数",
-  "choose": "帮我选",
+  "choose": "帮我选|幸运转盘",
   "ball8": "魔法球",
   "fortune": "签语|幸运饼干",
   "love": "爱情指数",
@@ -71,5 +71,18 @@
   "bookquote": "书摘",
   "movie": "推荐电影",
   "music": "推荐音乐|推荐歌曲",
-  "book": "推荐书|推荐图书"
+  "book": "推荐书|推荐图书",
+  "universe": "宇宙讯息",
+  "weekly": "每周运势|本周运势",
+  "lovefal": "爱情占卜",
+  "jobfal": "事业占卜",
+  "challenge": "每日挑战",
+  "deepq": "深度问题",
+  "dateidea": "约会点子",
+  "shuffle": "决定顺序|排顺序",
+  "lottery": "抽签|抽奖",
+  "vote": "快速投票",
+  "decide": "帮我决定",
+  "likely": "谁更可能",
+  "lie": "两真一假"
 }

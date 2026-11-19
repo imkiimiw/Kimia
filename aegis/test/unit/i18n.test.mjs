@@ -215,11 +215,12 @@ test('every locale key the code names exists (literal keys and the dynamic famil
   const HOURS = ['clock', 'mirror', 'reversed', 'triple', 'angel', 'sequence', 'repeat', 'number'];
   const TIME_TYPES = ['mirror', 'reversed', 'triple'];
   const p9 = {
-    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt', 'hafez', 'khayyam', 'babataher', 'tarot', 'horo', 'abjad', 'font', 'echo', 'dialogue', 'bookquote', 'movie', 'music', 'book', ...HOURS, 'birthmonth', 'chinese', 'lifepath', 'weekday', 'cards', 'runes', 'iching', 'lenormand'], 'fun.who_': ['a', 'd'],
+    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt', 'hafez', 'khayyam', 'babataher', 'tarot', 'horo', 'abjad', 'font', 'echo', 'dialogue', 'bookquote', 'movie', 'music', 'book', 'weekly', 'shuffle', 'lottery', 'vote', 'decide', 'lie', ...HOURS, 'birthmonth', 'chinese', 'lifepath', 'weekday', 'cards', 'runes', 'iching', 'lenormand'], 'fun.who_': ['a', 'd'],
     'fun.act_': [...fun.ACTS, ...fun.ACTS.map((a) => `${a}_all`)], 'fun.bday_date_': ['g', 'j'], 'fun.bday_how_': ['g', 'j'],
     'fun.month_g_': [...Array(12).keys()].map((i) => i + 1), 'fun.month_j_': [...Array(12).keys()].map((i) => i + 1),
     'fun.': [...DICE.flatMap((d) => [`${d}_win`, `${d}_lose`]), 'math_win', 'scramble_win', 'typing_win', 'couple', 'couple_none', 'motd', 'motd_none', 'truth', 'dare'],
-    'funlist.': ['ball8', 'fortune', 'truth', 'dare', 'wyr', 'quote', 'scramble', 'typing', 'trivia'],
+    'funlist.': ['ball8', 'fortune', 'truth', 'dare', 'wyr', 'quote', 'scramble', 'typing', 'trivia', 'universe', 'weekly', 'lovefal', 'jobfal', 'challenge', 'deepq', 'dateidea', 'likely'],
+    'fun.dq_': [1, 2, 3, 4, 5, 6, 7, 8],
     /* films, books and music */
     'cultlist.': ['dlg', 'exc'], 'fun.cg_': [...new Set(['m', 'u', 'b'].flatMap((k) => fun.culture.genres(k)))], 'fun.cl_': [...new Set(['m', 'u', 'b'].flatMap((k) => fun.culture.langs(k)))],
     'funcmd.': [...fun.CODES.filter((c) => c !== 'act' && c !== 'bday'), ...fun.ACTS, 'birthday', 'birthdays', 'fun', 'fal', 'special', 'unspecial'],

@@ -16,6 +16,7 @@
  * callback_data: fn:<game>:c:<i> quick click · fn:<game>:a accept · fn:<game>:x cancel (the challenger)
  *   · fn:<game>:r|p|s rock-paper-scissors · fn:<game>:t:<cell> tic-tac-toe
  *   · fn:f:<code>[:<arg>] run a fortune command (tarot 1|3, horo <sign 0–11>) · fn:f:horo:p the sign buttons
+ *   · fn:d:<a|b|e…> the decision helper's answers so far (only the one who asked)
  *   · fn:r:<m|u|b>[:g|l|a:<page>|p:<r|g<i>|l<i>|a<i>>] film, music and book recommendations (menu, lists, a pick), for the one who asked
  *   · fn:t:<page>[:<part>] a page of /font (combo, mix, tg, uni, look, mark, fa, frame, extra), for the one who asked
  * Panel: g:c:fn  ·  g:c:fn:s:<key>  ·  g:c:fn:c:<cat>  ·  g:c:fn:m:<cat> (who may use the group: a → s → d)  ·  g:c:fn:f:<code>[:o|w|c|d|r]
@@ -49,7 +50,7 @@ const inline = (lang, key, vars) => t(lang, key, vars).replace(RLM, '');
 const flist = (lang, key) => t(lang, `fallist.${key}`).split('\n').map((x) => x.replace(RLM, '').trim()).filter(Boolean);
 const norm = (s) => normalizeWord(String(s || '').replace(RLM, '').replace(new RegExp(fun.PASTE_MARK, 'g'), ''));
 /* features that need a group (members, replies, the group's own lists); the rest also work in private */
-const GROUP_ONLY = new Set(['love', 'wyr', 'act', 'couple', 'motd', 'bday', 'daily', 'click', 'ttt']);
+const GROUP_ONLY = new Set(['love', 'wyr', 'act', 'couple', 'motd', 'bday', 'daily', 'click', 'ttt', 'lottery', 'vote', 'likely', 'lie']);
 const PRIVATE_OK = new Set(fun.CODES.filter((c) => !GROUP_ONLY.has(c)));
 const KEY_CODE = { hug: 'act', pat: 'act', highfive: 'act', wave: 'act', cheer: 'act', birthday: 'bday', birthdays: 'bday', fun: 'fun', fal: 'fal' };
 const MENUS = new Set(['fun', 'fal']);
@@ -209,7 +210,7 @@ export async function command(ctx, message, privUser = null, press = null) {
 /* True when the command will only ask for input: no sign or saved birthday, no birth date or year. */
 async function promptOnly(parsed, pre, priv, chatId, userId) {
   if (['chinese', 'lifepath', 'weekday'].includes(parsed.code)) return !pre.date && !pre.year;
-  if (['horo', 'birthmonth'].includes(parsed.code) && pre.sign === null) return priv || !(await fun.birthdayOf(chatId, userId));
+  if (['horo', 'birthmonth', 'weekly'].includes(parsed.code) && pre.sign === null) return priv || !(await fun.birthdayOf(chatId, userId));
   return false;
 }
 
@@ -328,6 +329,44 @@ function prepare(parsed, message, lang, s) {
       const [lo, hi] = nums.length === 1 ? [1, nums[0]] : [nums[0], nums[1]];
       return lo < hi ? { lo, hi } : { bad: true };
     }
+    case 'coin': {
+      const opts = text.split(/\s*(?:\||,|،|\s+or\s+|\s+یا\s+|\s+или\s+|\s+ou\s+|还是)\s*/i).map((x) => x.trim()).filter(Boolean);
+      return opts.length === 2 && text.length <= 200 ? { opts } : {};
+    }
+    case 'shuffle': {
+      const opts = text.split(/\s*(?:\||,|،|、|\n)\s*/).map((x) => x.trim()).filter(Boolean);
+      return opts.length >= 2 && opts.length <= 20 && text.length <= 600 ? { opts } : { bad: true };
+    }
+    case 'lottery': {
+      const m = /^(\d{1,2})(?:\s+|$)/.exec(asciiDigits(text));
+      const n = m ? Number(m[1]) : 1;
+      const what = (m ? text.slice(m[0].length) : text).trim();
+      return n >= 1 && n <= 10 && what.length <= 80 ? { n, what } : { bad: true };
+    }
+    case 'vote': {
+      const raw = restOf(message.text, parsed.words || 1).text;
+      const parts = raw.split(/\s*(?:\||\n)\s*/).map((x) => x.trim()).filter(Boolean);
+      const [q, ...opts] = parts;
+      return q && q.length <= 255 && opts.length >= 2 && opts.length <= 10 && opts.every((o) => o.length <= 100) ? { q, opts } : { bad: true };
+    }
+    case 'decide': {
+      const opts = text.split(/\s*(?:\||,|،|\s+or\s+|\s+یا\s+|\s+или\s+|\s+ou\s+|还是)\s*/i).map((x) => x.trim()).filter(Boolean);
+      return opts.length === 2 && opts.every((o) => [...o].length <= 40) && opts[0] !== opts[1] ? { opts } : { bad: true };
+    }
+    case 'lie': {
+      const raw = restOf(message.text, parsed.words || 1).text;
+      const parts = raw.split(/\s*(?:\||\n)\s*/).map((x) => x.trim()).filter(Boolean);
+      const starred = parts.map((x, i) => (/^[*٭✱]/.test(x) ? i : -1)).filter((i) => i >= 0);
+      const opts = parts.map((x) => x.replace(/^[*٭✱]\s*/, ''));
+      return parts.length >= 3 && parts.length <= 4 && starred.length === 1 && opts.every((o) => o && o.length <= 100) ? { opts, correct: starred[0] } : { bad: true };
+    }
+    case 'likely':
+      return human ? { target: human } : {};
+    case 'weekly': {
+      if (!a.length) return { sign: null };
+      const sign = signFrom(text, lang, s);
+      return sign === null ? { bad: true } : { sign };
+    }
     case 'choose': {
       const opts = text.split(/\s*(?:\||,|،|\s+or\s+|\s+یا\s+|\s+или\s+|\s+ou\s+|还是)\s*/i).map((x) => x.trim()).filter(Boolean);
       return opts.length >= 2 && opts.length <= 20 && text.length <= 300 ? { opts } : { bad: true };
@@ -422,8 +461,47 @@ async function run(ctx, x) {
     return;
   }
   switch (code) {
-    case 'coin':
-      return say(ctx, chatId, s, t(lang, 'fun.coin', { user: me, side: t(lang, Math.random() < 0.5 ? 'fun.coin_heads' : 'fun.coin_tails') }), null, 'fun-coin', r);
+    case 'coin': {
+      const heads = Math.random() < 0.5;
+      const side = t(lang, heads ? 'fun.coin_heads' : 'fun.coin_tails');
+      if (pre.opts) return say(ctx, chatId, s, t(lang, 'fun.coin_pick', { user: me, side: inline(lang, heads ? 'fun.coin_heads' : 'fun.coin_tails'), choice: iso(pre.opts[heads ? 0 : 1], 100) }), null, 'fun-coin', r);
+      return say(ctx, chatId, s, t(lang, 'fun.coin', { user: me, side }), null, 'fun-coin', r);
+    }
+    case 'universe':
+    case 'challenge':
+      /* the same all day for each member */
+      return say(ctx, chatId, s, t(lang, `fun.${code}`, { user: me, text: esc(list(lang, code)[fun.hash(`${code}:${from.id}:${day}`) % list(lang, code).length]) }), null, `fun-${code}`, r);
+    case 'lovefal':
+    case 'jobfal':
+      return say(ctx, chatId, s, t(lang, `fun.${code}`, { user: me, text: esc(fun.pick(list(lang, code))) }), [[btn(inline(lang, `fun.n_${code}`), `fn:f:${code}`)]], `fun-${code}`, r);
+    case 'deepq':
+    case 'dateidea':
+      return say(ctx, chatId, s, t(lang, `fun.${code}`, { text: esc(fun.pick(list(lang, code))) }), null, `fun-${code}`, r);
+    case 'weekly':
+      return weeklyReading(ctx, x);
+    case 'shuffle': {
+      const order = [...pre.opts].sort(() => Math.random() - 0.5).map((o, i) => rtl(lang, `${num(lang, i + 1)}. ${iso(o, 60)}`));
+      return say(ctx, chatId, s, t(lang, 'fun.shuffle', { list: order.join('\n') }), null, 'fun-shuffle', r);
+    }
+    case 'lottery':
+      return lottery(ctx, x);
+    case 'vote': {
+      const m = await tryCall(ctx, 'sendPoll', { chat_id: chatId, question: pre.q, options: pre.opts.map((o) => ({ text: o })), is_anonymous: true, ...r }, 'fun-vote');
+      if (m && s && Number(s.fun_clean)) await msglog.add(chatId, m.message_id, 0, 'aegis', nowSec() + Number(s.fun_clean));
+      return m;
+    }
+    case 'decide': {
+      const sc = decideScreen(lang, pre.opts[0], pre.opts[1], me, '');
+      return say(ctx, chatId, s, sc.text, sc.rows, 'fun-decide', r);
+    }
+    case 'likely':
+      return likely(ctx, x);
+    case 'lie': {
+      if (await tryCall(ctx, 'deleteMessage', { chat_id: chatId, message_id: message.message_id }, 'fun-lie-delete')) ctx.deletedCommand = message.message_id;
+      const extra = message.is_topic_message && message.message_thread_id ? { message_thread_id: message.message_thread_id } : {};
+      return tryCall(ctx, 'sendPoll', { chat_id: chatId, question: inline(lang, 'fun.lie_q', { user: [...fullName(from)].slice(0, 40).join('') }).replace(/[\u2068\u2069]/g, ''),
+        options: pre.opts.map((o) => ({ text: o })), type: 'quiz', correct_option_id: pre.correct, explanation: inline(lang, 'fun.lie_explain'), is_anonymous: false, ...extra }, 'fun-lie');
+    }
     case 'rand':
       return say(ctx, chatId, s, t(lang, 'fun.rand', { lo: num(lang, pre.lo), hi: num(lang, pre.hi), n: num(lang, fun.randInt(pre.lo, pre.hi)) }), null, 'fun-rand', r);
     case 'choose':
@@ -533,7 +611,7 @@ function falMenu(lang, s, priv) {
   const label = (f) => `${f.emoji} ${t(lang, `fun.n_${f.code}`)}`.replace(RLM, '');
   const rows = pairs(feats.flatMap((f) => {
     if (f.code === 'tarot') return [btn(t(lang, 'fal.btn_tarot1'), 'fn:f:tarot:1'), btn(t(lang, 'fal.btn_tarot3'), 'fn:f:tarot:3')];
-    return [btn(label(f), `fn:f:${f.code}${f.code === 'horo' ? ':p' : ''}`)];
+    return [btn(label(f), `fn:f:${f.code}${f.code === 'horo' || f.code === 'weekly' ? ':p' : ''}`)];
   }));
   return { text: lines.join('\n'), rows };
 }
@@ -595,9 +673,9 @@ async function tarot(ctx, x) {
 }
 
 const signName = (lang, i) => String(flist(lang, 'signs')[i] || '').split('|')[0].trim();
-const signRows = (lang) => [0, 1, 2, 3].map((r) => [0, 1, 2].map((c) => {
+const signRows = (lang, code = 'horo') => [0, 1, 2, 3].map((r) => [0, 1, 2].map((c) => {
   const i = r * 3 + c;
-  return btn(`${fun.fal.SIGNS[i]} ${signName(lang, i)}`, `fn:f:horo:${i}`);
+  return btn(`${fun.fal.SIGNS[i]} ${signName(lang, i)}`, `fn:f:${code}:${i}`);
 }));
 const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
 
@@ -1081,6 +1159,107 @@ async function excerptReading(ctx, x) {
   return say(ctx, chatId, s, lines.join('\n'), rows, 'fun-bookquote', reply(message));
 }
 
+/* ---------- weekly horoscope, lottery, who is more likely, the decision helper ---------- */
+
+/* This week's reading for a sign: the same for everyone of the sign all week (weeks start on Saturday in Persian, Monday otherwise). */
+async function weeklyReading(ctx, x) {
+  const { chatId, s, lang, pre, message, priv, day } = x;
+  const r = reply(message);
+  let sign = pre.sign;
+  if (sign === null && !priv) {
+    const b = await fun.birthdayOf(chatId, message.from.id);
+    if (b) sign = fun.fal.signOf(b.cal, Number(b.month), Number(b.day));
+  }
+  if (sign === null) return say(ctx, chatId, s, t(lang, 'fun.weekly_pick'), signRows(lang, 'weekly'), 'fun-weekly-pick', r);
+  const week = Math.floor((day + (lang === 'fa' ? 5 : 3)) / 7);
+  const h = fun.hash(`weekly:${sign}:${week}`);
+  const pick = (key, k, src = flist) => { const l = src(lang, key); return l[(h >>> k) % l.length]; };
+  const text = [t(lang, 'fun.weekly_title', { symbol: fun.fal.SIGNS[sign], sign: esc(signName(lang, sign)) }), '',
+    t(lang, 'fun.weekly_theme', { text: esc(pick('weekly', 0, list)) }),
+    t(lang, 'fun.weekly_day', { day: esc(String(pick('weekdays', 4)).split('|')[0].trim()) }),
+    t(lang, 'fun.weekly_advice', { text: esc(pick('horo_advice', 8)) }),
+    t(lang, 'fun.weekly_lucky', { color: esc(pick('colors', 12)), n: num(lang, 1 + ((h >>> 16) % 9)) }), '', t(lang, 'fun.weekly_note')].join('\n');
+  return say(ctx, chatId, s, text, [[btn(t(lang, 'fal.btn_signs'), 'fn:f:weekly:p')]], 'fun-weekly', r);
+}
+
+/* One or more members who wrote in the last 7 days, drawn at random. */
+async function lottery(ctx, x) {
+  const { chatId, s, lang, pre, message } = x;
+  const ids = (await fun.activeMembers(chatId, nowSec() - 7 * 86400)).map((row) => Number(row.user_id));
+  if (ids.length < Math.max(2, pre.n)) return say(ctx, chatId, s, t(lang, 'fun.lottery_none', { n: num(lang, ids.length) }), null, 'fun-lottery', reply(message));
+  const won = [...ids].sort(() => Math.random() - 0.5).slice(0, pre.n);
+  const lines = [];
+  for (const [i, id] of won.entries()) lines.push(rtl(lang, `${pre.n > 1 ? `${num(lang, i + 1)}. ` : '🏆 '}${iso(await users.displayName(id), 32)}`));
+  const what = pre.what ? inline(lang, 'fun.lottery_what', { what: iso(pre.what, 80) }) : '';
+  return say(ctx, chatId, s, t(lang, 'fun.lottery', { what, n: num(lang, ids.length), list: lines.join('\n') }), null, 'fun-lottery', reply(message));
+}
+
+/* A poll: who is more likely to …? The two of you (a reply), or up to four members who were active here. */
+async function likely(ctx, x) {
+  const { chatId, s, lang, pre, message } = x;
+  const from = message.from;
+  const plain = (u) => [...fullName(u)].slice(0, 40).join('') || String(u.id);
+  let names;
+  if (pre.target) names = [plain(from), plain(pre.target)];
+  else {
+    const ids = (await fun.activeMembers(chatId, nowSec() - 7 * 86400)).map((row) => Number(row.user_id)).filter((id) => id !== from.id);
+    const others = [...ids].sort(() => Math.random() - 0.5).slice(0, 3);
+    names = [plain(from)];
+    for (const id of others) names.push([...String(await users.displayName(id))].slice(0, 40).join(''));
+  }
+  if (names.length < 2) return say(ctx, chatId, s, t(lang, 'fun.likely_none'), null, 'fun-likely', reply(message));
+  const what = fun.pick(list(lang, 'likely'));
+  const m = await tryCall(ctx, 'sendPoll', { chat_id: chatId, question: inline(lang, 'fun.likely_q', { what }).slice(0, 300), options: names.map((n) => ({ text: n.slice(0, 100) })),
+    is_anonymous: false, ...reply(message) }, 'fun-likely');
+  if (m && s && Number(s.fun_clean)) await msglog.add(chatId, m.message_id, 0, 'aegis', nowSec() + Number(s.fun_clean));
+  return m;
+}
+
+/* The decision helper: eight questions answered with buttons; the answers so far travel in callback_data (fn:d:<a|b|e…>). */
+const DECIDE_WEIGHTS = [3, 3, 1, 1, 2, 2, 2, 2];
+function decideScreen(lang, a, b, user, answers) {
+  const head = t(lang, 'fun.decide_intro', { a: iso(a, 40), b: iso(b, 40), user });
+  const label = (o) => [...o].slice(0, 30).join('');
+  if (answers.length < DECIDE_WEIGHTS.length) {
+    const i = answers.length;
+    return { text: `${head}\n\n${t(lang, 'fun.decide_q', { i: num(lang, i + 1), q: esc(inline(lang, `fun.dq_${i + 1}`)) })}`,
+      rows: [[btn(label(a), `fn:d:${answers}a`), btn(label(b), `fn:d:${answers}b`)], [btn(inline(lang, 'fun.decide_eq'), `fn:d:${answers}e`)]] };
+  }
+  let sa = 0;
+  let sb = 0;
+  [...answers].forEach((c, i) => { if (c === 'a') sa += DECIDE_WEIGHTS[i]; if (c === 'b') sb += DECIDE_WEIGHTS[i]; });
+  const max = DECIDE_WEIGHTS.reduce((x, y) => x + y, 0);
+  const lines = [head, ''];
+  if (sa === sb) {
+    lines.push(t(lang, 'fun.decide_tie'), t(lang, 'fun.coin', { user, side: t(lang, Math.random() < 0.5 ? 'fun.coin_heads' : 'fun.coin_tails') }));
+  } else {
+    const [win, lose] = sa > sb ? [a, b] : [b, a];
+    lines.push(t(lang, 'fun.decide_result', { win: iso(win, 40), a: iso(a, 40), b: iso(b, 40), sa: num(lang, sa), sb: num(lang, sb), max: num(lang, max) }));
+    if (answers[1] !== 'e') lines.push(t(lang, 'fun.decide_regret', { r: iso(answers[1] === 'a' ? a : b, 40) }));
+    lines.push('', t(lang, 'fun.decide_devil', { win: iso(win, 40), lose: iso(lose, 40) }), t(lang, 'fun.decide_step', { win: iso(win, 40) }));
+  }
+  lines.push('', t(lang, 'fun.decide_note'));
+  return { text: lines.join('\n'), rows: [] };
+}
+
+async function decideButton(ctx, cq, parts) {
+  const msg = cq.message;
+  const answers = String(parts[2] || '');
+  if (!msg || !/^[abe]{1,8}$/.test(answers)) return answer(ctx);
+  const u = await users.get(cq.from.id);
+  const mine = u ? u.lang : pickLang(cq.from.language_code);
+  const asker = msg.reply_to_message && msg.reply_to_message.from;
+  if (asker && !asker.is_bot && asker.id !== cq.from.id) return answer(ctx, inline(mine, 'fun.decide_not_yours'), true);
+  const chat = msg.chat.id < 0 ? await chats.get(msg.chat.id) : null;
+  const lang = chat ? chat.lang : mine;
+  const first = String(msg.text || '').split('\n')[0];
+  const opts = [...first.matchAll(/\u2068([^\u2069]*)\u2069/g)].map((m) => m[1]);
+  if (opts.length < 2) return answer(ctx, inline(mine, 'fun.decide_gone'), true);
+  const sc = decideScreen(lang, opts[0], opts[1], nameOf(cq.from), answers);
+  await edit(ctx, { chat_id: msg.chat.id, message_id: msg.message_id }, sc.text, sc.rows, 'fun-decide');
+  return answer(ctx);
+}
+
 /* ---------- /echo and fun special members ---------- */
 
 /* The message a command really answers: not a forum topic's first message (every message in a topic «replies» to it). */
@@ -1242,24 +1421,24 @@ async function fontPage(ctx, cq, parts) {
 }
 
 /* A button of a fortune: runs the command for whoever pressed it, as if they had typed it. */
-const BUTTON_ARGS = { tarot: ['1', '3'], horo: [...Array(12).keys()].map(String), birthmonth: [...Array(12).keys()].map(String), cards: ['1', '3'], runes: ['1', '3'],
+const BUTTON_ARGS = { tarot: ['1', '3'], horo: [...Array(12).keys()].map(String), weekly: [...Array(12).keys()].map(String), birthmonth: [...Array(12).keys()].map(String), cards: ['1', '3'], runes: ['1', '3'],
   lenormand: ['1', '3'] };
 async function falButton(ctx, cq, parts) {
   const code = parts[2];
   const f = fun.byCode(code);
   const msg = cq.message;
   if (!f || !(['fal', 'hours', 'numbers'].includes(f.cat) || code === 'dialogue' || code === 'bookquote') || msg.chat.type === 'channel') return answer(ctx);
-  if ((code === 'horo' || code === 'birthmonth') && parts[3] === 'p') {
+  if ((code === 'horo' || code === 'birthmonth' || code === 'weekly') && parts[3] === 'p') {
     const u = await users.get(cq.from.id);
     const chat = msg.chat.id < 0 ? await chats.get(msg.chat.id) : null;
     const lang = chat ? chat.lang : (u ? u.lang : pickLang(cq.from.language_code));
-    await tryCall(ctx, 'editMessageReplyMarkup', { chat_id: msg.chat.id, message_id: msg.message_id, reply_markup: markup(code === 'horo' ? signRows(lang) : bmRows(lang)) },
+    await tryCall(ctx, 'editMessageReplyMarkup', { chat_id: msg.chat.id, message_id: msg.message_id, reply_markup: markup(code === 'birthmonth' ? bmRows(lang) : signRows(lang, code)) },
       `fun-${code}-signs`);
     return answer(ctx);
   }
   const arg = parts[3] === undefined ? '' : parts[3];
   if (arg && !(BUTTON_ARGS[code] || []).includes(arg)) return answer(ctx);
-  const text = `/${f.cmds[0]}${arg ? ` ${code === 'horo' || code === 'birthmonth' ? fun.fal.SIGNS[Number(arg)] : arg}` : ''}`;
+  const text = `/${f.cmds[0]}${arg ? ` ${['horo', 'birthmonth', 'weekly'].includes(code) ? fun.fal.SIGNS[Number(arg)] : arg}` : ''}`;
   const message = { message_id: msg.message_id, chat: msg.chat, from: cq.from, date: msg.date, text };
   const press = { answered: false };
   const privUser = msg.chat.type === 'private' ? await users.get(cq.from.id) : null;
@@ -1539,6 +1718,7 @@ export async function onPollAnswer(ctx, a) {
 export async function callback(ctx, cq, parts) {
   if (parts[1] === 'f') return falButton(ctx, cq, parts);
   if (parts[1] === 'r') return recButton(ctx, cq, parts);
+  if (parts[1] === 'd') return decideButton(ctx, cq, parts);
   if (parts[1] === 't') return fontPage(ctx, cq, parts);
   const from = cq.from;
   const u = await users.get(from.id);

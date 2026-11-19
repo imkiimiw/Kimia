@@ -7,7 +7,7 @@
   "slot": "slot machine|slots",
   "coin": "flip a coin|coin flip|heads or tails",
   "rand": "random number",
-  "choose": "choose",
+  "choose": "choose|spin the wheel|wheel of fortune",
   "ball8": "magic 8 ball|8ball",
   "fortune": "fortune cookie|fortune",
   "love": "love meter",
@@ -71,5 +71,18 @@
   "bookquote": "book quote|book excerpt",
   "movie": "recommend a movie|suggest a movie",
   "music": "recommend music|suggest a song",
-  "book": "recommend a book|suggest a book"
+  "book": "recommend a book|suggest a book",
+  "universe": "message of the universe|universe message",
+  "weekly": "weekly horoscope",
+  "lovefal": "love reading",
+  "jobfal": "work reading|career reading",
+  "challenge": "daily challenge",
+  "deepq": "deep question",
+  "dateidea": "date idea",
+  "shuffle": "turn order|shuffle names",
+  "lottery": "lottery|draw lots",
+  "vote": "quick vote",
+  "decide": "help me decide",
+  "likely": "who is more likely",
+  "lie": "two truths and a lie"
 }
