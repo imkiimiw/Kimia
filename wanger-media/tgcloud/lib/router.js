@@ -36,7 +36,7 @@ import * as users from './db/users.js';
 import { detectLang, LANG_NAMES, normLang, t, tp } from './i18n/index.js';
 import * as join from './join.js';
 import * as menu from './menu.js';
-import { handleLink } from './download.js';
+import { handleLink, onFormatChoice } from './download.js';
 import { extractLinks } from './url.js';
 import { actorOf, isOwnerId, isStaff } from './roles.js';
 import * as tg from './tg.js';
@@ -373,6 +373,22 @@ export const onCallback = (cq, sdkCtx) => boundary('callback_query', sdkCtx, asy
     await users.setQuality(user.id, d.args[0], ctx.now);
     await tg.answer(ctx, cq.id, tp(lang, 'quality.saved', { name: tp(lang, 'quality.' + d.args[0]) }));
     return open(ctx, user, msg, 'settings');
+  }
+
+  if (d.code === CB.FORMAT) {
+    // The GIF question of lib/download.js: the same gates as sending a link.
+    const g = await gateway(ctx, user, msg);
+    if (g.held) {
+      await tg.answer(ctx, cq.id);
+      return g.held;
+    }
+    const result = await onFormatChoice(ctx, user, msg, d.args[0] === 'g' ? 'gif' : 'video', Number(d.args[1]));
+    if (result.expired) {
+      await tg.answer(ctx, cq.id, tp(lang, 'dl.ask_expired'), true);
+      return { view: 'dl_ask', expired: true };
+    }
+    await tg.answer(ctx, cq.id);
+    return { view: 'download', download: { status: result.status, reason: result.reason || null, platform: result.platform || null, method: result.method || null, cached: !!result.cached } };
   }
 
   if ('APMCET'.includes(d.code)) return ownerPanel(ctx, user, cq, msg, d);

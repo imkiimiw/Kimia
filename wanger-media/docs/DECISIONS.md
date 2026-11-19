@@ -197,3 +197,17 @@ One line each: the choice — the reason. Newest phase last.
   Bot API server; the relay only sends through it, but whether that disturbs updates to Serverless is
   untested → the owner tests with a test bot first (external-service/README.md).
 - Version 1.2.0.
+
+## GIF or video (2026-11-19, owner's request)
+
+- The owner asked for a GIF option "for YouTube downloads". YouTube videos are never downloaded
+  (METADATA_ONLY: YouTube's terms, separate audio/video streams, brief §7), and making a GIF out of a
+  video would need transcoding, which the brief rules out and Serverless can't do. What is built is
+  the underlying need: when a post's media is a GIF that the platform serves as an MP4 (X GIFs; the
+  method `external` may return them too), a private chat gets a question — 🎞 GIF or 🎬 video — and the
+  same file goes with sendAnimation or sendVideo. Real `.gif` files (Discord) can only be a GIF, so no
+  question there; groups always get the GIF as a GIF (no extra message in a group).
+- The question replaces the status message; the link waits in settings ('ask:<user>', 10 minutes,
+  only the latest question counts). The quota is given back while waiting; the answer skips the
+  cooldown (the link already passed it). Each choice is cached on its own (variant `<quality>:gif` /
+  `<quality>:video`). Version 1.2.1.

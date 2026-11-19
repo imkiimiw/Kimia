@@ -71,6 +71,10 @@ const statusText = (userId = ALICE.id) => {
 };
 const sent = (method) => h.tg.calls(method).filter((c) => Number(c.params.chat_id) === ALICE.id);
 const later = () => h.advance(20); // past the 15 s cooldown
+/** The GIF question (an edited status message) and the callback_data of its buttons. */
+const askEdit = () => h.tg.calls('editMessageText').filter((c) => Number(c.params.chat_id) === ALICE.id && c.params.reply_markup).at(-1);
+const askMessage = () => askEdit().params.message_id;
+const askData = (f) => buttonsOf(askEdit().params).map((b) => b.callback_data).find((x) => x.startsWith(`F:${f}:`));
 
 describe('policy before any fetch', () => {
   it('every platform starts off: a link is denied, recorded, and nothing is fetched', async () => {
@@ -121,7 +125,8 @@ describe('policy before any fetch', () => {
     later();
     expect((await h.send(ALICE, TEXT_POST)).download.reason).toBe('no_media'); // failed → refunded
     later();
-    expect((await h.send(ALICE, GIF_POST)).download.status).toBe('ok');
+    expect((await h.send(ALICE, GIF_POST)).download.status).toBe('asked'); // GIF or video? (the quota is given back meanwhile)
+    expect((await h.press(ALICE, askData('g'), { messageId: askMessage() })).download.status).toBe('ok'); // no cooldown for the answer
     later();
     const over = await h.send(ALICE, VIDEO_POST);
     expect(over.download.reason).toBe('quota');
@@ -193,13 +198,46 @@ describe('X', () => {
     expect(JSON.parse(h.row('SELECT items FROM file_cache').items)[0].file_id).not.toMatch(/^stale_/);
   });
 
-  it('photos go as an album of originals; a GIF as an animation', async () => {
+  it('photos go as an album of originals; a GIF post asks "GIF or video?" and sends what was chosen', async () => {
     await h.send(ALICE, PHOTO_POST);
     expect(sent('sendMediaGroup').at(-1).params.media.map((m) => [m.type, m.media.endsWith('name=orig')])).toEqual([['photo', true], ['photo', true], ['photo', true]]);
     later();
-    await h.send(ALICE, GIF_POST);
+    expect((await h.send(ALICE, GIF_POST)).download.status).toBe('asked');
+    expect(statusText()).toContain('This post has a GIF');
+    expect(sent('sendAnimation')).toHaveLength(0);
+    expect(h.rows('SELECT id FROM downloads WHERE user_id = ? AND url LIKE ?', ALICE.id, '%2090559778699489429%')).toHaveLength(0); // no history row for the question
+    const id = askMessage();
+    expect((await h.press(ALICE, askData('g'), { messageId: id })).download.status).toBe('ok');
     expect(sent('sendAnimation')).toHaveLength(1);
     expect(sent('sendAnimation')[0].params.animation).toMatch(/^https:\/\/video\.twimg\.com\//);
+    expect(h.tg.calls('deleteMessage').at(-1).params.message_id).toBe(id); // the question became the status, then went away
+
+    h.advance(2); // past the double-tap guard
+    expect((await h.press(ALICE, `F:g:${id - 1}`, { messageId: id })).expired).toBe(true); // answered already
+    later();
+    await h.send(ALICE, GIF_POST);
+    web.reset();
+    await h.press(ALICE, askData('v'), { messageId: askMessage() });
+    expect(sent('sendVideo').at(-1).params.video).toMatch(/^https:\/\/video\.twimg\.com\//); // the same MP4, as a video
+    expect(sent('sendAnimation')).toHaveLength(1);
+    later();
+    await h.send(ALICE, GIF_POST);
+    web.reset();
+    await h.press(ALICE, askData('g'), { messageId: askMessage() });
+    expect(web.requests('video.twimg.com')).toHaveLength(0); // each choice is cached on its own
+    expect(sent('sendAnimation')).toHaveLength(2);
+  });
+
+  it('the GIF question expires after 10 minutes and only the latest one counts', async () => {
+    await h.send(ALICE, GIF_POST);
+    const first = askMessage();
+    const firstData = askData('g');
+    later();
+    await h.send(ALICE, GIF_POST);
+    expect((await h.press(ALICE, firstData, { messageId: first })).expired).toBe(true);
+    h.advance(601);
+    expect((await h.press(ALICE, askData('g'), { messageId: askMessage() })).expired).toBe(true);
+    expect(sent('sendAnimation')).toHaveLength(0);
   });
 
   it('no media, a deleted post and a sensitive post each get their own message', async () => {

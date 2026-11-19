@@ -31,6 +31,7 @@ const CODES = {
   C: (a) => a.length === 2 && BUILT_PLATFORMS.includes(a[0]) && METHODS.includes(a[1]), // confirm enabling after the risk note
   E: (a) => a.length === 2 && BUILT_PLATFORMS.includes(a[0]) && (a[1] === '0' || a[1] === '1'), // pause (1) / resume (0)
   T: (a) => a.length === 1 && BUILT_PLATFORMS.includes(a[0]), // health check
+  F: (a) => a.length === 2 && (a[0] === 'g' || a[0] === 'v') && /^\d{1,12}$/.test(a[1]), // a GIF post: send as GIF (g) / video (v); arg = the link's message id
 };
 const ID = /^\d{1,15}$/;
 const SMALL_ID = /^\d{1,9}$/;
@@ -70,7 +71,7 @@ function adminArgs(a) {
 export const CB = {
   HOME: 'h', LANG_MENU: 'l', LANG_SET: 'L', JOIN_CHECK: 'j', ACCEPT: 'a', HISTORY: 'H',
   SETTINGS: 's', QUALITY_MENU: 'q', QUALITY_SET: 'Q', HELP: 'i', ABOUT: 'o', DOWNLOAD: 'd',
-  ADMIN: 'A', PLATFORM: 'P', METHOD: 'M', CONFIRM: 'C', PAUSE: 'E', HEALTH: 'T', GROUP: 'G',
+  ADMIN: 'A', PLATFORM: 'P', METHOD: 'M', CONFIRM: 'C', PAUSE: 'E', HEALTH: 'T', GROUP: 'G', FORMAT: 'F',
 };
 
 /** UTF-8 byte length without TextEncoder. */

@@ -1,8 +1,16 @@
 # Progress
 
-**Current state: all phases (0–8) done; Phase 8 deployed (cloud revision 8, version 1.2.0,
-2026-11-06). Open with the owner: switching methods on in /admin → 🧩 Platforms (all are off), the
+**Current state: all phases (0–8) done; latest deploy: cloud revision 9, version 1.2.1
+(2026-11-19, the GIF-or-video question). Open with the owner: switching methods on in /admin → 🧩 Platforms (all are off), the
 Telegram test of Phase 3, and — only if wanted — a server for the large-file relay (Phase 8).**
+
+## After Phase 8 — GIF or video (2026-11-19) ✅ deployed (revision 9, v1.2.1)
+
+- A post whose media is a GIF served as MP4 (X) asks in a private chat: 🎞 GIF or 🎬 video; the same
+  file is sent the chosen way (no transcoding). Groups get the GIF as a GIF. YouTube stays
+  METADATA_ONLY (no downloads, so no GIFs from YouTube) — see DECISIONS.
+- Tests: **252 passing** (question, both answers, per-choice cache, expiry, only the latest question,
+  no cooldown for the answer, quota given back while waiting).
 
 ## Phase 8 — External service and uploader (2026-11-06) ✅ deployed (revision 8) · service not hosted
 

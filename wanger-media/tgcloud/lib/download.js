@@ -9,6 +9,9 @@
 // title, author, cover by URL (checked like media), link and why there is no file — result status
 // 'meta'. A failure that isn't the user's doing and an information card give the quota back (the
 // cooldown stays).
+// GIFs (an MP4 the platform marks as a GIF, e.g. X) in a private chat: the user is asked first —
+// as a GIF (animation) or as a video — then the same link runs again with that choice (no
+// transcoding: the same file, sent with sendAnimation or sendVideo). Groups get the GIF as a GIF.
 import { alertOwner } from './alerts.js';
 import { BUILT_PLATFORMS, MB, PLATFORM_NAMES, TG_UPLOAD_MAX, TG_UPLOAD_PHOTO_MAX, TG_URL_PHOTO_MAX } from './config.js';
 import * as downloadsDb from './db/downloads.js';
@@ -21,7 +24,9 @@ import * as registry from './platforms/index.js';
 import { choose, domainCandidates, limitsFrom, platformState, precheck } from './policy.js';
 import { isStaff } from './roles.js';
 import * as tg from './tg.js';
-import { caption as buildCaption, plain } from './ui.js';
+import { button, caption as buildCaption, markup, plain } from './ui.js';
+import { encode } from './codec.js';
+import { t, tp } from './i18n/index.js';
 import { isAllowedFetch, parseUrl } from './url.js';
 import { errorText, tehranDay } from './util.js';
 
@@ -104,24 +109,32 @@ function denyOrFail(reason, extra = {}) {
  * Handles one link for `user` (from lib/router.js prepareUser) sent in `msg`.
  * → the result (also recorded): { status: ok|failed|denied, reason?, platform?, method?, … }
  */
-export async function handleLink(ctx, user, msg, link, scope = { kind: 'private' }) {
+export const ASK_TTL_S = 600;
+const askKey = (userId) => 'ask:' + userId;
+
+/**
+ * opts.format: 'gif' | 'video' — the answer to the GIF question (the request already passed the
+ * cooldown when the link was sent); opts.status: the bot message to reuse as the status message.
+ */
+export async function handleLink(ctx, user, msg, link, scope = { kind: 'private' }, opts = {}) {
   const lang = user.lang;
   const chatId = msg.chat.id;
   const day = tehranDay(ctx.now);
   const group = scope.kind === 'group';
-  const status = group && scope.settings.silent ? null : await sendStatus(ctx, chatId, msg.message_id, lang);
+  const status = opts.status || (group && scope.settings.silent ? null : await sendStatus(ctx, chatId, msg.message_id, lang));
   if (!status && !group) return { status: 'failed', reason: 'unreachable' };
 
   let claimed = false;
   let result;
   try {
-    result = await run(ctx, user, msg, link, day, () => { claimed = true; }, scope);
+    result = await run(ctx, user, msg, link, day, () => { claimed = true; }, scope, opts);
   } catch (err) {
     result = { status: 'failed', reason: 'unavailable', error: errorText(err) };
     await system.logError(ctx.now, 'download', errorText(err), err && err.stack ? String(err.stack).slice(0, 1500) : null).catch(() => {});
     await alertOwner(ctx, 'error:download', 'alert.error', { source: 'download', message: errorText(err) }, 1800).catch(() => {});
   }
-  if (claimed && (result.status === 'failed' || result.status === 'meta')) await users.refundDownload(user.id, day).catch(() => {});
+  if (claimed && (result.status === 'failed' || result.status === 'meta' || result.status === 'asked')) await users.refundDownload(user.id, day).catch(() => {});
+  if (result.status === 'asked') return askFormat(ctx, user, msg, link, status, result);
 
   await downloadsDb.record({
     userId: user.id, chatId, platform: result.platform || null, method: result.method || null,
@@ -139,7 +152,7 @@ export async function handleLink(ctx, user, msg, link, scope = { kind: 'private'
   return result;
 }
 
-async function run(ctx, user, msg, link, day, onClaim, scope) {
+async function run(ctx, user, msg, link, day, onClaim, scope, opts = {}) {
   const group = scope.kind === 'group';
   const id = registry.identify(link);
   if (id.kind === 'invalid') return denyOrFail('invalid_link');
@@ -156,9 +169,11 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
   const global = limitsFrom(s.limits && s.limits.value);
   // Private: the user's daily quota (or their personal one). Groups: the group's own cooldowns were
   // claimed by lib/groups.js, and the group's size limit can only lower the global one.
-  const limits = group
+  const base0 = group
     ? { ...global, max_mb: Math.min(global.max_mb, Number(scope.settings.max_mb) || global.max_mb) }
     : user.row.quota_override != null ? { ...global, quota_per_day: user.row.quota_override } : global;
+  // The answer to the GIF question: this link already passed the cooldown when it was sent.
+  const limits = opts.format ? { ...base0, cooldown_s: 0 } : base0;
   const state = platformState(s['platform:' + adapter.id] && s['platform:' + adapter.id].value);
   const ext = external.configFrom(s[external.SETTING] && s[external.SETTING].value);
   const host = parseUrl(link).host;
@@ -186,7 +201,10 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
   if (ref.key && (await downloadsDb.blockedBy({ urlKey: ref.key, account: ref.account }))) return denyOrFail('blocked', base);
 
   const quality = await users.getQuality(user.id);
-  const cached = await downloadsDb.cacheGet(ref.key, quality);
+  const variant = opts.format ? `${quality}:${opts.format}` : quality;
+  const cachedRow = await downloadsDb.cacheGet(ref.key, variant);
+  // A cached GIF post sent without a choice yet: ask first (in private chats).
+  const cached = cachedRow && !group && !opts.format && cachedRow.items.some((i) => i.type === 'gif') ? null : cachedRow;
   if (cached) {
     const meta = parseMeta(cached.title);
     try {
@@ -194,7 +212,7 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
         chatId: msg.chat.id, replyTo: msg.message_id, items: cached.items,
         caption: buildCaption(user.lang, { platform: adapter.id, url: ref.url, title: meta.title, author: meta.author, details: meta.details }, meta.notes || []),
       });
-      await downloadsDb.cacheHit(ref.key, quality, ctx.now);
+      await downloadsDb.cacheHit(ref.key, variant, ctx.now);
       return { status: meta.meta ? 'meta' : 'ok', ...base, method: 'cache', cached: true, bytes: cached.bytes, items: cached.items.length };
     } catch (err) {
       if (!(err instanceof DeliveryError)) throw err;
@@ -232,6 +250,10 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
     if (c.error) firstError = firstError || c;
     else choices.push({ item, ...c });
   }
+  // A GIF the platform serves as MP4 can go as a GIF or as a video: ask (private chats), then apply.
+  const asVideoToo = (c) => c.item.type === 'gif' && (c.variant.mime === 'video/mp4' || /\.mp4(\?|$)/i.test(c.variant.url));
+  if (!group && !opts.format && choices.some(asVideoToo)) return { status: 'asked', ...base };
+  if (opts.format === 'video') for (const c of choices) if (asVideoToo(c)) c.item = { ...c.item, type: 'video' };
   const relayed = group ? null : await relayBig(ctx, user, msg, adapter, post, choices[0] || null, quality, ext, base);
   if (relayed) return relayed;
   if (!choices.length) {
@@ -258,9 +280,36 @@ async function run(ctx, user, msg, link, day, onClaim, scope) {
     throw err;
   }
   if (sent.items.length === choices.length && sent.items.every((i) => i.file_id) && !notes.includes('partial')) {
-    await downloadsDb.cachePut(ref.key, quality, adapter.id, sent.items, JSON.stringify({ title: post.title, author: post.author, notes }), sent.bytes, ctx.now);
+    await downloadsDb.cachePut(ref.key, variant, adapter.id, sent.items, JSON.stringify({ title: post.title, author: post.author, notes }), sent.bytes, ctx.now);
   }
   return { status: 'ok', ...base, bytes: sent.bytes, items: sent.items.length };
+}
+
+/** Turns the status message into the GIF question and remembers the link (one per user, ASK_TTL_S). */
+async function askFormat(ctx, user, msg, link, status, result) {
+  const lang = user.lang;
+  await system.setSetting(askKey(user.id), { msg: msg.message_id, url: String(link), at: ctx.now }, user.id, ctx.now);
+  const screen = {
+    text: t(lang, 'dl.ask_gif'),
+    reply_markup: markup([[button(tp(lang, 'btn.as_gif'), encode('F', 'g', msg.message_id)), button(tp(lang, 'btn.as_video'), encode('F', 'v', msg.message_id))]]),
+  };
+  if (status) await tg.edit(ctx, 'dl_ask', { chat: { id: msg.chat.id }, message_id: status.message_id }, screen);
+  else await tg.send(ctx, 'dl_ask', msg.chat.id, screen, { reply_parameters: { message_id: msg.message_id, allow_sending_without_reply: true } });
+  return result;
+}
+
+/**
+ * A press on the GIF question (`message` = the question). → the download result, or
+ * { expired: true } when the question is not the user's latest one or is older than ASK_TTL_S.
+ */
+export async function onFormatChoice(ctx, user, message, format, linkMessageId) {
+  const s = await system.loadSettings([askKey(user.id)]);
+  const v = s[askKey(user.id)] && s[askKey(user.id)].value;
+  if (!v || v.msg !== linkMessageId || !(v.at > ctx.now - ASK_TTL_S) || typeof v.url !== 'string') return { expired: true };
+  await system.deleteSetting(askKey(user.id));
+  await tg.edit(ctx, 'dl_status', message, plain(user.lang, 'dl.processing'));
+  const linkMsg = { chat: { id: message.chat.id }, message_id: linkMessageId };
+  return handleLink(ctx, user, linkMsg, v.url, { kind: 'private' }, { format, status: message });
 }
 
 /**
