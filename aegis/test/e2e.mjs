@@ -3901,7 +3901,7 @@ mock.addFile('p9_m', fixture('base420.jpg'));
 mock.addFile('p9_s', fixture('base420.jpg'));
 const mediaEndpoint = (await import('../tgcloud/endpoints/media.js')).default;
 
-await scenario('phase 9 — 🎮 the Fun panel: 36 features in eight groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
+await scenario('phase 9 — 🎮 the Fun panel: 44 features in ten groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
   tick(600);
   iota = mock.addChat({ id: IOTA, type: 'supergroup', title: 'Iota', count: 15, botRights: { can_manage_chat: true, can_change_info: true, can_delete_messages: true,
     can_restrict_members: true, can_invite_users: true, can_pin_messages: true, can_promote_members: true } });
@@ -3920,8 +3920,8 @@ await scenario('phase 9 — 🎮 the Fun panel: 36 features in eight groups, eac
   assert.ok(dataOf(olgaScreen()).includes(I('fn')) && dataOf(olgaScreen()).includes(I('md')));
   await olga(I('fn'));
   assert.match(olgaScreen().plain, /🎮 Fun — \u2068Iota\u2069/);
-  assert.match(olgaScreen().plain, /On: 36 of 36/);
-  assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 8);
+  assert.match(olgaScreen().plain, /On: 44 of 44/);
+  assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 10);
   await olga(I('fn:c:dice'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:f:/.test(d)).length, 6);
   assert.match(olgaScreen().plain, /✅ 🎲 Dice — everyone · cooldown 30 s · per day 20/);
@@ -3933,7 +3933,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 36 features in eight groups, eac
   await olga(I('fn:s:fun_rate'));
   assert.equal(iVal('fun_rate'), '20');
   await olga(I('fn'));
-  assert.match(olgaScreen().plain, /On: 35 of 36/);
+  assert.match(olgaScreen().plain, /On: 43 of 44/);
   const s = row("SELECT count(*) AS n FROM aegis_audit WHERE chat_id = ? AND action = 'settings.set' AND target LIKE 'fx_%'", IOTA).n;
   assert.equal(s, 5, 'every change is logged');
 });
@@ -4281,6 +4281,64 @@ await scenario('🔮 fortune telling and 🔠 fonts — /fal and its buttons, Ha
   assert.match(lastSentTo(await dm(zari, 'فال تاروت ۳'), zari.id).params.text, /^‏🔮 ⁨زری⁩، سه کارت تو:\n\n‏🕰 گذشته: <b>/);
   const zc = await press(zari, 'fn:f:coffee', midOf(zm));
   assert.match(lastSentTo(zc.calls, zari.id).params.text, /^‏☕ ⁨زری⁩، در فنجانت می‌بینم:/);
+});
+
+await scenario('🕰 symbolic hours and 🔢 number meanings — the time now, a time sent, the six lists, any number; Persian in private', async () => {
+  tick(600);
+  iSet('fun_rate', '0');
+  const now = toChat(await imsg(P9.kit, '/clock'), IOTA)[0];
+  assert.ok(now.result.ok, JSON.stringify(now.result));
+  assert.match(now.params.text, /^🕰 The time now: <b>\d\d:\d\d<\/b>\n/);
+  assert.ok(now.params.text.includes('<b>Kinds of symbolic hours and numbers:</b>\n🪞 Mirror hours — 01:01, 11:11, 22:22'));
+  assert.deepEqual(dataOf(mock.get(IOTA, midOf(now))), ['fn:f:mirror', 'fn:f:reversed', 'fn:f:triple', 'fn:f:angel', 'fn:f:sequence', 'fn:f:repeat', 'fn:f:number']);
+  const at = async (u, text) => inIota(await imsg(u, text))[0];
+  assert.match(await at(P9.lux, '/clock 11:11'), /^🕰 <b>11:11<\/b>\n🪞 This is a <b>mirror hour<\/b>\.\n💬 Spiritual awakening, wishes and synchronicity\n/);
+  assert.match(await at(P9.nia, '/clock 12:21'), /🔁 This is a <b>reversed hour<\/b>\.\n💬 Back to yourself; look at the past to build a better future\./);
+  assert.match(await at(P9.ivy, '/clock 03:33'), /🔱 This is a <b>triple hour<\/b>\.\n💬 Support and guidance are with you; show your creativity\./, 'a triple hour reads as its angel number');
+  assert.match(await at(P9.jay, 'symbolic hour 14:32'), /^🕰 <b>14:32<\/b>\nThis time is not one of the symbolic hours\./);
+  tick(11);
+  assert.equal(await at(P9.kit, '/clock 25:00'), 'Use: /clock, or /clock 12:21');
+  const mirror = await gpress(P9.lux, IOTA, 'fn:f:mirror', midOf(now));
+  const ml = toChat(mirror.calls, IOTA)[0].params.text;
+  assert.match(ml, /^🪞 <b>The 24 mirror hours<\/b>\n\n00:00 — A new start, the end of a cycle\n01:01 — A fresh start, independence\n/);
+  assert.ok(ml.includes('22:22 — Balance, building the future and wishes coming true\n23:23 — Communication, honesty and decisions'));
+  assert.equal(ml.split('\n').filter((l) => /^\d\d:\d\d — /.test(l)).length, 24);
+  const triple = toChat((await gpress(P9.nia, IOTA, 'fn:f:triple', midOf(now))).calls, IOTA)[0].params.text;
+  assert.ok(triple.includes('03:33 · 13:33 · 23:33 — Support and guidance are with you'), 'triple hours grouped by their digit');
+  const angel = toChat((await gpress(P9.ivy, IOTA, 'fn:f:angel', midOf(now))).calls, IOTA)[0].params.text;
+  assert.ok(angel.includes('777 — Good luck and spiritual growth') && angel.includes('1212 — Step out of your comfort zone'));
+  assert.ok(toChat((await gpress(P9.jay, IOTA, 'fn:f:sequence', midOf(now))).calls, IOTA)[0].params.text.includes('12321 — Peak and return'));
+  assert.ok(toChat((await gpress(P9.kit, IOTA, 'fn:f:repeat', midOf(now))).calls, IOTA)[0].params.text.includes('8888 — Endless abundance; rewards multiply.'));
+  assert.ok(toChat((await gpress(P9.lux, IOTA, 'fn:f:reversed', midOf(now))).calls, IOTA)[0].params.text.includes('15:51 — Freedom and feeling'));
+  /* numbers */
+  tick(11);
+  assert.match(await at(P9.kit, '/number 777'), /^🔢 The number <b>777<\/b>\nKind: repeating.+angel number\n💬 Good luck and spiritual growth; you have chosen well\.\nSum of the digits 21 → root <b>3<\/b> — The creator/);
+  tick(11);
+  assert.match(await at(P9.kit, '/number 2468'), /^🔢 The number <b>2468<\/b>\nIts digits:\n• 2 — cooperation, love and balance\n• 4 — stability, order and effort\n• 6 — family.+\n• 8 — power.+\nSum of the digits 20 → root <b>2<\/b> — The peacemaker/);
+  tick(11);
+  const list = await at(P9.kit, '/number');
+  assert.match(list, /^🔢 <b>Repeating numbers from 00 to 9999<\/b>\n\n<b>Two digits<\/b>\n00 — Endless possibility and starting from zero\./);
+  for (const x of ['99 — The end of a cycle and generosity.', '<b>Three digits (angel numbers)</b>', '000 — A fresh start', '<b>Four digits</b>', '9999 — A great ending']) assert.ok(list.includes(x), x);
+  tick(11);
+  assert.match(await at(P9.kit, '/num 11:11'), /^🔢 The number <b>1111<\/b>\nKind: repeating\n💬 Synchronicity and a gateway for wishes/, 'a time works as a number');
+  tick(11);
+  assert.equal(await at(P9.kit, '/number 1234567'), 'Use: /number, or /number 1234 (up to six digits)');
+  assert.equal(inIota(await imsg(P9.ivy, 'angel numbers please')).length, 0, 'words with bad arguments are just chat');
+  /* /fun lists the category with its menu */
+  tick(61);
+  const funl = await at(P9.ivy, '/fun');
+  assert.ok(funl.includes('🕰 Symbolic hours — /clock (7)') && funl.includes('🔢 Number meanings — /number (1)') && funl.includes('🔮 Fortune telling — /fal (6)'), funl);
+  /* Persian, in private */
+  const bahar = { id: 800000498, is_bot: false, first_name: 'بهار', language_code: 'fa' };
+  faUsers.add(bahar.id);
+  await onboard(bahar, 'fa');
+  const b1 = lastSentTo(await dm(bahar, 'ساعت ۱۱:۱۱'), bahar.id).params.text;
+  assert.match(b1, /^\u200F🕰 ساعت <b>۱۱:۱۱<\/b>\n\u200F🪞 این یک <b>ساعت جفت<\/b> است\.\n\u200F💬 بیداری معنوی، آرزو و هم‌زمانی/);
+  const b2 = lastSentTo(await dm(bahar, 'ساعت جفت'), bahar.id).params.text;
+  assert.ok(b2.includes('\u200F۰۰:۰۰ — شروع دوباره، پایان یک چرخه') && b2.includes('\u200F۲۲:۲۲ — تعادل، ساختن آینده و تحقق آرزوها'));
+  const b3 = lastSentTo(await dm(bahar, 'معنی عدد ۸۸۸۸'), bahar.id).params.text;
+  assert.match(b3, /^\u200F🔢 عدد <b>۸۸۸۸<\/b>\n\u200Fنوع: تکراری\n\u200F💬 فراوانی بی‌پایان؛ پاداش‌ها چندبرابر می‌شوند\./);
+  assert.ok(lastSentTo(await dm(bahar, 'ساعت معکوس'), bahar.id).params.text.includes('\u200F۱۲:۲۱ — بازگشت به خود'));
 });
 
 await scenario('phase 9 — 🖼 media in private: image tools, a sticker in the member\'s own pack, sticker → photo, a QR code made and read back, a GIF from photos, video → GIF, the PDF check', async () => {

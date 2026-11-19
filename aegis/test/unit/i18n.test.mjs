@@ -212,15 +212,21 @@ test('every locale key the code names exists (literal keys and the dynamic famil
   for (const [prefix, names] of Object.entries(p8)) for (const x of names) used.add(`${prefix}${x}`);
   /* Phase 9: the fun features and media tools build these keys from their tables. */
   const DICE = fun.FEATURES.filter((f) => f.cat === 'dice').map((f) => f.code);
+  const HOURS = ['clock', 'mirror', 'reversed', 'triple', 'angel', 'sequence', 'repeat', 'number'];
+  const TIME_TYPES = ['mirror', 'reversed', 'triple'];
   const p9 = {
-    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt', 'hafez', 'tarot', 'horo', 'abjad', 'font'], 'fun.who_': ['a', 'd'],
+    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt', 'hafez', 'tarot', 'horo', 'abjad', 'font', ...HOURS], 'fun.who_': ['a', 'd'],
     'fun.act_': [...fun.ACTS, ...fun.ACTS.map((a) => `${a}_all`)], 'fun.bday_date_': ['g', 'j'], 'fun.bday_how_': ['g', 'j'],
     'fun.month_g_': [...Array(12).keys()].map((i) => i + 1), 'fun.month_j_': [...Array(12).keys()].map((i) => i + 1),
     'fun.': [...DICE.flatMap((d) => [`${d}_win`, `${d}_lose`]), 'math_win', 'scramble_win', 'typing_win', 'couple', 'couple_none', 'motd', 'motd_none', 'truth', 'dare'],
     'funlist.': ['ball8', 'fortune', 'truth', 'dare', 'wyr', 'quote', 'scramble', 'typing', 'trivia'],
     'funcmd.': [...fun.CODES.filter((c) => c !== 'act' && c !== 'bday'), ...fun.ACTS, 'birthday', 'birthdays', 'fun', 'fal'],
     /* fortune telling and fonts */
-    'fallist.': ['tarot_names', 'tarot_up', 'tarot_rev', 'signs', 'horo_love', 'horo_work', 'horo_health', 'horo_advice', 'colors', 'numbers', 'coffee'],
+    'fallist.': ['tarot_names', 'tarot_up', 'tarot_rev', 'signs', 'horo_love', 'horo_work', 'horo_health', 'horo_advice', 'colors', 'numbers', 'coffee',
+      'mirror', 'reversed', 'angel3', 'angelx', 'seqx', 'rep2', 'rep4', 'digits'],
+    /* symbolic hours and numbers */
+    'fal.hr_is_': TIME_TYPES, 'fal.hr_t_': TIME_TYPES, 'fal.hr_ex_': HOURS.slice(1, 7), 'fal.hr_lt_': HOURS.slice(1), 'fal.hb_': HOURS.slice(1),
+    'fal.nk_': ['repeat', 'angel', 'asc', 'desc', 'peak', 'palin', 'pair'], 'fal.nm_g': [2, 3, 4],
     'fal.t_': fun.fonts.TELEGRAM, 'fal.tc_': fun.fonts.TG_COMBOS, 'fal.u_': [...fun.fonts.LATIN, ...fun.fonts.LOOK, ...fun.fonts.XLATIN],
     'fal.m_': [...fun.fonts.MARKS, ...fun.fonts.XMARKS], 'fal.p_': [...fun.fonts.PERSIAN, ...fun.fonts.PERSIAN_EXTRA], 'fal.fp_': fun.fonts.PAGES,
     'fal.fi_': fun.fonts.PAGES, 'fal.tx_': fun.fonts.TG_EXTRA, 'fal.xh_': fun.fonts.XHEADS,

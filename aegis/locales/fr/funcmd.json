@@ -41,5 +41,13 @@
   "horo": "horoscope|mon horoscope",
   "abjad": "numérologie|numerologie",
   "coffee": "marc de café|lecture du café",
-  "font": "polices|police stylée|texte stylé"
+  "font": "polices|police stylée|texte stylé",
+  "clock": "heure symbolique|sens de l’heure",
+  "mirror": "heure miroir|heures miroirs",
+  "reversed": "heure inversée|heures inversées",
+  "triple": "heure triple|heures triples",
+  "angel": "nombre angélique|nombres angéliques",
+  "sequence": "suite de nombres|nombres consécutifs",
+  "repeat": "nombres répétés",
+  "number": "sens du nombre|signification du nombre"
 }

@@ -41,8 +41,9 @@ const list = (lang, key) => t(lang, `funlist.${key}`).split('\n').map((x) => x.r
 /* The same for the fortune-telling lists (fallist). */
 const flist = (lang, key) => t(lang, `fallist.${key}`).split('\n').map((x) => x.replace(RLM, '').trim()).filter(Boolean);
 const norm = (s) => normalizeWord(String(s || '').replace(RLM, '').replace(new RegExp(fun.PASTE_MARK, 'g'), ''));
-const PRIVATE_OK = new Set(['dice', 'darts', 'basket', 'football', 'bowling', 'slot', 'coin', 'rand', 'choose', 'ball8', 'fortune', 'rate', 'truth', 'dare',
-  'quote', 'math', 'scramble', 'typing', 'guess', 'trivia', 'rps', 'hafez', 'tarot', 'horo', 'abjad', 'coffee', 'font']);
+/* features that need a group (members, replies, the group's own lists); the rest also work in private */
+const GROUP_ONLY = new Set(['love', 'wyr', 'act', 'couple', 'motd', 'bday', 'daily', 'click', 'ttt']);
+const PRIVATE_OK = new Set(fun.CODES.filter((c) => !GROUP_ONLY.has(c)));
 const KEY_CODE = { hug: 'act', pat: 'act', highfive: 'act', wave: 'act', cheer: 'act', birthday: 'bday', birthdays: 'bday', fun: 'fun', fal: 'fal' };
 const MENUS = new Set(['fun', 'fal']);
 const FONT_MAX = 40;
@@ -196,6 +197,22 @@ function prepare(parsed, message, lang, s) {
       if (text) return { name: text };
       return { name: (human || message.from).first_name || '', self: !human };
     }
+    case 'clock':
+    case 'mirror':
+    case 'reversed':
+    case 'triple': {
+      if (!a.length) return {};
+      const time = fun.numbers.parseTime(asciiDigits(text));
+      return time ? { time } : { bad: true };
+    }
+    case 'angel':
+    case 'sequence':
+    case 'repeat':
+    case 'number': {
+      if (!a.length) return {};
+      const n = fun.numbers.parseNumber(asciiDigits(text).replace(/[:.٫]/g, ''));
+      return n ? { num: n } : { bad: true };
+    }
     case 'font': {
       const src = text || (message.reply_to_message && (message.reply_to_message.text || message.reply_to_message.caption)) || '';
       const clean = String(src).replace(/[\u0000-\u001F\u200E\u200F\u202A-\u202E\u2066-\u2069]+/g, ' ').replace(/ {2,}/g, ' ').trim();
@@ -265,13 +282,19 @@ export function signFrom(text, lang, s) {
   return null;
 }
 
+/* categories with a menu of their own: one line in /fun */
+const MENU_CAT = { fal: '/fal', hours: '/clock', numbers: '/number' };
 function funList(lang, s, priv) {
   const lines = [t(lang, 'fun.list_title')];
   for (const cat of fun.CATS) {
     const feats = fun.FEATURES.filter((f) => f.cat === cat && (priv ? PRIVATE_OK.has(f.code) : fun.conf(s, f.code).on));
     if (!feats.length) continue;
+    if (MENU_CAT[cat]) {
+      lines.push('', t(lang, 'fun.list_menu', { cat: t(lang, `fun.cat_${cat}`), cmd: MENU_CAT[cat], n: num(lang, feats.length) }));
+      continue;
+    }
     lines.push('', t(lang, `fun.cat_${cat}`));
-    for (const f of feats) lines.push(`${f.emoji} ${f.cmds.map((c) => `/${c}`).join(' ')} — ${t(lang, `fun.n_${f.code}`)}`);
+    for (const f of feats) lines.push(rtl(lang, `${f.emoji} ${f.cmds.map((c) => `/${c}`).join(' ')} — ${t(lang, `fun.n_${f.code}`)}`));
   }
   if (!priv) lines.push('', t(lang, 'fun.list_words'));
   return lines.join('\n');
@@ -319,6 +342,15 @@ async function run(ctx, x) {
       return coffee(ctx, x);
     case 'font':
       return font(ctx, x);
+    case 'clock':
+    case 'mirror':
+    case 'reversed':
+    case 'triple':
+    case 'angel':
+    case 'sequence':
+    case 'repeat':
+    case 'number':
+      return hours(ctx, x);
     case 'truth':
     case 'dare':
       return say(ctx, chatId, s, t(lang, `fun.${code}`, { user: pre.target ? nameOf(pre.target) : me, text: esc(fun.pick(list(lang, code))) }), null, `fun-${code}`, r);
@@ -475,6 +507,98 @@ async function coffee(ctx, x) {
   return say(ctx, chatId, s, lines.join('\n'), [[btn(t(lang, 'fal.btn_coffee'), 'fn:f:coffee')]], 'fun-coffee', reply(message));
 }
 
+/* ---------- symbolic hours and the meaning of numbers ---------- */
+
+const N = fun.numbers;
+const HOUR_TYPES = ['mirror', 'reversed', 'triple', 'angel', 'sequence', 'repeat'];
+/* digits in the language, leading zeros kept (12:05 → ۱۲:۰۵) */
+const digitsIn = (lang, s) => String(s).replace(/[0-9]/g, (d) => num(lang, Number(d)));
+const hourRows = (lang, s, priv) => pairs([...HOUR_TYPES, 'number'].filter((c) => priv || fun.conf(s, c).on).map((c) => btn(t(lang, `fal.hb_${c}`), `fn:f:${c}`)));
+function timeMeaning(lang, h, m) {
+  const k = N.timeKey(h, m);
+  if (!k) return null;
+  return { type: k.type, text: k.type === 'triple' ? flist(lang, 'angel3')[k.digit] : flist(lang, k.type)[k.i] };
+}
+/* The reading of a number as typed: its kinds, its own meaning (repeated, angel, sequence numbers), else its digits; its root. */
+function numberLines(lang, d) {
+  const lines = [t(lang, 'fal.nm_title', { n: digitsIn(lang, d) })];
+  const kinds = N.kinds(d);
+  if (kinds.length) lines.push(t(lang, 'fal.nm_kinds', { list: kinds.map((k) => t(lang, `fal.nk_${k}`)).join(t(lang, 'common.sep')) }));
+  const own = N.own(d);
+  const dg = N.digits(d);
+  if (own) lines.push(rtl(lang, `💬 ${esc(flist(lang, own.list)[own.i])}`));
+  else {
+    lines.push(t(lang, 'fal.nm_digits'));
+    for (const { digit, n } of dg.order) lines.push(rtl(lang, `• ${digitsIn(lang, digit)}${n > 1 ? ` ×${num(lang, n)}` : ''} — ${esc(flist(lang, 'digits')[digit])}`));
+  }
+  if (dg.sum && d.length > 1) {
+    const title = String(flist(lang, 'numbers')[NUMBER_ROW[dg.root] ?? dg.root - 1] || '').split('|')[0];
+    lines.push(t(lang, 'fal.nm_root', { sum: num(lang, dg.sum), root: num(lang, dg.root), title: esc(title) }));
+  }
+  return lines;
+}
+
+async function hours(ctx, x) {
+  const { chatId, s, lang, pre, message, parsed, priv } = x;
+  const r = reply(message);
+  const code = parsed.code;
+  const at = (h, m) => digitsIn(lang, `${N.pad2(h)}:${N.pad2(m)}`);
+  const send0 = (lines, view) => say(ctx, chatId, s, [...lines, '', t(lang, 'fal.hr_note')].join('\n'), hourRows(lang, s, priv), view, r);
+  if (pre.num) return send0(numberLines(lang, pre.num), 'fun-number');
+  if (code === 'clock' || pre.time) {
+    let h;
+    let m;
+    const now = !pre.time;
+    if (pre.time) ({ h, m } = pre.time);
+    else {
+      const local = nowSec() + tzOf(s ? s.tz : 'auto', lang) * 60;
+      h = Math.floor((local % 86400) / 3600);
+      m = Math.floor((local % 3600) / 60);
+    }
+    const lines = [t(lang, now ? 'fal.hr_now' : 'fal.hr_time', { time: at(h, m) })];
+    const mean = timeMeaning(lang, h, m);
+    if (mean) lines.push(t(lang, `fal.hr_is_${mean.type}`), rtl(lang, `💬 ${esc(mean.text)}`));
+    else lines.push(t(lang, 'fal.hr_none'));
+    if (now) {
+      const nx = N.next(h, m);
+      if (nx.length) lines.push('', t(lang, 'fal.hr_next'), ...nx.map((n) => rtl(lang, `• ${digitsIn(lang, n.time)} — ${t(lang, `fal.hr_t_${n.type}`)}`)));
+      lines.push('', t(lang, 'fal.hr_types'), ...HOUR_TYPES.map((c) => t(lang, `fal.hr_ex_${c}`)));
+    }
+    return send0(lines, 'fun-clock');
+  }
+  const lines = [t(lang, `fal.hr_lt_${code}`), ''];
+  const item = (key, text) => rtl(lang, `${key} — ${esc(text)}`);
+  if (code === 'mirror') N.MIRROR.forEach((tm, i) => lines.push(item(digitsIn(lang, tm), flist(lang, 'mirror')[i])));
+  if (code === 'reversed') N.REVERSED.forEach((tm, i) => lines.push(item(digitsIn(lang, tm), flist(lang, 'reversed')[i])));
+  if (code === 'triple') {
+    for (const dgt of [1, 2, 3, 4, 5, 0]) {
+      const times = N.TRIPLE.filter((tm) => tm[4] === String(dgt)).map((tm) => digitsIn(lang, tm)).join(' · ');
+      lines.push(item(times, flist(lang, 'angel3')[dgt]));
+    }
+  }
+  if (code === 'angel') {
+    for (let i = 0; i < 10; i += 1) lines.push(item(digitsIn(lang, String(i).repeat(3)), flist(lang, 'angel3')[i]));
+    N.ANGEL_X.forEach((n, i) => lines.push(item(digitsIn(lang, n), flist(lang, 'angelx')[i])));
+  }
+  if (code === 'sequence') {
+    N.SEQ_X.forEach((n, i) => lines.push(item(digitsIn(lang, n), flist(lang, 'seqx')[i])));
+    lines.push('', t(lang, 'fal.hr_seq_note'));
+  }
+  if (code === 'repeat') {
+    for (let i = 0; i < 10; i += 1) lines.push(item(digitsIn(lang, String(i).repeat(4)), flist(lang, 'rep4')[i]));
+    lines.push('', t(lang, 'fal.hr_rep_note'));
+  }
+  if (code === 'number') {
+    for (const [len, list, head] of [[2, 'rep2', 'nm_g2'], [3, 'angel3', 'nm_g3'], [4, 'rep4', 'nm_g4']]) {
+      lines.push(t(lang, `fal.${head}`));
+      for (let i = 0; i < 10; i += 1) lines.push(item(digitsIn(lang, String(i).repeat(len)), flist(lang, list)[i]));
+      lines.push('');
+    }
+    lines.push(t(lang, 'fal.nm_how'));
+  }
+  return send0(lines, `fun-${code}`);
+}
+
 /* ---------- fonts ---------- */
 
 /* Messages of at most `max` characters, cut between lines. */
@@ -569,7 +693,7 @@ async function falButton(ctx, cq, parts) {
   const code = parts[2];
   const f = fun.byCode(code);
   const msg = cq.message;
-  if (!f || f.cat !== 'fal' || msg.chat.type === 'channel') return answer(ctx);
+  if (!f || !['fal', 'hours', 'numbers'].includes(f.cat) || msg.chat.type === 'channel') return answer(ctx);
   if (code === 'horo' && parts[3] === 'p') {
     const u = await users.get(cq.from.id);
     const chat = msg.chat.id < 0 ? await chats.get(msg.chat.id) : null;

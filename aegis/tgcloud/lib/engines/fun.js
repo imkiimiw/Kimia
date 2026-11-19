@@ -16,7 +16,7 @@ import { inflateRaw, unbase64 } from '../core/files.js';
 import { nowSec, parseJson, utf8Text } from '../core/util.js';
 import { HAFEZ, HAFEZ_COUNT, HAFEZ_PER, TAROT_IMG } from '../data/fal.js';
 
-/* cat: dice (Telegram's animated dice) · luck · fal (fortune telling) · social · daily · games · duel · text */
+/* cat: dice (Telegram's animated dice) · luck · fal (fortune telling) · hours (symbolic hours) · numbers · social · daily · games · duel · text */
 export const FEATURES = [
   { code: 'dice', cat: 'dice', emoji: '🎲', cmds: ['dice'], def: '1,a,30,20,0', dice: '🎲', win: (v) => v === 6 },
   { code: 'darts', cat: 'dice', emoji: '🎯', cmds: ['darts'], def: '1,a,30,20,0', dice: '🎯', win: (v) => v === 6 },
@@ -54,8 +54,16 @@ export const FEATURES = [
   { code: 'coffee', cat: 'fal', emoji: '☕', cmds: ['coffee'], def: '1,a,60,5,0' },
   { code: 'fortune', cat: 'fal', emoji: '🥠', cmds: ['fortune'], def: '1,a,60,5,0' },
   { code: 'font', cat: 'text', emoji: '🔠', cmds: ['font', 'fonts'], def: '1,a,10,20,0', args: true },
+  { code: 'clock', cat: 'hours', emoji: '🕰', cmds: ['clock', 'hour'], def: '1,a,10,20,0', args: true },
+  { code: 'mirror', cat: 'hours', emoji: '🪞', cmds: ['mirror'], def: '1,a,10,20,0', args: true },
+  { code: 'reversed', cat: 'hours', emoji: '🔁', cmds: ['reversed'], def: '1,a,10,20,0', args: true },
+  { code: 'triple', cat: 'hours', emoji: '🔱', cmds: ['triple'], def: '1,a,10,20,0', args: true },
+  { code: 'angel', cat: 'hours', emoji: '👼', cmds: ['angel'], def: '1,a,10,20,0', args: true },
+  { code: 'sequence', cat: 'hours', emoji: '📈', cmds: ['sequence'], def: '1,a,10,20,0', args: true },
+  { code: 'repeat', cat: 'hours', emoji: '🔂', cmds: ['repeat'], def: '1,a,10,20,0', args: true },
+  { code: 'number', cat: 'numbers', emoji: '🔢', cmds: ['number', 'num'], def: '1,a,10,20,0', args: true },
 ];
-export const CATS = ['dice', 'luck', 'fal', 'social', 'daily', 'games', 'duel', 'text'];
+export const CATS = ['dice', 'luck', 'fal', 'hours', 'numbers', 'social', 'daily', 'games', 'duel', 'text'];
 export const CODES = FEATURES.map((f) => f.code);
 export const byCode = (code) => FEATURES.find((f) => f.code === code) || null;
 export const SLASH = Object.fromEntries(FEATURES.flatMap((f) => f.cmds.map((c) => [c, f.code])));
@@ -689,4 +697,85 @@ export const fal = (() => {
   }
 
   return { ghazal, HAFEZ_COUNT, CARDS, draw, answer, image, suitOf, SIGNS, ELEMENTS, signOf, range, horoscope, numerology, reduce, symbols };
+})();
+
+/* ---------- symbolic hours and the meaning of numbers ---------- */
+
+export const numbers = (() => {
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const rev = (s) => [...s].reverse().join('');
+  /* mirror hh:hh · reversed hh:(hh backwards) · triple: the minutes repeat the hour's last digit */
+  function timeType(h, m) {
+    const hh = pad2(h);
+    const mm = pad2(m);
+    if (hh === mm) return 'mirror';
+    if (mm === rev(hh)) return 'reversed';
+    if (mm[0] === mm[1] && mm[0] === hh[1]) return 'triple';
+    return null;
+  }
+  const ALL_TIMES = [];
+  for (let h = 0; h < 24; h += 1) for (let m = 0; m < 60; m += 1) if (timeType(h, m)) ALL_TIMES.push([h, m, timeType(h, m)]);
+  const listOf = (type) => ALL_TIMES.filter((x) => x[2] === type).map(([h, m]) => `${pad2(h)}:${pad2(m)}`);
+  const MIRROR = listOf('mirror');
+  const REVERSED = listOf('reversed');
+  const TRIPLE = listOf('triple');
+  /* the symbolic times after hh:mm today (at most n) */
+  const next = (h, m, n = 3) => ALL_TIMES.filter(([a, b]) => a * 60 + b > h * 60 + m).slice(0, n).map(([a, b, type]) => ({ time: `${pad2(a)}:${pad2(b)}`, type }));
+  /* «11:11», «۱۱:۱۱», «11.11», «1111» → { h, m } (digits already ASCII) */
+  function parseTime(text) {
+    const s = String(text || '').trim();
+    const x = /^(\d{1,2})\s*[:.٫,]\s*(\d{2})$/.exec(s) || /^(\d{2})(\d{2})$/.exec(s);
+    if (!x) return null;
+    const h = Number(x[1]);
+    const m = Number(x[2]);
+    return h < 24 && m < 60 ? { h, m } : null;
+  }
+  /* the meaning key of a time: index in its list */
+  function timeKey(h, m) {
+    const type = timeType(h, m);
+    if (!type) return null;
+    const at = `${pad2(h)}:${pad2(m)}`;
+    return { type, i: { mirror: MIRROR, reversed: REVERSED, triple: TRIPLE }[type].indexOf(at), digit: Number(pad2(m)[1]) };
+  }
+
+  /* Numbers (digits as typed, leading zeros kept): their kinds, and which list holds their own meaning */
+  const ANGEL_X = ['1010', '1212', '1122', '1221'];
+  const SEQ_X = ['123', '1234', '2345', '3456', '4567', '5678', '6789', '12345', '4321', '12321'];
+  function kinds(d) {
+    const out = [];
+    const same = d.length >= 2 && [...d].every((c) => c === d[0]);
+    if (same) out.push('repeat');
+    if (d.length === 3 && same) out.push('angel');
+    const diffs = [...d].slice(1).map((c, i) => Number(c) - Number(d[i]));
+    if (d.length >= 3 && diffs.every((x) => x === 1)) out.push('asc');
+    if (d.length >= 3 && diffs.every((x) => x === -1)) out.push('desc');
+    const half = Math.floor(d.length / 2);
+    if (d.length >= 5 && d.length % 2 === 1 && diffs.slice(0, half).every((x) => x === 1) && diffs.slice(half).every((x) => x === -1)) out.push('peak');
+    if (!same && d.length >= 3 && d === rev(d)) out.push('palin');
+    if (d.length === 4 && d[0] === d[2] && d[1] === d[3] && d[0] !== d[1]) out.push('pair');
+    if (ANGEL_X.includes(d) && !out.includes('angel')) out.push('angel');
+    return out;
+  }
+  /* { list, i } of a number's own meaning, or null: rep2 (00–99), angel3 (000–999), rep4 (0000–9999), angelx, seqx */
+  function own(d) {
+    const same = [...d].every((c) => c === d[0]);
+    if (same && d.length === 2) return { list: 'rep2', i: Number(d[0]) };
+    if (same && d.length === 3) return { list: 'angel3', i: Number(d[0]) };
+    if (same && d.length === 4) return { list: 'rep4', i: Number(d[0]) };
+    if (ANGEL_X.includes(d)) return { list: 'angelx', i: ANGEL_X.indexOf(d) };
+    if (SEQ_X.includes(d)) return { list: 'seqx', i: SEQ_X.indexOf(d) };
+    return null;
+  }
+  /* the digits by how often they appear (most first), and the root number (1–9, or 11 / 22) */
+  function digits(d) {
+    const count = new Map();
+    for (const c of d) count.set(c, (count.get(c) || 0) + 1);
+    const order = [...count.entries()].sort((a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0])).map(([c, n]) => ({ digit: Number(c), n }));
+    const sum = [...d].reduce((s, c) => s + Number(c), 0);
+    return { order, sum, root: sum ? fal.reduce(sum) : 0 };
+  }
+  /* a number as typed: 1–6 digits */
+  const parseNumber = (text) => (/^\d{1,6}$/.test(String(text || '').trim()) ? String(text).trim() : null);
+
+  return { timeType, timeKey, parseTime, next, MIRROR, REVERSED, TRIPLE, ANGEL_X, SEQ_X, kinds, own, digits, parseNumber, pad2 };
 })();

@@ -271,3 +271,42 @@ test('fortune words: «فال» opens the menu, longer words win, arguments only
   assert.equal(p('فال بده دیگه لطفا'), null, '«فال» with other words is just chat');
   assert.equal(p('فال قهوه بگیر'), null, 'coffee takes no arguments');
 });
+
+test('symbolic hours: 24 mirror, 13 reversed and 13 triple times; times read from text; the next ones today', () => {
+  const n = fun.numbers;
+  assert.equal(n.MIRROR.length, 24);
+  assert.deepEqual(n.REVERSED, ['01:10', '02:20', '03:30', '04:40', '05:50', '10:01', '12:21', '13:31', '14:41', '15:51', '20:02', '21:12', '23:32']);
+  assert.deepEqual(n.TRIPLE, ['01:11', '02:22', '03:33', '04:44', '05:55', '10:00', '12:22', '13:33', '14:44', '15:55', '20:00', '21:11', '23:33']);
+  assert.deepEqual([n.timeType(11, 11), n.timeType(12, 21), n.timeType(3, 33), n.timeType(14, 32)], ['mirror', 'reversed', 'triple', null]);
+  assert.deepEqual(n.timeKey(22, 22), { type: 'mirror', i: 22, digit: 2 });
+  assert.deepEqual(n.timeKey(15, 51), { type: 'reversed', i: 9, digit: 1 });
+  assert.deepEqual([n.parseTime('11:11'), n.parseTime('9.05'), n.parseTime('2222'), n.parseTime('24:00'), n.parseTime('11:61'), n.parseTime('hi')],
+    [{ h: 11, m: 11 }, { h: 9, m: 5 }, { h: 22, m: 22 }, null, null, null]);
+  assert.deepEqual(n.next(14, 32), [{ time: '14:41', type: 'reversed' }, { time: '14:44', type: 'triple' }, { time: '15:15', type: 'mirror' }]);
+  assert.deepEqual(n.next(23, 40), [], 'nothing after 23:33');
+  for (const lang of LANGS) {
+    for (const [k, len] of Object.entries({ mirror: 24, reversed: 13, angel3: 10, angelx: 4, seqx: 10, rep2: 10, rep4: 10, digits: 10 })) assert.equal(list(lang, k).length, len, `${lang} ${k}`);
+  }
+  assert.equal(list('fa', 'mirror')[11], 'بیداری معنوی، آرزو و هم‌زمانی', "the owner's own meaning of 11:11");
+  assert.equal(list('fa', 'mirror')[0], 'شروع دوباره، پایان یک چرخه');
+});
+
+test('number meanings: repeated numbers 00–9999 have their own meaning; kinds; digits and the root of any other number', () => {
+  const n = fun.numbers;
+  const own = (d) => n.own(d);
+  assert.deepEqual([own('00'), own('77'), own('000'), own('777'), own('0000'), own('9999')], [{ list: 'rep2', i: 0 }, { list: 'rep2', i: 7 }, { list: 'angel3', i: 0 },
+    { list: 'angel3', i: 7 }, { list: 'rep4', i: 0 }, { list: 'rep4', i: 9 }]);
+  assert.deepEqual([own('1212'), own('1234'), own('12321'), own('2468')], [{ list: 'angelx', i: 1 }, { list: 'seqx', i: 1 }, { list: 'seqx', i: 9 }, null]);
+  assert.deepEqual(n.kinds('1111'), ['repeat']);
+  assert.deepEqual(n.kinds('333'), ['repeat', 'angel']);
+  assert.deepEqual(n.kinds('6789'), ['asc']);
+  assert.deepEqual(n.kinds('54321'), ['desc']);
+  assert.deepEqual(n.kinds('12321'), ['peak', 'palin']);
+  assert.deepEqual(n.kinds('1001'), ['palin']);
+  assert.deepEqual(n.kinds('3434'), ['pair']);
+  assert.deepEqual(n.kinds('2468'), []);
+  assert.deepEqual(n.digits('1223'), { order: [{ digit: 2, n: 2 }, { digit: 1, n: 1 }, { digit: 3, n: 1 }], sum: 8, root: 8 });
+  assert.equal(n.digits('29').root, 11, 'master numbers kept');
+  assert.deepEqual([n.parseNumber('0042'), n.parseNumber('1234567'), n.parseNumber('12a'), n.parseNumber('')], ['0042', null, null, null]);
+});
+
