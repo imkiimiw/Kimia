@@ -16,7 +16,7 @@
  * callback_data: fn:<game>:c:<i> quick click · fn:<game>:a accept · fn:<game>:x cancel (the challenger)
  *   · fn:<game>:r|p|s rock-paper-scissors · fn:<game>:t:<cell> tic-tac-toe
  *   · fn:f:<code>[:<arg>] run a fortune command (tarot 1|3, horo <sign 0–11>) · fn:f:horo:p the sign buttons
- *   · fn:t:<page>[:<part>] a page of /font (combo, tg, uni, look, mark, fa, frame, extra), for the one who asked
+ *   · fn:t:<page>[:<part>] a page of /font (combo, mix, tg, uni, look, mark, fa, frame, extra), for the one who asked
  * Panel: g:c:fn  ·  g:c:fn:s:<key>  ·  g:c:fn:c:<cat>  ·  g:c:fn:m:<cat> (who may use the group: a → s → d)  ·  g:c:fn:f:<code>[:o|w|c|d|r]
  * /special, /unspecial (a reply, an id or @username; the chat's owner and admins): the «fun» list of special members.
  */
@@ -978,7 +978,7 @@ function chunks(lines, max = 3800) {
 
 /* Lines of one page of /font. tg: Telegram's styles (live); the others in copy-on-tap code boxes. */
 const FONT_BLOCK = new Set(['pre', 'quote', 'fraktur_quote', 'fa_quote']);
-const FONT_PREFIX = { uni: 'u', look: 'u', mark: 'm', fa: 'p' };
+const FONT_PREFIX = { uni: 'u', look: 'u', mark: 'm', fa: 'p', mix: 'x' };
 function fontLines(lang, page, items) {
   const box = (x) => LRI(`<code>${esc(x)}</code>`);
   if (page === 'tg') {

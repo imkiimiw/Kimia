@@ -4216,7 +4216,7 @@ await scenario('🔮 fortune telling and 🔠 fonts — /fal and its buttons, Ha
   const fm = midOf(f[0]);
   assert.match(f[0].params.text, /^🔠 Fonts for «⁨Hello⁩»\n✨ <b>Beautiful combinations<\/b>/);
   for (const x of ['꧁༺ 𝓗𝓮𝓵𝓵𝓸 ༻꧂', '★彡 𝙃𝙚𝙡𝙡𝙤 彡★', '➶ 𝐇̲𝐞̲𝐥̲𝐥̲𝐨̲']) assert.ok(f[0].params.text.includes(`<code>${x}</code>`), x);
-  assert.deepEqual(dataOf(mock.get(IOTA, fm)), ['fn:t:combo', 'fn:t:tg', 'fn:t:uni', 'fn:t:look', 'fn:t:mark', 'fn:t:frame', 'fn:t:extra']);
+  assert.deepEqual(dataOf(mock.get(IOTA, fm)), ['fn:t:combo', 'fn:t:mix', 'fn:t:tg', 'fn:t:uni', 'fn:t:look', 'fn:t:mark', 'fn:t:frame', 'fn:t:extra']);
   const page = async (u, data, mid = fm) => gpress(u, IOTA, data, mid);
   const shown = (r) => {
     assert.equal(r.toast, '');

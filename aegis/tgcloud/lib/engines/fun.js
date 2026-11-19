@@ -562,6 +562,55 @@ export const fonts = (() => {
     return ends(s, f);
   }
 
+  /*
+   * The 🧬 Combined Unicode page: letters from two sets in one word — Greek capitals of the same mathematical style in
+   * place of the Latin ones that look alike (𝜜𝒓𝒂𝒛), a display initial on a text font, two fonts by turns, vowels apart.
+   */
+  const GREEK_START = { b: 0x1D6A8, i: 0x1D6E2, bi: 0x1D71C, sb: 0x1D756, sbi: 0x1D790 }; /* capital Alpha; small alpha is 26 further */
+  const GREEK_CAP = { A: 0, B: 1, E: 4, Z: 5, H: 6, I: 8, K: 9, M: 11, N: 12, O: 14, P: 16, T: 19, Y: 20, X: 22 };
+  const GREEK_SMALL = { a: 0, e: 4, i: 8, k: 9, n: 6, o: 14, p: 16, u: 20, v: 12, w: 24, x: 22, y: 2 };
+  const one = (code) => (ch) => (ARABIC.test(ch) ? ch : (ALL.get(code) || ((c) => c))(ch));
+  const GREEK_DIGITS = { bi: 'bold', sbi: 'sansbold' }; /* the italic styles have no digits of their own */
+  const greekOf = (base, g, small = false) => (ch) => {
+    if (GREEK_CAP[ch] !== undefined) return cp(GREEK_START[g] + GREEK_CAP[ch]);
+    if (small && GREEK_SMALL[ch] !== undefined) return cp(GREEK_START[g] + 26 + GREEK_SMALL[ch]);
+    if (ch >= '0' && ch <= '9' && GREEK_DIGITS[g]) return one(GREEK_DIGITS[g])(ch);
+    return one(base)(ch);
+  };
+  /* each word starts with a capital (the Greek capitals and the initials need one) */
+  const cap1 = (s) => s.split(' ').map((w) => w.replace(/^([^A-Za-z0-9]*)([a-z])/, (m, p, c) => p + c.toUpperCase())).join(' ');
+  const isLetter = (ch) => /[A-Za-z0-9]/.test(ch);
+  /* f(ch, i) on each Latin letter or digit, i counting them across the text (spaces and Persian left as they are) */
+  const each = (s, f) => {
+    let i = -1;
+    return [...s].map((ch) => (isLetter(ch) ? f(ch, (i += 1)) : ch)).join('');
+  };
+  /* the first letter of each word in one style, the rest in another */
+  const initial = (s, first, rest) => cap1(s).split(' ').map((w) => {
+    let done = false;
+    return [...w].map((ch) => {
+      if (!isLetter(ch)) return ch;
+      const f = done || !/[A-Za-z]/.test(ch) ? rest : first;
+      done = true;
+      return f(ch);
+    }).join('');
+  }).join(' ');
+  const VOWEL = /[aeiouAEIOU]/;
+  const MIX = [
+    ['g_bi', (s) => each(cap1(s), greekOf('bolditalic', 'bi'))], ['g_b', (s) => each(cap1(s), greekOf('bold', 'b'))], ['g_i', (s) => each(cap1(s), greekOf('italic', 'i'))],
+    ['g_sb', (s) => each(cap1(s), greekOf('sansbold', 'sb'))], ['g_sbi', (s) => each(cap1(s), greekOf('sansbolditalic', 'sbi'))],
+    ['g_bi2', (s) => each(cap1(s), greekOf('bolditalic', 'bi', true))], ['g_sb2', (s) => each(cap1(s), greekOf('sansbold', 'sb', true))],
+    ['i_script_sc', (s) => initial(s, one('boldscript'), one('smallcaps'))], ['i_double_sans', (s) => initial(s, one('double'), one('sans'))],
+    ['i_fraktur_bi', (s) => initial(s, one('boldfraktur'), one('bolditalic'))], ['i_script_i', (s) => initial(s, one('script'), one('italic'))],
+    ['i_circle_b', (s) => initial(s, one('circledneg'), one('bold'))], ['i_square_m', (s) => initial(s, one('squaredneg'), one('mono'))],
+    ['i_greek_sc', (s) => initial(s, greekOf('bolditalic', 'bi'), one('smallcaps'))],
+    ['a_b_i', (s) => each(s, (ch, i) => one(i % 2 ? 'italic' : 'bold')(ch))], ['a_script_fraktur', (s) => each(s, (ch, i) => one(i % 2 ? 'boldfraktur' : 'boldscript')(ch))],
+    ['a_serif_sans', (s) => each(s, (ch, i) => one(i % 2 ? 'sansbold' : 'bold')(ch))], ['a_double_mono', (s) => each(s, (ch, i) => one(i % 2 ? 'mono' : 'double')(ch))],
+    ['a_case', (s) => each(s, (ch, i) => (i % 2 ? one('smallcaps')(ch) : ch.toUpperCase()))],
+    ['v_double_sb', (s) => each(s, (ch) => one(VOWEL.test(ch) ? 'double' : 'sansbold')(ch))], ['v_circle_b', (s) => each(s, (ch) => one(VOWEL.test(ch) ? 'circled' : 'bold')(ch))],
+    ['w_super', (s) => each(s, (ch, i) => (i % 2 ? one('super')(ch) : ch))],
+  ];
+
   /* Telegram's own styles: [code, opening tags, closing tags]; then Telegram's styles over a font */
   const TELEGRAM = [['bold', '<b>', '</b>'], ['italic', '<i>', '</i>'], ['underline', '<u>', '</u>'], ['strike', '<s>', '</s>'], ['spoiler', '<tg-spoiler>', '</tg-spoiler>'],
     ['mono', '<code>', '</code>'], ['bolditalic', '<b><i>', '</i></b>'], ['boldunderline', '<b><u>', '</u></b>'], ['italicunderline', '<i><u>', '</u></i>'],
@@ -588,6 +637,7 @@ export const fonts = (() => {
     if (hasLatin) {
       pages.uni = LATIN.filter(([code]) => !(hasArabic && (code === 'upside' || code === 'mirror'))).map(([code]) => [code, styled(s, code)]);
       pages.look = LOOK.map(([code]) => [code, styled(s, code)]);
+      pages.mix = MIX.map(([code, fn]) => [code, fn(s)]);
     }
     if (letters) pages.mark = [...MARKS.map(([code]) => [code, marked(s, code)]), ...SEPS.map(([code, sign]) => [`s_${code}`, between(s, sign)])];
     if (hasArabic) pages.fa = PERSIAN.map(([code, fn]) => [code, fn(s)]);
@@ -610,7 +660,7 @@ export const fonts = (() => {
   }
 
   return {
-    render, styled, marked, between, kashida, zalgo, PAGES: ['combo', 'tg', 'uni', 'look', 'mark', 'fa', 'frame', 'extra'],
+    render, styled, marked, between, kashida, zalgo, PAGES: ['combo', 'mix', 'tg', 'uni', 'look', 'mark', 'fa', 'frame', 'extra'], MIX: MIX.map(([c]) => c),
     TG_EXTRA: TG_EXTRA.map(([c]) => c), XLATIN: XLATIN.map(([c]) => c), XMARKS: [...XGLITCH, ...XMARKS].map(([c]) => c), PERSIAN_EXTRA: PERSIAN_EXTRA.map(([c]) => c),
     XCOMBOS: XCOMBOS.length, PERSIAN_XCOMBOS: PERSIAN_XCOMBOS.length, XHEADS: ['tg', 'fonts', 'combo', 'marks', 'fa', 'facombo'],
     TELEGRAM: TELEGRAM.map(([c]) => c), TG_COMBOS: [...TG_COMBOS, ...TG_PERSIAN].map(([c]) => c), LATIN: LATIN.map(([c]) => c), LOOK: LOOK.map(([c]) => c),

@@ -140,7 +140,7 @@ test('name numbers: abjad, Pythagorean and Cyrillic values, master numbers, and 
 
 test('fonts: every page — Telegram styles, Unicode fonts, look-alikes, marks, Persian styles, combinations and frames', () => {
   const r = fonts.render('Hello 2026');
-  assert.deepEqual(Object.keys(r.pages), ['tg', 'uni', 'look', 'mark', 'combo', 'frame', 'extra'], 'no Persian page for Latin text');
+  assert.deepEqual(Object.keys(r.pages), ['tg', 'uni', 'look', 'mix', 'mark', 'combo', 'frame', 'extra'], 'no Persian page for Latin text');
   const by = Object.fromEntries(r.pages.uni);
   assert.equal(by.bold, '𝐇𝐞𝐥𝐥𝐨 𝟐𝟎𝟐𝟔');
   assert.equal(by.italic, '𝐻𝑒𝑙𝑙𝑜 2026');
@@ -423,4 +423,28 @@ test('poetry readings: all 178 quatrains of Khayyam and 366 dobeytis of Baba Tah
     assert.equal(fun.poems.poem(book, 9999).n, count, 'clamped');
   }
   assert.deepEqual(fun.poems.BOOKS, ['khayyam', 'babataher']);
+});
+
+test('fonts: 🧬 Combined Unicode — Greek capitals of the same style among Latin letters (𝜜𝒓𝒂𝒛), initials, two fonts by turns, vowels', () => {
+  const page = (x) => Object.fromEntries(fonts.render(x).pages.mix);
+  const a = page('Araz');
+  assert.deepEqual(Object.keys(a), fonts.MIX);
+  assert.equal(fonts.MIX.length, 22);
+  assert.equal(a.g_bi, '𝜜𝒓𝒂𝒛', "the owner's example: bold italic with the bold italic Greek capital alpha");
+  assert.equal(a.g_b, '𝚨𝐫𝐚𝐳');
+  assert.equal(a.g_sb2, '𝝖𝗿𝝰𝘇', 'more Greek: small alpha too');
+  assert.equal(a.i_script_sc, '𝓐ʀᴀᴢ');
+  assert.equal(a.a_b_i, '𝐀𝑟𝐚𝑧');
+  assert.equal(a.v_circle_b, 'Ⓐ𝐫ⓐ𝐳');
+  const k = page('kimia');
+  assert.equal(k.g_bi, '𝜥𝒊𝒎𝒊𝒂', 'each word starts with a capital');
+  assert.equal(k.i_double_sans, '𝕂𝗂𝗆𝗂𝖺');
+  const h = page('Hello World 2026');
+  assert.equal(h.g_bi, '𝜢𝒆𝒍𝒍𝒐 𝑾𝒐𝒓𝒍𝒅 𝟐𝟎𝟐𝟔', 'Greek where a letter looks alike; bold digits for the italic styles');
+  assert.equal(h.a_case, 'HᴇLʟO ᴡOʀLᴅ 2026', 'counted across words');
+  for (const [code, x] of Object.entries(h)) assert.notEqual(x, 'Hello World 2026', code);
+  assert.equal(new Set(Object.values(h)).size, fonts.MIX.length, 'every mix is different');
+  const fa = fonts.render('سلام Ali');
+  assert.ok(Object.fromEntries(fa.pages.mix).g_bi.startsWith('سلام '), 'Persian letters stay');
+  assert.equal(fonts.render('سلام').pages.mix, undefined, 'no page without Latin letters');
 });
