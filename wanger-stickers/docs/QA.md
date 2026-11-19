@@ -150,3 +150,6 @@ Local baseline green in Chromium (SPIKE_REPORT §10). On the phones:
 9. ☐ Bot: `/admin` → ⚙️ → «📱 برنامه‌ی اندروید» → «📤 فرستادن فایل APK» → send the APK file → a second
    account exports a ZIP → the guide has «📱 برنامه‌ی اندروید» → it receives the APK with the steps.
    «🗑 برداشتن فایل» → the button is gone.
+10. ☐ (1.1 design) Install the 1.1 test APK over 1.0 (it updates in place, packs kept). The list shows
+    the gradient header with counts; animated packs play in their cards; «پک تازه» opens a sheet;
+    a pack opens with a slide; tapping a sticker shows it large; dark mode follows the phone.

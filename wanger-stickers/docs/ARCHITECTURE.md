@@ -133,6 +133,6 @@ own 40 tests run with `cd android && ./gradlew testDebugUnitTest`.
 `android/` is a separate Gradle project. The bot's WhatsApp ZIP is its only input: `PackReader`
 (checks) → `PackStore` (app-private, hashed folders) → `StickerContentProvider` (WhatsApp's contract:
 `metadata`, `stickers`, `stickers_asset`, read permission `com.whatsapp.sticker.READ`) and the
-`ENABLE_STICKER_PACK` intent. The bot's side is one setting (`android.apk`), the admin screen
+`ENABLE_STICKER_PACK` intent; the UI is Jetpack Compose in `ui/` (`AppModel` holds the state). The bot's side is one setting (`android.apk`), the admin screen
 «📱 برنامه‌ی اندروید» (`a:apk*`, step `a_apk`) and the `w:apk` button under the ZIP guide
 (`wa_ui.zipHelpView`, used by `w:zip` and the `wa_export` endpoint).

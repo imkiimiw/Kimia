@@ -1,5 +1,15 @@
 # Changelog
 
+## Android app 1.1 — new design (2026-11-19)
+
+- Rebuilt in **Jetpack Compose + Material 3** with the **Vazirmatn** typeface: gradient header with
+  counts, pack cards with the first stickers playing, "New pack" / "Pack ready 🎉" / error **bottom
+  sheets**, a pack screen with a full-bleed header, a big «افزودن به واتس‌اپ» button and a sticker
+  grid with a large preview, an illustrated empty state with numbered steps, animated transitions,
+  branded launch screen, dark mode. WhatsApp integration and checks unchanged.
+- 42 Android tests (the flow tests now drive the Compose UI); screenshots of every screen in
+  `android/app/build/screenshots/`. versionCode 2 / 1.1.0; release APK ≈ 1.6 MB.
+
 ## Phase 6 — Android companion app (2026-11-14)
 
 - **`android/`: Wanger Stickers for Android** (Kotlin, no AndroidX, Android 6.0+, targets 16): opens

@@ -4,15 +4,10 @@
     <string name="bot_url" translatable="false">https://t.me/Wanger_Motionbot</string>
     <!-- Set to the app's Google Play page once it is published (WhatsApp shows it to people who receive a sticker). -->
     <string name="play_store_url" translatable="false"></string>
-
-    <string name="subtitle">Your WhatsApp sticker packs from @Wanger_Motionbot</string>
     <string name="open_file">Open a pack file</string>
     <string name="open_bot">Make stickers in the bot</string>
     <string name="empty_title">No packs yet</string>
-    <string name="empty_steps">1. In @Wanger_Motionbot, make a WhatsApp pack (at least 3 stickers).\n2. Tap “📦 Get the ZIP”: the bot sends you a ZIP file.\n3. Open that file with Wanger Stickers (or tap “Open a pack file” above).\n4. Tap “Add to WhatsApp”.</string>
     <string name="footer">Packs stay on this phone. Wanger Stickers isn’t made by or affiliated with WhatsApp.</string>
-    <string name="add_now_q">Add it to WhatsApp now?</string>
-    <string name="later">Later</string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
 
@@ -48,14 +43,6 @@
     <string name="err_sticker_too_big" tools:ignore="PluralsCandidate">Sticker %1$d is too big (still: 100 KB, animated: 500 KB).</string>
     <string name="err_sticker_too_long" tools:ignore="PluralsCandidate">Sticker %1$d plays longer than 10 seconds.</string>
     <string name="err_sticker_frame" tools:ignore="PluralsCandidate">Sticker %1$d has frames shorter than 8 ms.</string>
-    <plurals name="imported">
-        <item quantity="one">“%1$s” is ready: %2$d sticker.</item>
-        <item quantity="other">“%1$s” is ready: %2$d stickers.</item>
-    </plurals>
-    <plurals name="updated">
-        <item quantity="one">“%1$s” was updated: %2$d sticker.</item>
-        <item quantity="other">“%1$s” was updated: %2$d stickers.</item>
-    </plurals>
     <plurals name="details">
         <item quantity="one">%1$s · %2$d sticker</item>
         <item quantity="other">%1$s · %2$d stickers</item>
@@ -72,4 +59,42 @@
         <item quantity="one">The pack has %1$d sticker; WhatsApp allows at most 30.</item>
         <item quantity="other">The pack has %1$d stickers; WhatsApp allows at most 30.</item>
     </plurals>
+    <string name="hero_kicker">Stickers for WhatsApp</string>
+    <string name="hero_title">Your stickers, in WhatsApp</string>
+    <string name="hero_body">Open the ZIP the bot sends you and add the pack in one tap.</string>
+    <string name="stat_packs">packs</string>
+    <string name="stat_stickers">stickers</string>
+    <string name="stat_added">in WhatsApp</string>
+    <string name="section_packs">Your packs</string>
+    <string name="add_pack">New pack</string>
+    <string name="sheet_add_title">Add a pack</string>
+    <string name="opt_file_sub">Pick the ZIP the bot sent you</string>
+    <string name="opt_bot_sub">Make a WhatsApp pack, then tap “📦 Get the ZIP”</string>
+    <string name="tip_open_with">Quicker: in Telegram, tap the ZIP and choose “Open with → Wanger Stickers”.</string>
+    <string name="empty_body">Turn the packs you make in @Wanger_Motionbot into WhatsApp stickers.</string>
+    <string name="step_1">In @Wanger_Motionbot, make a WhatsApp pack (3 stickers or more).</string>
+    <string name="step_2">Tap “📦 Get the ZIP”: the bot sends you a ZIP file.</string>
+    <string name="step_3">Open that file with Wanger Stickers.</string>
+    <string name="step_4">Tap “Add to WhatsApp”. Done!</string>
+    <string name="ready_title">Your pack is ready 🎉</string>
+    <string name="updated_title">Pack updated ✨</string>
+    <string name="open_pack">See the pack</string>
+    <string name="stickers_label">Stickers</string>
+    <string name="stickers_hint">Tap a sticker to see it large</string>
+    <string name="static_label">Still</string>
+    <string name="animated_label">Animated</string>
+    <string name="by_publisher">by %1$s</string>
+    <string name="delete_title">Delete this pack?</string>
+    <string name="back">Back</string>
+    <string name="more">More</string>
+    <string name="close">Close</string>
+    <string name="sticker_of">%1$d of %2$d</string>
+    <string name="made_with">Made with @Wanger_Motionbot</string>
+    <string name="reading">Reading the pack…</string>
+    <plurals name="count_stickers">
+        <item quantity="one">%d sticker</item>
+        <item quantity="other">%d stickers</item>
+    </plurals>
+    <string name="bot_short">Bot</string>
+    <string name="packs_of" tools:ignore="PluralsCandidate">%1$d of %2$d packs</string>
 </resources>

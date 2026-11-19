@@ -391,8 +391,8 @@ provider and its key), HubAccountProvider (no hub exists).
   `tests/android.test.mjs`); the tray accepts WhatsApp's own 24–512 px range (the bot writes 96×96).
 - Storage: app-private, one folder per pack named by a SHA-256 of the identifier, swapped in
   atomically; re-import bumps `image_data_version`. Max 10 packs (WhatsApp's per-app limit).
-- Kotlin + framework widgets only (no AndroidX / Material libraries): ≈ 80 KB release APK, nothing
-  to keep updated. minSdk 23, target 36 (Google Play's current requirement).
+- ~~Kotlin + framework widgets only (≈ 80 KB APK)~~ — replaced by D31 on Kimi's request.
+  minSdk 23, target 36 (Google Play's current requirement).
 - `applicationId` = `com.wanger.stickers` — permanent once published on Play; change it before the
   first publication if Kimi prefers another.
 
@@ -404,6 +404,17 @@ provider and its key), HubAccountProvider (no hub exists).
   a key she keeps herself for direct APKs. A signing key is a secret, so it is never created into
   git or chat; the test APK from this phase is a debug build for her own phone only.
 - iOS needs a paid Apple developer account: not started.
+
+## D31 — Android app 1.1: a real design (Kimi, 2026-11-19: "the UI is awful and too simple")
+
+- Jetpack Compose + Material 3 (Compose BOM 2026.06.01 — the newest that builds with compileSdk 36 /
+  AGP 8.13; 2026.08+ needs compileSdk 37 and AGP 9), the Vazirmatn typeface (SIL OFL, shipped with
+  its licence in `assets/licenses/`), the Wanger gradient. The release APK grows from ≈ 80 KB to
+  ≈ 1.6 MB — a fair price for a UI people enjoy; still no permission to grant.
+- One activity, two screens (list, pack) switched with `AnimatedContent`; sheets for every message
+  instead of system dialogs; animated stickers play in the list and the pack screen (Android 9+).
+- The core (`PackReader`, `PackStore`, the provider, `WhatsApp.kt`) is unchanged, so WhatsApp's side
+  and its tests are untouched.
 
 ## Q — Questions for Kimi before Phase 1 (answered on 2026-11-12, see §A)
 

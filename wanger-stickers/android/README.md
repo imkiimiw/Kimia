@@ -18,11 +18,16 @@ can't open a ZIP itself; this app is the missing step.
   pack replaces it and bumps `image_data_version` so WhatsApp refreshes.
 - **Adds** to WhatsApp, WhatsApp Business or both (a chooser when both lack it); shows "✓ In WhatsApp"
   from WhatsApp's own whitelist provider; shows WhatsApp's refusal reason if it rejects a pack.
-- **No permissions at all** — no internet, no storage. Nothing leaves the phone except what WhatsApp
-  reads from the provider. Backups are off (packs can be re-imported from the bot).
-- Persian and English (follows the phone's language), RTL, light and dark, Android 6.0+ (API 23),
-  targets Android 16 (API 36). No AndroidX, no third-party code in the APK besides the Kotlin
-  standard library: the release APK is about 80 KB.
+- **No permission to grant** — no internet, no storage (the only entry in the merged manifest is
+  AndroidX's own `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, private to the app). Nothing leaves the
+  phone except what WhatsApp reads from the provider. Backups are off (packs can be re-imported).
+- **Design (1.1, 2026-11-19):** Jetpack Compose + Material 3 in the Wanger colours, the Vazirmatn
+  typeface for Persian and Latin, a gradient header with the pack / sticker / "in WhatsApp" counts,
+  pack cards with the first stickers playing, bottom sheets for "new pack", "pack ready" and errors,
+  a pack screen with a full-bleed header and the sticker grid (tap = large preview with emojis),
+  animated screen changes that follow the reading direction, light and dark themes.
+- Persian and English (follows the phone's language), RTL, Android 6.0+ (API 23), targets Android 16
+  (API 36). Release APK ≈ 1.6 MB (the four Vazirmatn weights are ≈ 490 KB of it).
 
 ## Code
 
@@ -34,7 +39,10 @@ can't open a ZIP itself; this app is the missing step.
 | `PackStore.kt` | the packs on the phone: one hashed folder per pack, atomic swap on save |
 | `StickerContentProvider.kt` | what WhatsApp reads: `metadata`, `metadata/<id>`, `stickers/<id>`, `stickers_asset/<id>/<file>` |
 | `WhatsApp.kt` | installed apps, whitelist check, the add intent |
-| `MainActivity.kt`, `PackActivity.kt`, `BaseActivity.kt` | the two screens, the shared add / delete flow |
+| `MainActivity.kt` | the one activity: incoming files, the file picker, the WhatsApp intent and its result |
+| `ui/Model.kt` | `AppModel`: packs, sheets, import / delete / add (coroutines, survives rotation) |
+| `ui/HomeScreen.kt`, `ui/PackScreen.kt`, `ui/Sheets.kt`, `ui/App.kt` | the screens, bottom sheets and dialogs, navigation |
+| `ui/Components.kt`, `ui/Sticker.kt`, `ui/Theme.kt` | shared pieces, image loading (animated WebP on Android 9+), colours / type / shapes |
 
 The provider contract (paths, column names, the `com.whatsapp.sticker.READ` read permission, the
 intent extras) follows WhatsApp's guide and sample app (github.com/WhatsApp/stickers, BSD licence);
@@ -47,7 +55,7 @@ Needs JDK 17+ and the Android SDK (platform 36, build-tools); `local.properties`
 
 ```bash
 cd android
-./gradlew testDebugUnitTest      # 40 JVM + Robolectric tests (provider contract, import → add flow on API 24 and 36)
+./gradlew testDebugUnitTest      # 42 JVM + Robolectric tests (provider contract, import → add flow on API 24 and 36)
 ./gradlew lintDebug              # 0 issues
 ./gradlew assembleDebug          # app/build/outputs/apk/debug/app-debug.apk (test build, debuggable)
 ./gradlew assembleRelease        # R8-shrunk; signed when signing is configured (below)
@@ -57,7 +65,10 @@ cd android
   `node --import ./tests/sdk/register.mjs scripts/android-fixtures.mjs` from `wanger-stickers/`:
   Chromium draws real WebP / PNG files and the bot's own endpoints export them). Rerun it when the
   export format changes; `npm test` tells you when.
-- `ScreenshotTest` renders both screens (fa / en / dark) into `app/build/screenshots/`.
+- `ScreenshotTest` renders every screen and sheet (fa / en / dark) into `app/build/screenshots/`.
+- The flow tests drive the Compose UI (`createEmptyComposeRule` + `ActivityScenario`) on a
+  411×891 dp screen; `AppModel` is built by the activity's own factory (the framework's
+  AndroidViewModel factory caches the first Application, which breaks between Robolectric tests).
 - Where Maven Central rate-limits (HTTP 429), add `-ProbolectricRepo=<mirror>` for Robolectric's
   Android jars and a Gradle init script that puts the mirror first; nothing in the project needs it.
 

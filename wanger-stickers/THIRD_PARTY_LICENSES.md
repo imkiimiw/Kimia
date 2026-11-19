@@ -9,10 +9,16 @@ cards / upstream repositories).
 | Component | Version | Licence | Used for | Shipped how |
 |---|---|---|---|---|
 | Kotlin standard library | 2.2.21 | Apache-2.0 | app code | in the APK (R8-shrunk) |
+| Jetpack Compose (BOM 2026.06.01: ui / foundation 1.11.4, material3 1.4.0, material-icons-core 1.7.8) | — | Apache-2.0 | the UI (1.1) | in the APK (R8-shrunk) |
+| androidx.activity:activity-compose (+ lifecycle, core, transitive) | 1.13.0 | Apache-2.0 | the activity, result APIs, ViewModel | in the APK |
+| kotlinx-coroutines (transitive) | via Compose | Apache-2.0 | background work | in the APK |
+| Vazirmatn (Regular, Medium, Bold, ExtraBold TTF, github.com/rastikerdar/vazirmatn) | master, 2026-11-19 | SIL OFL 1.1 | Persian + Latin typeface | in the APK; licence in `assets/licenses/Vazirmatn-OFL.txt` |
+| Material Icons "folder" path | — | Apache-2.0 | `res/drawable/ic_folder.xml` | in the APK |
 | Android Gradle Plugin | 8.13.2 | Apache-2.0 | build | build only |
 | Gradle wrapper | 8.14.7 | Apache-2.0 | build (`gradlew`, `gradle/wrapper/gradle-wrapper.jar`) | in git, not in the APK |
 | JUnit | 4.13.2 | EPL-1.0 | tests | test only |
 | Robolectric | 4.18 | MIT | tests (Android framework on the JVM) | test only |
+| Compose ui-test-junit4 / ui-test-manifest, androidx.test:core 1.7.0 | via BOM | Apache-2.0 | UI tests | test / debug only |
 | org.json | 20250107 | Public Domain | tests (Android ships its own) | test only |
 
 WhatsApp's sticker sample app (github.com/WhatsApp/stickers, BSD-3-Clause): we follow its documented

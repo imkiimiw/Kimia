@@ -45,10 +45,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".PackActivity"
-            android:exported="false" />
-
         <!-- WhatsApp's official sticker integration: WhatsApp reads packs from here. Readable only
              with com.whatsapp.sticker.READ, which WhatsApp itself defines and holds. -->
         <provider

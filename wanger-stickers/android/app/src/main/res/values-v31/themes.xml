@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ launch screen in the brand colour (the icon is the adaptive launcher icon). -->
+    <style name="Theme.Wanger" parent="Base.Theme.Wanger">
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowSplashScreenBackground">@color/icon_bg</item>
+    </style>
+</resources>

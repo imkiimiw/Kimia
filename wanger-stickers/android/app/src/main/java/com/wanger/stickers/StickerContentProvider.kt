@@ -9,6 +9,7 @@ import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import androidx.core.net.toUri
 import java.io.FileNotFoundException
 
 /**
@@ -119,7 +120,7 @@ class StickerContentProvider : ContentProvider() {
 
         /** Tells WhatsApp (and our screens) that the pack list changed. */
         fun notifyChanged(ctx: Context) {
-            ctx.contentResolver.notifyChange(Uri.parse("content://${authorityOf(ctx)}/$METADATA"), null)
+            ctx.contentResolver.notifyChange("content://${authorityOf(ctx)}/$METADATA".toUri(), null)
         }
     }
 }
