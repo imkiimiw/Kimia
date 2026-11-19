@@ -34,5 +34,12 @@
   "click": "clic éclair",
   "rps": "pierre feuille ciseaux",
   "ttt": "morpion",
-  "fun": "divertissement|jeux"
+  "fun": "divertissement|jeux",
+  "fal": "divination|voyance",
+  "hafez": "hafez|tirage de hafez",
+  "tarot": "tarot|carte de tarot",
+  "horo": "horoscope|mon horoscope",
+  "abjad": "numérologie|numerologie",
+  "coffee": "marc de café|lecture du café",
+  "font": "polices|police stylée|texte stylé"
 }

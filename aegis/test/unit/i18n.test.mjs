@@ -69,7 +69,7 @@ test('button labels and command descriptions fit Telegram limits', () => {
     for (const [key, s] of Object.entries(dicts[lang])) {
       if (/\.btn_|^common\.(back|cancel|no|yes_remove|refresh)$|^bc\.(aud|mode)_btn_/.test(key)) assert.ok(s.length <= 64, `${lang} ${key} is too long for a button`);
       if (key.startsWith('cmd.')) assert.ok(s.length >= 1 && s.length <= 256, `${lang} ${key}`);
-      if (/^(app|cmd|alias|modcmd|seccmd|advcmd|soccmd|qacmd|funcmd|mediacmd|funlist|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
+      if (/^(app|cmd|alias|modcmd|seccmd|advcmd|soccmd|qacmd|funcmd|mediacmd|funlist|fallist|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
     }
   }
 });
@@ -213,12 +213,17 @@ test('every locale key the code names exists (literal keys and the dynamic famil
   /* Phase 9: the fun features and media tools build these keys from their tables. */
   const DICE = fun.FEATURES.filter((f) => f.cat === 'dice').map((f) => f.code);
   const p9 = {
-    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt'], 'fun.who_': ['a', 'd'],
+    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt', 'hafez', 'tarot', 'horo', 'abjad', 'font'], 'fun.who_': ['a', 'd'],
     'fun.act_': [...fun.ACTS, ...fun.ACTS.map((a) => `${a}_all`)], 'fun.bday_date_': ['g', 'j'], 'fun.bday_how_': ['g', 'j'],
     'fun.month_g_': [...Array(12).keys()].map((i) => i + 1), 'fun.month_j_': [...Array(12).keys()].map((i) => i + 1),
     'fun.': [...DICE.flatMap((d) => [`${d}_win`, `${d}_lose`]), 'math_win', 'scramble_win', 'typing_win', 'couple', 'couple_none', 'motd', 'motd_none', 'truth', 'dare'],
     'funlist.': ['ball8', 'fortune', 'truth', 'dare', 'wyr', 'quote', 'scramble', 'typing', 'trivia'],
-    'funcmd.': [...fun.CODES.filter((c) => c !== 'act' && c !== 'bday'), ...fun.ACTS, 'birthday', 'birthdays', 'fun'],
+    'funcmd.': [...fun.CODES.filter((c) => c !== 'act' && c !== 'bday'), ...fun.ACTS, 'birthday', 'birthdays', 'fun', 'fal'],
+    /* fortune telling and fonts */
+    'fallist.': ['tarot_names', 'tarot_up', 'tarot_rev', 'signs', 'horo_love', 'horo_work', 'horo_health', 'horo_advice', 'colors', 'numbers', 'coffee'],
+    'fal.t_': fun.fonts.TELEGRAM, 'fal.u_': [...fun.fonts.LATIN, 'upside', ...fun.fonts.COMBINING], 'fal.d_': ['kashida', 'kashida3', 'spaced', 'frame'],
+    'fal.pos_': [1, 2, 3], 'fal.yn_': ['yes', 'no', 'maybe'], 'fal.el_': fun.fal.ELEMENTS, 'fal.sys_': ['abjad', 'latin', 'cyrillic'],
+    'fal.': ['card_up', 'card_rev'],
     'mediacmd.': ['sticker', 'tophoto', 'gif', 'qr', 'readqr', 'ocr', 'pdf', 'tools'],
     'media.op_': ['g', 'sp', 'iv', 'bl', 'px', 'ci', 'r9', 'mi', 'fl', 'sq', 'hf', 'fi'], 'media.pdf_': ['clean', 'caution', 'danger'],
     'media.pdf_r_': ['javascript', 'launch', 'embedded', 'richmedia', 'autoaction', 'form', 'remote', 'links', 'encrypted', 'obfuscated', 'unreadable'],

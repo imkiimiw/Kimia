@@ -34,5 +34,12 @@
   "click": "quick click",
   "rps": "rock paper scissors",
   "ttt": "tic tac toe|tictactoe",
-  "fun": "fun commands|games"
+  "fun": "fun commands|games",
+  "fal": "fortune telling|fortunes",
+  "hafez": "hafez|hafez reading|fal hafez",
+  "tarot": "tarot|tarot card",
+  "horo": "horoscope|my horoscope",
+  "abjad": "numerology|name number",
+  "coffee": "coffee reading|coffee cup reading",
+  "font": "font|fonts|fancy text"
 }

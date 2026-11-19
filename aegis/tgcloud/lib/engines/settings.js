@@ -132,7 +132,7 @@ export const DEFAULTS = {
   ch_footer: '', ch_buttons: '', ch_post_ttl: '0', ch_protect: '0', ch_silent: '0', ch_mirror: '0',
   /* Phase 8 */
   stats_on: '1', pts_on: '0', pts_msg: '1', pts_gap: '60', pts_thanks: '1', pts_announce: '1', qa_on: '1', anon_on: '0', appeals_on: '1', review_all: '0',
-  /* Phase 9: fun (the 30 features: fx_<code>, see engines/fun.js) and media tools */
+  /* Phase 9: fun (the 36 features: fx_<code>, see engines/fun.js) and media tools */
   fun_on: '1', fun_rate: '10', fun_clean: '0', fun_reward: '1', fun_free: '1', bday_cal: 'auto',
   media_on: '1', media_who: 'a', media_daily: '10',
   ...FX_DEFAULTS,

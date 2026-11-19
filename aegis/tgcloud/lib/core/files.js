@@ -544,6 +544,29 @@ export function deflate(data, level = 6) {
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
+/* base64 → bytes (the isolate has no atob). Ignores whitespace; gives null for invalid input. */
+export function unbase64(text) {
+  const s = String(text || '').replace(/\s+/g, '');
+  if (s.length % 4 !== 0 || /[^A-Za-z0-9+/=]/.test(s)) return null;
+  const pad = s.endsWith('==') ? 2 : (s.endsWith('=') ? 1 : 0);
+  const out = new Uint8Array((s.length / 4) * 3 - pad);
+  const val = (c) => B64_REV[c.charCodeAt(0)];
+  let o = 0;
+  for (let i = 0; i < s.length; i += 4) {
+    const n = (val(s[i]) << 18) | (val(s[i + 1]) << 12) | ((s[i + 2] === '=' ? 0 : val(s[i + 2])) << 6) | (s[i + 3] === '=' ? 0 : val(s[i + 3]));
+    if (o < out.length) out[o++] = (n >> 16) & 255;
+    if (o < out.length) out[o++] = (n >> 8) & 255;
+    if (o < out.length) out[o++] = n & 255;
+  }
+  return out;
+}
+const B64_REV = (() => {
+  const t = new Uint8Array(128);
+  const abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  for (let i = 0; i < 64; i += 1) t[abc.charCodeAt(i)] = i;
+  return t;
+})();
+
 export function base64(bytes) {
   let out = '';
   let i = 0;

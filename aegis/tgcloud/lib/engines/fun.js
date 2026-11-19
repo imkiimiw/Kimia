@@ -1,5 +1,5 @@
 /*
- * Fun features (Phase 9): the 30 features and their settings, the anti-abuse limits (a cooldown and a
+ * Fun features (Phase 9, fortune telling and fonts added after the release): the 36 features and their settings, the anti-abuse limits (a cooldown and a
  * daily limit per member and feature, a limit per minute for the whole chat), running games,
  * birthdays, the picks of the day, and the media tools' jobs and sticker packs.
  *
@@ -7,13 +7,16 @@
  *   on 0|1 · who a (everyone) | d (admins) · cooldown seconds · daily uses per member (0 = no limit)
  *   · reward points for a win (games only; needs points on in the group).
  * Pure helpers at the end: hashes for the stable picks, math questions, scrambled words, the typing
- * test's anti-paste marks, rock-paper-scissors and tic-tac-toe rules, birthday input.
+ * test's anti-paste marks, rock-paper-scissors and tic-tac-toe rules, birthday input; then the font
+ * styles (fonts) and the fortune-telling helpers (fal: Hafez, tarot, zodiac, numerology, coffee).
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
-import { nowSec, parseJson } from '../core/util.js';
+import { inflateRaw, unbase64 } from '../core/files.js';
+import { nowSec, parseJson, utf8Text } from '../core/util.js';
+import { HAFEZ, HAFEZ_COUNT, HAFEZ_PER, TAROT_IMG } from '../data/fal.js';
 
-/* cat: dice (Telegram's animated dice) · luck · social · daily · games · duel */
+/* cat: dice (Telegram's animated dice) · luck · fal (fortune telling) · social · daily · games · duel · text */
 export const FEATURES = [
   { code: 'dice', cat: 'dice', emoji: '🎲', cmds: ['dice'], def: '1,a,30,20,0', dice: '🎲', win: (v) => v === 6 },
   { code: 'darts', cat: 'dice', emoji: '🎯', cmds: ['darts'], def: '1,a,30,20,0', dice: '🎯', win: (v) => v === 6 },
@@ -25,7 +28,6 @@ export const FEATURES = [
   { code: 'rand', cat: 'luck', emoji: '🔢', cmds: ['rand'], def: '1,a,10,30,0', args: true },
   { code: 'choose', cat: 'luck', emoji: '🤔', cmds: ['choose'], def: '1,a,10,30,0', args: true },
   { code: 'ball8', cat: 'luck', emoji: '🎱', cmds: ['ball'], def: '1,a,10,30,0', args: true },
-  { code: 'fortune', cat: 'luck', emoji: '🥠', cmds: ['fortune'], def: '1,a,60,5,0' },
   { code: 'love', cat: 'social', emoji: '💞', cmds: ['love'], def: '1,a,30,10,0' },
   { code: 'rate', cat: 'social', emoji: '🌡', cmds: ['rate'], def: '1,a,30,10,0', args: true },
   { code: 'truth', cat: 'social', emoji: '🗣', cmds: ['truth'], def: '1,a,30,10,0' },
@@ -45,8 +47,15 @@ export const FEATURES = [
   { code: 'click', cat: 'games', emoji: '⚡', cmds: ['click'], def: '1,a,60,10,1', game: true },
   { code: 'rps', cat: 'duel', emoji: '✊', cmds: ['rps'], def: '1,a,30,20,1', game: true },
   { code: 'ttt', cat: 'duel', emoji: '❌', cmds: ['ttt'], def: '1,a,60,10,2', game: true },
+  { code: 'hafez', cat: 'fal', emoji: '📜', cmds: ['hafez'], def: '1,a,30,10,0', args: true },
+  { code: 'tarot', cat: 'fal', emoji: '🃏', cmds: ['tarot'], def: '1,a,30,10,0', args: true },
+  { code: 'horo', cat: 'fal', emoji: '✨', cmds: ['horoscope', 'horo'], def: '1,a,30,10,0', args: true },
+  { code: 'abjad', cat: 'fal', emoji: '🧮', cmds: ['abjad', 'numerology'], def: '1,a,30,10,0', args: true },
+  { code: 'coffee', cat: 'fal', emoji: '☕', cmds: ['coffee'], def: '1,a,60,5,0' },
+  { code: 'fortune', cat: 'fal', emoji: '🥠', cmds: ['fortune'], def: '1,a,60,5,0' },
+  { code: 'font', cat: 'text', emoji: '🔠', cmds: ['font', 'fonts'], def: '1,a,10,20,0', args: true },
 ];
-export const CATS = ['dice', 'luck', 'social', 'daily', 'games', 'duel'];
+export const CATS = ['dice', 'luck', 'fal', 'social', 'daily', 'games', 'duel', 'text'];
 export const CODES = FEATURES.map((f) => f.code);
 export const byCode = (code) => FEATURES.find((f) => f.code === code) || null;
 export const SLASH = Object.fromEntries(FEATURES.flatMap((f) => f.cmds.map((c) => [c, f.code])));
@@ -314,3 +323,211 @@ export function parseBirthday(text, cal) {
   if (month < 1 || month > 12 || day < 1 || day > max) return null;
   return { month, day };
 }
+
+/* ---------- fonts (the «font» feature) ---------- */
+
+/*
+ * Telegram has no fonts to choose from. What a bot can give is (1) Telegram's own text styles —
+ * entities, rendered by every client in every language — and (2) Unicode letters that look like other
+ * fonts (mathematical alphanumerics and friends), which exist only for Latin letters and digits. For
+ * other scripts there are decorations: Persian/Arabic stretched with kashida, spaced letters, frames.
+ */
+export const fonts = (() => {
+  const cp = (n) => String.fromCodePoint(n);
+  /* a mathematical style: starts of A–Z, a–z (null: lower → upper) and 0–9 (null: digits stay), and its holes */
+  const math = (A, a, d, holes = {}) => (ch) => {
+    if (holes[ch]) return holes[ch];
+    const c = ch.charCodeAt(0);
+    if (c >= 65 && c <= 90) return cp(A + c - 65);
+    if (c >= 97 && c <= 122) return cp((a === null ? A : a) + c - 97);
+    if (c >= 48 && c <= 57 && d !== null) return cp(d + c - 48);
+    return ch;
+  };
+  const table = (from, to, { lower = false } = {}) => {
+    const src = [...from];
+    const dst = [...to];
+    const m = new Map(src.map((c, i) => [c, dst[i]]));
+    return (ch) => m.get(lower ? ch.toLowerCase() : ch) || ch;
+  };
+  const upper = (fn) => (ch) => fn(ch >= 'a' && ch <= 'z' ? ch.toUpperCase() : ch);
+  const digits = (zero, one) => (ch) => (ch === '0' ? (zero ? cp(zero) : ch) : (ch >= '1' && ch <= '9' ? cp(one + Number(ch) - 1) : null));
+  const both = (letters, nums) => (ch) => nums(ch) || letters(ch);
+  const SCRIPT = { B: 'ℬ', E: 'ℰ', F: 'ℱ', H: 'ℋ', I: 'ℐ', L: 'ℒ', M: 'ℳ', R: 'ℛ', e: 'ℯ', g: 'ℊ', o: 'ℴ' };
+  const FRAKTUR = { C: 'ℭ', H: 'ℌ', I: 'ℑ', R: 'ℜ', Z: 'ℨ' };
+  const DOUBLE = { C: 'ℂ', H: 'ℍ', N: 'ℕ', P: 'ℙ', Q: 'ℚ', R: 'ℝ', Z: 'ℤ' };
+  const wide = (ch) => (ch === ' ' ? '　' : (ch > ' ' && ch <= '~' ? cp(ch.charCodeAt(0) + 0xFEE0) : ch));
+  /* Latin letter styles, in the order shown */
+  const LATIN = [
+    ['bold', math(0x1D400, 0x1D41A, 0x1D7CE)],
+    ['italic', math(0x1D434, 0x1D44E, null, { h: 'ℎ' })],
+    ['bolditalic', math(0x1D468, 0x1D482, null)],
+    ['script', math(0x1D49C, 0x1D4B6, null, SCRIPT)],
+    ['boldscript', math(0x1D4D0, 0x1D4EA, null)],
+    ['fraktur', math(0x1D504, 0x1D51E, null, FRAKTUR)],
+    ['boldfraktur', math(0x1D56C, 0x1D586, null)],
+    ['double', math(0x1D538, 0x1D552, 0x1D7D8, DOUBLE)],
+    ['sans', math(0x1D5A0, 0x1D5BA, 0x1D7E2)],
+    ['sansbold', math(0x1D5D4, 0x1D5EE, 0x1D7EC)],
+    ['sansitalic', math(0x1D608, 0x1D622, null)],
+    ['sansbolditalic', math(0x1D63C, 0x1D656, null)],
+    ['mono', math(0x1D670, 0x1D68A, 0x1D7F6)],
+    ['wide', wide],
+    ['circled', both(math(0x24B6, 0x24D0, null), digits(0x24EA, 0x2460))],
+    ['circledneg', both(upper(math(0x1F150, null, null)), digits(0x24FF, 0x2776))],
+    ['squared', upper(math(0x1F130, null, null))],
+    ['squaredneg', upper(math(0x1F170, null, null))],
+    ['paren', both(table('abcdefghijklmnopqrstuvwxyz', '⒜⒝⒞⒟⒠⒡⒢⒣⒤⒥⒦⒧⒨⒩⒪⒫⒬⒭⒮⒯⒰⒱⒲⒳⒴⒵', { lower: true }), digits(0, 0x2474))],
+    ['smallcaps', table('abcdefghijklmnopqrstuvwxyz', 'ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢ', { lower: true })],
+    ['super', table('abcdefghijklmnopqrstuvwxyz0123456789+-=()', 'ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᑫʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾', { lower: true })],
+  ];
+  const UPSIDE = table('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,?!\'"()[]{}<>_&',
+    'ɐqɔpǝɟƃɥᴉɾʞlɯuodbɹsʇnʌʍxʎz∀ᗺƆᗡƎℲ⅁HIſʞ˥WNOԀΌᴚS⊥∩ΛMX⅄Z0ƖᄅƐㄣϛ9ㄥ8' + '6˙\'¿¡,„)(][}{><‾⅋');
+  /* combining marks drawn over each character */
+  const COMBINING = [['strike', '̶'], ['underline', '̲'], ['dunderline', '̳'], ['overline', '̅']];
+  const ARABIC = /[؀-ۿ]/;
+  const LATIN_CHAR = /[A-Za-z0-9]/;
+  const OTHER_LETTER = /[À-ɏͰ-ϿЀ-ӿ]/;
+  /* letters that join to the next one (a kashida can follow them) and those that don't */
+  const DUAL = new Set([...'بپتثجچحخسشصضطظعغفقکكگلمنهیيئـ']);
+  const RIGHT = new Set([...'اآأإدذرزژوؤة']);
+  const joins = (ch) => DUAL.has(ch) || RIGHT.has(ch);
+  function kashida(s, n) {
+    const chars = [...s];
+    return chars.map((ch, i) => (DUAL.has(ch) && i + 1 < chars.length && joins(chars[i + 1]) ? ch + 'ـ'.repeat(n) : ch)).join('');
+  }
+  const FRAMES = [['꧁ ', ' ꧂'], ['✿ ', ' ✿'], ['★彡 ', ' 彡★'], ['【', '】'], ['『', '』'], ['♡ ', ' ♡'],
+    ['─═ ', ' ═─'], ['⊱ ', ' ⊰']];
+  /* Telegram's own styles: [code, opening tags, closing tags] */
+  const TELEGRAM = [['bold', '<b>', '</b>'], ['italic', '<i>', '</i>'], ['underline', '<u>', '</u>'], ['strike', '<s>', '</s>'], ['spoiler', '<tg-spoiler>', '</tg-spoiler>'],
+    ['mono', '<code>', '</code>'], ['bolditalic', '<b><i>', '</i></b>'], ['boldunderline', '<b><u>', '</u></b>'], ['italicunderline', '<i><u>', '</u></i>'],
+    ['bolditalicunderline', '<b><i><u>', '</u></i></b>'], ['pre', '<pre>', '</pre>'], ['quote', '<blockquote>', '</blockquote>']];
+
+  /* All the styles that apply to `text`: { telegram: [[code, open, close]], latin: [[code, styled]], deco: [[code, styled]], hasLatin, hasArabic } */
+  function render(text) {
+    const s = String(text || '');
+    const chars = [...s];
+    const hasLatin = LATIN_CHAR.test(s);
+    const hasArabic = ARABIC.test(s);
+    const latin = [];
+    if (hasLatin) {
+      for (const [code, fn] of LATIN) latin.push([code, chars.map(fn).join('')]);
+      if (!hasArabic) latin.push(['upside', chars.map(UPSIDE).reverse().join('')]);
+    }
+    if (hasLatin || OTHER_LETTER.test(s)) {
+      for (const [code, mark] of COMBINING) latin.push([code, chars.map((ch) => (ch === ' ' || ARABIC.test(ch) ? ch : ch + mark)).join('')]);
+    }
+    const deco = [];
+    if (hasArabic) {
+      deco.push(['kashida', kashida(s, 1)], ['kashida3', kashida(s, 3)]);
+    }
+    deco.push(['spaced', chars.map((ch) => (ch === '\u200C' ? ' ' : ch)).join(' ').replace(/ {3,}/g, '  ')]);
+    FRAMES.forEach(([a, b], i) => deco.push([`frame${i + 1}`, `${a}${s}${b}`]));
+    return { telegram: TELEGRAM, latin, deco, hasLatin, hasArabic };
+  }
+
+  return { render, kashida, LATIN: LATIN.map(([c]) => c), COMBINING: COMBINING.map(([c]) => c), FRAMES: FRAMES.length, TELEGRAM: TELEGRAM.map(([c]) => c) };
+})();
+
+/* ---------- fal: Hafez, tarot, horoscope, numerology, coffee ---------- */
+
+export const fal = (() => {
+  /* Hafez: the 495 ghazals (lib/data/fal.js), one chunk of 50 inflated when needed and kept for the isolate's life */
+  const chunks = new Map();
+  function ghazal(n) {
+    const k = Math.max(1, Math.min(HAFEZ_COUNT, Math.floor(Number(n)) || 1));
+    const i = Math.floor((k - 1) / HAFEZ_PER);
+    if (!chunks.has(i)) chunks.set(i, JSON.parse(utf8Text(inflateRaw(unbase64(HAFEZ[i])).data)));
+    const g = chunks.get(i)[(k - 1) % HAFEZ_PER];
+    return { n: k, v: g.v, f: g.f };
+  }
+
+  /* Tarot: 78 cards — 0–21 the major arcana, then Wands, Cups, Swords, Pentacles (ace … king) */
+  const CARDS = 78;
+  const MAYBE = new Set([2, 10, 12, 18]); /* High Priestess, Wheel of Fortune, Hanged Man, Moon: «maybe» in a yes/no reading */
+  function draw(count, rnd = Math.random) {
+    const out = [];
+    while (out.length < count) {
+      const card = Math.floor(rnd() * CARDS);
+      if (!out.some((x) => x.card === card)) out.push({ card, reversed: rnd() < 0.3 });
+    }
+    return out;
+  }
+  const answer = (c) => (MAYBE.has(c.card) ? 'maybe' : (c.reversed ? 'no' : 'yes'));
+  const image = (card) => TAROT_IMG[card];
+  const suitOf = (card) => (card < 22 ? 'major' : ['wands', 'cups', 'swords', 'pentacles'][Math.floor((card - 22) / 14)]);
+
+  /* Zodiac: 0 Aries … 11 Pisces. The Persian solar months match the signs (Farvardin = Aries). */
+  const SIGNS = ['♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓'];
+  const ELEMENTS = ['fire', 'earth', 'air', 'water'];
+  const GREG = [[1, 20, 10], [2, 19, 11], [3, 21, 0], [4, 20, 1], [5, 21, 2], [6, 21, 3], [7, 23, 4], [8, 23, 5], [9, 23, 6], [10, 23, 7], [11, 22, 8], [12, 22, 9]];
+  /* a sign's Gregorian dates: { from: [month, day], to: [month, day] } */
+  const range = (sign) => {
+    const start = (i) => GREG.find((g) => g[2] === (i + 12) % 12);
+    const [m1, d1] = start(sign);
+    const [m2, d2] = start(sign + 1);
+    return { from: [m1, d1], to: [m2, d2 - 1] };
+  };
+  function signOf(cal, month, day) {
+    if (cal === 'j') return (Number(month) - 1 + 12) % 12;
+    let sign = 9;
+    for (const [m, d, s] of GREG) if (month > m || (month === m && day >= d)) sign = s;
+    return sign;
+  }
+  /* Today's reading for a sign: the same all day (a hash of the sign and the local day). */
+  function horoscope(sign, day, sizes) {
+    const h = (what) => hash(`horo:${sign}:${day}:${what}`);
+    const pick2 = (what, n) => h(what) % n;
+    return {
+      love: pick2('love', sizes.love), work: pick2('work', sizes.work), health: pick2('health', sizes.health), advice: pick2('advice', sizes.advice),
+      color: pick2('color', sizes.color), number: 1 + (h('number') % 99),
+      stars: { love: 1 + (h('s1') % 5), work: 1 + (h('s2') % 5), health: 1 + (h('s3') % 5) },
+    };
+  }
+
+  /* Numerology: abjad for Persian/Arabic letters, the Pythagorean table for Latin, the Russian table for Cyrillic. */
+  const ABJAD = new Map();
+  [['اآأإء', 1], ['بپ', 2], ['جچ', 3], ['د', 4], ['هة', 5], ['وؤ', 6], ['زژ', 7],
+    ['ح', 8], ['ط', 9], ['یيئى', 10], ['کكگ', 20], ['ل', 30], ['م', 40], ['ن', 50], ['س', 60],
+    ['ع', 70], ['ف', 80], ['ص', 90], ['ق', 100], ['ر', 200], ['ش', 300], ['ت', 400], ['ث', 500], ['خ', 600],
+    ['ذ', 700], ['ض', 800], ['ظ', 900], ['غ', 1000]].forEach(([chars, v]) => { for (const c of chars) ABJAD.set(c, v); });
+  const cyr = 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя';
+  const value = (ch, system) => {
+    if (system === 'abjad') return ABJAD.get(ch) || 0;
+    const c = ch.toLowerCase();
+    if (system === 'latin') return c >= 'a' && c <= 'z' ? ((c.charCodeAt(0) - 97) % 9) + 1 : 0;
+    const i = cyr.indexOf(c);
+    return i < 0 ? 0 : (i % 9) + 1;
+  };
+  function reduce(n) {
+    let x = n;
+    while (x > 9 && x !== 11 && x !== 22) x = String(x).split('').reduce((s, d) => s + Number(d), 0);
+    return x;
+  }
+  /* { system, total, number, letters } for the script most of the name is written in, or null. */
+  function numerology(text) {
+    const s = String(text || '').replace(/[\u064B-\u065F\u0670\u200C\u200D\u0640]/g, '');
+    const counts = { abjad: 0, latin: 0, cyrillic: 0 };
+    for (const ch of s) {
+      if (ABJAD.has(ch)) counts.abjad += 1;
+      else if (/[A-Za-z]/.test(ch)) counts.latin += 1;
+      else if (cyr.includes(ch.toLowerCase())) counts.cyrillic += 1;
+    }
+    const system = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+    if (!counts[system]) return null;
+    let total = 0;
+    for (const ch of s) total += value(ch, system);
+    return { system, total, number: reduce(total), letters: counts[system] };
+  }
+
+  /* Coffee: three different symbols out of n. */
+  function symbols(n, count = 3, rnd = Math.random) {
+    const out = [];
+    while (out.length < Math.min(count, n)) {
+      const i = Math.floor(rnd() * n);
+      if (!out.includes(i)) out.push(i);
+    }
+    return out;
+  }
+
+  return { ghazal, HAFEZ_COUNT, CARDS, draw, answer, image, suitOf, SIGNS, ELEMENTS, signOf, range, horoscope, numerology, reduce, symbols };
+})();
