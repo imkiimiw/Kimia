@@ -267,5 +267,19 @@
   "usage_birthmonth": "Use: /birthmonth, /birthmonth Libra, or /birthmonth 21.03",
   "usage_chinese": "Use: /chinese 1991 or /chinese 15.10.1991",
   "usage_lifepath": "Use: /lifepath 15.10.1991 (your birth date)",
-  "usage_weekday": "Use: /weekday 15.10.1991 (your birth date)"
+  "usage_weekday": "Use: /weekday 15.10.1991 (your birth date)",
+  "n_cards": "Playing-card reading",
+  "n_runes": "Rune reading",
+  "n_iching": "I Ching",
+  "n_tas": "Dice fortune",
+  "n_lenormand": "Lenormand",
+  "d_cards": "Three playing cards for past, present and future, each with its meaning (/cards 1 for one card).",
+  "d_runes": "A rune of the Elder Futhark, upright or reversed, with its meaning (/runes 3 for three).",
+  "d_iching": "The Chinese Book of Changes: six coin throws make a hexagram, with its changing lines (/iching and your question).",
+  "d_tas": "Three dice and the old meaning of their sum.",
+  "d_lenormand": "Three cards of the 36-card Lenormand deck and how they read together (/lenormand 1 for one).",
+  "usage_cards": "Use: /cards or /cards 1",
+  "usage_runes": "Use: /runes or /runes 3",
+  "usage_iching": "Use: /iching, or /iching and your question",
+  "usage_lenormand": "Use: /lenormand or /lenormand 1"
 }

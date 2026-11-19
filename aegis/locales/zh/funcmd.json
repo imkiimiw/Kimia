@@ -53,5 +53,10 @@
   "birthmonth": "出生月份",
   "chinese": "生肖|生肖运势",
   "lifepath": "生命灵数",
-  "weekday": "出生星期"
+  "weekday": "出生星期",
+  "cards": "扑克牌占卜|扑克占卜",
+  "runes": "卢恩符文|卢恩占卜",
+  "iching": "易经|易经占卜",
+  "tas": "骰子占卜",
+  "lenormand": "雷诺曼|雷诺曼占卜"
 }

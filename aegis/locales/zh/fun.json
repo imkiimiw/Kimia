@@ -267,5 +267,19 @@
   "usage_birthmonth": "用法：/birthmonth、/birthmonth 天秤座 或 /birthmonth 03-21",
   "usage_chinese": "用法：/chinese 1991 或 /chinese 1991-10-15",
   "usage_lifepath": "用法：/lifepath 1991-10-15（生日）",
-  "usage_weekday": "用法：/weekday 1991-10-15（生日）"
+  "usage_weekday": "用法：/weekday 1991-10-15（生日）",
+  "n_cards": "扑克牌占卜",
+  "n_runes": "卢恩符文",
+  "n_iching": "易经",
+  "n_tas": "骰子占卜",
+  "n_lenormand": "雷诺曼",
+  "d_cards": "三张扑克牌代表过去、现在和未来，各有含义（/cards 1 抽一张）。",
+  "d_runes": "一枚古弗萨克卢恩符文，正位或逆位，及其含义（/runes 3 抽三枚）。",
+  "d_iching": "中国《易经》：掷六次硬币成卦，并看变爻（/iching 加你的问题）。",
+  "d_tas": "三颗骰子及其点数之和的古老寓意。",
+  "d_lenormand": "雷诺曼 36 张牌中的三张及其合起来的解读（/lenormand 1 抽一张）。",
+  "usage_cards": "用法：/cards 或 /cards 1",
+  "usage_runes": "用法：/runes 或 /runes 3",
+  "usage_iching": "用法：/iching，或 /iching 加你的问题",
+  "usage_lenormand": "用法：/lenormand 或 /lenormand 1"
 }

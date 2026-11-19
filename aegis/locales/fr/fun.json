@@ -267,5 +267,19 @@
   "usage_birthmonth": "Exemple : /birthmonth, /birthmonth Balance ou /birthmonth 21.03",
   "usage_chinese": "Exemple : /chinese 1991 ou /chinese 15.10.1991",
   "usage_lifepath": "Exemple : /lifepath 15.10.1991 (date de naissance)",
-  "usage_weekday": "Exemple : /weekday 15.10.1991 (date de naissance)"
+  "usage_weekday": "Exemple : /weekday 15.10.1991 (date de naissance)",
+  "n_cards": "Cartomancie",
+  "n_runes": "Tirage des runes",
+  "n_iching": "Yi King",
+  "n_tas": "Présage des dés",
+  "n_lenormand": "Lenormand",
+  "d_cards": "Trois cartes pour le passé, le présent et l’avenir, chacune avec son sens (/cards 1 pour une carte).",
+  "d_runes": "Une rune du Futhark ancien, à l’endroit ou inversée, avec son sens (/runes 3 pour trois).",
+  "d_iching": "Le Livre des mutations chinois : six lancers de pièces forment un hexagramme, avec ses traits mutants (/iching et votre question).",
+  "d_tas": "Trois dés et le sens ancien de leur somme.",
+  "d_lenormand": "Trois cartes du jeu Lenormand de 36 cartes et leur lecture ensemble (/lenormand 1 pour une carte).",
+  "usage_cards": "Exemple : /cards ou /cards 1",
+  "usage_runes": "Exemple : /runes ou /runes 3",
+  "usage_iching": "Exemple : /iching, ou /iching et votre question",
+  "usage_lenormand": "Exemple : /lenormand ou /lenormand 1"
 }

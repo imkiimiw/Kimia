@@ -3901,7 +3901,7 @@ mock.addFile('p9_m', fixture('base420.jpg'));
 mock.addFile('p9_s', fixture('base420.jpg'));
 const mediaEndpoint = (await import('../tgcloud/endpoints/media.js')).default;
 
-await scenario('phase 9 — 🎮 the Fun panel: 48 features in ten groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
+await scenario('phase 9 — 🎮 the Fun panel: 53 features in ten groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
   tick(600);
   iota = mock.addChat({ id: IOTA, type: 'supergroup', title: 'Iota', count: 15, botRights: { can_manage_chat: true, can_change_info: true, can_delete_messages: true,
     can_restrict_members: true, can_invite_users: true, can_pin_messages: true, can_promote_members: true } });
@@ -3920,7 +3920,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 48 features in ten groups, each 
   assert.ok(dataOf(olgaScreen()).includes(I('fn')) && dataOf(olgaScreen()).includes(I('md')));
   await olga(I('fn'));
   assert.match(olgaScreen().plain, /🎮 Fun — \u2068Iota\u2069/);
-  assert.match(olgaScreen().plain, /On: 48 of 48/);
+  assert.match(olgaScreen().plain, /On: 53 of 53/);
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 10);
   await olga(I('fn:c:dice'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:f:/.test(d)).length, 6);
@@ -3933,7 +3933,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 48 features in ten groups, each 
   await olga(I('fn:s:fun_rate'));
   assert.equal(iVal('fun_rate'), '20');
   await olga(I('fn'));
-  assert.match(olgaScreen().plain, /On: 47 of 48/);
+  assert.match(olgaScreen().plain, /On: 52 of 53/);
   const s = row("SELECT count(*) AS n FROM aegis_audit WHERE chat_id = ? AND action = 'settings.set' AND target LIKE 'fx_%'", IOTA).n;
   assert.equal(s, 5, 'every change is logged');
 });
@@ -4141,7 +4141,7 @@ await scenario('🔮 fortune telling and 🔠 fonts — /fal and its buttons, Ha
   for (const c of ['/hafez', '/tarot', '/horoscope', '/abjad', '/coffee', '/fortune']) assert.ok(menu.params.text.includes(c), c);
   const mm = midOf(menu);
   assert.deepEqual(dataOf(mock.get(IOTA, mm)), ['fn:f:hafez', 'fn:f:tarot:1', 'fn:f:tarot:3', 'fn:f:horo:p', 'fn:f:abjad', 'fn:f:coffee', 'fn:f:fortune', 'fn:f:birthmonth',
-    'fn:f:chinese', 'fn:f:lifepath', 'fn:f:weekday']);
+    'fn:f:chinese', 'fn:f:lifepath', 'fn:f:weekday', 'fn:f:cards', 'fn:f:runes', 'fn:f:iching', 'fn:f:tas', 'fn:f:lenormand']);
   /* Hafez: a chosen ghazal, the poem folded in an expandable quote, the interpretation, Ganjoor */
   const h = toChat(await imsg(P9.kit, '/hafez 255'), IOTA)[0];
   assert.ok(h.result.ok, JSON.stringify(h.result));
@@ -4328,7 +4328,7 @@ await scenario('🕰 symbolic hours and 🔢 number meanings — the time now, a
   /* /fun lists the category with its menu */
   tick(61);
   const funl = await at(P9.ivy, '/fun');
-  assert.ok(funl.includes('🕰 Symbolic hours — /clock (7)') && funl.includes('🔢 Number meanings — /number (1)') && funl.includes('🔮 Fortune telling — /fal (10)'), funl);
+  assert.ok(funl.includes('🕰 Symbolic hours — /clock (7)') && funl.includes('🔢 Number meanings — /number (1)') && funl.includes('🔮 Fortune telling — /fal (15)'), funl);
   /* Persian, in private */
   const bahar = { id: 800000498, is_bot: false, first_name: 'بهار', language_code: 'fa' };
   faUsers.add(bahar.id);
@@ -4384,6 +4384,41 @@ await scenario('🗓 birth readings — birth month (sign, buttons, saved birthd
   assert.ok(czf.includes('بعد از ۱۵ بهمن'), 'a Persian year alone: the Bahman note');
   assert.match(await pm('عدد سرنوشت ۱۳۷۰/۷/۱۵'), /^‏🧭 <b>عدد سرنوشت<\/b> — ۱۳۷۰\/۷\/۱۵\n‏جمع همهٔ رقم‌های تاریخ تولد \(میلادی\): ۲۸ ← ۱۰ ← ۱\n\n‏<b>۱<\/b> — رهبر/);
   assert.match(await pm('فال روز تولد ۱۳۷۰/۷/۱۵'), /^‏📆 <b>متولد روز دوشنبه<\/b> — ۱۳۷۰\/۷\/۱۵/);
+});
+
+await scenario('♠️ drawn readings — playing cards, runes, the I Ching with changing lines, dice, Lenormand; buttons; Persian in private', async () => {
+  tick(600);
+  iSet('fun_rate', '0');
+  const cards = toChat(await imsg(P9.kit, '/cards'), IOTA)[0];
+  assert.match(cards.params.text, /^♠️ ⁨Kit⁩, your three cards:\n\n🕰 Past: <b>\w+ of \w+<\/b> (A|\d+|J|Q|K)(♥️|♦️|♣️|♠️)\n.+\n\n📍 Present: <b>.+\n.+\n\n🌅 Future: <b>.+\n.+\n\n<i>Fortune telling with playing cards/);
+  assert.deepEqual(dataOf(mock.get(IOTA, midOf(cards))), ['fn:f:cards:1', 'fn:f:cards:3']);
+  const one = toChat((await gpress(P9.lux, IOTA, 'fn:f:cards:1', midOf(cards))).calls, IOTA)[0].params.text;
+  assert.match(one, /^♠️ ⁨Lux⁩, your card:\n\n<b>\w+ of \w+<\/b> \S+\n.+\n\n<i>/);
+  const runes = await inIota(await imsg(P9.nia, '/runes 3'))[0];
+  assert.match(runes, /^🪨 ⁨Nia⁩, your three runes:\n\n🕰 Past: <b>\S \w+<\/b> — [\w ]+ \((upright|reversed)\)\n.+/);
+  assert.equal((runes.match(/\((upright|reversed)\)/g) || []).length, 3);
+  const ic = inIota(await imsg(P9.ivy, '/iching Will the plan work?'))[0];
+  assert.match(ic, /^☯️ ⁨Ivy⁩ asks: ⁨Will the plan work\?⁩\n\n<b>\S \d+\. [^<]+<\/b>\n(<code>━━━[━ ]━━━( ○| ×)?<\/code>\n){6}.+\n\n(🔄 Changing lines [\d, ]+ → <b>\S \d+\. [^<]+<\/b>\n.+|No changing lines: the answer stands as it is\.)\n\n<i>Cast with three coins/);
+  assert.equal(inIota(await imsg(P9.ivy, 'i ching tell me')).length, 0, 'the word with a question is just chat — the question needs /iching');
+  const tas = inIota(await imsg(P9.jay, 'dice fortune'))[0];
+  const m = /^⚄ ⁨Jay⁩, the dice: ([⚀-⚅]) ([⚀-⚅]) ([⚀-⚅]) = (\d+)\n\n<b>[^<]+<\/b> — .+/.exec(tas);
+  assert.ok(m, tas);
+  assert.equal([m[1], m[2], m[3]].reduce((sum, f) => sum + '⚀⚁⚂⚃⚄⚅'.indexOf(f) + 1, 0), Number(m[4]), 'the sum of the faces shown');
+  const len = toChat(await imsg(P9.kit, '/lenormand'), IOTA)[0];
+  assert.match(len.params.text, /^🌹 ⁨Kit⁩, your three Lenormand cards:\n\n🕰 Past: \S+ <b>\d+\. [^<]+<\/b>\n.+\n\n📍 Present: .+\n.+\n\n🌅 Future: .+\n.+\n\n✨ Read together: [^→]+ → [^→]+ → [^\n]+\n\n<i>The 36 cards/);
+  assert.deepEqual(dataOf(mock.get(IOTA, midOf(len))), ['fn:f:lenormand:1', 'fn:f:lenormand:3']);
+  tick(31);
+  assert.equal(inIota(await imsg(P9.kit, '/cards 2'))[0], 'Use: /cards or /cards 1');
+  /* Persian, in private */
+  const nima = { id: 800000496, is_bot: false, first_name: 'نیما', language_code: 'fa' };
+  faUsers.add(nima.id);
+  await onboard(nima, 'fa');
+  const pm = async (text) => lastSentTo(await dm(nima, text), nima.id).params.text;
+  assert.match(await pm('فال ورق'), /^‏♠️ ⁨نیما⁩، سه کارت تو:\n\n‏🕰 گذشته: <b>(آس|دو|سه|چهار|پنج|شش|هفت|هشت|نه|ده|سرباز|بی‌بی|شاه) (دل|خشت|گشنیز|پیک)<\/b> /);
+  assert.match(await pm('فال رون'), /^‏🪨 ⁨نیما⁩، رون تو:\n\n‏<b>\S [^<]+<\/b> — \S+ \((صاف|وارونه)\)/);
+  assert.match(await pm('ای چینگ'), /^‏☯️ ⁨نیما⁩، پاسخ ای‌چینگ:\n\n‏<b>\S [۰-۹]+\. [^<]+<\/b>\n‏<code>/);
+  assert.match(await pm('فال تاس'), /^‏⚄ ⁨نیما⁩، تاس‌ها: [⚀-⚅] [⚀-⚅] [⚀-⚅] = [۰-۹]+\n\n‏<b>/);
+  assert.match(await pm('فال لنورماند ۱'), /^‏🌹 ⁨نیما⁩، کارت لنورماند تو:\n\n‏\S+ <b>[۰-۹]+\. /);
 });
 
 await scenario('phase 9 — 🖼 media in private: image tools, a sticker in the member\'s own pack, sticker → photo, a QR code made and read back, a GIF from photos, video → GIF, the PDF check', async () => {

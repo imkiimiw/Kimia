@@ -53,5 +53,10 @@
   "birthmonth": "birth month|my birth month",
   "chinese": "chinese zodiac|chinese horoscope",
   "lifepath": "life path|life path number",
-  "weekday": "birth weekday|day i was born"
+  "weekday": "birth weekday|day i was born",
+  "cards": "card reading|playing card reading",
+  "runes": "rune reading|runes",
+  "iching": "i ching|iching",
+  "tas": "dice fortune",
+  "lenormand": "lenormand|lenormand reading"
 }

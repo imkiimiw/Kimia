@@ -267,5 +267,19 @@
   "usage_birthmonth": "نحوهٔ استفاده: /birthmonth، /birthmonth مهر، یا /birthmonth 1370/7/15",
   "usage_chinese": "نحوهٔ استفاده: /chinese 1370 یا /chinese 1370/7/15",
   "usage_lifepath": "نحوهٔ استفاده: /lifepath 1370/7/15 (تاریخ تولدت)",
-  "usage_weekday": "نحوهٔ استفاده: /weekday 1370/7/15 (تاریخ تولدت)"
+  "usage_weekday": "نحوهٔ استفاده: /weekday 1370/7/15 (تاریخ تولدت)",
+  "n_cards": "فال ورق",
+  "n_runes": "فال رون",
+  "n_iching": "ای‌چینگ",
+  "n_tas": "فال تاس",
+  "n_lenormand": "فال لنورماند",
+  "d_cards": "سه کارت پاسور برای گذشته، حال و آینده، هرکدام با معنایش (/cards 1 برای یک کارت).",
+  "d_runes": "یک رون نوردیک، صاف یا وارونه، با معنایش (/runes 3 برای سه رون).",
+  "d_iching": "کتاب تغییرات چینی: شش بار سکه انداختن یک شش‌خطی می‌سازد، با خطوط متغیرش (/iching و پرسشت).",
+  "d_tas": "سه تاس و معنای کهن جمعشان.",
+  "d_lenormand": "سه کارت از دستهٔ ۳۶تایی لنورماند و خوانش آن‌ها با هم (/lenormand 1 برای یک کارت).",
+  "usage_cards": "نحوهٔ استفاده: /cards یا /cards 1",
+  "usage_runes": "نحوهٔ استفاده: /runes یا /runes 3",
+  "usage_iching": "نحوهٔ استفاده: /iching، یا /iching و پرسشت",
+  "usage_lenormand": "نحوهٔ استفاده: /lenormand یا /lenormand 1"
 }

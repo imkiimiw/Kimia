@@ -57,6 +57,11 @@ export const FEATURES = [
   { code: 'chinese', cat: 'fal', emoji: '🐉', cmds: ['chinese'], def: '1,a,30,10,0', args: true },
   { code: 'lifepath', cat: 'fal', emoji: '🧭', cmds: ['lifepath'], def: '1,a,30,10,0', args: true },
   { code: 'weekday', cat: 'fal', emoji: '📆', cmds: ['weekday'], def: '1,a,30,10,0', args: true },
+  { code: 'cards', cat: 'fal', emoji: '♠️', cmds: ['cards'], def: '1,a,30,10,0', args: true },
+  { code: 'runes', cat: 'fal', emoji: '🪨', cmds: ['runes', 'rune'], def: '1,a,30,10,0', args: true },
+  { code: 'iching', cat: 'fal', emoji: '☯️', cmds: ['iching'], def: '1,a,30,10,0', args: true },
+  { code: 'tas', cat: 'fal', emoji: '⚄', cmds: ['dicefortune'], def: '1,a,30,10,0' },
+  { code: 'lenormand', cat: 'fal', emoji: '🌹', cmds: ['lenormand'], def: '1,a,30,10,0', args: true },
   { code: 'font', cat: 'text', emoji: '🔠', cmds: ['font', 'fonts'], def: '1,a,10,20,0', args: true },
   { code: 'clock', cat: 'hours', emoji: '🕰', cmds: ['clock', 'hour'], def: '1,a,10,20,0', args: true },
   { code: 'mirror', cat: 'hours', emoji: '🪞', cmds: ['mirror'], def: '1,a,10,20,0', args: true },
@@ -863,4 +868,49 @@ export const birth = (() => {
   }
   const trio = (a) => [0, 1, 2].map((k) => (a % 4) + 4 * k).filter((x) => x !== a);
   return { toGregorian, parseDate, weekday, lifePath, chinese, relation, trio, ANIMALS };
+})();
+
+/* ---------- drawn readings: playing cards, runes, the I Ching, dice, Lenormand ---------- */
+
+export const draw = (() => {
+  /* n different picks out of `size` */
+  function picks(size, n, rnd = Math.random) {
+    const out = [];
+    while (out.length < Math.min(n, size)) {
+      const i = Math.floor(rnd() * size);
+      if (!out.includes(i)) out.push(i);
+    }
+    return out;
+  }
+  /* Playing cards 0–51: suit × 13 + rank (suits ♥ ♦ ♣ ♠, ranks A, 2–10, J, Q, K) */
+  const SUITS = ['♥️', '♦️', '♣️', '♠️'];
+  const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+  const cardGlyph = (i) => `${RANKS[i % 13]}${SUITS[Math.floor(i / 13)]}`;
+  /* The 24 runes of the Elder Futhark; eight look the same upside down and are never reversed */
+  const RUNES = [...'ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ'];
+  const SAME_REVERSED = new Set([6, 8, 10, 11, 12, 15, 21, 22]);
+  const runes = (n, rnd = Math.random) => picks(24, n, rnd).map((rune) => ({ rune, reversed: !SAME_REVERSED.has(rune) && rnd() < 0.3 }));
+  /*
+   * The I Ching by three coins: six throws from the bottom line up; heads 3, tails 2 — 6 old yin (changing),
+   * 7 young yang, 8 young yin, 9 old yang (changing). The King Wen number comes from the two trigrams.
+   */
+  const TRIGRAM = { 111: 0, 100: 1, '010': 2, '001': 3, '000': 4, '011': 5, 101: 6, 110: 7 }; /* qian zhen kan gen kun xun li dui (lines bottom → top) */
+  const KING_WEN = [[1, 25, 6, 33, 12, 44, 13, 10], [34, 51, 40, 62, 16, 32, 55, 54], [5, 3, 29, 39, 8, 48, 63, 60], [26, 27, 4, 52, 23, 18, 22, 41],
+    [11, 24, 7, 15, 2, 46, 36, 19], [9, 42, 59, 53, 20, 57, 37, 61], [14, 21, 64, 56, 35, 50, 30, 38], [43, 17, 47, 31, 45, 28, 49, 58]]; /* [upper][lower] */
+  const hexOf = (lines) => KING_WEN[TRIGRAM[lines.slice(3).join('')]][TRIGRAM[lines.slice(0, 3).join('')]];
+  function iching(rnd = Math.random) {
+    const throws = [...Array(6)].map(() => [0, 1, 2].reduce((sum) => sum + (rnd() < 0.5 ? 3 : 2), 0));
+    const lines = throws.map((v) => (v % 2 ? 1 : 0));
+    const changing = throws.map((v, i) => (v === 6 || v === 9 ? i + 1 : 0)).filter(Boolean);
+    const moved = lines.map((l, i) => (changing.includes(i + 1) ? 1 - l : l));
+    return { throws, lines, changing, hex: hexOf(lines), to: changing.length ? hexOf(moved) : 0 };
+  }
+  const hexGlyph = (n) => String.fromCodePoint(0x4DC0 + n - 1);
+  /* Three dice: 3–18 */
+  const FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+  const dice = (rnd = Math.random) => [0, 1, 2].map(() => 1 + Math.floor(rnd() * 6));
+  /* The 36 Lenormand cards (1 Rider … 36 Cross) */
+  const LENORMAND = ['🏇', '☘️', '⛵', '🏠', '🌳', '☁️', '🐍', '⚰️', '💐', '🌾', '〰️', '🐦', '👶', '🦊', '🐻', '⭐', '🦢', '🐕', '🗼', '🌷', '⛰️', '🔀', '🐁', '❤️', '💍', '📖',
+    '✉️', '👨', '👩', '⚜️', '☀️', '🌙', '🔑', '🐟', '⚓', '✝️'];
+  return { picks, SUITS, RANKS, cardGlyph, RUNES, SAME_REVERSED, runes, hexOf, iching, hexGlyph, FACES, dice, LENORMAND };
 })();

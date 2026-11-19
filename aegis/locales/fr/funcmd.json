@@ -53,5 +53,10 @@
   "birthmonth": "mois de naissance",
   "chinese": "horoscope chinois|signe chinois",
   "lifepath": "chemin de vie",
-  "weekday": "jour de naissance"
+  "weekday": "jour de naissance",
+  "cards": "cartomancie|tirage de cartes",
+  "runes": "tirage des runes|runes",
+  "iching": "yi king|yiking",
+  "tas": "présage des dés",
+  "lenormand": "lenormand|tirage lenormand"
 }

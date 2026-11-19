@@ -39,6 +39,8 @@ const RLM = /[\u200F\u200E]/g;
 /* A content list from funlist (one item per line), without direction marks. */
 const list = (lang, key) => t(lang, `funlist.${key}`).split('\n').map((x) => x.replace(RLM, '').trim()).filter(Boolean);
 /* The same for the fortune-telling lists (fallist). */
+/* a t() string used inside a line (its right-to-left mark belongs at the line's start, not here) */
+const inline = (lang, key, vars) => t(lang, key, vars).replace(RLM, '');
 const flist = (lang, key) => t(lang, `fallist.${key}`).split('\n').map((x) => x.replace(RLM, '').trim()).filter(Boolean);
 const norm = (s) => normalizeWord(String(s || '').replace(RLM, '').replace(new RegExp(fun.PASTE_MARK, 'g'), ''));
 /* features that need a group (members, replies, the group's own lists); the rest also work in private */
@@ -221,6 +223,16 @@ function prepare(parsed, message, lang, s) {
       if (y >= 1300 && y < 1500) return { year: y + 621, jalali: true };
       return y >= 1900 && y <= 2100 ? { year: y } : { bad: true };
     }
+    case 'cards':
+    case 'runes':
+    case 'lenormand': {
+      if (!a.length) return {};
+      const n = toInt(asciiDigits(text));
+      return n === 1 || n === 3 ? { n } : { bad: true };
+    }
+    case 'iching':
+      if (!a.length) return {};
+      return parsed.slash && text.length <= 200 ? { q: text } : { bad: true };
     case 'lifepath':
     case 'weekday': {
       if (!a.length) return {};
@@ -386,6 +398,12 @@ async function run(ctx, x) {
     case 'lifepath':
     case 'weekday':
       return birthReading(ctx, x);
+    case 'cards':
+    case 'runes':
+    case 'iching':
+    case 'tas':
+    case 'lenormand':
+      return drawReading(ctx, x);
     case 'truth':
     case 'dare':
       return say(ctx, chatId, s, t(lang, `fun.${code}`, { user: pre.target ? nameOf(pre.target) : me, text: esc(fun.pick(list(lang, code))) }), null, `fun-${code}`, r);
@@ -542,6 +560,75 @@ async function coffee(ctx, x) {
   return say(ctx, chatId, s, lines.join('\n'), [[btn(t(lang, 'fal.btn_coffee'), 'fn:f:coffee')]], 'fun-coffee', reply(message));
 }
 
+/* ---------- drawn readings ---------- */
+
+async function drawReading(ctx, x) {
+  const { chatId, s, lang, pre, message, parsed } = x;
+  const r = reply(message);
+  const D = fun.draw;
+  const code = parsed.code;
+  const me = nameOf(message.from);
+  const two = (k) => String(k || '|').split('|').map((y) => esc(y.trim()));
+  const out = (lines, view, rows) => say(ctx, chatId, s, [...lines, '', t(lang, `fal.${code}_note`)].join('\n'), rows, view, r);
+  const pos = (i, n) => (n === 3 ? `${t(lang, `fal.pos_${i + 1}`)}: ` : '');
+  if (code === 'cards') {
+    const n = pre.n || 3;
+    const ranks = flist(lang, 'cd_ranks');
+    const suits = flist(lang, 'cd_suits');
+    const lines = [t(lang, n === 3 ? 'fal.cards_title3' : 'fal.cards_title1', { user: me })];
+    for (const [i, c] of D.picks(52, n).entries()) {
+      lines.push('', rtl(lang, `${pos(i, n)}<b>${esc(inline(lang, 'fal.cd_name', { rank: ranks[c % 13], suit: suits[Math.floor(c / 13)] }))}</b> ${D.cardGlyph(c)}`),
+        rtl(lang, esc(flist(lang, 'cd_mean')[c] || '')));
+    }
+    return out(lines, 'fun-cards', [[btn(t(lang, 'fal.btn_cards1'), 'fn:f:cards:1'), btn(t(lang, 'fal.btn_cards3'), 'fn:f:cards:3')]]);
+  }
+  if (code === 'runes') {
+    const n = pre.n || 1;
+    const lines = [t(lang, n === 3 ? 'fal.runes_title3' : 'fal.runes_title1', { user: me })];
+    for (const [i, { rune, reversed }] of D.runes(n).entries()) {
+      const [name, kw] = two(flist(lang, 'rune_names')[rune]);
+      lines.push('', rtl(lang, `${pos(i, n)}<b>${D.RUNES[rune]} ${name}</b> — ${kw} ${inline(lang, reversed ? 'fal.rn_rev' : 'fal.rn_up')}`),
+        rtl(lang, esc(flist(lang, reversed ? 'rune_rev' : 'rune_up')[rune] || '')));
+    }
+    return out(lines, 'fun-runes', [[btn(t(lang, 'fal.btn_rune1'), 'fn:f:runes:1'), btn(t(lang, 'fal.btn_rune3'), 'fn:f:runes:3')]]);
+  }
+  if (code === 'iching') {
+    const c = D.iching();
+    const hex = (h) => {
+      const [name, text] = two(flist(lang, 'iching')[h - 1]);
+      return { title: `<b>${D.hexGlyph(h)} ${num(lang, h)}. ${name}</b>`, text };
+    };
+    const a = hex(c.hex);
+    const lines = [pre.q ? t(lang, 'fal.iching_q', { user: me, q: iso(pre.q, 120) }) : t(lang, 'fal.iching_title', { user: me }), '', rtl(lang, a.title)];
+    for (let i = 5; i >= 0; i -= 1) {
+      const mark = c.changing.includes(i + 1) ? (c.lines[i] ? ' ○' : ' ×') : '';
+      lines.push(rtl(lang, `<code>${c.lines[i] ? '━━━━━━━' : '━━━ ━━━'}${mark}</code>`));
+    }
+    lines.push(rtl(lang, a.text), '');
+    if (c.to) {
+      const b = hex(c.to);
+      lines.push(t(lang, 'fal.ic_changing', { lines: c.changing.map((v) => num(lang, v)).join(t(lang, 'common.sep')), hex: b.title }), rtl(lang, b.text));
+    } else lines.push(t(lang, 'fal.ic_none'));
+    return out(lines, 'fun-iching', [[btn(t(lang, 'fal.btn_iching'), 'fn:f:iching')]]);
+  }
+  if (code === 'tas') {
+    const roll = D.dice();
+    const sum = roll.reduce((a, b) => a + b, 0);
+    const [title, text] = two(flist(lang, 'tas')[sum - 3]);
+    return out([t(lang, 'fal.tas_title', { user: me, faces: roll.map((v) => D.FACES[v - 1]).join(' '), sum: num(lang, sum) }), '', t(lang, 'fal.tas_mean', { title, text })],
+      'fun-tas', [[btn(t(lang, 'fal.btn_tas'), 'fn:f:tas')]]);
+  }
+  const n = pre.n || 3;
+  const cards = D.picks(36, n);
+  const lines = [t(lang, n === 3 ? 'fal.lenormand_title3' : 'fal.lenormand_title1', { user: me })];
+  for (const [i, c] of cards.entries()) {
+    const [name, text] = two(flist(lang, 'lenormand')[c]);
+    lines.push('', rtl(lang, `${pos(i, n)}${D.LENORMAND[c]} <b>${num(lang, c + 1)}. ${name}</b>`), rtl(lang, text));
+  }
+  if (n === 3) lines.push('', t(lang, 'fal.ln_sum', { list: cards.map((c) => two(flist(lang, 'lenormand')[c])[0]).join(' → ') }));
+  return out(lines, 'fun-lenormand', [[btn(t(lang, 'fal.btn_len1'), 'fn:f:lenormand:1'), btn(t(lang, 'fal.btn_len3'), 'fn:f:lenormand:3')]]);
+}
+
 /* ---------- birth readings ---------- */
 
 /* the 12 birth months: Persian month names in Persian, signs elsewhere */
@@ -662,7 +749,7 @@ async function hours(ctx, x) {
     else lines.push(t(lang, 'fal.hr_none'));
     if (now) {
       const nx = N.next(h, m);
-      if (nx.length) lines.push('', t(lang, 'fal.hr_next'), ...nx.map((n) => rtl(lang, `• ${digitsIn(lang, n.time)} — ${t(lang, `fal.hr_t_${n.type}`)}`)));
+      if (nx.length) lines.push('', t(lang, 'fal.hr_next'), ...nx.map((n) => rtl(lang, `• ${digitsIn(lang, n.time)} — ${inline(lang, `fal.hr_t_${n.type}`)}`)));
       lines.push('', t(lang, 'fal.hr_types'), ...HOUR_TYPES.map((c) => t(lang, `fal.hr_ex_${c}`)));
     }
     return send0(lines, 'fun-clock');
@@ -789,7 +876,8 @@ async function fontPage(ctx, cq, parts) {
 }
 
 /* A button of a fortune: runs the command for whoever pressed it, as if they had typed it. */
-const BUTTON_ARGS = { tarot: ['1', '3'], horo: [...Array(12).keys()].map(String), birthmonth: [...Array(12).keys()].map(String) };
+const BUTTON_ARGS = { tarot: ['1', '3'], horo: [...Array(12).keys()].map(String), birthmonth: [...Array(12).keys()].map(String), cards: ['1', '3'], runes: ['1', '3'],
+  lenormand: ['1', '3'] };
 async function falButton(ctx, cq, parts) {
   const code = parts[2];
   const f = fun.byCode(code);

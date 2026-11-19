@@ -336,3 +336,34 @@ test('birth readings: Persian dates to Gregorian, birth dates as typed, weekday,
   }
 });
 
+test('drawn readings: different cards, runes that never reverse, the I Ching table and its changing lines, dice', () => {
+  const d = fun.draw;
+  const seen = new Set();
+  for (let a = 0; a < 64; a += 1) seen.add(d.hexOf([...Array(6)].map((_, i) => (a >> i) & 1)));
+  assert.equal(seen.size, 64, 'every line pattern is a different hexagram, 1–64');
+  assert.deepEqual([d.hexOf([1, 1, 1, 1, 1, 1]), d.hexOf([0, 0, 0, 0, 0, 0]), d.hexOf([1, 1, 1, 0, 0, 0]), d.hexOf([0, 0, 0, 1, 1, 1]), d.hexOf([1, 0, 1, 0, 1, 0]),
+    d.hexOf([0, 1, 0, 1, 0, 1]), d.hexOf([1, 0, 0, 0, 1, 0]), d.hexOf([0, 1, 0, 0, 0, 1])], [1, 2, 11, 12, 63, 64, 3, 4]);
+  for (let k = 0; k < 300; k += 1) {
+    const c = d.iching();
+    assert.ok(c.throws.every((v) => v >= 6 && v <= 9));
+    assert.deepEqual(c.lines, c.throws.map((v) => v % 2));
+    assert.equal(c.hex, d.hexOf(c.lines));
+    assert.equal(c.to ? 1 : 0, c.changing.length ? 1 : 0);
+    if (c.to) assert.equal(c.to, d.hexOf(c.lines.map((l, i) => (c.changing.includes(i + 1) ? 1 - l : l))));
+    const r = d.runes(3);
+    assert.equal(new Set(r.map((x) => x.rune)).size, 3);
+    assert.ok(r.every((x) => !(x.reversed && d.SAME_REVERSED.has(x.rune))), 'a rune that looks the same both ways is never reversed');
+    assert.equal(new Set(d.picks(52, 3)).size, 3);
+    assert.ok(d.dice().every((v) => v >= 1 && v <= 6));
+  }
+  assert.equal(d.hexGlyph(1), '䷀');
+  assert.equal(d.hexGlyph(64), '䷿');
+  assert.deepEqual([d.cardGlyph(0), d.cardGlyph(12), d.cardGlyph(51)], ['A♥️', 'K♥️', 'K♠️']);
+  assert.equal(d.LENORMAND.length, 36);
+  for (const lang of LANGS) {
+    for (const [k, n] of Object.entries({ cd_ranks: 13, cd_suits: 4, cd_mean: 52, rune_names: 24, rune_up: 24, rune_rev: 24, iching: 64, tas: 16, lenormand: 36 })) {
+      assert.equal(list(lang, k).length, n, `${lang} ${k}`);
+    }
+  }
+});
+
