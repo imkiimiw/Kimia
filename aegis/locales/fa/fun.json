@@ -255,5 +255,17 @@
   "usage_angel": "نحوهٔ استفاده: /angel، یا /angel 777",
   "usage_sequence": "نحوهٔ استفاده: /sequence، یا /sequence 1234",
   "usage_repeat": "نحوهٔ استفاده: /repeat، یا /repeat 8888",
-  "usage_number": "نحوهٔ استفاده: /number، یا /number 1234 (تا شش رقم)"
+  "usage_number": "نحوهٔ استفاده: /number، یا /number 1234 (تا شش رقم)",
+  "n_birthmonth": "فال ماه تولد",
+  "n_chinese": "طالع چینی",
+  "n_lifepath": "عدد سرنوشت",
+  "n_weekday": "فال روز تولد",
+  "d_birthmonth": "شخصیت، عشق، کار، نقاط قوت و رنگ و سنگ و روز شانس متولدین هر ماه (/birthmonth مهر، /birthmonth 1370/7/15، یا تولد ثبت‌شده).",
+  "d_chinese": "حیوان و عنصر چینی سال تولدت، و اینکه امسال برایت چطور است (/chinese 1370).",
+  "d_lifepath": "عدد سرنوشت از تاریخ تولدت و معنایش (/lifepath 1370/7/15).",
+  "d_weekday": "روزی از هفته که به دنیا آمده‌ای و معنایش (/weekday 1370/7/15).",
+  "usage_birthmonth": "نحوهٔ استفاده: /birthmonth، /birthmonth مهر، یا /birthmonth 1370/7/15",
+  "usage_chinese": "نحوهٔ استفاده: /chinese 1370 یا /chinese 1370/7/15",
+  "usage_lifepath": "نحوهٔ استفاده: /lifepath 1370/7/15 (تاریخ تولدت)",
+  "usage_weekday": "نحوهٔ استفاده: /weekday 1370/7/15 (تاریخ تولدت)"
 }

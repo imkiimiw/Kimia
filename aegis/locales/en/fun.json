@@ -255,5 +255,17 @@
   "usage_angel": "Use: /angel, or /angel 777",
   "usage_sequence": "Use: /sequence, or /sequence 1234",
   "usage_repeat": "Use: /repeat, or /repeat 8888",
-  "usage_number": "Use: /number, or /number 1234 (up to six digits)"
+  "usage_number": "Use: /number, or /number 1234 (up to six digits)",
+  "n_birthmonth": "Birth month",
+  "n_chinese": "Chinese zodiac",
+  "n_lifepath": "Life path number",
+  "n_weekday": "Weekday of birth",
+  "d_birthmonth": "Character, love, work, strengths and lucky colour, stone and day for your birth month (/birthmonth Libra, /birthmonth 21.03, or the saved birthday).",
+  "d_chinese": "Your Chinese animal and element by birth year, and how this year treats you (/chinese 1991).",
+  "d_lifepath": "Your life path number from your birth date and what it says about you (/lifepath 15.10.1991).",
+  "d_weekday": "The weekday you were born on and what it means (/weekday 15.10.1991).",
+  "usage_birthmonth": "Use: /birthmonth, /birthmonth Libra, or /birthmonth 21.03",
+  "usage_chinese": "Use: /chinese 1991 or /chinese 15.10.1991",
+  "usage_lifepath": "Use: /lifepath 15.10.1991 (your birth date)",
+  "usage_weekday": "Use: /weekday 15.10.1991 (your birth date)"
 }

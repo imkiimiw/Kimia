@@ -49,5 +49,9 @@
   "angel": "nombre angélique|nombres angéliques",
   "sequence": "suite de nombres|nombres consécutifs",
   "repeat": "nombres répétés",
-  "number": "sens du nombre|signification du nombre"
+  "number": "sens du nombre|signification du nombre",
+  "birthmonth": "mois de naissance",
+  "chinese": "horoscope chinois|signe chinois",
+  "lifepath": "chemin de vie",
+  "weekday": "jour de naissance"
 }

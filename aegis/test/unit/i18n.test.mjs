@@ -215,7 +215,7 @@ test('every locale key the code names exists (literal keys and the dynamic famil
   const HOURS = ['clock', 'mirror', 'reversed', 'triple', 'angel', 'sequence', 'repeat', 'number'];
   const TIME_TYPES = ['mirror', 'reversed', 'triple'];
   const p9 = {
-    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt', 'hafez', 'tarot', 'horo', 'abjad', 'font', ...HOURS], 'fun.who_': ['a', 'd'],
+    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt', 'hafez', 'tarot', 'horo', 'abjad', 'font', ...HOURS, 'birthmonth', 'chinese', 'lifepath', 'weekday'], 'fun.who_': ['a', 'd'],
     'fun.act_': [...fun.ACTS, ...fun.ACTS.map((a) => `${a}_all`)], 'fun.bday_date_': ['g', 'j'], 'fun.bday_how_': ['g', 'j'],
     'fun.month_g_': [...Array(12).keys()].map((i) => i + 1), 'fun.month_j_': [...Array(12).keys()].map((i) => i + 1),
     'fun.': [...DICE.flatMap((d) => [`${d}_win`, `${d}_lose`]), 'math_win', 'scramble_win', 'typing_win', 'couple', 'couple_none', 'motd', 'motd_none', 'truth', 'dare'],
@@ -223,7 +223,9 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'funcmd.': [...fun.CODES.filter((c) => c !== 'act' && c !== 'bday'), ...fun.ACTS, 'birthday', 'birthdays', 'fun', 'fal'],
     /* fortune telling and fonts */
     'fallist.': ['tarot_names', 'tarot_up', 'tarot_rev', 'signs', 'horo_love', 'horo_work', 'horo_health', 'horo_advice', 'colors', 'numbers', 'coffee',
-      'mirror', 'reversed', 'angel3', 'angelx', 'seqx', 'rep2', 'rep4', 'digits'],
+      'mirror', 'reversed', 'angel3', 'angelx', 'seqx', 'rep2', 'rep4', 'digits', 'bm_traits', 'bm_love', 'bm_work', 'bm_good', 'bm_bad', 'bm_lucky',
+      'cz_names', 'cz_traits', 'cz_love', 'cz_work', 'cz_lucky', 'cz_elements', 'lifepath', 'weekdays'],
+    'fal.cz_rel_': ['same', 'best', 'good', 'clash', 'neutral'], 'fal.cz_': ['yang', 'yin', 'edge_g', 'edge_j'],
     /* symbolic hours and numbers */
     'fal.hr_is_': TIME_TYPES, 'fal.hr_t_': TIME_TYPES, 'fal.hr_ex_': HOURS.slice(1, 7), 'fal.hr_lt_': HOURS.slice(1), 'fal.hb_': HOURS.slice(1),
     'fal.nk_': ['repeat', 'angel', 'asc', 'desc', 'peak', 'palin', 'pair'], 'fal.nm_g': [2, 3, 4],

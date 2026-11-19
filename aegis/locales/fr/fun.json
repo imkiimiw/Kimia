@@ -255,5 +255,17 @@
   "usage_angel": "Exemple : /angel, ou /angel 777",
   "usage_sequence": "Exemple : /sequence, ou /sequence 1234",
   "usage_repeat": "Exemple : /repeat, ou /repeat 8888",
-  "usage_number": "Exemple : /number, ou /number 1234 (jusqu’à six chiffres)"
+  "usage_number": "Exemple : /number, ou /number 1234 (jusqu’à six chiffres)",
+  "n_birthmonth": "Mois de naissance",
+  "n_chinese": "Horoscope chinois",
+  "n_lifepath": "Chemin de vie",
+  "n_weekday": "Jour de naissance",
+  "d_birthmonth": "Caractère, amour, travail, forces et couleur, pierre et jour porte-bonheur selon le mois de naissance (/birthmonth Balance, /birthmonth 21.03 ou l’anniversaire enregistré).",
+  "d_chinese": "Votre animal et votre élément chinois selon l’année de naissance, et ce que l’année vous réserve (/chinese 1991).",
+  "d_lifepath": "Votre chemin de vie d’après votre date de naissance et sa signification (/lifepath 15.10.1991).",
+  "d_weekday": "Le jour de la semaine de votre naissance et son sens (/weekday 15.10.1991).",
+  "usage_birthmonth": "Exemple : /birthmonth, /birthmonth Balance ou /birthmonth 21.03",
+  "usage_chinese": "Exemple : /chinese 1991 ou /chinese 15.10.1991",
+  "usage_lifepath": "Exemple : /lifepath 15.10.1991 (date de naissance)",
+  "usage_weekday": "Exemple : /weekday 15.10.1991 (date de naissance)"
 }

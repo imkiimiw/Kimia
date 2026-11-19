@@ -53,6 +53,10 @@ export const FEATURES = [
   { code: 'abjad', cat: 'fal', emoji: '🧮', cmds: ['abjad', 'numerology'], def: '1,a,30,10,0', args: true },
   { code: 'coffee', cat: 'fal', emoji: '☕', cmds: ['coffee'], def: '1,a,60,5,0' },
   { code: 'fortune', cat: 'fal', emoji: '🥠', cmds: ['fortune'], def: '1,a,60,5,0' },
+  { code: 'birthmonth', cat: 'fal', emoji: '🗓', cmds: ['birthmonth'], def: '1,a,30,10,0', args: true },
+  { code: 'chinese', cat: 'fal', emoji: '🐉', cmds: ['chinese'], def: '1,a,30,10,0', args: true },
+  { code: 'lifepath', cat: 'fal', emoji: '🧭', cmds: ['lifepath'], def: '1,a,30,10,0', args: true },
+  { code: 'weekday', cat: 'fal', emoji: '📆', cmds: ['weekday'], def: '1,a,30,10,0', args: true },
   { code: 'font', cat: 'text', emoji: '🔠', cmds: ['font', 'fonts'], def: '1,a,10,20,0', args: true },
   { code: 'clock', cat: 'hours', emoji: '🕰', cmds: ['clock', 'hour'], def: '1,a,10,20,0', args: true },
   { code: 'mirror', cat: 'hours', emoji: '🪞', cmds: ['mirror'], def: '1,a,10,20,0', args: true },
@@ -778,4 +782,85 @@ export const numbers = (() => {
   const parseNumber = (text) => (/^\d{1,6}$/.test(String(text || '').trim()) ? String(text).trim() : null);
 
   return { timeType, timeKey, parseTime, next, MIRROR, REVERSED, TRIPLE, ANGEL_X, SEQ_X, kinds, own, digits, parseNumber, pad2 };
+})();
+
+/* ---------- birth readings: birth month, Chinese zodiac, life path number, weekday ---------- */
+
+export const birth = (() => {
+  /* Persian (Jalali) → Gregorian, the usual arithmetic method: [year, month, day] */
+  function toGregorian(jy0, jm, jd) {
+    const div = (a, b) => Math.floor(a / b);
+    const jy = jy0 + 1595;
+    let days = -355668 + 365 * jy + div(jy, 33) * 8 + div((jy % 33) + 3, 4) + jd + (jm < 7 ? (jm - 1) * 31 : (jm - 7) * 30 + 186);
+    let gy = 400 * div(days, 146097);
+    days %= 146097;
+    if (days > 36524) {
+      days -= 1;
+      gy += 100 * div(days, 36524);
+      days %= 36524;
+      if (days >= 365) days += 1;
+    }
+    gy += 4 * div(days, 1461);
+    days %= 1461;
+    if (days > 365) {
+      gy += div(days - 1, 365);
+      days = (days - 1) % 365;
+    }
+    let gd = days + 1;
+    const leap = (gy % 4 === 0 && gy % 100 !== 0) || gy % 400 === 0;
+    const months = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let gm = 0;
+    while (gm < 12 && gd > months[gm]) {
+      gd -= months[gm];
+      gm += 1;
+    }
+    return [gy, gm + 1, gd];
+  }
+  const valid = (y, m, d) => {
+    const x = new Date(Date.UTC(y, m - 1, d));
+    return x.getUTCFullYear() === y && x.getUTCMonth() === m - 1 && x.getUTCDate() === d;
+  };
+  /* A birth date as typed (y/m/d or d.m.y; a year below 1700 is Persian): { gy, gm, gd, cal, y, m, d } or null */
+  function parseDate(text) {
+    const raw = String(text || '').trim();
+    if (!/^\d{1,4}([/.-]\d{1,4}){2}$/.test(raw)) return null;
+    const n = raw.split(/[/.-]/).map(Number);
+    let [y, m, d] = n[0] > 31 ? n : [n[2], n[1], n[0]];
+    if (m > 12 && d <= 12) [m, d] = [d, m];
+    if (y < 1000) return null;
+    const cal = y < 1700 ? 'j' : 'g';
+    if (m < 1 || m > 12 || d < 1 || d > 31 || (cal === 'j' && m > 6 && d > 30)) return null;
+    const [gy, gm, gd] = cal === 'j' ? toGregorian(y, m, d) : [y, m, d];
+    if (!valid(gy, gm, gd) || gy < 1900 || gy > 2100) return null;
+    return { gy, gm, gd, cal, y, m, d };
+  }
+  /* 0 Sunday … 6 Saturday */
+  const weekday = (gy, gm, gd) => new Date(Date.UTC(gy, gm - 1, gd)).getUTCDay();
+  /* every digit of the date added up, then reduced — 11, 22 and 33 are kept: { number, steps } */
+  function lifePath(gy, gm, gd) {
+    const all = `${gy}${String(gm).padStart(2, '0')}${String(gd).padStart(2, '0')}`;
+    let x = [...all].reduce((sum, c) => sum + Number(c), 0);
+    const steps = [x];
+    while (x > 9 && ![11, 22, 33].includes(x)) {
+      x = [...String(x)].reduce((sum, c) => sum + Number(c), 0);
+      steps.push(x);
+    }
+    return { number: x, steps };
+  }
+  /* The Chinese year (from 4 February, Lichun): 0 Rat … 11 Pig; element 0 wood, fire, earth, metal, 4 water */
+  const ANIMALS = ['🐀', '🐂', '🐅', '🐇', '🐉', '🐍', '🐎', '🐐', '🐒', '🐓', '🐕', '🐖'];
+  function chinese(gy, gm = 6, gd = 1) {
+    const year = gm < 2 || (gm === 2 && gd < 4) ? gy - 1 : gy;
+    return { year, animal: (((year - 4) % 12) + 12) % 12, element: Math.floor(((((year - 4) % 10) + 10) % 10) / 2), yang: year % 2 === 0 };
+  }
+  /* how an animal fares in another animal's year: same (its own year) · clash (opposite) · best (secret friend) · good (same trio) · neutral */
+  const SECRET = [[0, 1], [2, 11], [3, 10], [4, 9], [5, 8], [6, 7]];
+  function relation(a, b) {
+    if (a === b) return 'same';
+    if (Math.abs(a - b) === 6) return 'clash';
+    if (SECRET.some(([x, y]) => (x === a && y === b) || (x === b && y === a))) return 'best';
+    return a % 4 === b % 4 ? 'good' : 'neutral';
+  }
+  const trio = (a) => [0, 1, 2].map((k) => (a % 4) + 4 * k).filter((x) => x !== a);
+  return { toGregorian, parseDate, weekday, lifePath, chinese, relation, trio, ANIMALS };
 })();

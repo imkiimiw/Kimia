@@ -3901,7 +3901,7 @@ mock.addFile('p9_m', fixture('base420.jpg'));
 mock.addFile('p9_s', fixture('base420.jpg'));
 const mediaEndpoint = (await import('../tgcloud/endpoints/media.js')).default;
 
-await scenario('phase 9 — 🎮 the Fun panel: 44 features in ten groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
+await scenario('phase 9 — 🎮 the Fun panel: 48 features in ten groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
   tick(600);
   iota = mock.addChat({ id: IOTA, type: 'supergroup', title: 'Iota', count: 15, botRights: { can_manage_chat: true, can_change_info: true, can_delete_messages: true,
     can_restrict_members: true, can_invite_users: true, can_pin_messages: true, can_promote_members: true } });
@@ -3920,7 +3920,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 44 features in ten groups, each 
   assert.ok(dataOf(olgaScreen()).includes(I('fn')) && dataOf(olgaScreen()).includes(I('md')));
   await olga(I('fn'));
   assert.match(olgaScreen().plain, /🎮 Fun — \u2068Iota\u2069/);
-  assert.match(olgaScreen().plain, /On: 44 of 44/);
+  assert.match(olgaScreen().plain, /On: 48 of 48/);
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 10);
   await olga(I('fn:c:dice'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:f:/.test(d)).length, 6);
@@ -3933,7 +3933,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 44 features in ten groups, each 
   await olga(I('fn:s:fun_rate'));
   assert.equal(iVal('fun_rate'), '20');
   await olga(I('fn'));
-  assert.match(olgaScreen().plain, /On: 43 of 44/);
+  assert.match(olgaScreen().plain, /On: 47 of 48/);
   const s = row("SELECT count(*) AS n FROM aegis_audit WHERE chat_id = ? AND action = 'settings.set' AND target LIKE 'fx_%'", IOTA).n;
   assert.equal(s, 5, 'every change is logged');
 });
@@ -4140,7 +4140,8 @@ await scenario('🔮 fortune telling and 🔠 fonts — /fal and its buttons, Ha
   assert.match(menu.params.text, /^🔮 <b>Fortune telling<\/b>/);
   for (const c of ['/hafez', '/tarot', '/horoscope', '/abjad', '/coffee', '/fortune']) assert.ok(menu.params.text.includes(c), c);
   const mm = midOf(menu);
-  assert.deepEqual(dataOf(mock.get(IOTA, mm)), ['fn:f:hafez', 'fn:f:tarot:1', 'fn:f:tarot:3', 'fn:f:horo:p', 'fn:f:abjad', 'fn:f:coffee', 'fn:f:fortune']);
+  assert.deepEqual(dataOf(mock.get(IOTA, mm)), ['fn:f:hafez', 'fn:f:tarot:1', 'fn:f:tarot:3', 'fn:f:horo:p', 'fn:f:abjad', 'fn:f:coffee', 'fn:f:fortune', 'fn:f:birthmonth',
+    'fn:f:chinese', 'fn:f:lifepath', 'fn:f:weekday']);
   /* Hafez: a chosen ghazal, the poem folded in an expandable quote, the interpretation, Ganjoor */
   const h = toChat(await imsg(P9.kit, '/hafez 255'), IOTA)[0];
   assert.ok(h.result.ok, JSON.stringify(h.result));
@@ -4327,7 +4328,7 @@ await scenario('🕰 symbolic hours and 🔢 number meanings — the time now, a
   /* /fun lists the category with its menu */
   tick(61);
   const funl = await at(P9.ivy, '/fun');
-  assert.ok(funl.includes('🕰 Symbolic hours — /clock (7)') && funl.includes('🔢 Number meanings — /number (1)') && funl.includes('🔮 Fortune telling — /fal (6)'), funl);
+  assert.ok(funl.includes('🕰 Symbolic hours — /clock (7)') && funl.includes('🔢 Number meanings — /number (1)') && funl.includes('🔮 Fortune telling — /fal (10)'), funl);
   /* Persian, in private */
   const bahar = { id: 800000498, is_bot: false, first_name: 'بهار', language_code: 'fa' };
   faUsers.add(bahar.id);
@@ -4339,6 +4340,50 @@ await scenario('🕰 symbolic hours and 🔢 number meanings — the time now, a
   const b3 = lastSentTo(await dm(bahar, 'معنی عدد ۸۸۸۸'), bahar.id).params.text;
   assert.match(b3, /^\u200F🔢 عدد <b>۸۸۸۸<\/b>\n\u200Fنوع: تکراری\n\u200F💬 فراوانی بی‌پایان؛ پاداش‌ها چندبرابر می‌شوند\./);
   assert.ok(lastSentTo(await dm(bahar, 'ساعت معکوس'), bahar.id).params.text.includes('\u200F۱۲:۲۱ — بازگشت به خود'));
+});
+
+await scenario('🗓 birth readings — birth month (sign, buttons, saved birthday), Chinese zodiac, life path number, weekday of birth; Persian in private', async () => {
+  tick(600);
+  iSet('fun_rate', '0');
+  const at = async (u, text) => inIota(await imsg(u, text))[0];
+  const libra = toChat(await imsg(P9.kit, '/birthmonth Libra'), IOTA)[0];
+  assert.match(libra.params.text, /^🗓 <b>Born under Libra<\/b> ♎ · September 23 – October 22\n\n✨ <b>Character:<\/b> Charming, fair and diplomatic; seeks harmony, beauty and balance\.\n❤️ <b>Love:<\/b> .+\n💼 <b>Work:<\/b> .+\n👍 <b>Strengths:<\/b> fairness, charm, tact, a sense of beauty\n⚠️ <b>Weak spots:<\/b> .+\n🍀 Colour: pink · Stone: opal · Day: Friday · Number: 6\n\n<i>/);
+  assert.deepEqual(dataOf(mock.get(IOTA, midOf(libra))), ['fn:f:birthmonth:p']);
+  const pick = toChat(await imsg(P9.lux, '/birthmonth'), IOTA)[0];
+  assert.match(pick.params.text, /^🗓 Choose your birth month/);
+  assert.deepEqual(dataOf(mock.get(IOTA, midOf(pick))), [...Array(12).keys()].map((i) => `fn:f:birthmonth:${i}`));
+  const aries = toChat((await gpress(P9.lux, IOTA, 'fn:f:birthmonth:0', midOf(pick))).calls, IOTA)[0].params.text;
+  assert.match(aries, /^🗓 <b>Born under Aries<\/b> ♈ · March 21 – April 19\n/);
+  assert.match(await at(P9.jay, '/birthmonth'), /^🗓 <b>Born under Sagittarius<\/b> ♐/, 'from the birthday saved in the group (25 November)');
+  /* Chinese zodiac */
+  const cz0 = await at(P9.nia, '/chinese');
+  assert.match(cz0, /^\S+ The Chinese year \d{4} is the year of the \w+ \w+\.\n\nSend your birth year or date: \/chinese 1991/);
+  tick(31);
+  const cz = await at(P9.nia, '/chinese 1991');
+  assert.match(cz, /^🐐 <b>Metal Goat<\/b> \(yin\) — Chinese year 1991\n🌿 Metal brings determination, strength and discipline\.\n\n✨ <b>Character:<\/b> Kind, artistic and gentle/);
+  assert.ok(cz.includes('🍀 Lucky numbers: 2, 7 · Colours: brown, red, purple') && cz.includes('🤝 Best matches: Rabbit, Pig'), cz);
+  assert.match(cz, /📅 \d{4}, the year of the \w+: .+\n\nThe Chinese year starts on 4 February here/);
+  tick(31);
+  assert.ok(!(await at(P9.nia, '/chinese 15.10.1991')).includes('starts on 4 February'), 'a full date needs no warning');
+  tick(31);
+  assert.equal(await at(P9.nia, '/chinese 3000'), 'Use: /chinese 1991 or /chinese 15.10.1991');
+  /* life path and weekday */
+  assert.match(await at(P9.ivy, '/lifepath 1990-11-08'), /^🧭 <b>Life path number<\/b> — 1990\/11\/8\nEvery digit of the date added up: 29 ← 11\n\n<b>11<\/b> — The intuitive \(a master number\)\nA master path/);
+  tick(31);
+  assert.equal(await at(P9.ivy, '/lifepath 31.02.1990'), 'Use: /lifepath 15.10.1991 (your birth date)');
+  assert.match(await at(P9.ivy, '/weekday 07.10.1991'), /^📆 <b>Born on a Monday<\/b> — 1991\/10\/7\n\nBorn on the Moon's day: sensitive, caring and intuitive/);
+  /* Persian, in private */
+  const sara = { id: 800000497, is_bot: false, first_name: 'سارا', language_code: 'fa' };
+  faUsers.add(sara.id);
+  await onboard(sara, 'fa');
+  const pm = async (text) => lastSentTo(await dm(sara, text), sara.id).params.text;
+  assert.match(await pm('متولد مهر'), /^‏🗓 <b>متولدین مهر<\/b> — میزان ♎\n\n‏✨ <b>شخصیت:<\/b> جذاب، منصف و اهل مدارا؛ در پی هماهنگی، زیبایی و تعادل\.\n/);
+  assert.ok((await pm('فال ماه تولد')).includes('ماه تولدت را انتخاب کن'), 'no saved birthday in private: the month buttons');
+  const czf = await pm('طالع چینی ۱۳۷۰');
+  assert.match(czf, /^‏🐐 <b>بز فلز<\/b> \(یین\) — سال چینی ۱۹۹۱\n/);
+  assert.ok(czf.includes('بعد از ۱۵ بهمن'), 'a Persian year alone: the Bahman note');
+  assert.match(await pm('عدد سرنوشت ۱۳۷۰/۷/۱۵'), /^‏🧭 <b>عدد سرنوشت<\/b> — ۱۳۷۰\/۷\/۱۵\n‏جمع همهٔ رقم‌های تاریخ تولد \(میلادی\): ۲۸ ← ۱۰ ← ۱\n\n‏<b>۱<\/b> — رهبر/);
+  assert.match(await pm('فال روز تولد ۱۳۷۰/۷/۱۵'), /^‏📆 <b>متولد روز دوشنبه<\/b> — ۱۳۷۰\/۷\/۱۵/);
 });
 
 await scenario('phase 9 — 🖼 media in private: image tools, a sticker in the member\'s own pack, sticker → photo, a QR code made and read back, a GIF from photos, video → GIF, the PDF check', async () => {

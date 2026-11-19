@@ -49,5 +49,9 @@
   "angel": "angel number|angel numbers",
   "sequence": "number sequence|number sequences",
   "repeat": "repeating numbers|repeated numbers",
-  "number": "number meaning|meaning of a number"
+  "number": "number meaning|meaning of a number",
+  "birthmonth": "birth month|my birth month",
+  "chinese": "chinese zodiac|chinese horoscope",
+  "lifepath": "life path|life path number",
+  "weekday": "birth weekday|day i was born"
 }

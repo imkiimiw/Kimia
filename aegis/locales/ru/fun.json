@@ -255,5 +255,17 @@
   "usage_angel": "Пример: /angel или /angel 777",
   "usage_sequence": "Пример: /sequence или /sequence 1234",
   "usage_repeat": "Пример: /repeat или /repeat 8888",
-  "usage_number": "Пример: /number или /number 1234 (до шести цифр)"
+  "usage_number": "Пример: /number или /number 1234 (до шести цифр)",
+  "n_birthmonth": "Месяц рождения",
+  "n_chinese": "Китайский гороскоп",
+  "n_lifepath": "Число жизненного пути",
+  "n_weekday": "День недели рождения",
+  "d_birthmonth": "Характер, любовь, работа, сильные стороны и счастливые цвет, камень и день по месяцу рождения (/birthmonth Весы, /birthmonth 21.03 или сохранённый день рождения).",
+  "d_chinese": "Ваше китайское животное и стихия по году рождения и каким будет этот год (/chinese 1991).",
+  "d_lifepath": "Число жизненного пути по дате рождения и его значение (/lifepath 15.10.1991).",
+  "d_weekday": "День недели, в который вы родились, и его значение (/weekday 15.10.1991).",
+  "usage_birthmonth": "Пример: /birthmonth, /birthmonth Весы или /birthmonth 21.03",
+  "usage_chinese": "Пример: /chinese 1991 или /chinese 15.10.1991",
+  "usage_lifepath": "Пример: /lifepath 15.10.1991 (дата рождения)",
+  "usage_weekday": "Пример: /weekday 15.10.1991 (дата рождения)"
 }

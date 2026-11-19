@@ -255,5 +255,17 @@
   "usage_angel": "用法：/angel 或 /angel 777",
   "usage_sequence": "用法：/sequence 或 /sequence 1234",
   "usage_repeat": "用法：/repeat 或 /repeat 8888",
-  "usage_number": "用法：/number 或 /number 1234（最多六位）"
+  "usage_number": "用法：/number 或 /number 1234（最多六位）",
+  "n_birthmonth": "出生月份",
+  "n_chinese": "生肖运势",
+  "n_lifepath": "生命灵数",
+  "n_weekday": "出生星期",
+  "d_birthmonth": "按出生月份看性格、爱情、事业、优点以及幸运颜色、宝石和日子（/birthmonth 天秤座、/birthmonth 03-21，或群里保存的生日）。",
+  "d_chinese": "按出生年份看你的生肖和五行，以及今年运势（/chinese 1991）。",
+  "d_lifepath": "根据生日计算生命灵数及其含义（/lifepath 1991-10-15）。",
+  "d_weekday": "你出生在星期几及其含义（/weekday 1991-10-15）。",
+  "usage_birthmonth": "用法：/birthmonth、/birthmonth 天秤座 或 /birthmonth 03-21",
+  "usage_chinese": "用法：/chinese 1991 或 /chinese 1991-10-15",
+  "usage_lifepath": "用法：/lifepath 1991-10-15（生日）",
+  "usage_weekday": "用法：/weekday 1991-10-15（生日）"
 }

@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { toJalali } from '../../tgcloud/lib/core/clock.js';
 import { esc } from '../../tgcloud/lib/core/util.js';
 import * as fun from '../../tgcloud/lib/engines/fun.js';
 import { LANGS, t } from '../../tgcloud/lib/i18n/index.js';
@@ -256,7 +257,10 @@ test('fortune words: «فال» opens the menu, longer words win, arguments only
   assert.deepEqual(p('تاروت'), ['tarot', '']);
   assert.deepEqual(p('فال تاروت 3'), ['tarot', '3']);
   assert.deepEqual(p('طالع مهر'), ['horo', 'مهر']);
-  assert.deepEqual(p('فال ماه تولد اسد'), ['horo', 'اسد']);
+  assert.deepEqual(p('فال ماه تولد اسد'), ['birthmonth', 'اسد']);
+  assert.deepEqual(p('متولد مهر'), ['birthmonth', 'مهر']);
+  assert.deepEqual(p('طالع چینی ۱۳۷۰'), ['chinese', '۱۳۷۰']);
+  assert.deepEqual(p('عدد سرنوشت 1370/7/15'), ['lifepath', '1370/7/15']);
   assert.deepEqual(p('فال قهوه'), ['coffee', '']);
   assert.deepEqual(p('فال اسم علی'), ['abjad', 'علی']);
   assert.deepEqual(p('فونت سلام دنیا'), ['font', 'سلام دنیا']);
@@ -308,5 +312,27 @@ test('number meanings: repeated numbers 00–9999 have their own meaning; kinds;
   assert.deepEqual(n.digits('1223'), { order: [{ digit: 2, n: 2 }, { digit: 1, n: 1 }, { digit: 3, n: 1 }], sum: 8, root: 8 });
   assert.equal(n.digits('29').root, 11, 'master numbers kept');
   assert.deepEqual([n.parseNumber('0042'), n.parseNumber('1234567'), n.parseNumber('12a'), n.parseNumber('')], ['0042', null, null, null]);
+});
+
+test('birth readings: Persian dates to Gregorian, birth dates as typed, weekday, life path, the Chinese year and how it fares', () => {
+  const b = fun.birth;
+  assert.deepEqual([b.toGregorian(1370, 7, 15), b.toGregorian(1403, 1, 1), b.toGregorian(1357, 11, 22)], [[1991, 10, 7], [2024, 3, 20], [1979, 2, 11]]);
+  for (let y = 1300; y < 1480; y += 7) for (let m = 1; m <= 12; m += 1) assert.deepEqual(toJalali(...b.toGregorian(y, m, 10)), [y, m, 10], `${y}/${m}/10`);
+  assert.deepEqual(b.parseDate('1370/7/15'), { gy: 1991, gm: 10, gd: 7, cal: 'j', y: 1370, m: 7, d: 15 });
+  assert.deepEqual(b.parseDate('15.10.1991'), { gy: 1991, gm: 10, gd: 15, cal: 'g', y: 1991, m: 10, d: 15 });
+  assert.equal(b.parseDate('1991-02-30'), null);
+  assert.equal(b.parseDate('1370/7/31'), null, 'the second half of the Persian year has 30 days');
+  assert.equal(b.parseDate('99/1/1'), null);
+  assert.equal(b.weekday(1991, 10, 7), 1, 'Monday');
+  assert.deepEqual(b.lifePath(1991, 10, 7), { number: 1, steps: [28, 10, 1] });
+  assert.deepEqual(b.lifePath(1990, 11, 8), { number: 11, steps: [29, 11] }, 'master numbers are kept');
+  assert.deepEqual(b.chinese(2026, 5, 1), { year: 2026, animal: 6, element: 1, yang: true }, '2026: the fire horse');
+  assert.equal(b.chinese(2026, 2, 3).year, 2025, 'before 4 February: the year before');
+  assert.deepEqual(b.chinese(1991), { year: 1991, animal: 7, element: 3, yang: false }, '1991: the metal goat');
+  assert.deepEqual([b.relation(6, 6), b.relation(0, 1), b.relation(0, 6), b.relation(2, 6), b.relation(1, 6)], ['same', 'best', 'clash', 'good', 'neutral']);
+  assert.deepEqual(b.trio(6), [2, 10]);
+  for (const lang of LANGS) {
+    for (const [k, n] of Object.entries({ bm_traits: 12, bm_lucky: 12, cz_names: 12, cz_traits: 12, cz_elements: 5, lifepath: 12, weekdays: 7 })) assert.equal(list(lang, k).length, n, `${lang} ${k}`);
+  }
 });
 

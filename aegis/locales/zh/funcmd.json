@@ -49,5 +49,9 @@
   "angel": "天使数字",
   "sequence": "连续数字",
   "repeat": "重复数字",
-  "number": "数字含义"
+  "number": "数字含义",
+  "birthmonth": "出生月份",
+  "chinese": "生肖|生肖运势",
+  "lifepath": "生命灵数",
+  "weekday": "出生星期"
 }
