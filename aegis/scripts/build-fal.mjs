@@ -1,5 +1,5 @@
 // aegis/data/hafez.json + data/tarot.json → tgcloud/lib/data/fal.js, and data/quran.json + data/khayyam.json +
-// data/babataher.json → tgcloud/lib/data/fal2.js (deployed modules can't read files, so the data is compiled into modules).
+// data/babataher.json + data/culture.json → tgcloud/lib/data/fal2.js (deployed modules can't read files, so the data is compiled into modules).
 // Texts are stored deflated and base64-encoded; the bot inflates a part when it needs it
 // (lib/engines/fun.js, sections fal and faith).
 //   node scripts/build-fal.mjs           write
@@ -82,6 +82,21 @@ if (problems.length) {
   for (const p of problems) console.error(`✘ ${p}`);
   process.exit(1);
 }
+/* film lines, public-domain excerpts and the titles to recommend (data/culture.json) */
+const culture = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/culture.json'), 'utf8'));
+const has = (o, keys) => keys.every((k) => o[k] !== undefined);
+const CULTURE_KEYS = { dialogues: ['q', 'lang', 'who', 'who2', 'actor', 'actor2', 'film', 'film_fa', 'film_en', 'year'], excerpts: ['q', 'lang', 'author', 'author_fa', 'author_lat',
+  'work', 'work_fa', 'work_en', 'year'], movies: ['t', 'fa', 'en', 'y', 'by', 'by_fa', 'g', 'l'], music: ['t', 'tl', 'a', 'a_fa', 'a_lat', 'y', 'g', 'l'],
+  books: ['t', 'fa', 'en', 'y', 'a', 'a_fa', 'a_lat', 'g', 'l'] };
+for (const [k, keys] of Object.entries(CULTURE_KEYS)) {
+  if (!Array.isArray(culture[k]) || culture[k].length < 40) problems.push(`culture: ${k} must list at least 40`);
+  else culture[k].forEach((o, i) => { if (!has(o, keys) || !String(o.q || o.t).trim() || (o.g && !o.g.length)) problems.push(`culture: ${k} ${i + 1} is incomplete`); });
+}
+if (/[\u200B\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF<>]/.test(JSON.stringify(culture))) problems.push('culture: no < > or direction marks');
+if (problems.length) {
+  for (const p of problems) console.error(`✘ ${p}`);
+  process.exit(1);
+}
 const pack = (value) => zlib.deflateRawSync(Buffer.from(JSON.stringify(value), 'utf8'), { level: 9 }).toString('base64');
 const packPoems = (poems) => {
   const out = [];
@@ -99,12 +114,15 @@ const src2 = `/*
  * dobeytis of Baba Taher (public domain; text as published on ganjoor.net) with an interpretation of each
  * written for Aegis — ${POEMS_PER} poems per chunk, each chunk raw-DEFLATE then base64 of a JSON array of
  * { v: [[line 1, line 2], [line 3, line 4]], f: interpretation }.
+ * CULTURE (from data/culture.json): film lines (short quotations with their source), excerpts of public-domain works and the
+ * films, music and books to recommend, raw-DEFLATE then base64 of one JSON object; the translations are in the locales (cultlist).
  */
 export const QURAN = '${pack(quran.pages)}';
 ${list('SURAH_AR', quran.surah_ar)}${list('SURAH_EN', quran.surah_en)}${list('SURAH_FA', quran.surah_fa)}export const POEMS_PER = ${POEMS_PER};
 export const KHAYYAM_COUNT = ${books.khayyam.length};
 export const BABATAHER_COUNT = ${books.babataher.length};
-${chunkList('KHAYYAM', packPoems(books.khayyam))}${chunkList('BABATAHER', packPoems(books.babataher))}`;
+${chunkList('KHAYYAM', packPoems(books.khayyam))}${chunkList('BABATAHER', packPoems(books.babataher))}export const CULTURE = '${pack(Object.fromEntries(Object.keys(CULTURE_KEYS).map((k) => [k, culture[k]])))}';
+`;
 const OUT2 = path.join(ROOT, 'tgcloud/lib/data/fal2.js');
 const before2 = fs.existsSync(OUT2) ? fs.readFileSync(OUT2, 'utf8') : '';
 if (before2 !== src2) {
@@ -123,4 +141,4 @@ if (before !== src) {
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, src);
 }
-console.log(`✔ fal data: ${hafez.length} ghazals in ${chunks.length} chunks (${Math.round(src.length / 1024)} KB), ${tarot.length} tarot cards; ${quran.pages.length} Quran pages, ${books.khayyam.length} + ${books.babataher.length} poems (fal2.js ${Math.round(src2.length / 1024)} KB)${check ? ' (up to date)' : ''}`);
+console.log(`✔ fal data: ${hafez.length} ghazals in ${chunks.length} chunks (${Math.round(src.length / 1024)} KB), ${tarot.length} tarot cards; ${quran.pages.length} Quran pages, ${books.khayyam.length} + ${books.babataher.length} poems, culture ${Object.keys(CULTURE_KEYS).map((k) => culture[k].length).join('/')} (fal2.js ${Math.round(src2.length / 1024)} KB)${check ? ' (up to date)' : ''}`);

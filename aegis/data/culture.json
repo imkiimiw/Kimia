@@ -1,0 +1,6651 @@
+{
+ "about": "Aegis culture data: film lines (short quotations, with their source), excerpts of public-domain works, and titles to recommend. Translations are in the locales (cultlist).",
+ "dialogues": [
+  {
+   "q": "I'm gonna make him an offer he can't refuse.",
+   "lang": "en",
+   "who": "Vito Corleone",
+   "who2": "ویتو کورلئونه",
+   "actor": "Marlon Brando",
+   "actor2": "مارلون براندو",
+   "film": "The Godfather",
+   "film_fa": "پدرخوانده",
+   "film_en": null,
+   "year": 1972
+  },
+  {
+   "q": "Keep your friends close, but your enemies closer.",
+   "lang": "en",
+   "who": "Michael Corleone",
+   "who2": "مایکل کورلئونه",
+   "actor": "Al Pacino",
+   "actor2": "آل پاچینو",
+   "film": "The Godfather Part II",
+   "film_fa": "پدرخوانده ۲",
+   "film_en": null,
+   "year": 1974
+  },
+  {
+   "q": "May the Force be with you.",
+   "lang": "en",
+   "who": "Han Solo",
+   "who2": "هان سولو",
+   "actor": "Harrison Ford",
+   "actor2": "هریسون فورد",
+   "film": "Star Wars",
+   "film_fa": "جنگ ستارگان",
+   "film_en": null,
+   "year": 1977
+  },
+  {
+   "q": "No, I am your father.",
+   "lang": "en",
+   "who": "Darth Vader",
+   "who2": "دارث ویدر",
+   "actor": "James Earl Jones (voice)",
+   "actor2": "جیمز ارل جونز (صدا)",
+   "film": "The Empire Strikes Back",
+   "film_fa": "امپراتوری ضربه می‌زند",
+   "film_en": null,
+   "year": 1980
+  },
+  {
+   "q": "Do. Or do not. There is no try.",
+   "lang": "en",
+   "who": "Yoda",
+   "who2": "یودا",
+   "actor": "Frank Oz",
+   "actor2": "فرانک اوز",
+   "film": "The Empire Strikes Back",
+   "film_fa": "امپراتوری ضربه می‌زند",
+   "film_en": null,
+   "year": 1980
+  },
+  {
+   "q": "Here's looking at you, kid.",
+   "lang": "en",
+   "who": "Rick Blaine",
+   "who2": "ریک بلین",
+   "actor": "Humphrey Bogart",
+   "actor2": "همفری بوگارت",
+   "film": "Casablanca",
+   "film_fa": "کازابلانکا",
+   "film_en": null,
+   "year": 1942
+  },
+  {
+   "q": "We'll always have Paris.",
+   "lang": "en",
+   "who": "Rick Blaine",
+   "who2": "ریک بلین",
+   "actor": "Humphrey Bogart",
+   "actor2": "همفری بوگارت",
+   "film": "Casablanca",
+   "film_fa": "کازابلانکا",
+   "film_en": null,
+   "year": 1942
+  },
+  {
+   "q": "Frankly, my dear, I don't give a damn.",
+   "lang": "en",
+   "who": "Rhett Butler",
+   "who2": "رت باتلر",
+   "actor": "Clark Gable",
+   "actor2": "کلارک گیبل",
+   "film": "Gone with the Wind",
+   "film_fa": "برباد رفته",
+   "film_en": null,
+   "year": 1939
+  },
+  {
+   "q": "After all, tomorrow is another day!",
+   "lang": "en",
+   "who": "Scarlett O'Hara",
+   "who2": "اسکارلت اوهارا",
+   "actor": "Vivien Leigh",
+   "actor2": "ویوین لی",
+   "film": "Gone with the Wind",
+   "film_fa": "برباد رفته",
+   "film_en": null,
+   "year": 1939
+  },
+  {
+   "q": "You talking to me?",
+   "lang": "en",
+   "who": "Travis Bickle",
+   "who2": "تراویس بیکل",
+   "actor": "Robert De Niro",
+   "actor2": "رابرت دنیرو",
+   "film": "Taxi Driver",
+   "film_fa": "راننده تاکسی",
+   "film_en": null,
+   "year": 1976
+  },
+  {
+   "q": "I'll be back.",
+   "lang": "en",
+   "who": "The Terminator",
+   "who2": "ترمیناتور",
+   "actor": "Arnold Schwarzenegger",
+   "actor2": "آرنولد شوارتزنگر",
+   "film": "The Terminator",
+   "film_fa": "نابودگر",
+   "film_en": null,
+   "year": 1984
+  },
+  {
+   "q": "Hasta la vista, baby.",
+   "lang": "en",
+   "who": "The Terminator",
+   "who2": "ترمیناتور",
+   "actor": "Arnold Schwarzenegger",
+   "actor2": "آرنولد شوارتزنگر",
+   "film": "Terminator 2: Judgment Day",
+   "film_fa": "نابودگر ۲: روز داوری",
+   "film_en": null,
+   "year": 1991
+  },
+  {
+   "q": "My mama always said life was like a box of chocolates. You never know what you're gonna get.",
+   "lang": "en",
+   "who": "Forrest Gump",
+   "who2": "فارست گامپ",
+   "actor": "Tom Hanks",
+   "actor2": "تام هنکس",
+   "film": "Forrest Gump",
+   "film_fa": "فارست گامپ",
+   "film_en": null,
+   "year": 1994
+  },
+  {
+   "q": "Why so serious?",
+   "lang": "en",
+   "who": "The Joker",
+   "who2": "جوکر",
+   "actor": "Heath Ledger",
+   "actor2": "هیث لجر",
+   "film": "The Dark Knight",
+   "film_fa": "شوالیه تاریکی",
+   "film_en": null,
+   "year": 2008
+  },
+  {
+   "q": "Get busy living, or get busy dying.",
+   "lang": "en",
+   "who": "Andy Dufresne",
+   "who2": "اندی دوفرین",
+   "actor": "Tim Robbins",
+   "actor2": "تیم رابینز",
+   "film": "The Shawshank Redemption",
+   "film_fa": "رستگاری در شاوشنک",
+   "film_en": null,
+   "year": 1994
+  },
+  {
+   "q": "Hope is a good thing, maybe the best of things, and no good thing ever dies.",
+   "lang": "en",
+   "who": "Andy Dufresne",
+   "who2": "اندی دوفرین",
+   "actor": "Tim Robbins",
+   "actor2": "تیم رابینز",
+   "film": "The Shawshank Redemption",
+   "film_fa": "رستگاری در شاوشنک",
+   "film_en": null,
+   "year": 1994
+  },
+  {
+   "q": "Houston, we have a problem.",
+   "lang": "en",
+   "who": "Jim Lovell",
+   "who2": "جیم لاول",
+   "actor": "Tom Hanks",
+   "actor2": "تام هنکس",
+   "film": "Apollo 13",
+   "film_fa": "آپولو ۱۳",
+   "film_en": null,
+   "year": 1995
+  },
+  {
+   "q": "I see dead people.",
+   "lang": "en",
+   "who": "Cole Sear",
+   "who2": "کول سیر",
+   "actor": "Haley Joel Osment",
+   "actor2": "هیلی جوئل آزمنت",
+   "film": "The Sixth Sense",
+   "film_fa": "حس ششم",
+   "film_en": null,
+   "year": 1999
+  },
+  {
+   "q": "There's no place like home.",
+   "lang": "en",
+   "who": "Dorothy Gale",
+   "who2": "دوروتی گیل",
+   "actor": "Judy Garland",
+   "actor2": "جودی گارلند",
+   "film": "The Wizard of Oz",
+   "film_fa": "جادوگر شهر اُز",
+   "film_en": null,
+   "year": 1939
+  },
+  {
+   "q": "Toto, I've a feeling we're not in Kansas anymore.",
+   "lang": "en",
+   "who": "Dorothy Gale",
+   "who2": "دوروتی گیل",
+   "actor": "Judy Garland",
+   "actor2": "جودی گارلند",
+   "film": "The Wizard of Oz",
+   "film_fa": "جادوگر شهر اُز",
+   "film_en": null,
+   "year": 1939
+  },
+  {
+   "q": "You can't handle the truth!",
+   "lang": "en",
+   "who": "Col. Nathan R. Jessup",
+   "who2": "سرهنگ ناتان جسپ",
+   "actor": "Jack Nicholson",
+   "actor2": "جک نیکلسون",
+   "film": "A Few Good Men",
+   "film_fa": "چند مرد خوب",
+   "film_en": null,
+   "year": 1992
+  },
+  {
+   "q": "Carpe diem. Seize the day, boys. Make your lives extraordinary.",
+   "lang": "en",
+   "who": "John Keating",
+   "who2": "جان کیتینگ",
+   "actor": "Robin Williams",
+   "actor2": "رابین ویلیامز",
+   "film": "Dead Poets Society",
+   "film_fa": "انجمن شاعران مرده",
+   "film_en": null,
+   "year": 1989
+  },
+  {
+   "q": "To infinity and beyond!",
+   "lang": "en",
+   "who": "Buzz Lightyear",
+   "who2": "باز لایتیر",
+   "actor": "Tim Allen",
+   "actor2": "تیم آلن",
+   "film": "Toy Story",
+   "film_fa": "داستان اسباب‌بازی",
+   "film_en": null,
+   "year": 1995
+  },
+  {
+   "q": "I'm the king of the world!",
+   "lang": "en",
+   "who": "Jack Dawson",
+   "who2": "جک داوسون",
+   "actor": "Leonardo DiCaprio",
+   "actor2": "لئوناردو دی‌کاپریو",
+   "film": "Titanic",
+   "film_fa": "تایتانیک",
+   "film_en": null,
+   "year": 1997
+  },
+  {
+   "q": "Just keep swimming.",
+   "lang": "en",
+   "who": "Dory",
+   "who2": "دوری",
+   "actor": "Ellen DeGeneres",
+   "actor2": "الن دی‌جنرس",
+   "film": "Finding Nemo",
+   "film_fa": "در جستجوی نمو",
+   "film_en": null,
+   "year": 2003
+  },
+  {
+   "q": "You shall not pass!",
+   "lang": "en",
+   "who": "Gandalf",
+   "who2": "گندالف",
+   "actor": "Ian McKellen",
+   "actor2": "ایان مک‌کلن",
+   "film": "The Lord of the Rings: The Fellowship of the Ring",
+   "film_fa": "ارباب حلقه‌ها: یاران حلقه",
+   "film_en": null,
+   "year": 2001
+  },
+  {
+   "q": "All we have to decide is what to do with the time that is given us.",
+   "lang": "en",
+   "who": "Gandalf",
+   "who2": "گندالف",
+   "actor": "Ian McKellen",
+   "actor2": "ایان مک‌کلن",
+   "film": "The Lord of the Rings: The Fellowship of the Ring",
+   "film_fa": "ارباب حلقه‌ها: یاران حلقه",
+   "film_en": null,
+   "year": 2001
+  },
+  {
+   "q": "With great power comes great responsibility.",
+   "lang": "en",
+   "who": "Uncle Ben",
+   "who2": "عمو بن",
+   "actor": "Cliff Robertson",
+   "actor2": "کلیف رابرتسون",
+   "film": "Spider-Man",
+   "film_fa": "مرد عنکبوتی",
+   "film_en": null,
+   "year": 2002
+  },
+  {
+   "q": "Bond. James Bond.",
+   "lang": "en",
+   "who": "James Bond",
+   "who2": "جیمز باند",
+   "actor": "Sean Connery",
+   "actor2": "شان کانری",
+   "film": "Dr. No",
+   "film_fa": "دکتر نو",
+   "film_en": null,
+   "year": 1962
+  },
+  {
+   "q": "Well, nobody's perfect.",
+   "lang": "en",
+   "who": "Osgood Fielding III",
+   "who2": "آزگود فیلدینگ سوم",
+   "actor": "Joe E. Brown",
+   "actor2": "جو ای. براون",
+   "film": "Some Like It Hot",
+   "film_fa": "بعضی‌ها داغشو دوست دارن",
+   "film_en": null,
+   "year": 1959
+  },
+  {
+   "q": "The first rule of Fight Club is: you do not talk about Fight Club.",
+   "lang": "en",
+   "who": "Tyler Durden",
+   "who2": "تایلر داردن",
+   "actor": "Brad Pitt",
+   "actor2": "برد پیت",
+   "film": "Fight Club",
+   "film_fa": "باشگاه مشت‌زنی",
+   "film_en": null,
+   "year": 1999
+  },
+  {
+   "q": "E.T. phone home.",
+   "lang": "en",
+   "who": "E.T.",
+   "who2": "ای.تی.",
+   "actor": "Pat Welsh (voice)",
+   "actor2": "پت ولش (صدا)",
+   "film": "E.T. the Extra-Terrestrial",
+   "film_fa": "ای.تی. موجود فرازمینی",
+   "film_en": null,
+   "year": 1982
+  },
+  {
+   "q": "Here's Johnny!",
+   "lang": "en",
+   "who": "Jack Torrance",
+   "who2": "جک تورنس",
+   "actor": "Jack Nicholson",
+   "actor2": "جک نیکلسون",
+   "film": "The Shining",
+   "film_fa": "درخشش",
+   "film_en": null,
+   "year": 1980
+  },
+  {
+   "q": "Say hello to my little friend!",
+   "lang": "en",
+   "who": "Tony Montana",
+   "who2": "تونی مونتانا",
+   "actor": "Al Pacino",
+   "actor2": "آل پاچینو",
+   "film": "Scarface",
+   "film_fa": "صورت‌زخمی",
+   "film_en": null,
+   "year": 1983
+  },
+  {
+   "q": "You had me at hello.",
+   "lang": "en",
+   "who": "Dorothy Boyd",
+   "who2": "دوروتی بوید",
+   "actor": "Renée Zellweger",
+   "actor2": "رنه زلوگر",
+   "film": "Jerry Maguire",
+   "film_fa": "جری مگوایر",
+   "film_en": null,
+   "year": 1996
+  },
+  {
+   "q": "Show me the money!",
+   "lang": "en",
+   "who": "Rod Tidwell",
+   "who2": "راد تیدول",
+   "actor": "Cuba Gooding Jr.",
+   "actor2": "کوبا گودینگ جونیور",
+   "film": "Jerry Maguire",
+   "film_fa": "جری مگوایر",
+   "film_en": null,
+   "year": 1996
+  },
+  {
+   "q": "What we do in life echoes in eternity.",
+   "lang": "en",
+   "who": "Maximus",
+   "who2": "ماکسیموس",
+   "actor": "Russell Crowe",
+   "actor2": "راسل کرو",
+   "film": "Gladiator",
+   "film_fa": "گلادیاتور",
+   "film_en": null,
+   "year": 2000
+  },
+  {
+   "q": "Are you not entertained?",
+   "lang": "en",
+   "who": "Maximus",
+   "who2": "ماکسیموس",
+   "actor": "Russell Crowe",
+   "actor2": "راسل کرو",
+   "film": "Gladiator",
+   "film_fa": "گلادیاتور",
+   "film_en": null,
+   "year": 2000
+  },
+  {
+   "q": "Every man dies, not every man really lives.",
+   "lang": "en",
+   "who": "William Wallace",
+   "who2": "ویلیام والاس",
+   "actor": "Mel Gibson",
+   "actor2": "مل گیبسون",
+   "film": "Braveheart",
+   "film_fa": "شجاع‌دل",
+   "film_en": null,
+   "year": 1995
+  },
+  {
+   "q": "Greed, for lack of a better word, is good.",
+   "lang": "en",
+   "who": "Gordon Gekko",
+   "who2": "گوردون گکو",
+   "actor": "Michael Douglas",
+   "actor2": "مایکل داگلاس",
+   "film": "Wall Street",
+   "film_fa": "وال استریت",
+   "film_en": null,
+   "year": 1987
+  },
+  {
+   "q": "Life moves pretty fast. If you don't stop and look around once in a while, you could miss it.",
+   "lang": "en",
+   "who": "Ferris Bueller",
+   "who2": "فریس بیولر",
+   "actor": "Matthew Broderick",
+   "actor2": "متیو برادریک",
+   "film": "Ferris Bueller's Day Off",
+   "film_fa": "روز تعطیل فریس بیولر",
+   "film_en": null,
+   "year": 1986
+  },
+  {
+   "q": "It's not who I am underneath, but what I do that defines me.",
+   "lang": "en",
+   "who": "Batman",
+   "who2": "بتمن",
+   "actor": "Christian Bale",
+   "actor2": "کریستین بیل",
+   "film": "Batman Begins",
+   "film_fa": "بتمن آغاز می‌کند",
+   "film_en": null,
+   "year": 2005
+  },
+  {
+   "q": "Remember who you are.",
+   "lang": "en",
+   "who": "Mufasa",
+   "who2": "موفاسا",
+   "actor": "James Earl Jones",
+   "actor2": "جیمز ارل جونز",
+   "film": "The Lion King",
+   "film_fa": "شیرشاه",
+   "film_en": null,
+   "year": 1994
+  },
+  {
+   "q": "Oh yes, the past can hurt. But the way I see it, you can either run from it or learn from it.",
+   "lang": "en",
+   "who": "Rafiki",
+   "who2": "رفیکی",
+   "actor": "Robert Guillaume",
+   "actor2": "رابرت گیوم",
+   "film": "The Lion King",
+   "film_fa": "شیرشاه",
+   "film_en": null,
+   "year": 1994
+  },
+  {
+   "q": "Love is the one thing we're capable of perceiving that transcends dimensions of time and space.",
+   "lang": "en",
+   "who": "Dr. Amelia Brand",
+   "who2": "دکتر آملیا برند",
+   "actor": "Anne Hathaway",
+   "actor2": "آن هاتاوی",
+   "film": "Interstellar",
+   "film_fa": "میان‌ستاره‌ای",
+   "film_en": null,
+   "year": 2014
+  },
+  {
+   "q": "Fasten your seatbelts. It's going to be a bumpy night.",
+   "lang": "en",
+   "who": "Margo Channing",
+   "who2": "مارگو چانینگ",
+   "actor": "Bette Davis",
+   "actor2": "بتی دیویس",
+   "film": "All About Eve",
+   "film_fa": "همه‌چیز دربارهٔ ایو",
+   "film_en": null,
+   "year": 1950
+  },
+  {
+   "q": "Aal izz well.",
+   "lang": "hi",
+   "who": "Rancho",
+   "who2": "رانچو",
+   "actor": "Aamir Khan",
+   "actor2": "عامر خان",
+   "film": "3 Idiots",
+   "film_fa": "سه احمق",
+   "film_en": null,
+   "year": 2009
+  },
+  {
+   "q": "कितने आदमी थे?",
+   "lang": "hi",
+   "who": "Gabbar Singh",
+   "who2": "گبر سینگ",
+   "actor": "Amjad Khan",
+   "actor2": "امجد خان",
+   "film": "शोले",
+   "film_fa": "شعله",
+   "film_en": "Sholay",
+   "year": 1975
+  },
+  {
+   "q": "Atmosphère, atmosphère, est-ce que j'ai une gueule d'atmosphère ?",
+   "lang": "fr",
+   "who": "Raymonde",
+   "who2": "ریموند",
+   "actor": "Arletty",
+   "actor2": "آرلتی",
+   "film": "Hôtel du Nord",
+   "film_fa": "هتل شمال",
+   "film_en": null,
+   "year": 1938
+  },
+  {
+   "q": "Jusqu'ici tout va bien… Mais l'important, c'est pas la chute, c'est l'atterrissage.",
+   "lang": "fr",
+   "who": "Hubert",
+   "who2": "اوبر",
+   "actor": "Hubert Koundé",
+   "actor2": "اوبر کونده",
+   "film": "La Haine",
+   "film_fa": "نفرت",
+   "film_en": "Hate",
+   "year": 1995
+  },
+  {
+   "q": "Buongiorno, principessa!",
+   "lang": "it",
+   "who": "Guido Orefice",
+   "who2": "گوئیدو اورفیچه",
+   "actor": "Roberto Benigni",
+   "actor2": "روبرتو بنینی",
+   "film": "La vita è bella",
+   "film_fa": "زندگی زیباست",
+   "film_en": "Life Is Beautiful",
+   "year": 1997
+  },
+  {
+   "q": "Qualunque cosa farai, amala.",
+   "lang": "it",
+   "who": "Alfredo",
+   "who2": "آلفردو",
+   "actor": "Philippe Noiret",
+   "actor2": "فیلیپ نوآره",
+   "film": "Nuovo Cinema Paradiso",
+   "film_fa": "سینما پارادیزو",
+   "film_en": "Cinema Paradiso",
+   "year": 1988
+  },
+  {
+   "q": "Восток — дело тонкое, Петруха.",
+   "lang": "ru",
+   "who": "Fyodor Sukhov",
+   "who2": "فیودور سوخوف",
+   "actor": "Anatoly Kuznetsov",
+   "actor2": "آناتولی کوزنتسوف",
+   "film": "Белое солнце пустыни",
+   "film_fa": "خورشید سفید صحرا",
+   "film_en": "White Sun of the Desert",
+   "year": 1970
+  },
+  {
+   "q": "Надо, Федя, надо.",
+   "lang": "ru",
+   "who": "Shurik",
+   "who2": "شوریک",
+   "actor": "Aleksandr Demyanenko",
+   "actor2": "الکساندر دمیاننکو",
+   "film": "Операция «Ы» и другие приключения Шурика",
+   "film_fa": "عملیات «Ы» و ماجراهای دیگر شوریک",
+   "film_en": "Operation Y and Shurik's Other Adventures",
+   "year": 1965
+  },
+  {
+   "q": "Какая гадость эта ваша заливная рыба!",
+   "lang": "ru",
+   "who": "Ippolit",
+   "who2": "ایپولیت",
+   "actor": "Yuri Yakovlev",
+   "actor2": "یوری یاکولف",
+   "film": "Ирония судьбы, или С лёгким паром!",
+   "film_fa": "طنز سرنوشت",
+   "film_en": "The Irony of Fate",
+   "year": 1975
+  },
+  {
+   "q": "Красота — страшная сила!",
+   "lang": "ru",
+   "who": "Rosa Skvortsova",
+   "who2": "رزا اسکورتسوا",
+   "actor": "Faina Ranevskaya",
+   "actor2": "فائینا رانفسکایا",
+   "film": "Весна",
+   "film_fa": "بهار",
+   "film_en": "Spring",
+   "year": 1947
+  },
+  {
+   "q": "Вот скажи мне, американец, в чём сила? … Я вот думаю, что сила в правде.",
+   "lang": "ru",
+   "who": "Danila Bagrov",
+   "who2": "دانیلا باگروف",
+   "actor": "Sergei Bodrov Jr.",
+   "actor2": "سرگئی بودروف جونیور",
+   "film": "Брат 2",
+   "film_fa": "برادر ۲",
+   "film_en": "Brother 2",
+   "year": 2000
+  },
+  {
+   "q": "曾经有一份真诚的爱情放在我面前，我没有珍惜……如果非要在这份爱上加一个期限，我希望是一万年。",
+   "lang": "zh",
+   "who": "Zhizunbao",
+   "who2": "جی‌زون‌بائو",
+   "actor": "Stephen Chow",
+   "actor2": "استیون چو",
+   "film": "大話西遊",
+   "film_fa": "یک ادیسه چینی",
+   "film_en": "A Chinese Odyssey",
+   "year": 1995
+  },
+  {
+   "q": "说好了是一辈子，差一年，一个月，一天，一个时辰，都不算一辈子！",
+   "lang": "zh",
+   "who": "Cheng Dieyi",
+   "who2": "چنگ دیه‌یی",
+   "actor": "Leslie Cheung",
+   "actor2": "لسلی چونگ",
+   "film": "霸王别姬",
+   "film_fa": "بدرود ای همسر من",
+   "film_en": "Farewell My Concubine",
+   "year": 1993
+  },
+  {
+   "q": "生きろ。そなたは美しい。",
+   "lang": "ja",
+   "who": "Ashitaka",
+   "who2": "آشیتاکا",
+   "actor": "Yōji Matsuda",
+   "actor2": "یوجی ماتسودا",
+   "film": "もののけ姫",
+   "film_fa": "شاهزاده مونونوکه",
+   "film_en": "Princess Mononoke",
+   "year": 1997
+  },
+  {
+   "q": "一度あったことは忘れないものさ。思い出せないだけで。",
+   "lang": "ja",
+   "who": "Zeniba",
+   "who2": "زنیبا",
+   "actor": "Mari Natsuki",
+   "actor2": "ماری ناتسوکی",
+   "film": "千と千尋の神隠し",
+   "film_fa": "شهر اشباح",
+   "film_en": "Spirited Away",
+   "year": 2001
+  },
+  {
+   "q": "아들아, 너는 계획이 다 있구나.",
+   "lang": "ko",
+   "who": "Kim Ki-taek",
+   "who2": "کیم کی‌تک",
+   "actor": "Song Kang-ho",
+   "actor2": "سونگ کانگ‌هو",
+   "film": "기생충",
+   "film_fa": "انگل",
+   "film_en": "Parasite",
+   "year": 2019
+  },
+  {
+   "q": "من مش‌حسن نیستم، من گاو مش‌حسنم.",
+   "lang": "fa",
+   "who": "مش‌حسن",
+   "who2": "Mash-Hassan",
+   "actor": "عزت‌الله انتظامی",
+   "actor2": "Ezzatollah Entezami",
+   "film": "گاو",
+   "film_fa": "گاو",
+   "film_en": "The Cow",
+   "year": 1969
+  },
+  {
+   "q": "یک پایان تلخ بهتر از یک تلخی بی‌پایان است.",
+   "lang": "fa",
+   "who": "احمد",
+   "who2": "Ahmad",
+   "actor": "شهاب حسینی",
+   "actor2": "Shahab Hosseini",
+   "film": "درباره الی",
+   "film_fa": "درباره الی",
+   "film_en": "About Elly",
+   "year": 2009
+  }
+ ],
+ "excerpts": [
+  {
+   "q": "بنی‌آدم اعضای یکدیگرند\nکه در آفرینش ز یک گوهرند\nچو عضوی به درد آورد روزگار\nدگر عضوها را نماند قرار\nتو کز محنت دیگران بی‌غمی\nنشاید که نامت نهند آدمی",
+   "lang": "fa",
+   "author": "سعدی",
+   "author_fa": "سعدی",
+   "author_lat": "Saadi",
+   "work": "گلستان",
+   "work_fa": "گلستان",
+   "work_en": "Golestan (The Rose Garden)",
+   "year": 1258
+  },
+  {
+   "q": "منت خدای را عزّ و جلّ که طاعتش موجب قربت است و به شکر اندرش مزید نعمت.",
+   "lang": "fa",
+   "author": "سعدی",
+   "author_fa": "سعدی",
+   "author_lat": "Saadi",
+   "work": "گلستان",
+   "work_fa": "گلستان",
+   "work_en": "Golestan (The Rose Garden)",
+   "year": 1258
+  },
+  {
+   "q": "دوست مشمار آن که در نعمت زند\nلاف یاری و برادرخواندگی\nدوست آن باشد که گیرد دست دوست\nدر پریشان‌حالی و درماندگی",
+   "lang": "fa",
+   "author": "سعدی",
+   "author_fa": "سعدی",
+   "author_lat": "Saadi",
+   "work": "گلستان",
+   "work_fa": "گلستان",
+   "work_en": "Golestan (The Rose Garden)",
+   "year": 1258
+  },
+  {
+   "q": "چه خوش گفت فردوسی پاک‌زاد\nکه رحمت بر آن تربت پاک باد\nمیازار موری که دانه‌کش است\nکه جان دارد و جان شیرین خوش است",
+   "lang": "fa",
+   "author": "سعدی",
+   "author_fa": "سعدی",
+   "author_lat": "Saadi",
+   "work": "بوستان",
+   "work_fa": "بوستان",
+   "work_en": "Bustan (The Orchard)",
+   "year": 1257
+  },
+  {
+   "q": "بشنو این نی چون شکایت می‌کند\nاز جدایی‌ها حکایت می‌کند\nکز نیستان تا مرا ببریده‌اند\nدر نفیرم مرد و زن نالیده‌اند",
+   "lang": "fa",
+   "author": "مولوی",
+   "author_fa": "مولوی",
+   "author_lat": "Rumi",
+   "work": "مثنوی معنوی",
+   "work_fa": "مثنوی معنوی",
+   "work_en": "Masnavi",
+   "year": 1273
+  },
+  {
+   "q": "توانا بود هر که دانا بود\nز دانش دل پیر برنا بود",
+   "lang": "fa",
+   "author": "فردوسی",
+   "author_fa": "فردوسی",
+   "author_lat": "Ferdowsi",
+   "work": "شاهنامه",
+   "work_fa": "شاهنامه",
+   "work_en": "Shahnameh (The Book of Kings)",
+   "year": 1010
+  },
+  {
+   "q": "بناهای آباد گردد خراب\nز باران و از تابش آفتاب\nپی افکندم از نظم کاخی بلند\nکه از باد و باران نیابد گزند",
+   "lang": "fa",
+   "author": "فردوسی",
+   "author_fa": "فردوسی",
+   "author_lat": "Ferdowsi",
+   "work": "شاهنامه",
+   "work_fa": "شاهنامه",
+   "work_en": "Shahnameh (The Book of Kings)",
+   "year": 1010
+  },
+  {
+   "q": "در زندگی زخم‌هایی هست که مثل خوره روح را آهسته در انزوا می‌خورد و می‌تراشد.",
+   "lang": "fa",
+   "author": "صادق هدایت",
+   "author_fa": "صادق هدایت",
+   "author_lat": "Sadegh Hedayat",
+   "work": "بوف کور",
+   "work_fa": "بوف کور",
+   "work_en": "The Blind Owl",
+   "year": 1937
+  },
+  {
+   "q": "محتسب مستی به ره دید و گریبانش گرفت\nمست گفت ای دوست، این پیراهن است، افسار نیست",
+   "lang": "fa",
+   "author": "پروین اعتصامی",
+   "author_fa": "پروین اعتصامی",
+   "author_lat": "Parvin Etesami",
+   "work": "دیوان پروین اعتصامی (مست و هشیار)",
+   "work_fa": "دیوان پروین اعتصامی (مست و هشیار)",
+   "work_en": "The Divan of Parvin Etesami (\"Drunk and Sober\")",
+   "year": 1935
+  },
+  {
+   "q": "It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness…",
+   "lang": "en",
+   "author": "Charles Dickens",
+   "author_fa": "چارلز دیکنز",
+   "author_lat": "Charles Dickens",
+   "work": "A Tale of Two Cities",
+   "work_fa": "داستان دو شهر",
+   "work_en": null,
+   "year": 1859
+  },
+  {
+   "q": "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife.",
+   "lang": "en",
+   "author": "Jane Austen",
+   "author_fa": "جین آستن",
+   "author_lat": "Jane Austen",
+   "work": "Pride and Prejudice",
+   "work_fa": "غرور و تعصب",
+   "work_en": null,
+   "year": 1813
+  },
+  {
+   "q": "Call me Ishmael.",
+   "lang": "en",
+   "author": "Herman Melville",
+   "author_fa": "هرمان ملویل",
+   "author_lat": "Herman Melville",
+   "work": "Moby-Dick",
+   "work_fa": "موبی دیک",
+   "work_en": null,
+   "year": 1851
+  },
+  {
+   "q": "To be, or not to be, that is the question.",
+   "lang": "en",
+   "author": "William Shakespeare",
+   "author_fa": "ویلیام شکسپیر",
+   "author_lat": "William Shakespeare",
+   "work": "Hamlet",
+   "work_fa": "هملت",
+   "work_en": null,
+   "year": 1603
+  },
+  {
+   "q": "All the world's a stage,\nAnd all the men and women merely players.",
+   "lang": "en",
+   "author": "William Shakespeare",
+   "author_fa": "ویلیام شکسپیر",
+   "author_lat": "William Shakespeare",
+   "work": "As You Like It",
+   "work_fa": "هر طور که شما بخواهید",
+   "work_en": null,
+   "year": 1623
+  },
+  {
+   "q": "What's in a name? That which we call a rose\nBy any other name would smell as sweet.",
+   "lang": "en",
+   "author": "William Shakespeare",
+   "author_fa": "ویلیام شکسپیر",
+   "author_lat": "William Shakespeare",
+   "work": "Romeo and Juliet",
+   "work_fa": "رومئو و ژولیت",
+   "work_en": null,
+   "year": 1597
+  },
+  {
+   "q": "The only way to get rid of a temptation is to yield to it.",
+   "lang": "en",
+   "author": "Oscar Wilde",
+   "author_fa": "اسکار وایلد",
+   "author_lat": "Oscar Wilde",
+   "work": "The Picture of Dorian Gray",
+   "work_fa": "تصویر دوریان گری",
+   "work_en": null,
+   "year": 1890
+  },
+  {
+   "q": "“Begin at the beginning,” the King said, very gravely, “and go on till you come to the end: then stop.”",
+   "lang": "en",
+   "author": "Lewis Carroll",
+   "author_fa": "لوئیس کارول",
+   "author_lat": "Lewis Carroll",
+   "work": "Alice's Adventures in Wonderland",
+   "work_fa": "ماجراهای آلیس در سرزمین عجایب",
+   "work_en": null,
+   "year": 1865
+  },
+  {
+   "q": "I am no bird; and no net ensnares me: I am a free human being with an independent will.",
+   "lang": "en",
+   "author": "Charlotte Brontë",
+   "author_fa": "شارلوت برونته",
+   "author_lat": "Charlotte Brontë",
+   "work": "Jane Eyre",
+   "work_fa": "جین ایر",
+   "work_en": null,
+   "year": 1847
+  },
+  {
+   "q": "Whatever our souls are made of, his and mine are the same.",
+   "lang": "en",
+   "author": "Emily Brontë",
+   "author_fa": "امیلی برونته",
+   "author_lat": "Emily Brontë",
+   "work": "Wuthering Heights",
+   "work_fa": "بلندی‌های بادگیر",
+   "work_en": null,
+   "year": 1847
+  },
+  {
+   "q": "Work consists of whatever a body is obliged to do, and Play consists of whatever a body is not obliged to do.",
+   "lang": "en",
+   "author": "Mark Twain",
+   "author_fa": "مارک تواین",
+   "author_lat": "Mark Twain",
+   "work": "The Adventures of Tom Sawyer",
+   "work_fa": "ماجراهای تام سایر",
+   "work_en": null,
+   "year": 1876
+  },
+  {
+   "q": "So we beat on, boats against the current, borne back ceaselessly into the past.",
+   "lang": "en",
+   "author": "F. Scott Fitzgerald",
+   "author_fa": "اف. اسکات فیتزجرالد",
+   "author_lat": "F. Scott Fitzgerald",
+   "work": "The Great Gatsby",
+   "work_fa": "گتسبی بزرگ",
+   "work_en": null,
+   "year": 1925
+  },
+  {
+   "q": "Your children are not your children.\nThey are the sons and daughters of Life’s longing for itself.",
+   "lang": "en",
+   "author": "Kahlil Gibran",
+   "author_fa": "جبران خلیل جبران",
+   "author_lat": "Kahlil Gibran",
+   "work": "The Prophet",
+   "work_fa": "پیامبر",
+   "work_en": null,
+   "year": 1923
+  },
+  {
+   "q": "Als Gregor Samsa eines Morgens aus unruhigen Träumen erwachte, fand er sich in seinem Bett zu einem ungeheueren Ungeziefer verwandelt.",
+   "lang": "de",
+   "author": "Franz Kafka",
+   "author_fa": "فرانتس کافکا",
+   "author_lat": "Franz Kafka",
+   "work": "Die Verwandlung",
+   "work_fa": "مسخ",
+   "work_en": "The Metamorphosis",
+   "year": 1915
+  },
+  {
+   "q": "Zwei Seelen wohnen, ach! in meiner Brust.",
+   "lang": "de",
+   "author": "Johann Wolfgang von Goethe",
+   "author_fa": "یوهان ولفگانگ فون گوته",
+   "author_lat": "Johann Wolfgang von Goethe",
+   "work": "Faust",
+   "work_fa": "فاوست",
+   "work_en": null,
+   "year": 1808
+  },
+  {
+   "q": "Was mich nicht umbringt, macht mich stärker.",
+   "lang": "de",
+   "author": "Friedrich Nietzsche",
+   "author_fa": "فریدریش نیچه",
+   "author_lat": "Friedrich Nietzsche",
+   "work": "Götzen-Dämmerung",
+   "work_fa": "غروب بت‌ها",
+   "work_en": "Twilight of the Idols",
+   "year": 1889
+  },
+  {
+   "q": "Все счастливые семьи похожи друг на друга, каждая несчастливая семья несчастлива по-своему.",
+   "lang": "ru",
+   "author": "Лев Толстой",
+   "author_fa": "لئو تولستوی",
+   "author_lat": "Leo Tolstoy",
+   "work": "Анна Каренина",
+   "work_fa": "آنا کارنینا",
+   "work_en": "Anna Karenina",
+   "year": 1878
+  },
+  {
+   "q": "Тварь ли я дрожащая или право имею…",
+   "lang": "ru",
+   "author": "Фёдор Достоевский",
+   "author_fa": "فئودور داستایفسکی",
+   "author_lat": "Fyodor Dostoevsky",
+   "work": "Преступление и наказание",
+   "work_fa": "جنایت و مکافات",
+   "work_en": "Crime and Punishment",
+   "year": 1866
+  },
+  {
+   "q": "Правда, князь, что вы раз говорили, что мир спасёт «красота»?",
+   "lang": "ru",
+   "author": "Фёдор Достоевский",
+   "author_fa": "فئودور داستایفسکی",
+   "author_lat": "Fyodor Dostoevsky",
+   "work": "Идиот",
+   "work_fa": "ابله",
+   "work_en": "The Idiot",
+   "year": 1869
+  },
+  {
+   "q": "В человеке должно быть всё прекрасно: и лицо, и одежда, и душа, и мысли.",
+   "lang": "ru",
+   "author": "Антон Чехов",
+   "author_fa": "آنتون چخوف",
+   "author_lat": "Anton Chekhov",
+   "work": "Дядя Ваня",
+   "work_fa": "دایی وانیا",
+   "work_en": "Uncle Vanya",
+   "year": 1897
+  },
+  {
+   "q": "И какой же русский не любит быстрой езды?",
+   "lang": "ru",
+   "author": "Николай Гоголь",
+   "author_fa": "نیکلای گوگول",
+   "author_lat": "Nikolai Gogol",
+   "work": "Мёртвые души",
+   "work_fa": "نفوس مرده",
+   "work_en": "Dead Souls",
+   "year": 1842
+  },
+  {
+   "q": "Я помню чудное мгновенье:\nПередо мной явилась ты,\nКак мимолётное виденье,\nКак гений чистой красоты.",
+   "lang": "ru",
+   "author": "Александр Пушкин",
+   "author_fa": "الکساندر پوشکین",
+   "author_lat": "Alexander Pushkin",
+   "work": "К *** («Я помню чудное мгновенье…»)",
+   "work_fa": "به *** («آن لحظهٔ شگفت را به یاد دارم…»)",
+   "work_en": "To *** (\"I remember a wondrous moment…\")",
+   "year": 1825
+  },
+  {
+   "q": "Il n'y a ni mauvaises herbes ni mauvais hommes. Il n'y a que de mauvais cultivateurs.",
+   "lang": "fr",
+   "author": "Victor Hugo",
+   "author_fa": "ویکتور هوگو",
+   "author_lat": "Victor Hugo",
+   "work": "Les Misérables",
+   "work_fa": "بینوایان",
+   "work_en": null,
+   "year": 1862
+  },
+  {
+   "q": "Toute la sagesse humaine sera dans ces deux mots : Attendre et espérer !",
+   "lang": "fr",
+   "author": "Alexandre Dumas",
+   "author_fa": "الکساندر دوما",
+   "author_lat": "Alexandre Dumas",
+   "work": "Le Comte de Monte-Cristo",
+   "work_fa": "کنت مونت کریستو",
+   "work_en": "The Count of Monte Cristo",
+   "year": 1844
+  },
+  {
+   "q": "Il faut cultiver notre jardin.",
+   "lang": "fr",
+   "author": "Voltaire",
+   "author_fa": "ولتر",
+   "author_lat": "Voltaire",
+   "work": "Candide",
+   "work_fa": "کاندید",
+   "work_en": null,
+   "year": 1759
+  },
+  {
+   "q": "…le seul véritable voyage… ce ne serait pas d'aller vers de nouveaux paysages, mais d'avoir d'autres yeux…",
+   "lang": "fr",
+   "author": "Marcel Proust",
+   "author_fa": "مارسل پروست",
+   "author_lat": "Marcel Proust",
+   "work": "La Prisonnière (À la recherche du temps perdu)",
+   "work_fa": "زندانی (در جست‌وجوی زمان از دست رفته)",
+   "work_en": "The Captive (In Search of Lost Time)",
+   "year": 1923
+  },
+  {
+   "q": "En un lugar de la Mancha, de cuyo nombre no quiero acordarme, no ha mucho tiempo que vivía un hidalgo…",
+   "lang": "es",
+   "author": "Miguel de Cervantes",
+   "author_fa": "میگل د سروانتس",
+   "author_lat": "Miguel de Cervantes",
+   "work": "Don Quijote de la Mancha",
+   "work_fa": "دن کیشوت",
+   "work_en": "Don Quixote",
+   "year": 1605
+  },
+  {
+   "q": "Nel mezzo del cammin di nostra vita\nmi ritrovai per una selva oscura,\nché la diritta via era smarrita.",
+   "lang": "it",
+   "author": "Dante Alighieri",
+   "author_fa": "دانته آلیگیری",
+   "author_lat": "Dante Alighieri",
+   "work": "Divina Commedia (Inferno, I)",
+   "work_fa": "کمدی الهی (دوزخ، سرود یکم)",
+   "work_en": "The Divine Comedy (Inferno, I)",
+   "year": 1320
+  },
+  {
+   "q": "学而时习之，不亦说乎？有朋自远方来，不亦乐乎？",
+   "lang": "zh",
+   "author": "孔子",
+   "author_fa": "کنفوسیوس",
+   "author_lat": "Confucius",
+   "work": "论语",
+   "work_fa": "گفتارهای کنفوسیوس",
+   "work_en": "The Analects",
+   "year": null
+  },
+  {
+   "q": "己所不欲，勿施于人。",
+   "lang": "zh",
+   "author": "孔子",
+   "author_fa": "کنفوسیوس",
+   "author_lat": "Confucius",
+   "work": "论语",
+   "work_fa": "گفتارهای کنفوسیوس",
+   "work_en": "The Analects",
+   "year": null
+  },
+  {
+   "q": "千里之行，始于足下。",
+   "lang": "zh",
+   "author": "老子",
+   "author_fa": "لائوتسه",
+   "author_lat": "Laozi",
+   "work": "道德经",
+   "work_fa": "تائو ته چینگ",
+   "work_en": "Tao Te Ching",
+   "year": null
+  },
+  {
+   "q": "上善若水。水善利万物而不争。",
+   "lang": "zh",
+   "author": "老子",
+   "author_fa": "لائوتسه",
+   "author_lat": "Laozi",
+   "work": "道德经",
+   "work_fa": "تائو ته چینگ",
+   "work_en": "Tao Te Ching",
+   "year": null
+  },
+  {
+   "q": "知彼知己，百战不殆。",
+   "lang": "zh",
+   "author": "孙武",
+   "author_fa": "سون تزو",
+   "author_lat": "Sun Tzu",
+   "work": "孙子兵法",
+   "work_fa": "هنر جنگ",
+   "work_en": "The Art of War",
+   "year": null
+  },
+  {
+   "q": "假作真时真亦假，无为有处有还无。",
+   "lang": "zh",
+   "author": "曹雪芹",
+   "author_fa": "تسائو شوئه‌چین",
+   "author_lat": "Cao Xueqin",
+   "work": "红楼梦",
+   "work_fa": "رویای عمارت سرخ",
+   "work_en": "Dream of the Red Chamber",
+   "year": 1791
+  },
+  {
+   "q": "话说天下大势，分久必合，合久必分。",
+   "lang": "zh",
+   "author": "罗贯中",
+   "author_fa": "لو گوان‌جونگ",
+   "author_lat": "Luo Guanzhong",
+   "work": "三国演义",
+   "work_fa": "داستان سه پادشاهی",
+   "work_en": "Romance of the Three Kingdoms",
+   "year": null
+  },
+  {
+   "q": "其实地上本没有路，走的人多了，也便成了路。",
+   "lang": "zh",
+   "author": "鲁迅",
+   "author_fa": "لو شون",
+   "author_lat": "Lu Xun",
+   "work": "故乡",
+   "work_fa": "زادگاه",
+   "work_en": "My Old Home",
+   "year": 1921
+  }
+ ],
+ "movies": [
+  {
+   "t": "The Godfather",
+   "fa": "پدرخوانده",
+   "en": null,
+   "y": 1972,
+   "by": "Francis Ford Coppola",
+   "by_fa": null,
+   "g": [
+    "crime",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Shawshank Redemption",
+   "fa": "رستگاری در شاوشنک",
+   "en": null,
+   "y": 1994,
+   "by": "Frank Darabont",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Schindler's List",
+   "fa": "فهرست شیندلر",
+   "en": null,
+   "y": 1993,
+   "by": "Steven Spielberg",
+   "by_fa": null,
+   "g": [
+    "drama",
+    "history",
+    "war"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Pulp Fiction",
+   "fa": "داستان عامه‌پسند",
+   "en": null,
+   "y": 1994,
+   "by": "Quentin Tarantino",
+   "by_fa": null,
+   "g": [
+    "crime"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Forrest Gump",
+   "fa": "فارست گامپ",
+   "en": null,
+   "y": 1994,
+   "by": "Robert Zemeckis",
+   "by_fa": null,
+   "g": [
+    "drama",
+    "romance"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Dark Knight",
+   "fa": "شوالیه تاریکی",
+   "en": null,
+   "y": 2008,
+   "by": "Christopher Nolan",
+   "by_fa": null,
+   "g": [
+    "action",
+    "crime"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Inception",
+   "fa": "تلقین",
+   "en": null,
+   "y": 2010,
+   "by": "Christopher Nolan",
+   "by_fa": null,
+   "g": [
+    "scifi",
+    "action"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Interstellar",
+   "fa": "میان‌ستاره‌ای",
+   "en": null,
+   "y": 2014,
+   "by": "Christopher Nolan",
+   "by_fa": null,
+   "g": [
+    "scifi",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Memento",
+   "fa": "ممنتو",
+   "en": null,
+   "y": 2000,
+   "by": "Christopher Nolan",
+   "by_fa": null,
+   "g": [
+    "mystery",
+    "thriller"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Prestige",
+   "fa": "پرستیژ",
+   "en": null,
+   "y": 2006,
+   "by": "Christopher Nolan",
+   "by_fa": null,
+   "g": [
+    "mystery",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Fight Club",
+   "fa": "باشگاه مشت‌زنی",
+   "en": null,
+   "y": 1999,
+   "by": "David Fincher",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Se7en",
+   "fa": "هفت",
+   "en": null,
+   "y": 1995,
+   "by": "David Fincher",
+   "by_fa": null,
+   "g": [
+    "crime",
+    "thriller",
+    "mystery"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Matrix",
+   "fa": "ماتریکس",
+   "en": null,
+   "y": 1999,
+   "by": "Lana Wachowski, Lilly Wachowski",
+   "by_fa": null,
+   "g": [
+    "scifi",
+    "action"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Titanic",
+   "fa": "تایتانیک",
+   "en": null,
+   "y": 1997,
+   "by": "James Cameron",
+   "by_fa": null,
+   "g": [
+    "romance",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Terminator",
+   "fa": "نابودگر",
+   "en": null,
+   "y": 1984,
+   "by": "James Cameron",
+   "by_fa": null,
+   "g": [
+    "scifi",
+    "action"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Gladiator",
+   "fa": "گلادیاتور",
+   "en": null,
+   "y": 2000,
+   "by": "Ridley Scott",
+   "by_fa": null,
+   "g": [
+    "action",
+    "history",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Alien",
+   "fa": "بیگانه",
+   "en": null,
+   "y": 1979,
+   "by": "Ridley Scott",
+   "by_fa": null,
+   "g": [
+    "horror",
+    "scifi"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Blade Runner",
+   "fa": "بلید رانر",
+   "en": null,
+   "y": 1982,
+   "by": "Ridley Scott",
+   "by_fa": null,
+   "g": [
+    "scifi"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Braveheart",
+   "fa": "شجاع‌دل",
+   "en": null,
+   "y": 1995,
+   "by": "Mel Gibson",
+   "by_fa": null,
+   "g": [
+    "history",
+    "war",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Casablanca",
+   "fa": "کازابلانکا",
+   "en": null,
+   "y": 1942,
+   "by": "Michael Curtiz",
+   "by_fa": null,
+   "g": [
+    "romance",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Gone with the Wind",
+   "fa": "برباد رفته",
+   "en": null,
+   "y": 1939,
+   "by": "Victor Fleming",
+   "by_fa": null,
+   "g": [
+    "romance",
+    "history"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Wizard of Oz",
+   "fa": "جادوگر شهر اُز",
+   "en": null,
+   "y": 1939,
+   "by": "Victor Fleming",
+   "by_fa": null,
+   "g": [
+    "fantasy",
+    "musical"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Citizen Kane",
+   "fa": "همشهری کین",
+   "en": null,
+   "y": 1941,
+   "by": "Orson Welles",
+   "by_fa": null,
+   "g": [
+    "drama",
+    "mystery"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Psycho",
+   "fa": "روانی",
+   "en": null,
+   "y": 1960,
+   "by": "Alfred Hitchcock",
+   "by_fa": null,
+   "g": [
+    "horror",
+    "thriller"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Vertigo",
+   "fa": "سرگیجه",
+   "en": null,
+   "y": 1958,
+   "by": "Alfred Hitchcock",
+   "by_fa": null,
+   "g": [
+    "mystery",
+    "thriller",
+    "romance"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Rear Window",
+   "fa": "پنجره عقبی",
+   "en": null,
+   "y": 1954,
+   "by": "Alfred Hitchcock",
+   "by_fa": null,
+   "g": [
+    "mystery",
+    "thriller"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "2001: A Space Odyssey",
+   "fa": "۲۰۰۱: یک ادیسه فضایی",
+   "en": null,
+   "y": 1968,
+   "by": "Stanley Kubrick",
+   "by_fa": null,
+   "g": [
+    "scifi"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Shining",
+   "fa": "درخشش",
+   "en": null,
+   "y": 1980,
+   "by": "Stanley Kubrick",
+   "by_fa": null,
+   "g": [
+    "horror"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Full Metal Jacket",
+   "fa": "غلاف تمام فلزی",
+   "en": null,
+   "y": 1987,
+   "by": "Stanley Kubrick",
+   "by_fa": null,
+   "g": [
+    "war",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Star Wars",
+   "fa": "جنگ ستارگان",
+   "en": null,
+   "y": 1977,
+   "by": "George Lucas",
+   "by_fa": null,
+   "g": [
+    "scifi",
+    "fantasy",
+    "action"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Back to the Future",
+   "fa": "بازگشت به آینده",
+   "en": null,
+   "y": 1985,
+   "by": "Robert Zemeckis",
+   "by_fa": null,
+   "g": [
+    "scifi",
+    "comedy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Jurassic Park",
+   "fa": "پارک ژوراسیک",
+   "en": null,
+   "y": 1993,
+   "by": "Steven Spielberg",
+   "by_fa": null,
+   "g": [
+    "scifi",
+    "action"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "E.T. the Extra-Terrestrial",
+   "fa": "ای.تی. موجود فرازمینی",
+   "en": null,
+   "y": 1982,
+   "by": "Steven Spielberg",
+   "by_fa": null,
+   "g": [
+    "scifi",
+    "family"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Jaws",
+   "fa": "آرواره‌ها",
+   "en": null,
+   "y": 1975,
+   "by": "Steven Spielberg",
+   "by_fa": null,
+   "g": [
+    "thriller",
+    "horror"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Saving Private Ryan",
+   "fa": "نجات سرباز رایان",
+   "en": null,
+   "y": 1998,
+   "by": "Steven Spielberg",
+   "by_fa": null,
+   "g": [
+    "war",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Lord of the Rings: The Fellowship of the Ring",
+   "fa": "ارباب حلقه‌ها: یاران حلقه",
+   "en": null,
+   "y": 2001,
+   "by": "Peter Jackson",
+   "by_fa": null,
+   "g": [
+    "fantasy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Harry Potter and the Philosopher's Stone",
+   "fa": "هری پاتر و سنگ جادو",
+   "en": null,
+   "y": 2001,
+   "by": "Chris Columbus",
+   "by_fa": null,
+   "g": [
+    "fantasy",
+    "family"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Silence of the Lambs",
+   "fa": "سکوت بره‌ها",
+   "en": null,
+   "y": 1991,
+   "by": "Jonathan Demme",
+   "by_fa": null,
+   "g": [
+    "thriller",
+    "crime"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Usual Suspects",
+   "fa": "مظنونین همیشگی",
+   "en": null,
+   "y": 1995,
+   "by": "Bryan Singer",
+   "by_fa": null,
+   "g": [
+    "crime",
+    "mystery"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Goodfellas",
+   "fa": "رفقای خوب",
+   "en": null,
+   "y": 1990,
+   "by": "Martin Scorsese",
+   "by_fa": null,
+   "g": [
+    "crime"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Taxi Driver",
+   "fa": "راننده تاکسی",
+   "en": null,
+   "y": 1976,
+   "by": "Martin Scorsese",
+   "by_fa": null,
+   "g": [
+    "crime",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Departed",
+   "fa": "رفتگان",
+   "en": null,
+   "y": 2006,
+   "by": "Martin Scorsese",
+   "by_fa": null,
+   "g": [
+    "crime",
+    "thriller"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Shutter Island",
+   "fa": "جزیره شاتر",
+   "en": null,
+   "y": 2010,
+   "by": "Martin Scorsese",
+   "by_fa": null,
+   "g": [
+    "mystery",
+    "thriller"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Joker",
+   "fa": "جوکر",
+   "en": null,
+   "y": 2019,
+   "by": "Todd Phillips",
+   "by_fa": null,
+   "g": [
+    "crime",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "12 Angry Men",
+   "fa": "دوازده مرد خشمگین",
+   "en": null,
+   "y": 1957,
+   "by": "Sidney Lumet",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "One Flew Over the Cuckoo's Nest",
+   "fa": "دیوانه از قفس پرید",
+   "en": null,
+   "y": 1975,
+   "by": "Miloš Forman",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Pianist",
+   "fa": "پیانیست",
+   "en": null,
+   "y": 2002,
+   "by": "Roman Polanski",
+   "by_fa": null,
+   "g": [
+    "drama",
+    "war",
+    "history"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Good Will Hunting",
+   "fa": "ویل هانتینگ نابغه",
+   "en": null,
+   "y": 1997,
+   "by": "Gus Van Sant",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "A Beautiful Mind",
+   "fa": "ذهن زیبا",
+   "en": null,
+   "y": 2001,
+   "by": "Ron Howard",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Green Mile",
+   "fa": "مسیر سبز",
+   "en": null,
+   "y": 1999,
+   "by": "Frank Darabont",
+   "by_fa": null,
+   "g": [
+    "drama",
+    "fantasy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Dead Poets Society",
+   "fa": "انجمن شاعران مرده",
+   "en": null,
+   "y": 1989,
+   "by": "Peter Weir",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Truman Show",
+   "fa": "نمایش ترومن",
+   "en": null,
+   "y": 1998,
+   "by": "Peter Weir",
+   "by_fa": null,
+   "g": [
+    "drama",
+    "comedy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Whiplash",
+   "fa": "ویپلش",
+   "en": null,
+   "y": 2014,
+   "by": "Damien Chazelle",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "La La Land",
+   "fa": "لا لا لند",
+   "en": null,
+   "y": 2016,
+   "by": "Damien Chazelle",
+   "by_fa": null,
+   "g": [
+    "musical",
+    "romance"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Social Network",
+   "fa": "شبکه اجتماعی",
+   "en": null,
+   "y": 2010,
+   "by": "David Fincher",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Slumdog Millionaire",
+   "fa": "میلیونر زاغه‌نشین",
+   "en": null,
+   "y": 2008,
+   "by": "Danny Boyle",
+   "by_fa": null,
+   "g": [
+    "drama",
+    "romance"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Rocky",
+   "fa": "راکی",
+   "en": null,
+   "y": 1976,
+   "by": "John G. Avildsen",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Apocalypse Now",
+   "fa": "اینک آخرالزمان",
+   "en": null,
+   "y": 1979,
+   "by": "Francis Ford Coppola",
+   "by_fa": null,
+   "g": [
+    "war",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "1917",
+   "fa": "۱۹۱۷",
+   "en": null,
+   "y": 2019,
+   "by": "Sam Mendes",
+   "by_fa": null,
+   "g": [
+    "war"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Dunkirk",
+   "fa": "دانکرک",
+   "en": null,
+   "y": 2017,
+   "by": "Christopher Nolan",
+   "by_fa": null,
+   "g": [
+    "war",
+    "history"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Once Upon a Time in the West",
+   "fa": "روزی روزگاری در غرب",
+   "en": null,
+   "y": 1968,
+   "by": "Sergio Leone",
+   "by_fa": null,
+   "g": [
+    "western"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Good, the Bad and the Ugly",
+   "fa": "خوب، بد، زشت",
+   "en": null,
+   "y": 1966,
+   "by": "Sergio Leone",
+   "by_fa": null,
+   "g": [
+    "western"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Unforgiven",
+   "fa": "نابخشوده",
+   "en": null,
+   "y": 1992,
+   "by": "Clint Eastwood",
+   "by_fa": null,
+   "g": [
+    "western",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Django Unchained",
+   "fa": "جانگوی رهاشده",
+   "en": null,
+   "y": 2012,
+   "by": "Quentin Tarantino",
+   "by_fa": null,
+   "g": [
+    "western"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Arrival",
+   "fa": "ورود",
+   "en": null,
+   "y": 2016,
+   "by": "Denis Villeneuve",
+   "by_fa": null,
+   "g": [
+    "scifi",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Dune",
+   "fa": "تلماسه",
+   "en": null,
+   "y": 2021,
+   "by": "Denis Villeneuve",
+   "by_fa": null,
+   "g": [
+    "scifi"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Get Out",
+   "fa": "برو بیرون",
+   "en": null,
+   "y": 2017,
+   "by": "Jordan Peele",
+   "by_fa": null,
+   "g": [
+    "horror",
+    "mystery"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Exorcist",
+   "fa": "جن‌گیر",
+   "en": null,
+   "y": 1973,
+   "by": "William Friedkin",
+   "by_fa": null,
+   "g": [
+    "horror"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "A Quiet Place",
+   "fa": "مکانی ساکت",
+   "en": null,
+   "y": 2018,
+   "by": "John Krasinski",
+   "by_fa": null,
+   "g": [
+    "horror",
+    "scifi"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Groundhog Day",
+   "fa": "روز موش‌خرما",
+   "en": null,
+   "y": 1993,
+   "by": "Harold Ramis",
+   "by_fa": null,
+   "g": [
+    "comedy",
+    "romance",
+    "fantasy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Some Like It Hot",
+   "fa": "بعضی‌ها داغشو دوست دارن",
+   "en": null,
+   "y": 1959,
+   "by": "Billy Wilder",
+   "by_fa": null,
+   "g": [
+    "comedy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Modern Times",
+   "fa": "عصر جدید",
+   "en": null,
+   "y": 1936,
+   "by": "Charles Chaplin",
+   "by_fa": null,
+   "g": [
+    "comedy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Great Dictator",
+   "fa": "دیکتاتور بزرگ",
+   "en": null,
+   "y": 1940,
+   "by": "Charles Chaplin",
+   "by_fa": null,
+   "g": [
+    "comedy",
+    "war"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Grand Budapest Hotel",
+   "fa": "هتل بزرگ بوداپست",
+   "en": null,
+   "y": 2014,
+   "by": "Wes Anderson",
+   "by_fa": null,
+   "g": [
+    "comedy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Home Alone",
+   "fa": "تنها در خانه",
+   "en": null,
+   "y": 1990,
+   "by": "Chris Columbus",
+   "by_fa": null,
+   "g": [
+    "comedy",
+    "family"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Knives Out",
+   "fa": "چاقوکشی",
+   "en": null,
+   "y": 2019,
+   "by": "Rian Johnson",
+   "by_fa": null,
+   "g": [
+    "mystery",
+    "comedy",
+    "crime"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Roman Holiday",
+   "fa": "تعطیلات رومی",
+   "en": null,
+   "y": 1953,
+   "by": "William Wyler",
+   "by_fa": null,
+   "g": [
+    "romance",
+    "comedy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Before Sunrise",
+   "fa": "پیش از طلوع",
+   "en": null,
+   "y": 1995,
+   "by": "Richard Linklater",
+   "by_fa": null,
+   "g": [
+    "romance",
+    "drama"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Sound of Music",
+   "fa": "اشک‌ها و لبخندها",
+   "en": null,
+   "y": 1965,
+   "by": "Robert Wise",
+   "by_fa": null,
+   "g": [
+    "musical",
+    "family"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Singin' in the Rain",
+   "fa": "آواز در باران",
+   "en": null,
+   "y": 1952,
+   "by": "Gene Kelly, Stanley Donen",
+   "by_fa": null,
+   "g": [
+    "musical",
+    "comedy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Toy Story",
+   "fa": "داستان اسباب‌بازی",
+   "en": null,
+   "y": 1995,
+   "by": "John Lasseter",
+   "by_fa": null,
+   "g": [
+    "animation",
+    "family",
+    "comedy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Lion King",
+   "fa": "شیرشاه",
+   "en": null,
+   "y": 1994,
+   "by": "Roger Allers, Rob Minkoff",
+   "by_fa": null,
+   "g": [
+    "animation",
+    "family"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Up",
+   "fa": "بالا",
+   "en": null,
+   "y": 2009,
+   "by": "Pete Docter",
+   "by_fa": null,
+   "g": [
+    "animation",
+    "family"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "WALL-E",
+   "fa": "وال-ای",
+   "en": null,
+   "y": 2008,
+   "by": "Andrew Stanton",
+   "by_fa": null,
+   "g": [
+    "animation",
+    "scifi",
+    "family"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Inside Out",
+   "fa": "درون و بیرون",
+   "en": null,
+   "y": 2015,
+   "by": "Pete Docter",
+   "by_fa": null,
+   "g": [
+    "animation",
+    "family"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Coco",
+   "fa": "کوکو",
+   "en": null,
+   "y": 2017,
+   "by": "Lee Unkrich",
+   "by_fa": null,
+   "g": [
+    "animation",
+    "family",
+    "musical"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Finding Nemo",
+   "fa": "در جستجوی نمو",
+   "en": null,
+   "y": 2003,
+   "by": "Andrew Stanton",
+   "by_fa": null,
+   "g": [
+    "animation",
+    "family"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Shrek",
+   "fa": "شرک",
+   "en": null,
+   "y": 2001,
+   "by": "Andrew Adamson, Vicky Jenson",
+   "by_fa": null,
+   "g": [
+    "animation",
+    "comedy",
+    "family"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Parasite",
+   "fa": "انگل",
+   "en": null,
+   "y": 2019,
+   "by": "Bong Joon-ho",
+   "by_fa": null,
+   "g": [
+    "thriller",
+    "drama"
+   ],
+   "l": "ko"
+  },
+  {
+   "t": "Oldboy",
+   "fa": "اولدبوی",
+   "en": null,
+   "y": 2003,
+   "by": "Park Chan-wook",
+   "by_fa": null,
+   "g": [
+    "thriller",
+    "mystery"
+   ],
+   "l": "ko"
+  },
+  {
+   "t": "Train to Busan",
+   "fa": "قطار بوسان",
+   "en": null,
+   "y": 2016,
+   "by": "Yeon Sang-ho",
+   "by_fa": null,
+   "g": [
+    "horror",
+    "action"
+   ],
+   "l": "ko"
+  },
+  {
+   "t": "千と千尋の神隠し",
+   "fa": "شهر اشباح",
+   "en": "Spirited Away",
+   "y": 2001,
+   "by": "Hayao Miyazaki",
+   "by_fa": null,
+   "g": [
+    "animation",
+    "fantasy",
+    "family"
+   ],
+   "l": "ja"
+  },
+  {
+   "t": "となりのトトロ",
+   "fa": "همسایه من توتورو",
+   "en": "My Neighbor Totoro",
+   "y": 1988,
+   "by": "Hayao Miyazaki",
+   "by_fa": null,
+   "g": [
+    "animation",
+    "family",
+    "fantasy"
+   ],
+   "l": "ja"
+  },
+  {
+   "t": "もののけ姫",
+   "fa": "شاهزاده مونونوکه",
+   "en": "Princess Mononoke",
+   "y": 1997,
+   "by": "Hayao Miyazaki",
+   "by_fa": null,
+   "g": [
+    "animation",
+    "fantasy"
+   ],
+   "l": "ja"
+  },
+  {
+   "t": "火垂るの墓",
+   "fa": "مدفن کرم‌های شب‌تاب",
+   "en": "Grave of the Fireflies",
+   "y": 1988,
+   "by": "Isao Takahata",
+   "by_fa": null,
+   "g": [
+    "animation",
+    "war",
+    "drama"
+   ],
+   "l": "ja"
+  },
+  {
+   "t": "君の名は。",
+   "fa": "نام تو",
+   "en": "Your Name",
+   "y": 2016,
+   "by": "Makoto Shinkai",
+   "by_fa": null,
+   "g": [
+    "animation",
+    "romance",
+    "fantasy"
+   ],
+   "l": "ja"
+  },
+  {
+   "t": "七人の侍",
+   "fa": "هفت سامورایی",
+   "en": "Seven Samurai",
+   "y": 1954,
+   "by": "Akira Kurosawa",
+   "by_fa": null,
+   "g": [
+    "action",
+    "drama",
+    "history"
+   ],
+   "l": "ja"
+  },
+  {
+   "t": "羅生門",
+   "fa": "راشومون",
+   "en": "Rashomon",
+   "y": 1950,
+   "by": "Akira Kurosawa",
+   "by_fa": null,
+   "g": [
+    "mystery",
+    "drama"
+   ],
+   "l": "ja"
+  },
+  {
+   "t": "Le Fabuleux Destin d'Amélie Poulain",
+   "fa": "سرنوشت شگفت‌انگیز آملی پولن",
+   "en": "Amélie",
+   "y": 2001,
+   "by": "Jean-Pierre Jeunet",
+   "by_fa": null,
+   "g": [
+    "romance",
+    "comedy"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Intouchables",
+   "fa": "دست‌نیافتنی‌ها",
+   "en": "The Intouchables",
+   "y": 2011,
+   "by": "Olivier Nakache, Éric Toledano",
+   "by_fa": null,
+   "g": [
+    "comedy",
+    "drama"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "La Haine",
+   "fa": "نفرت",
+   "en": "Hate",
+   "y": 1995,
+   "by": "Mathieu Kassovitz",
+   "by_fa": null,
+   "g": [
+    "drama",
+    "crime"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Les Quatre Cents Coups",
+   "fa": "چهارصد ضربه",
+   "en": "The 400 Blows",
+   "y": 1959,
+   "by": "François Truffaut",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "À bout de souffle",
+   "fa": "از نفس افتاده",
+   "en": "Breathless",
+   "y": 1960,
+   "by": "Jean-Luc Godard",
+   "by_fa": null,
+   "g": [
+    "crime",
+    "drama"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Persepolis",
+   "fa": "پرسپولیس",
+   "en": null,
+   "y": 2007,
+   "by": "Marjane Satrapi, Vincent Paronnaud",
+   "by_fa": null,
+   "g": [
+    "animation",
+    "drama",
+    "history"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Nuovo Cinema Paradiso",
+   "fa": "سینما پارادیزو",
+   "en": "Cinema Paradiso",
+   "y": 1988,
+   "by": "Giuseppe Tornatore",
+   "by_fa": null,
+   "g": [
+    "drama",
+    "romance"
+   ],
+   "l": "it"
+  },
+  {
+   "t": "La vita è bella",
+   "fa": "زندگی زیباست",
+   "en": "Life Is Beautiful",
+   "y": 1997,
+   "by": "Roberto Benigni",
+   "by_fa": null,
+   "g": [
+    "comedy",
+    "drama",
+    "war"
+   ],
+   "l": "it"
+  },
+  {
+   "t": "8½",
+   "fa": "هشت و نیم",
+   "en": null,
+   "y": 1963,
+   "by": "Federico Fellini",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "it"
+  },
+  {
+   "t": "Ladri di biciclette",
+   "fa": "دزد دوچرخه",
+   "en": "Bicycle Thieves",
+   "y": 1948,
+   "by": "Vittorio De Sica",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "it"
+  },
+  {
+   "t": "El laberinto del fauno",
+   "fa": "هزارتوی پن",
+   "en": "Pan's Labyrinth",
+   "y": 2006,
+   "by": "Guillermo del Toro",
+   "by_fa": null,
+   "g": [
+    "fantasy",
+    "war",
+    "drama"
+   ],
+   "l": "es"
+  },
+  {
+   "t": "Das Leben der Anderen",
+   "fa": "زندگی دیگران",
+   "en": "The Lives of Others",
+   "y": 2006,
+   "by": "Florian Henckel von Donnersmarck",
+   "by_fa": null,
+   "g": [
+    "drama",
+    "thriller",
+    "history"
+   ],
+   "l": "de"
+  },
+  {
+   "t": "Lola rennt",
+   "fa": "بدو لولا بدو",
+   "en": "Run Lola Run",
+   "y": 1998,
+   "by": "Tom Tykwer",
+   "by_fa": null,
+   "g": [
+    "thriller",
+    "crime"
+   ],
+   "l": "de"
+  },
+  {
+   "t": "Das Boot",
+   "fa": "زیردریایی",
+   "en": null,
+   "y": 1981,
+   "by": "Wolfgang Petersen",
+   "by_fa": null,
+   "g": [
+    "war",
+    "drama"
+   ],
+   "l": "de"
+  },
+  {
+   "t": "Der Untergang",
+   "fa": "سقوط",
+   "en": "Downfall",
+   "y": 2004,
+   "by": "Oliver Hirschbiegel",
+   "by_fa": null,
+   "g": [
+    "war",
+    "history",
+    "drama"
+   ],
+   "l": "de"
+  },
+  {
+   "t": "Сталкер",
+   "fa": "استاکر",
+   "en": "Stalker",
+   "y": 1979,
+   "by": "Andrei Tarkovsky",
+   "by_fa": null,
+   "g": [
+    "scifi",
+    "drama"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Солярис",
+   "fa": "سولاریس",
+   "en": "Solaris",
+   "y": 1972,
+   "by": "Andrei Tarkovsky",
+   "by_fa": null,
+   "g": [
+    "scifi",
+    "drama"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Броненосец «Потёмкин»",
+   "fa": "رزمناو پوتمکین",
+   "en": "Battleship Potemkin",
+   "y": 1925,
+   "by": "Sergei Eisenstein",
+   "by_fa": null,
+   "g": [
+    "history",
+    "drama"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Москва слезам не верит",
+   "fa": "مسکو اشک‌ها را باور نمی‌کند",
+   "en": "Moscow Does Not Believe in Tears",
+   "y": 1979,
+   "by": "Vladimir Menshov",
+   "by_fa": null,
+   "g": [
+    "romance",
+    "drama"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Ирония судьбы, или С лёгким паром!",
+   "fa": "طنز سرنوشت",
+   "en": "The Irony of Fate",
+   "y": 1975,
+   "by": "Eldar Ryazanov",
+   "by_fa": null,
+   "g": [
+    "comedy",
+    "romance"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Брат",
+   "fa": "برادر",
+   "en": "Brother",
+   "y": 1997,
+   "by": "Aleksei Balabanov",
+   "by_fa": null,
+   "g": [
+    "crime",
+    "drama"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Иди и смотри",
+   "fa": "بیا و ببین",
+   "en": "Come and See",
+   "y": 1985,
+   "by": "Elem Klimov",
+   "by_fa": null,
+   "g": [
+    "war",
+    "drama"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Белое солнце пустыни",
+   "fa": "خورشید سفید صحرا",
+   "en": "White Sun of the Desert",
+   "y": 1970,
+   "by": "Vladimir Motyl",
+   "by_fa": null,
+   "g": [
+    "western",
+    "action",
+    "comedy"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "花樣年華",
+   "fa": "در حال و هوای عشق",
+   "en": "In the Mood for Love",
+   "y": 2000,
+   "by": "Wong Kar-wai",
+   "by_fa": null,
+   "g": [
+    "romance",
+    "drama"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "重慶森林",
+   "fa": "جنگل چونگ‌کینگ",
+   "en": "Chungking Express",
+   "y": 1994,
+   "by": "Wong Kar-wai",
+   "by_fa": null,
+   "g": [
+    "romance",
+    "comedy"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "霸王别姬",
+   "fa": "بدرود ای همسر من",
+   "en": "Farewell My Concubine",
+   "y": 1993,
+   "by": "Chen Kaige",
+   "by_fa": null,
+   "g": [
+    "drama",
+    "history"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "臥虎藏龍",
+   "fa": "ببر خیزان، اژدهای پنهان",
+   "en": "Crouching Tiger, Hidden Dragon",
+   "y": 2000,
+   "by": "Ang Lee",
+   "by_fa": null,
+   "g": [
+    "action",
+    "fantasy",
+    "romance"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "英雄",
+   "fa": "قهرمان",
+   "en": "Hero",
+   "y": 2002,
+   "by": "Zhang Yimou",
+   "by_fa": null,
+   "g": [
+    "action",
+    "history"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "活着",
+   "fa": "زنده بودن",
+   "en": "To Live",
+   "y": 1994,
+   "by": "Zhang Yimou",
+   "by_fa": null,
+   "g": [
+    "drama",
+    "history"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "大红灯笼高高挂",
+   "fa": "فانوس قرمز را برافراشته کن",
+   "en": "Raise the Red Lantern",
+   "y": 1991,
+   "by": "Zhang Yimou",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "無間道",
+   "fa": "اعمال جهنمی",
+   "en": "Infernal Affairs",
+   "y": 2002,
+   "by": "Andrew Lau, Alan Mak",
+   "by_fa": null,
+   "g": [
+    "crime",
+    "thriller"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "流浪地球",
+   "fa": "زمین سرگردان",
+   "en": "The Wandering Earth",
+   "y": 2019,
+   "by": "Frant Gwo",
+   "by_fa": null,
+   "g": [
+    "scifi",
+    "action"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "大話西遊",
+   "fa": "یک ادیسه چینی",
+   "en": "A Chinese Odyssey",
+   "y": 1995,
+   "by": "Jeffrey Lau",
+   "by_fa": null,
+   "g": [
+    "comedy",
+    "fantasy",
+    "romance"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "جدایی نادر از سیمین",
+   "fa": "جدایی نادر از سیمین",
+   "en": "A Separation",
+   "y": 2011,
+   "by": "Asghar Farhadi",
+   "by_fa": "اصغر فرهادی",
+   "g": [
+    "drama"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "فروشنده",
+   "fa": "فروشنده",
+   "en": "The Salesman",
+   "y": 2016,
+   "by": "Asghar Farhadi",
+   "by_fa": "اصغر فرهادی",
+   "g": [
+    "drama",
+    "thriller"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "درباره الی",
+   "fa": "درباره الی",
+   "en": "About Elly",
+   "y": 2009,
+   "by": "Asghar Farhadi",
+   "by_fa": "اصغر فرهادی",
+   "g": [
+    "drama",
+    "mystery"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "قهرمان",
+   "fa": "قهرمان",
+   "en": "A Hero",
+   "y": 2021,
+   "by": "Asghar Farhadi",
+   "by_fa": "اصغر فرهادی",
+   "g": [
+    "drama"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "طعم گیلاس",
+   "fa": "طعم گیلاس",
+   "en": "Taste of Cherry",
+   "y": 1997,
+   "by": "Abbas Kiarostami",
+   "by_fa": "عباس کیارستمی",
+   "g": [
+    "drama"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "کلوزآپ، نمای نزدیک",
+   "fa": "کلوزآپ، نمای نزدیک",
+   "en": "Close-Up",
+   "y": 1990,
+   "by": "Abbas Kiarostami",
+   "by_fa": "عباس کیارستمی",
+   "g": [
+    "drama"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "خانه دوست کجاست؟",
+   "fa": "خانه دوست کجاست؟",
+   "en": "Where Is the Friend's House?",
+   "y": 1987,
+   "by": "Abbas Kiarostami",
+   "by_fa": "عباس کیارستمی",
+   "g": [
+    "drama",
+    "family"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "باد ما را خواهد برد",
+   "fa": "باد ما را خواهد برد",
+   "en": "The Wind Will Carry Us",
+   "y": 1999,
+   "by": "Abbas Kiarostami",
+   "by_fa": "عباس کیارستمی",
+   "g": [
+    "drama"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "بچه‌های آسمان",
+   "fa": "بچه‌های آسمان",
+   "en": "Children of Heaven",
+   "y": 1997,
+   "by": "Majid Majidi",
+   "by_fa": "مجید مجیدی",
+   "g": [
+    "drama",
+    "family"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "رنگ خدا",
+   "fa": "رنگ خدا",
+   "en": "The Color of Paradise",
+   "y": 1999,
+   "by": "Majid Majidi",
+   "by_fa": "مجید مجیدی",
+   "g": [
+    "drama",
+    "family"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "آواز گنجشک‌ها",
+   "fa": "آواز گنجشک‌ها",
+   "en": "The Song of Sparrows",
+   "y": 2008,
+   "by": "Majid Majidi",
+   "by_fa": "مجید مجیدی",
+   "g": [
+    "drama"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "گاو",
+   "fa": "گاو",
+   "en": "The Cow",
+   "y": 1969,
+   "by": "Dariush Mehrjui",
+   "by_fa": "داریوش مهرجویی",
+   "g": [
+    "drama"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "هامون",
+   "fa": "هامون",
+   "en": "Hamoun",
+   "y": 1990,
+   "by": "Dariush Mehrjui",
+   "by_fa": "داریوش مهرجویی",
+   "g": [
+    "drama",
+    "comedy"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "لیلا",
+   "fa": "لیلا",
+   "en": "Leila",
+   "y": 1997,
+   "by": "Dariush Mehrjui",
+   "by_fa": "داریوش مهرجویی",
+   "g": [
+    "drama",
+    "romance"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "اجاره‌نشین‌ها",
+   "fa": "اجاره‌نشین‌ها",
+   "en": "The Tenants",
+   "y": 1987,
+   "by": "Dariush Mehrjui",
+   "by_fa": "داریوش مهرجویی",
+   "g": [
+    "comedy"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "دونده",
+   "fa": "دونده",
+   "en": "The Runner",
+   "y": 1984,
+   "by": "Amir Naderi",
+   "by_fa": "امیر نادری",
+   "g": [
+    "drama"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "باشو، غریبه کوچک",
+   "fa": "باشو، غریبه کوچک",
+   "en": "Bashu, the Little Stranger",
+   "y": 1989,
+   "by": "Bahram Beyzaie",
+   "by_fa": "بهرام بیضایی",
+   "g": [
+    "drama",
+    "war",
+    "family"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "بادکنک سفید",
+   "fa": "بادکنک سفید",
+   "en": "The White Balloon",
+   "y": 1995,
+   "by": "Jafar Panahi",
+   "by_fa": "جعفر پناهی",
+   "g": [
+    "drama",
+    "family"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "آفساید",
+   "fa": "آفساید",
+   "en": "Offside",
+   "y": 2006,
+   "by": "Jafar Panahi",
+   "by_fa": "جعفر پناهی",
+   "g": [
+    "comedy",
+    "drama"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "مارمولک",
+   "fa": "مارمولک",
+   "en": "The Lizard",
+   "y": 2004,
+   "by": "Kamal Tabrizi",
+   "by_fa": "کمال تبریزی",
+   "g": [
+    "comedy"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "قیصر",
+   "fa": "قیصر",
+   "en": "Qeysar",
+   "y": 1969,
+   "by": "Masoud Kimiai",
+   "by_fa": "مسعود کیمیایی",
+   "g": [
+    "crime",
+    "drama"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "گوزن‌ها",
+   "fa": "گوزن‌ها",
+   "en": "The Deer",
+   "y": 1974,
+   "by": "Masoud Kimiai",
+   "by_fa": "مسعود کیمیایی",
+   "g": [
+    "crime",
+    "drama"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "گبه",
+   "fa": "گبه",
+   "en": "Gabbeh",
+   "y": 1996,
+   "by": "Mohsen Makhmalbaf",
+   "by_fa": "محسن مخملباف",
+   "g": [
+    "romance",
+    "drama"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "لاک‌پشت‌ها هم پرواز می‌کنند",
+   "fa": "لاک‌پشت‌ها هم پرواز می‌کنند",
+   "en": "Turtles Can Fly",
+   "y": 2004,
+   "by": "Bahman Ghobadi",
+   "by_fa": "بهمن قبادی",
+   "g": [
+    "war",
+    "drama"
+   ],
+   "l": "ku"
+  },
+  {
+   "t": "زیر سایه",
+   "fa": "زیر سایه",
+   "en": "Under the Shadow",
+   "y": 2016,
+   "by": "Babak Anvari",
+   "by_fa": "بابک انوری",
+   "g": [
+    "horror"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "शोले",
+   "fa": "شعله",
+   "en": "Sholay",
+   "y": 1975,
+   "by": "Ramesh Sippy",
+   "by_fa": null,
+   "g": [
+    "action",
+    "western"
+   ],
+   "l": "hi"
+  },
+  {
+   "t": "3 Idiots",
+   "fa": "سه احمق",
+   "en": null,
+   "y": 2009,
+   "by": "Rajkumar Hirani",
+   "by_fa": null,
+   "g": [
+    "comedy",
+    "drama"
+   ],
+   "l": "hi"
+  },
+  {
+   "t": "Lagaan",
+   "fa": "لگان",
+   "en": null,
+   "y": 2001,
+   "by": "Ashutosh Gowariker",
+   "by_fa": null,
+   "g": [
+    "drama",
+    "history",
+    "musical"
+   ],
+   "l": "hi"
+  },
+  {
+   "t": "Dangal",
+   "fa": "دنگل",
+   "en": null,
+   "y": 2016,
+   "by": "Nitesh Tiwari",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "hi"
+  },
+  {
+   "t": "পথের পাঁচালী",
+   "fa": "پاتر پانچالی",
+   "en": "Pather Panchali",
+   "y": 1955,
+   "by": "Satyajit Ray",
+   "by_fa": null,
+   "g": [
+    "drama"
+   ],
+   "l": "bn"
+  }
+ ],
+ "music": [
+  {
+   "t": "مرغ سحر",
+   "tl": "Morgh-e Sahar",
+   "a": "محمدرضا شجریان",
+   "a_fa": "محمدرضا شجریان",
+   "a_lat": "Mohammad-Reza Shajarian",
+   "y": null,
+   "g": [
+    "traditional"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "بیداد",
+   "tl": "Bidad",
+   "a": "محمدرضا شجریان",
+   "a_fa": "محمدرضا شجریان",
+   "a_lat": "Mohammad-Reza Shajarian",
+   "y": 1985,
+   "g": [
+    "traditional"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "چرا رفتی",
+   "tl": "Chera Rafti",
+   "a": "همایون شجریان",
+   "a_fa": "همایون شجریان",
+   "a_lat": "Homayoun Shajarian",
+   "y": null,
+   "g": [
+    "traditional",
+    "pop"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "ای ایران",
+   "tl": "Ey Iran",
+   "a": "غلامحسین بنان",
+   "a_fa": "غلامحسین بنان",
+   "a_lat": "Gholamhossein Banan",
+   "y": null,
+   "g": [
+    "traditional"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "بهار دلنشین",
+   "tl": "Bahar-e Delneshin",
+   "a": "غلامحسین بنان",
+   "a_fa": "غلامحسین بنان",
+   "a_lat": "Gholamhossein Banan",
+   "y": null,
+   "g": [
+    "traditional"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "نی‌نوا",
+   "tl": "Ney Nava",
+   "a": "حسین علیزاده",
+   "a_fa": "حسین علیزاده",
+   "a_lat": "Hossein Alizadeh",
+   "y": 1983,
+   "g": [
+    "traditional",
+    "classical"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "The Wind",
+   "tl": null,
+   "a": "Kayhan Kalhor, Erdal Erzincan",
+   "a_fa": "کیهان کلهر، اردال ارزنجان",
+   "a_lat": "Kayhan Kalhor, Erdal Erzincan",
+   "y": 2006,
+   "g": [
+    "traditional"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "باران تویی",
+   "tl": "Baran Toei",
+   "a": "چارتار",
+   "a_fa": "چارتار",
+   "a_lat": "Chaartaar",
+   "y": null,
+   "g": [
+    "pop"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "نبض احساس",
+   "tl": "Nabz-e Ehsas",
+   "a": "محسن یگانه",
+   "a_fa": "محسن یگانه",
+   "a_lat": "Mohsen Yeganeh",
+   "y": null,
+   "g": [
+    "pop"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "بهت قول می‌دم",
+   "tl": "Behet Ghol Midam",
+   "a": "محسن یگانه",
+   "a_fa": "محسن یگانه",
+   "a_lat": "Mohsen Yeganeh",
+   "y": null,
+   "g": [
+    "pop"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "امیر بی‌گزند",
+   "tl": "Amir-e Bi-Gazand",
+   "a": "محسن چاوشی",
+   "a_fa": "محسن چاوشی",
+   "a_lat": "Mohsen Chavoshi",
+   "y": null,
+   "g": [
+    "pop"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "گل یخ",
+   "tl": "Gol-e Yakh",
+   "a": "کورش یغمایی",
+   "a_fa": "کورش یغمایی",
+   "a_lat": "Kourosh Yaghmaei",
+   "y": 1973,
+   "g": [
+    "rock"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "پل",
+   "tl": "Pol",
+   "a": "گوگوش",
+   "a_fa": "گوگوش",
+   "a_lat": "Googoosh",
+   "y": null,
+   "g": [
+    "pop"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "دو ماهی",
+   "tl": "Do Mahi",
+   "a": "گوگوش",
+   "a_fa": "گوگوش",
+   "a_lat": "Googoosh",
+   "y": null,
+   "g": [
+    "pop"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "من آمده‌ام",
+   "tl": "Man Amadeh-am",
+   "a": "گوگوش",
+   "a_fa": "گوگوش",
+   "a_lat": "Googoosh",
+   "y": null,
+   "g": [
+    "pop"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "کندو",
+   "tl": "Kandoo",
+   "a": "گوگوش",
+   "a_fa": "گوگوش",
+   "a_lat": "Googoosh",
+   "y": null,
+   "g": [
+    "pop"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "جمعه",
+   "tl": "Jom'eh",
+   "a": "فرهاد مهراد",
+   "a_fa": "فرهاد مهراد",
+   "a_lat": "Farhad Mehrad",
+   "y": null,
+   "g": [
+    "pop",
+    "folk"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "بوی عیدی",
+   "tl": "Booy-e Eydi",
+   "a": "فرهاد مهراد",
+   "a_fa": "فرهاد مهراد",
+   "a_lat": "Farhad Mehrad",
+   "y": null,
+   "g": [
+    "pop",
+    "folk"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "مهتاب",
+   "tl": "Mahtab",
+   "a": "ویگن",
+   "a_fa": "ویگن",
+   "a_lat": "Viguen",
+   "y": null,
+   "g": [
+    "pop"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "سلطان قلب‌ها",
+   "tl": "Soltan-e Ghalb-ha",
+   "a": "عارف",
+   "a_fa": "عارف",
+   "a_lat": "Aref",
+   "y": 1968,
+   "g": [
+    "pop"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "تقدیر",
+   "tl": "Taghdir",
+   "a": "شادمهر عقیلی",
+   "a_fa": "شادمهر عقیلی",
+   "a_lat": "Shadmehr Aghili",
+   "y": null,
+   "g": [
+    "pop"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "خلیج فارس",
+   "tl": "Khalij-e Fars",
+   "a": "ابی",
+   "a_fa": "ابی",
+   "a_lat": "Ebi",
+   "y": null,
+   "g": [
+    "pop"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "جان مریم",
+   "tl": "Jan-e Maryam",
+   "a": "محمد نوری",
+   "a_fa": "محمد نوری",
+   "a_lat": "Mohammad Nouri",
+   "y": null,
+   "g": [
+    "pop",
+    "folk"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "ترنج",
+   "tl": "Toranj",
+   "a": "محسن نامجو",
+   "a_fa": "محسن نامجو",
+   "a_lat": "Mohsen Namjoo",
+   "y": 2007,
+   "g": [
+    "folk",
+    "traditional"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "جنگل آسفالت",
+   "tl": "Jangal-e Asphalt",
+   "a": "هیچکس",
+   "a_fa": "هیچکس",
+   "a_lat": "Hichkas",
+   "y": 2006,
+   "g": [
+    "hiphop"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "Bohemian Rhapsody",
+   "tl": null,
+   "a": "Queen",
+   "a_fa": "کوئین",
+   "a_lat": "Queen",
+   "y": 1975,
+   "g": [
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Hey Jude",
+   "tl": null,
+   "a": "The Beatles",
+   "a_fa": "بیتلز",
+   "a_lat": "The Beatles",
+   "y": 1968,
+   "g": [
+    "rock",
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Let It Be",
+   "tl": null,
+   "a": "The Beatles",
+   "a_fa": "بیتلز",
+   "a_lat": "The Beatles",
+   "y": 1970,
+   "g": [
+    "rock",
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Yesterday",
+   "tl": null,
+   "a": "The Beatles",
+   "a_fa": "بیتلز",
+   "a_lat": "The Beatles",
+   "y": 1965,
+   "g": [
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Imagine",
+   "tl": null,
+   "a": "John Lennon",
+   "a_fa": "جان لنون",
+   "a_lat": "John Lennon",
+   "y": 1971,
+   "g": [
+    "pop",
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Billie Jean",
+   "tl": null,
+   "a": "Michael Jackson",
+   "a_fa": "مایکل جکسون",
+   "a_lat": "Michael Jackson",
+   "y": 1983,
+   "g": [
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Someone Like You",
+   "tl": null,
+   "a": "Adele",
+   "a_fa": "ادل",
+   "a_lat": "Adele",
+   "y": 2011,
+   "g": [
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Hello",
+   "tl": null,
+   "a": "Adele",
+   "a_fa": "ادل",
+   "a_lat": "Adele",
+   "y": 2015,
+   "g": [
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Shape of You",
+   "tl": null,
+   "a": "Ed Sheeran",
+   "a_fa": "اد شیرن",
+   "a_lat": "Ed Sheeran",
+   "y": 2017,
+   "g": [
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Perfect",
+   "tl": null,
+   "a": "Ed Sheeran",
+   "a_fa": "اد شیرن",
+   "a_lat": "Ed Sheeran",
+   "y": 2017,
+   "g": [
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Viva la Vida",
+   "tl": null,
+   "a": "Coldplay",
+   "a_fa": "کلدپلی",
+   "a_lat": "Coldplay",
+   "y": 2008,
+   "g": [
+    "rock",
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Fix You",
+   "tl": null,
+   "a": "Coldplay",
+   "a_fa": "کلدپلی",
+   "a_lat": "Coldplay",
+   "y": 2005,
+   "g": [
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Hotel California",
+   "tl": null,
+   "a": "Eagles",
+   "a_fa": "ایگلز",
+   "a_lat": "Eagles",
+   "y": 1977,
+   "g": [
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Stairway to Heaven",
+   "tl": null,
+   "a": "Led Zeppelin",
+   "a_fa": "لد زپلین",
+   "a_lat": "Led Zeppelin",
+   "y": 1971,
+   "g": [
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Smells Like Teen Spirit",
+   "tl": null,
+   "a": "Nirvana",
+   "a_fa": "نیروانا",
+   "a_lat": "Nirvana",
+   "y": 1991,
+   "g": [
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Wish You Were Here",
+   "tl": null,
+   "a": "Pink Floyd",
+   "a_fa": "پینک فلوید",
+   "a_lat": "Pink Floyd",
+   "y": 1975,
+   "g": [
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Comfortably Numb",
+   "tl": null,
+   "a": "Pink Floyd",
+   "a_fa": "پینک فلوید",
+   "a_lat": "Pink Floyd",
+   "y": 1979,
+   "g": [
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Like a Rolling Stone",
+   "tl": null,
+   "a": "Bob Dylan",
+   "a_fa": "باب دیلن",
+   "a_lat": "Bob Dylan",
+   "y": 1965,
+   "g": [
+    "rock",
+    "folk"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Blowin' in the Wind",
+   "tl": null,
+   "a": "Bob Dylan",
+   "a_fa": "باب دیلن",
+   "a_lat": "Bob Dylan",
+   "y": 1963,
+   "g": [
+    "folk"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Can't Help Falling in Love",
+   "tl": null,
+   "a": "Elvis Presley",
+   "a_fa": "الویس پریسلی",
+   "a_lat": "Elvis Presley",
+   "y": 1961,
+   "g": [
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "My Way",
+   "tl": null,
+   "a": "Frank Sinatra",
+   "a_fa": "فرانک سیناترا",
+   "a_lat": "Frank Sinatra",
+   "y": 1969,
+   "g": [
+    "pop",
+    "jazz"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "What a Wonderful World",
+   "tl": null,
+   "a": "Louis Armstrong",
+   "a_fa": "لوئیس آرمسترانگ",
+   "a_lat": "Louis Armstrong",
+   "y": 1967,
+   "g": [
+    "jazz"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Dream a Little Dream of Me",
+   "tl": null,
+   "a": "Ella Fitzgerald, Louis Armstrong",
+   "a_fa": "الا فیتزجرالد، لوئیس آرمسترانگ",
+   "a_lat": "Ella Fitzgerald, Louis Armstrong",
+   "y": 1950,
+   "g": [
+    "jazz"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Feeling Good",
+   "tl": null,
+   "a": "Nina Simone",
+   "a_fa": "نینا سیمون",
+   "a_lat": "Nina Simone",
+   "y": 1965,
+   "g": [
+    "jazz",
+    "rnb"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Don't Know Why",
+   "tl": null,
+   "a": "Norah Jones",
+   "a_fa": "نورا جونز",
+   "a_lat": "Norah Jones",
+   "y": 2002,
+   "g": [
+    "jazz",
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "So What",
+   "tl": null,
+   "a": "Miles Davis",
+   "a_fa": "مایلز دیویس",
+   "a_lat": "Miles Davis",
+   "y": 1959,
+   "g": [
+    "jazz"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "Take Five",
+   "tl": null,
+   "a": "The Dave Brubeck Quartet",
+   "a_fa": "گروه چهارنفره دیو بروبک",
+   "a_lat": "The Dave Brubeck Quartet",
+   "y": 1959,
+   "g": [
+    "jazz"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "A Love Supreme",
+   "tl": null,
+   "a": "John Coltrane",
+   "a_fa": "جان کولترین",
+   "a_lat": "John Coltrane",
+   "y": 1965,
+   "g": [
+    "jazz"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "I Will Always Love You",
+   "tl": null,
+   "a": "Whitney Houston",
+   "a_fa": "ویتنی هیوستون",
+   "a_lat": "Whitney Houston",
+   "y": 1992,
+   "g": [
+    "pop",
+    "rnb"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "My Heart Will Go On",
+   "tl": null,
+   "a": "Celine Dion",
+   "a_fa": "سلین دیون",
+   "a_lat": "Celine Dion",
+   "y": 1997,
+   "g": [
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "No Woman, No Cry",
+   "tl": null,
+   "a": "Bob Marley & The Wailers",
+   "a_fa": "باب مارلی و ویلرز",
+   "a_lat": "Bob Marley & The Wailers",
+   "y": 1974,
+   "g": [
+    "reggae"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "One Love",
+   "tl": null,
+   "a": "Bob Marley & The Wailers",
+   "a_fa": "باب مارلی و ویلرز",
+   "a_lat": "Bob Marley & The Wailers",
+   "y": 1977,
+   "g": [
+    "reggae"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Dancing Queen",
+   "tl": null,
+   "a": "ABBA",
+   "a_fa": "آبا",
+   "a_lat": "ABBA",
+   "y": 1976,
+   "g": [
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Nothing Else Matters",
+   "tl": null,
+   "a": "Metallica",
+   "a_fa": "متالیکا",
+   "a_lat": "Metallica",
+   "y": 1991,
+   "g": [
+    "metal",
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Sweet Child o' Mine",
+   "tl": null,
+   "a": "Guns N' Roses",
+   "a_fa": "گانز ان رزز",
+   "a_lat": "Guns N' Roses",
+   "y": 1987,
+   "g": [
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Back in Black",
+   "tl": null,
+   "a": "AC/DC",
+   "a_fa": "ای‌سی/دی‌سی",
+   "a_lat": "AC/DC",
+   "y": 1980,
+   "g": [
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "With or Without You",
+   "tl": null,
+   "a": "U2",
+   "a_fa": "یوتو",
+   "a_lat": "U2",
+   "y": 1987,
+   "g": [
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Creep",
+   "tl": null,
+   "a": "Radiohead",
+   "a_fa": "ریدیوهد",
+   "a_lat": "Radiohead",
+   "y": 1992,
+   "g": [
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Wonderwall",
+   "tl": null,
+   "a": "Oasis",
+   "a_fa": "اوئیسیس",
+   "a_lat": "Oasis",
+   "y": 1995,
+   "g": [
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Blinding Lights",
+   "tl": null,
+   "a": "The Weeknd",
+   "a_fa": "د ویکند",
+   "a_lat": "The Weeknd",
+   "y": 2019,
+   "g": [
+    "pop",
+    "electronic"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "bad guy",
+   "tl": null,
+   "a": "Billie Eilish",
+   "a_fa": "بیلی آیلیش",
+   "a_lat": "Billie Eilish",
+   "y": 2019,
+   "g": [
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Shake It Off",
+   "tl": null,
+   "a": "Taylor Swift",
+   "a_fa": "تیلور سوئیفت",
+   "a_lat": "Taylor Swift",
+   "y": 2014,
+   "g": [
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Get Lucky",
+   "tl": null,
+   "a": "Daft Punk feat. Pharrell Williams",
+   "a_fa": "دفت پانک و فارل ویلیامز",
+   "a_lat": "Daft Punk feat. Pharrell Williams",
+   "y": 2013,
+   "g": [
+    "electronic",
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Wake Me Up",
+   "tl": null,
+   "a": "Avicii",
+   "a_fa": "آویچی",
+   "a_lat": "Avicii",
+   "y": 2013,
+   "g": [
+    "electronic"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Sandstorm",
+   "tl": null,
+   "a": "Darude",
+   "a_fa": "دارود",
+   "a_lat": "Darude",
+   "y": 1999,
+   "g": [
+    "electronic"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "Lose Yourself",
+   "tl": null,
+   "a": "Eminem",
+   "a_fa": "امینم",
+   "a_lat": "Eminem",
+   "y": 2002,
+   "g": [
+    "hiphop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "California Love",
+   "tl": null,
+   "a": "2Pac feat. Dr. Dre",
+   "a_fa": "توپاک و دکتر دره",
+   "a_lat": "2Pac feat. Dr. Dre",
+   "y": 1995,
+   "g": [
+    "hiphop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Gangsta's Paradise",
+   "tl": null,
+   "a": "Coolio feat. L.V.",
+   "a_fa": "کولیو",
+   "a_lat": "Coolio feat. L.V.",
+   "y": 1995,
+   "g": [
+    "hiphop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "HUMBLE.",
+   "tl": null,
+   "a": "Kendrick Lamar",
+   "a_fa": "کندریک لامار",
+   "a_lat": "Kendrick Lamar",
+   "y": 2017,
+   "g": [
+    "hiphop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "In the End",
+   "tl": null,
+   "a": "Linkin Park",
+   "a_fa": "لینکین پارک",
+   "a_lat": "Linkin Park",
+   "y": 2000,
+   "g": [
+    "rock",
+    "metal"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Believer",
+   "tl": null,
+   "a": "Imagine Dragons",
+   "a_fa": "ایمجین دراگنز",
+   "a_lat": "Imagine Dragons",
+   "y": 2017,
+   "g": [
+    "rock",
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Levitating",
+   "tl": null,
+   "a": "Dua Lipa",
+   "a_fa": "دوآ لیپا",
+   "a_lat": "Dua Lipa",
+   "y": 2020,
+   "g": [
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Uptown Funk",
+   "tl": null,
+   "a": "Mark Ronson feat. Bruno Mars",
+   "a_fa": "مارک رانسون و برونو مارس",
+   "a_lat": "Mark Ronson feat. Bruno Mars",
+   "y": 2014,
+   "g": [
+    "pop",
+    "rnb"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "What's Going On",
+   "tl": null,
+   "a": "Marvin Gaye",
+   "a_fa": "ماروین گی",
+   "a_lat": "Marvin Gaye",
+   "y": 1971,
+   "g": [
+    "rnb"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Respect",
+   "tl": null,
+   "a": "Aretha Franklin",
+   "a_fa": "آرتا فرانکلین",
+   "a_lat": "Aretha Franklin",
+   "y": 1967,
+   "g": [
+    "rnb"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Isn't She Lovely",
+   "tl": null,
+   "a": "Stevie Wonder",
+   "a_fa": "استیوی واندر",
+   "a_lat": "Stevie Wonder",
+   "y": 1976,
+   "g": [
+    "rnb",
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Georgia on My Mind",
+   "tl": null,
+   "a": "Ray Charles",
+   "a_fa": "ری چارلز",
+   "a_lat": "Ray Charles",
+   "y": 1960,
+   "g": [
+    "rnb",
+    "jazz"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Halo",
+   "tl": null,
+   "a": "Beyoncé",
+   "a_fa": "بیانسه",
+   "a_lat": "Beyoncé",
+   "y": 2008,
+   "g": [
+    "rnb",
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Trooper",
+   "tl": null,
+   "a": "Iron Maiden",
+   "a_fa": "آیرون میدن",
+   "a_lat": "Iron Maiden",
+   "y": 1983,
+   "g": [
+    "metal"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Paranoid",
+   "tl": null,
+   "a": "Black Sabbath",
+   "a_fa": "بلک سبث",
+   "a_lat": "Black Sabbath",
+   "y": 1970,
+   "g": [
+    "metal",
+    "rock"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Chop Suey!",
+   "tl": null,
+   "a": "System of a Down",
+   "a_fa": "سیستم آو اِ داون",
+   "a_lat": "System of a Down",
+   "y": 2001,
+   "g": [
+    "metal"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Sound of Silence",
+   "tl": null,
+   "a": "Simon & Garfunkel",
+   "a_fa": "سایمون و گارفانکل",
+   "a_lat": "Simon & Garfunkel",
+   "y": 1964,
+   "g": [
+    "folk"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Hallelujah",
+   "tl": null,
+   "a": "Leonard Cohen",
+   "a_fa": "لئونارد کوهن",
+   "a_lat": "Leonard Cohen",
+   "y": 1984,
+   "g": [
+    "folk"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Despacito",
+   "tl": null,
+   "a": "Luis Fonsi feat. Daddy Yankee",
+   "a_fa": "لوئیس فونسی و ددی یانکی",
+   "a_lat": "Luis Fonsi feat. Daddy Yankee",
+   "y": 2017,
+   "g": [
+    "latin",
+    "pop"
+   ],
+   "l": "es"
+  },
+  {
+   "t": "Hips Don't Lie",
+   "tl": null,
+   "a": "Shakira feat. Wyclef Jean",
+   "a_fa": "شکیرا",
+   "a_lat": "Shakira feat. Wyclef Jean",
+   "y": 2006,
+   "g": [
+    "latin",
+    "pop"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Bamboléo",
+   "tl": null,
+   "a": "Gipsy Kings",
+   "a_fa": "جیپسی کینگز",
+   "a_lat": "Gipsy Kings",
+   "y": 1987,
+   "g": [
+    "latin"
+   ],
+   "l": "es"
+  },
+  {
+   "t": "La Vie en rose",
+   "tl": null,
+   "a": "Édith Piaf",
+   "a_fa": "ادیت پیاف",
+   "a_lat": "Édith Piaf",
+   "y": 1947,
+   "g": [
+    "chanson"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Non, je ne regrette rien",
+   "tl": null,
+   "a": "Édith Piaf",
+   "a_fa": "ادیت پیاف",
+   "a_lat": "Édith Piaf",
+   "y": 1960,
+   "g": [
+    "chanson"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Ne me quitte pas",
+   "tl": null,
+   "a": "Jacques Brel",
+   "a_fa": "ژاک برل",
+   "a_lat": "Jacques Brel",
+   "y": 1959,
+   "g": [
+    "chanson"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "La Bohème",
+   "tl": null,
+   "a": "Charles Aznavour",
+   "a_fa": "شارل آزناوور",
+   "a_lat": "Charles Aznavour",
+   "y": 1965,
+   "g": [
+    "chanson"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Les Champs-Élysées",
+   "tl": null,
+   "a": "Joe Dassin",
+   "a_fa": "ژو داسن",
+   "a_lat": "Joe Dassin",
+   "y": 1969,
+   "g": [
+    "chanson",
+    "pop"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Alors on danse",
+   "tl": null,
+   "a": "Stromae",
+   "a_fa": "استرومای",
+   "a_lat": "Stromae",
+   "y": 2009,
+   "g": [
+    "electronic"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Papaoutai",
+   "tl": null,
+   "a": "Stromae",
+   "a_fa": "استرومای",
+   "a_lat": "Stromae",
+   "y": 2013,
+   "g": [
+    "pop",
+    "electronic"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Dernière danse",
+   "tl": null,
+   "a": "Indila",
+   "a_fa": "ایندیلا",
+   "a_lat": "Indila",
+   "y": 2013,
+   "g": [
+    "pop"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Je veux",
+   "tl": null,
+   "a": "Zaz",
+   "a_fa": "زاز",
+   "a_lat": "Zaz",
+   "y": 2010,
+   "g": [
+    "chanson",
+    "jazz"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Группа крови",
+   "tl": "Gruppa krovi",
+   "a": "Кино",
+   "a_fa": null,
+   "a_lat": "Kino",
+   "y": 1988,
+   "g": [
+    "rock"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Звезда по имени Солнце",
+   "tl": "Zvezda po imeni Solntse",
+   "a": "Кино",
+   "a_fa": null,
+   "a_lat": "Kino",
+   "y": 1989,
+   "g": [
+    "rock"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Кукушка",
+   "tl": "Kukushka",
+   "a": "Кино",
+   "a_fa": null,
+   "a_lat": "Kino",
+   "y": 1990,
+   "g": [
+    "rock"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Миллион алых роз",
+   "tl": "Million alykh roz",
+   "a": "Алла Пугачёва",
+   "a_fa": null,
+   "a_lat": "Alla Pugacheva",
+   "y": 1982,
+   "g": [
+    "pop"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Что такое осень",
+   "tl": "Chto takoye osen",
+   "a": "ДДТ",
+   "a_fa": null,
+   "a_lat": "DDT",
+   "y": 1991,
+   "g": [
+    "rock"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Кони привередливые",
+   "tl": "Koni priveredlivye",
+   "a": "Владимир Высоцкий",
+   "a_fa": null,
+   "a_lat": "Vladimir Vysotsky",
+   "y": 1972,
+   "g": [
+    "folk"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Я сошла с ума",
+   "tl": "Ya soshla s uma",
+   "a": "t.A.T.u.",
+   "a_fa": null,
+   "a_lat": null,
+   "y": 2000,
+   "g": [
+    "pop"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Хочешь?",
+   "tl": "Khochesh?",
+   "a": "Земфира",
+   "a_fa": null,
+   "a_lat": "Zemfira",
+   "y": 2000,
+   "g": [
+    "rock"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Владивосток 2000",
+   "tl": "Vladivostok 2000",
+   "a": "Мумий Тролль",
+   "a_fa": null,
+   "a_lat": "Mumiy Troll",
+   "y": 1997,
+   "g": [
+    "rock"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Конь",
+   "tl": "Kon",
+   "a": "Любэ",
+   "a_fa": null,
+   "a_lat": "Lyube",
+   "y": 1994,
+   "g": [
+    "folk",
+    "pop"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "月亮代表我的心",
+   "tl": "Yueliang Daibiao Wo De Xin",
+   "a": "邓丽君",
+   "a_fa": null,
+   "a_lat": "Teresa Teng",
+   "y": 1977,
+   "g": [
+    "pop"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "晴天",
+   "tl": "Qing Tian",
+   "a": "周杰伦",
+   "a_fa": null,
+   "a_lat": "Jay Chou",
+   "y": 2003,
+   "g": [
+    "pop"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "稻香",
+   "tl": "Dao Xiang",
+   "a": "周杰伦",
+   "a_fa": null,
+   "a_lat": "Jay Chou",
+   "y": 2008,
+   "g": [
+    "pop"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "红豆",
+   "tl": "Hong Dou",
+   "a": "王菲",
+   "a_fa": null,
+   "a_lat": "Faye Wong",
+   "y": 1998,
+   "g": [
+    "pop"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "吻别",
+   "tl": "Wen Bie",
+   "a": "张学友",
+   "a_fa": null,
+   "a_lat": "Jacky Cheung",
+   "y": 1993,
+   "g": [
+    "pop"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "海阔天空",
+   "tl": "Hoi Fut Tin Hung",
+   "a": "Beyond",
+   "a_fa": null,
+   "a_lat": null,
+   "y": 1993,
+   "g": [
+    "rock"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "光年之外",
+   "tl": "Guangnian Zhi Wai",
+   "a": "邓紫棋",
+   "a_fa": null,
+   "a_lat": "G.E.M.",
+   "y": 2016,
+   "g": [
+    "pop"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "Şımarık",
+   "tl": null,
+   "a": "Tarkan",
+   "a_fa": "تارکان",
+   "a_lat": "Tarkan",
+   "y": 1997,
+   "g": [
+    "pop"
+   ],
+   "l": "tr"
+  },
+  {
+   "t": "لبيروت",
+   "tl": "Li Beirut",
+   "a": "فيروز",
+   "a_fa": "فيروز",
+   "a_lat": "Fairuz",
+   "y": 1984,
+   "g": [
+    "traditional"
+   ],
+   "l": "ar"
+  },
+  {
+   "t": "إنت عمري",
+   "tl": "Enta Omri",
+   "a": "أم كلثوم",
+   "a_fa": "أم كلثوم",
+   "a_lat": "Umm Kulthum",
+   "y": 1964,
+   "g": [
+    "traditional"
+   ],
+   "l": "ar"
+  },
+  {
+   "t": "Symphony No. 9",
+   "tl": null,
+   "a": "Ludwig van Beethoven",
+   "a_fa": "لودویگ وان بتهوون",
+   "a_lat": "Ludwig van Beethoven",
+   "y": 1824,
+   "g": [
+    "classical"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "Für Elise",
+   "tl": null,
+   "a": "Ludwig van Beethoven",
+   "a_fa": "لودویگ وان بتهوون",
+   "a_lat": "Ludwig van Beethoven",
+   "y": 1810,
+   "g": [
+    "classical"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "Eine kleine Nachtmusik",
+   "tl": null,
+   "a": "Wolfgang Amadeus Mozart",
+   "a_fa": "ولفگانگ آمادئوس موتسارت",
+   "a_lat": "Wolfgang Amadeus Mozart",
+   "y": 1787,
+   "g": [
+    "classical"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "The Four Seasons",
+   "tl": null,
+   "a": "Antonio Vivaldi",
+   "a_fa": "آنتونیو ویوالدی",
+   "a_lat": "Antonio Vivaldi",
+   "y": 1725,
+   "g": [
+    "classical"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "Air on the G String",
+   "tl": null,
+   "a": "Johann Sebastian Bach",
+   "a_fa": "یوهان سباستین باخ",
+   "a_lat": "Johann Sebastian Bach",
+   "y": null,
+   "g": [
+    "classical"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "Nocturne Op. 9 No. 2",
+   "tl": null,
+   "a": "Frédéric Chopin",
+   "a_fa": "فردریک شوپن",
+   "a_lat": "Frédéric Chopin",
+   "y": 1832,
+   "g": [
+    "classical"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "Clair de lune",
+   "tl": null,
+   "a": "Claude Debussy",
+   "a_fa": "کلود دبوسی",
+   "a_lat": "Claude Debussy",
+   "y": 1905,
+   "g": [
+    "classical"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "Swan Lake",
+   "tl": null,
+   "a": "Pyotr Ilyich Tchaikovsky",
+   "a_fa": "پیوتر ایلیچ چایکوفسکی",
+   "a_lat": "Pyotr Ilyich Tchaikovsky",
+   "y": 1877,
+   "g": [
+    "classical"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "Canon in D",
+   "tl": null,
+   "a": "Johann Pachelbel",
+   "a_fa": "یوهان پاخلبل",
+   "a_lat": "Johann Pachelbel",
+   "y": null,
+   "g": [
+    "classical"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "The Blue Danube",
+   "tl": null,
+   "a": "Johann Strauss II",
+   "a_fa": "یوهان اشتراوس پسر",
+   "a_lat": "Johann Strauss II",
+   "y": 1867,
+   "g": [
+    "classical"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "In the Hall of the Mountain King",
+   "tl": null,
+   "a": "Edvard Grieg",
+   "a_fa": "ادوارد گریگ",
+   "a_lat": "Edvard Grieg",
+   "y": 1875,
+   "g": [
+    "classical"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "Boléro",
+   "tl": null,
+   "a": "Maurice Ravel",
+   "a_fa": "موریس راول",
+   "a_lat": "Maurice Ravel",
+   "y": 1928,
+   "g": [
+    "classical"
+   ],
+   "l": "none"
+  },
+  {
+   "t": "Gymnopédie No. 1",
+   "tl": null,
+   "a": "Erik Satie",
+   "a_fa": "اریک ساتی",
+   "a_lat": "Erik Satie",
+   "y": 1888,
+   "g": [
+    "classical"
+   ],
+   "l": "none"
+  }
+ ],
+ "books": [
+  {
+   "t": "شاهنامه",
+   "fa": "شاهنامه",
+   "en": "Shahnameh (The Book of Kings)",
+   "y": 1010,
+   "a": "فردوسی",
+   "a_fa": "فردوسی",
+   "a_lat": "Ferdowsi",
+   "g": [
+    "poetry",
+    "history"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "گلستان",
+   "fa": "گلستان",
+   "en": "Golestan (The Rose Garden)",
+   "y": 1258,
+   "a": "سعدی",
+   "a_fa": "سعدی",
+   "a_lat": "Saadi",
+   "g": [
+    "poetry",
+    "stories"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "بوستان",
+   "fa": "بوستان",
+   "en": "Bustan (The Orchard)",
+   "y": 1257,
+   "a": "سعدی",
+   "a_fa": "سعدی",
+   "a_lat": "Saadi",
+   "g": [
+    "poetry"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "مثنوی معنوی",
+   "fa": "مثنوی معنوی",
+   "en": "Masnavi",
+   "y": 1273,
+   "a": "مولوی",
+   "a_fa": "مولوی",
+   "a_lat": "Rumi",
+   "g": [
+    "poetry",
+    "philosophy"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "دیوان حافظ",
+   "fa": "دیوان حافظ",
+   "en": "The Divan of Hafez",
+   "y": null,
+   "a": "حافظ",
+   "a_fa": "حافظ",
+   "a_lat": "Hafez",
+   "g": [
+    "poetry"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "رباعیات خیام",
+   "fa": "رباعیات خیام",
+   "en": "Rubaiyat of Omar Khayyam",
+   "y": null,
+   "a": "عمر خیام",
+   "a_fa": "عمر خیام",
+   "a_lat": "Omar Khayyam",
+   "g": [
+    "poetry",
+    "philosophy"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "منطق‌الطیر",
+   "fa": "منطق‌الطیر",
+   "en": "The Conference of the Birds",
+   "y": 1177,
+   "a": "عطار نیشابوری",
+   "a_fa": "عطار نیشابوری",
+   "a_lat": "Attar of Nishapur",
+   "g": [
+    "poetry",
+    "philosophy"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "لیلی و مجنون",
+   "fa": "لیلی و مجنون",
+   "en": "Layla and Majnun",
+   "y": 1188,
+   "a": "نظامی گنجوی",
+   "a_fa": "نظامی گنجوی",
+   "a_lat": "Nizami Ganjavi",
+   "g": [
+    "poetry"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "کلیله و دمنه",
+   "fa": "کلیله و دمنه",
+   "en": "Kalila and Dimna",
+   "y": null,
+   "a": "نصرالله منشی",
+   "a_fa": "نصرالله منشی",
+   "a_lat": "Nasrollah Monshi",
+   "g": [
+    "stories",
+    "children"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "بوف کور",
+   "fa": "بوف کور",
+   "en": "The Blind Owl",
+   "y": 1937,
+   "a": "صادق هدایت",
+   "a_fa": "صادق هدایت",
+   "a_lat": "Sadegh Hedayat",
+   "g": [
+    "novel"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "سووشون",
+   "fa": "سووشون",
+   "en": "Savushun",
+   "y": 1969,
+   "a": "سیمین دانشور",
+   "a_fa": "سیمین دانشور",
+   "a_lat": "Simin Daneshvar",
+   "g": [
+    "novel"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "کلیدر",
+   "fa": "کلیدر",
+   "en": "Kelidar",
+   "y": 1984,
+   "a": "محمود دولت‌آبادی",
+   "a_fa": "محمود دولت‌آبادی",
+   "a_lat": "Mahmoud Dowlatabadi",
+   "g": [
+    "novel"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "جای خالی سلوچ",
+   "fa": "جای خالی سلوچ",
+   "en": "Missing Soluch",
+   "y": 1979,
+   "a": "محمود دولت‌آبادی",
+   "a_fa": "محمود دولت‌آبادی",
+   "a_lat": "Mahmoud Dowlatabadi",
+   "g": [
+    "novel"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "شازده احتجاب",
+   "fa": "شازده احتجاب",
+   "en": "Prince Ehtejab",
+   "y": 1969,
+   "a": "هوشنگ گلشیری",
+   "a_fa": "هوشنگ گلشیری",
+   "a_lat": "Houshang Golshiri",
+   "g": [
+    "novel"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "سنگ صبور",
+   "fa": "سنگ صبور",
+   "en": "The Patient Stone",
+   "y": 1966,
+   "a": "صادق چوبک",
+   "a_fa": "صادق چوبک",
+   "a_lat": "Sadegh Chubak",
+   "g": [
+    "novel"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "تنگسیر",
+   "fa": "تنگسیر",
+   "en": "Tangsir",
+   "y": 1963,
+   "a": "صادق چوبک",
+   "a_fa": "صادق چوبک",
+   "a_lat": "Sadegh Chubak",
+   "g": [
+    "novel"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "همسایه‌ها",
+   "fa": "همسایه‌ها",
+   "en": "The Neighbors",
+   "y": 1974,
+   "a": "احمد محمود",
+   "a_fa": "احمد محمود",
+   "a_lat": "Ahmad Mahmoud",
+   "g": [
+    "novel"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "مدیر مدرسه",
+   "fa": "مدیر مدرسه",
+   "en": "The School Principal",
+   "y": 1958,
+   "a": "جلال آل‌احمد",
+   "a_fa": "جلال آل‌احمد",
+   "a_lat": "Jalal Al-e Ahmad",
+   "g": [
+    "novel"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "چشمهایش",
+   "fa": "چشمهایش",
+   "en": "Her Eyes",
+   "y": 1952,
+   "a": "بزرگ علوی",
+   "a_fa": "بزرگ علوی",
+   "a_lat": "Bozorg Alavi",
+   "g": [
+    "novel"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "دایی جان ناپلئون",
+   "fa": "دایی جان ناپلئون",
+   "en": "My Uncle Napoleon",
+   "y": 1973,
+   "a": "ایرج پزشکزاد",
+   "a_fa": "ایرج پزشکزاد",
+   "a_lat": "Iraj Pezeshkzad",
+   "g": [
+    "novel"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "چراغ‌ها را من خاموش می‌کنم",
+   "fa": "چراغ‌ها را من خاموش می‌کنم",
+   "en": "I'll Turn Off the Lights",
+   "y": 2001,
+   "a": "زویا پیرزاد",
+   "a_fa": "زویا پیرزاد",
+   "a_lat": "Zoya Pirzad",
+   "g": [
+    "novel"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "زنان بدون مردان",
+   "fa": "زنان بدون مردان",
+   "en": "Women Without Men",
+   "y": 1989,
+   "a": "شهرنوش پارسی‌پور",
+   "a_fa": "شهرنوش پارسی‌پور",
+   "a_lat": "Shahrnush Parsipur",
+   "g": [
+    "novel"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "روی ماه خداوند را ببوس",
+   "fa": "روی ماه خداوند را ببوس",
+   "en": "Kiss the Lovely Face of God",
+   "y": 1999,
+   "a": "مصطفی مستور",
+   "a_fa": "مصطفی مستور",
+   "a_lat": "Mostafa Mastoor",
+   "g": [
+    "novel"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "هشت کتاب",
+   "fa": "هشت کتاب",
+   "en": "The Eight Books",
+   "y": 1977,
+   "a": "سهراب سپهری",
+   "a_fa": "سهراب سپهری",
+   "a_lat": "Sohrab Sepehri",
+   "g": [
+    "poetry"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "تولدی دیگر",
+   "fa": "تولدی دیگر",
+   "en": "Another Birth",
+   "y": 1964,
+   "a": "فروغ فرخزاد",
+   "a_fa": "فروغ فرخزاد",
+   "a_lat": "Forough Farrokhzad",
+   "g": [
+    "poetry"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "دیوان پروین اعتصامی",
+   "fa": "دیوان پروین اعتصامی",
+   "en": "The Divan of Parvin Etesami",
+   "y": 1935,
+   "a": "پروین اعتصامی",
+   "a_fa": "پروین اعتصامی",
+   "a_lat": "Parvin Etesami",
+   "g": [
+    "poetry"
+   ],
+   "l": "fa"
+  },
+  {
+   "t": "Война и мир",
+   "fa": "جنگ و صلح",
+   "en": "War and Peace",
+   "y": 1869,
+   "a": "Лев Толстой",
+   "a_fa": "لئو تولستوی",
+   "a_lat": "Leo Tolstoy",
+   "g": [
+    "novel",
+    "history"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Анна Каренина",
+   "fa": "آنا کارنینا",
+   "en": "Anna Karenina",
+   "y": 1878,
+   "a": "Лев Толстой",
+   "a_fa": "لئو تولستوی",
+   "a_lat": "Leo Tolstoy",
+   "g": [
+    "novel"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Смерть Ивана Ильича",
+   "fa": "مرگ ایوان ایلیچ",
+   "en": "The Death of Ivan Ilyich",
+   "y": 1886,
+   "a": "Лев Толстой",
+   "a_fa": "لئو تولستوی",
+   "a_lat": "Leo Tolstoy",
+   "g": [
+    "novel",
+    "philosophy"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Преступление и наказание",
+   "fa": "جنایت و مکافات",
+   "en": "Crime and Punishment",
+   "y": 1866,
+   "a": "Фёдор Достоевский",
+   "a_fa": "فئودور داستایفسکی",
+   "a_lat": "Fyodor Dostoevsky",
+   "g": [
+    "novel",
+    "philosophy"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Братья Карамазовы",
+   "fa": "برادران کارامازوف",
+   "en": "The Brothers Karamazov",
+   "y": 1880,
+   "a": "Фёдор Достоевский",
+   "a_fa": "فئودور داستایفسکی",
+   "a_lat": "Fyodor Dostoevsky",
+   "g": [
+    "novel",
+    "philosophy"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Идиот",
+   "fa": "ابله",
+   "en": "The Idiot",
+   "y": 1869,
+   "a": "Фёдор Достоевский",
+   "a_fa": "فئودور داستایفسکی",
+   "a_lat": "Fyodor Dostoevsky",
+   "g": [
+    "novel"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Мастер и Маргарита",
+   "fa": "مرشد و مارگریتا",
+   "en": "The Master and Margarita",
+   "y": 1967,
+   "a": "Михаил Булгаков",
+   "a_fa": "میخائیل بولگاکف",
+   "a_lat": "Mikhail Bulgakov",
+   "g": [
+    "novel",
+    "fantasy"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Мёртвые души",
+   "fa": "نفوس مرده",
+   "en": "Dead Souls",
+   "y": 1842,
+   "a": "Николай Гоголь",
+   "a_fa": "نیکلای گوگول",
+   "a_lat": "Nikolai Gogol",
+   "g": [
+    "novel"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Отцы и дети",
+   "fa": "پدران و پسران",
+   "en": "Fathers and Sons",
+   "y": 1862,
+   "a": "Иван Тургенев",
+   "a_fa": "ایوان تورگنیف",
+   "a_lat": "Ivan Turgenev",
+   "g": [
+    "novel"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Евгений Онегин",
+   "fa": "یوگنی اونگین",
+   "en": "Eugene Onegin",
+   "y": 1833,
+   "a": "Александр Пушкин",
+   "a_fa": "الکساندر پوشکین",
+   "a_lat": "Alexander Pushkin",
+   "g": [
+    "poetry",
+    "novel"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Вишнёвый сад",
+   "fa": "باغ آلبالو",
+   "en": "The Cherry Orchard",
+   "y": 1904,
+   "a": "Антон Чехов",
+   "a_fa": "آنتون چخوف",
+   "a_lat": "Anton Chekhov",
+   "g": [
+    "play"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Один день Ивана Денисовича",
+   "fa": "یک روز از زندگی ایوان دنیسوویچ",
+   "en": "One Day in the Life of Ivan Denisovich",
+   "y": 1962,
+   "a": "Александр Солженицын",
+   "a_fa": "الکساندر سولژنیتسین",
+   "a_lat": "Aleksandr Solzhenitsyn",
+   "g": [
+    "novel",
+    "history"
+   ],
+   "l": "ru"
+  },
+  {
+   "t": "Les Misérables",
+   "fa": "بینوایان",
+   "en": null,
+   "y": 1862,
+   "a": "Victor Hugo",
+   "a_fa": "ویکتور هوگو",
+   "a_lat": "Victor Hugo",
+   "g": [
+    "novel",
+    "history"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Le Comte de Monte-Cristo",
+   "fa": "کنت مونت کریستو",
+   "en": "The Count of Monte Cristo",
+   "y": 1844,
+   "a": "Alexandre Dumas",
+   "a_fa": "الکساندر دوما",
+   "a_lat": "Alexandre Dumas",
+   "g": [
+    "novel"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Les Trois Mousquetaires",
+   "fa": "سه تفنگدار",
+   "en": "The Three Musketeers",
+   "y": 1844,
+   "a": "Alexandre Dumas",
+   "a_fa": "الکساندر دوما",
+   "a_lat": "Alexandre Dumas",
+   "g": [
+    "novel",
+    "history"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Candide",
+   "fa": "کاندید",
+   "en": null,
+   "y": 1759,
+   "a": "Voltaire",
+   "a_fa": "ولتر",
+   "a_lat": "Voltaire",
+   "g": [
+    "novel",
+    "philosophy"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Madame Bovary",
+   "fa": "مادام بواری",
+   "en": null,
+   "y": 1857,
+   "a": "Gustave Flaubert",
+   "a_fa": "گوستاو فلوبر",
+   "a_lat": "Gustave Flaubert",
+   "g": [
+    "novel"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Germinal",
+   "fa": "ژرمینال",
+   "en": null,
+   "y": 1885,
+   "a": "Émile Zola",
+   "a_fa": "امیل زولا",
+   "a_lat": "Émile Zola",
+   "g": [
+    "novel"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Vingt mille lieues sous les mers",
+   "fa": "بیست هزار فرسنگ زیر دریا",
+   "en": "Twenty Thousand Leagues Under the Seas",
+   "y": 1870,
+   "a": "Jules Verne",
+   "a_fa": "ژول ورن",
+   "a_lat": "Jules Verne",
+   "g": [
+    "scifi",
+    "children"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Le Tour du monde en quatre-vingts jours",
+   "fa": "دور دنیا در هشتاد روز",
+   "en": "Around the World in Eighty Days",
+   "y": 1872,
+   "a": "Jules Verne",
+   "a_fa": "ژول ورن",
+   "a_lat": "Jules Verne",
+   "g": [
+    "novel",
+    "children"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "L'Étranger",
+   "fa": "بیگانه",
+   "en": "The Stranger",
+   "y": 1942,
+   "a": "Albert Camus",
+   "a_fa": "آلبر کامو",
+   "a_lat": "Albert Camus",
+   "g": [
+    "novel",
+    "philosophy"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "La Peste",
+   "fa": "طاعون",
+   "en": "The Plague",
+   "y": 1947,
+   "a": "Albert Camus",
+   "a_fa": "آلبر کامو",
+   "a_lat": "Albert Camus",
+   "g": [
+    "novel"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Le Petit Prince",
+   "fa": "شازده کوچولو",
+   "en": "The Little Prince",
+   "y": 1943,
+   "a": "Antoine de Saint-Exupéry",
+   "a_fa": "آنتوان دو سنت‌اگزوپری",
+   "a_lat": "Antoine de Saint-Exupéry",
+   "g": [
+    "children",
+    "philosophy"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Le Deuxième Sexe",
+   "fa": "جنس دوم",
+   "en": "The Second Sex",
+   "y": 1949,
+   "a": "Simone de Beauvoir",
+   "a_fa": "سیمون دوبوار",
+   "a_lat": "Simone de Beauvoir",
+   "g": [
+    "philosophy"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Tartuffe",
+   "fa": "تارتوف",
+   "en": null,
+   "y": 1664,
+   "a": "Molière",
+   "a_fa": "مولیر",
+   "a_lat": "Molière",
+   "g": [
+    "play"
+   ],
+   "l": "fr"
+  },
+  {
+   "t": "Pride and Prejudice",
+   "fa": "غرور و تعصب",
+   "en": null,
+   "y": 1813,
+   "a": "Jane Austen",
+   "a_fa": "جین آستن",
+   "a_lat": "Jane Austen",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Jane Eyre",
+   "fa": "جین ایر",
+   "en": null,
+   "y": 1847,
+   "a": "Charlotte Brontë",
+   "a_fa": "شارلوت برونته",
+   "a_lat": "Charlotte Brontë",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Wuthering Heights",
+   "fa": "بلندی‌های بادگیر",
+   "en": null,
+   "y": 1847,
+   "a": "Emily Brontë",
+   "a_fa": "امیلی برونته",
+   "a_lat": "Emily Brontë",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Great Expectations",
+   "fa": "آرزوهای بزرگ",
+   "en": null,
+   "y": 1861,
+   "a": "Charles Dickens",
+   "a_fa": "چارلز دیکنز",
+   "a_lat": "Charles Dickens",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "A Tale of Two Cities",
+   "fa": "داستان دو شهر",
+   "en": null,
+   "y": 1859,
+   "a": "Charles Dickens",
+   "a_fa": "چارلز دیکنز",
+   "a_lat": "Charles Dickens",
+   "g": [
+    "novel",
+    "history"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Oliver Twist",
+   "fa": "الیور تویست",
+   "en": null,
+   "y": 1838,
+   "a": "Charles Dickens",
+   "a_fa": "چارلز دیکنز",
+   "a_lat": "Charles Dickens",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Hamlet",
+   "fa": "هملت",
+   "en": null,
+   "y": 1603,
+   "a": "William Shakespeare",
+   "a_fa": "ویلیام شکسپیر",
+   "a_lat": "William Shakespeare",
+   "g": [
+    "play"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Romeo and Juliet",
+   "fa": "رومئو و ژولیت",
+   "en": null,
+   "y": 1597,
+   "a": "William Shakespeare",
+   "a_fa": "ویلیام شکسپیر",
+   "a_lat": "William Shakespeare",
+   "g": [
+    "play"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Macbeth",
+   "fa": "مکبث",
+   "en": null,
+   "y": 1623,
+   "a": "William Shakespeare",
+   "a_fa": "ویلیام شکسپیر",
+   "a_lat": "William Shakespeare",
+   "g": [
+    "play"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Frankenstein",
+   "fa": "فرانکنشتاین",
+   "en": null,
+   "y": 1818,
+   "a": "Mary Shelley",
+   "a_fa": "مری شلی",
+   "a_lat": "Mary Shelley",
+   "g": [
+    "scifi",
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Dracula",
+   "fa": "دراکولا",
+   "en": null,
+   "y": 1897,
+   "a": "Bram Stoker",
+   "a_fa": "برام استوکر",
+   "a_lat": "Bram Stoker",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Picture of Dorian Gray",
+   "fa": "تصویر دوریان گری",
+   "en": null,
+   "y": 1890,
+   "a": "Oscar Wilde",
+   "a_fa": "اسکار وایلد",
+   "a_lat": "Oscar Wilde",
+   "g": [
+    "novel",
+    "philosophy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Alice's Adventures in Wonderland",
+   "fa": "ماجراهای آلیس در سرزمین عجایب",
+   "en": null,
+   "y": 1865,
+   "a": "Lewis Carroll",
+   "a_fa": "لوئیس کارول",
+   "a_lat": "Lewis Carroll",
+   "g": [
+    "children",
+    "fantasy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Adventures of Tom Sawyer",
+   "fa": "ماجراهای تام سایر",
+   "en": null,
+   "y": 1876,
+   "a": "Mark Twain",
+   "a_fa": "مارک تواین",
+   "a_lat": "Mark Twain",
+   "g": [
+    "novel",
+    "children"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Moby-Dick",
+   "fa": "موبی دیک",
+   "en": null,
+   "y": 1851,
+   "a": "Herman Melville",
+   "a_fa": "هرمان ملویل",
+   "a_lat": "Herman Melville",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Hound of the Baskervilles",
+   "fa": "سگ باسکرویل‌ها",
+   "en": null,
+   "y": 1902,
+   "a": "Arthur Conan Doyle",
+   "a_fa": "آرتور کانن دویل",
+   "a_lat": "Arthur Conan Doyle",
+   "g": [
+    "mystery"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Murder on the Orient Express",
+   "fa": "قتل در قطار سریع‌السیر شرق",
+   "en": null,
+   "y": 1934,
+   "a": "Agatha Christie",
+   "a_fa": "آگاتا کریستی",
+   "a_lat": "Agatha Christie",
+   "g": [
+    "mystery"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "And Then There Were None",
+   "fa": "و سپس هیچ‌کس نماند",
+   "en": null,
+   "y": 1939,
+   "a": "Agatha Christie",
+   "a_fa": "آگاتا کریستی",
+   "a_lat": "Agatha Christie",
+   "g": [
+    "mystery"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Great Gatsby",
+   "fa": "گتسبی بزرگ",
+   "en": null,
+   "y": 1925,
+   "a": "F. Scott Fitzgerald",
+   "a_fa": "اف. اسکات فیتزجرالد",
+   "a_lat": "F. Scott Fitzgerald",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Old Man and the Sea",
+   "fa": "پیرمرد و دریا",
+   "en": null,
+   "y": 1952,
+   "a": "Ernest Hemingway",
+   "a_fa": "ارنست همینگوی",
+   "a_lat": "Ernest Hemingway",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Grapes of Wrath",
+   "fa": "خوشه‌های خشم",
+   "en": null,
+   "y": 1939,
+   "a": "John Steinbeck",
+   "a_fa": "جان اشتاین‌بک",
+   "a_lat": "John Steinbeck",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Of Mice and Men",
+   "fa": "موش‌ها و آدم‌ها",
+   "en": null,
+   "y": 1937,
+   "a": "John Steinbeck",
+   "a_fa": "جان اشتاین‌بک",
+   "a_lat": "John Steinbeck",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "To Kill a Mockingbird",
+   "fa": "کشتن مرغ مقلد",
+   "en": null,
+   "y": 1960,
+   "a": "Harper Lee",
+   "a_fa": "هارپر لی",
+   "a_lat": "Harper Lee",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Catcher in the Rye",
+   "fa": "ناطور دشت",
+   "en": null,
+   "y": 1951,
+   "a": "J. D. Salinger",
+   "a_fa": "جی. دی. سلینجر",
+   "a_lat": "J. D. Salinger",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Nineteen Eighty-Four",
+   "fa": "۱۹۸۴",
+   "en": null,
+   "y": 1949,
+   "a": "George Orwell",
+   "a_fa": "جورج اورول",
+   "a_lat": "George Orwell",
+   "g": [
+    "novel",
+    "scifi"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Animal Farm",
+   "fa": "قلعه حیوانات",
+   "en": null,
+   "y": 1945,
+   "a": "George Orwell",
+   "a_fa": "جورج اورول",
+   "a_lat": "George Orwell",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Brave New World",
+   "fa": "دنیای قشنگ نو",
+   "en": null,
+   "y": 1932,
+   "a": "Aldous Huxley",
+   "a_fa": "آلدوس هاکسلی",
+   "a_lat": "Aldous Huxley",
+   "g": [
+    "scifi",
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Fahrenheit 451",
+   "fa": "فارنهایت ۴۵۱",
+   "en": null,
+   "y": 1953,
+   "a": "Ray Bradbury",
+   "a_fa": "ری بردبری",
+   "a_lat": "Ray Bradbury",
+   "g": [
+    "scifi"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Dune",
+   "fa": "تلماسه",
+   "en": null,
+   "y": 1965,
+   "a": "Frank Herbert",
+   "a_fa": "فرانک هربرت",
+   "a_lat": "Frank Herbert",
+   "g": [
+    "scifi"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Foundation",
+   "fa": "بنیاد",
+   "en": null,
+   "y": 1951,
+   "a": "Isaac Asimov",
+   "a_fa": "آیزاک آسیموف",
+   "a_lat": "Isaac Asimov",
+   "g": [
+    "scifi"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Ender's Game",
+   "fa": "بازی اندر",
+   "en": null,
+   "y": 1985,
+   "a": "Orson Scott Card",
+   "a_fa": "اورسون اسکات کارد",
+   "a_lat": "Orson Scott Card",
+   "g": [
+    "scifi"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Hobbit",
+   "fa": "هابیت",
+   "en": null,
+   "y": 1937,
+   "a": "J. R. R. Tolkien",
+   "a_fa": "جی. آر. آر. تالکین",
+   "a_lat": "J. R. R. Tolkien",
+   "g": [
+    "fantasy",
+    "children"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Lord of the Rings",
+   "fa": "ارباب حلقه‌ها",
+   "en": null,
+   "y": 1954,
+   "a": "J. R. R. Tolkien",
+   "a_fa": "جی. آر. آر. تالکین",
+   "a_lat": "J. R. R. Tolkien",
+   "g": [
+    "fantasy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Harry Potter and the Philosopher's Stone",
+   "fa": "هری پاتر و سنگ جادو",
+   "en": null,
+   "y": 1997,
+   "a": "J. K. Rowling",
+   "a_fa": "جی. کی. رولینگ",
+   "a_lat": "J. K. Rowling",
+   "g": [
+    "fantasy",
+    "children"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Shining",
+   "fa": "درخشش",
+   "en": null,
+   "y": 1977,
+   "a": "Stephen King",
+   "a_fa": "استیون کینگ",
+   "a_lat": "Stephen King",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Road",
+   "fa": "جاده",
+   "en": null,
+   "y": 2006,
+   "a": "Cormac McCarthy",
+   "a_fa": "کورمک مک‌کارتی",
+   "a_lat": "Cormac McCarthy",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Handmaid's Tale",
+   "fa": "سرگذشت ندیمه",
+   "en": null,
+   "y": 1985,
+   "a": "Margaret Atwood",
+   "a_fa": "مارگارت اتوود",
+   "a_lat": "Margaret Atwood",
+   "g": [
+    "novel",
+    "scifi"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Remains of the Day",
+   "fa": "بازمانده روز",
+   "en": null,
+   "y": 1989,
+   "a": "Kazuo Ishiguro",
+   "a_fa": "کازوئو ایشی‌گورو",
+   "a_lat": "Kazuo Ishiguro",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Kite Runner",
+   "fa": "بادبادک‌باز",
+   "en": null,
+   "y": 2003,
+   "a": "Khaled Hosseini",
+   "a_fa": "خالد حسینی",
+   "a_lat": "Khaled Hosseini",
+   "g": [
+    "novel"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Prophet",
+   "fa": "پیامبر",
+   "en": null,
+   "y": 1923,
+   "a": "Kahlil Gibran",
+   "a_fa": "جبران خلیل جبران",
+   "a_lat": "Kahlil Gibran",
+   "g": [
+    "poetry",
+    "philosophy"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Da Vinci Code",
+   "fa": "رمز داوینچی",
+   "en": null,
+   "y": 2003,
+   "a": "Dan Brown",
+   "a_fa": "دن براون",
+   "a_lat": "Dan Brown",
+   "g": [
+    "mystery"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "The Pillars of the Earth",
+   "fa": "ارکان زمین",
+   "en": null,
+   "y": 1989,
+   "a": "Ken Follett",
+   "a_fa": "کن فالت",
+   "a_lat": "Ken Follett",
+   "g": [
+    "novel",
+    "history"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "A Brief History of Time",
+   "fa": "تاریخچه زمان",
+   "en": null,
+   "y": 1988,
+   "a": "Stephen Hawking",
+   "a_fa": "استیون هاوکینگ",
+   "a_lat": "Stephen Hawking",
+   "g": [
+    "science"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Cosmos",
+   "fa": "کیهان",
+   "en": null,
+   "y": 1980,
+   "a": "Carl Sagan",
+   "a_fa": "کارل سیگن",
+   "a_lat": "Carl Sagan",
+   "g": [
+    "science"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Sapiens: A Brief History of Humankind",
+   "fa": "انسان خردمند",
+   "en": null,
+   "y": 2011,
+   "a": "Yuval Noah Harari",
+   "a_fa": "یووال نوح هراری",
+   "a_lat": "Yuval Noah Harari",
+   "g": [
+    "history",
+    "science"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Man's Search for Meaning",
+   "fa": "انسان در جست‌وجوی معنا",
+   "en": null,
+   "y": 1946,
+   "a": "Viktor Frankl",
+   "a_fa": "ویکتور فرانکل",
+   "a_lat": "Viktor Frankl",
+   "g": [
+    "selfhelp",
+    "philosophy"
+   ],
+   "l": "de"
+  },
+  {
+   "t": "How to Win Friends and Influence People",
+   "fa": "آیین دوست‌یابی",
+   "en": null,
+   "y": 1936,
+   "a": "Dale Carnegie",
+   "a_fa": "دیل کارنگی",
+   "a_lat": "Dale Carnegie",
+   "g": [
+    "selfhelp"
+   ],
+   "l": "en"
+  },
+  {
+   "t": "Die Verwandlung",
+   "fa": "مسخ",
+   "en": "The Metamorphosis",
+   "y": 1915,
+   "a": "Franz Kafka",
+   "a_fa": "فرانتس کافکا",
+   "a_lat": "Franz Kafka",
+   "g": [
+    "novel"
+   ],
+   "l": "de"
+  },
+  {
+   "t": "Der Process",
+   "fa": "محاکمه",
+   "en": "The Trial",
+   "y": 1925,
+   "a": "Franz Kafka",
+   "a_fa": "فرانتس کافکا",
+   "a_lat": "Franz Kafka",
+   "g": [
+    "novel"
+   ],
+   "l": "de"
+  },
+  {
+   "t": "Faust",
+   "fa": "فاوست",
+   "en": null,
+   "y": 1808,
+   "a": "Johann Wolfgang von Goethe",
+   "a_fa": "یوهان ولفگانگ فون گوته",
+   "a_lat": "Johann Wolfgang von Goethe",
+   "g": [
+    "play",
+    "poetry"
+   ],
+   "l": "de"
+  },
+  {
+   "t": "Also sprach Zarathustra",
+   "fa": "چنین گفت زرتشت",
+   "en": "Thus Spoke Zarathustra",
+   "y": 1883,
+   "a": "Friedrich Nietzsche",
+   "a_fa": "فریدریش نیچه",
+   "a_lat": "Friedrich Nietzsche",
+   "g": [
+    "philosophy"
+   ],
+   "l": "de"
+  },
+  {
+   "t": "Siddhartha",
+   "fa": "سیذارتا",
+   "en": null,
+   "y": 1922,
+   "a": "Hermann Hesse",
+   "a_fa": "هرمان هسه",
+   "a_lat": "Hermann Hesse",
+   "g": [
+    "novel",
+    "philosophy"
+   ],
+   "l": "de"
+  },
+  {
+   "t": "Der Steppenwolf",
+   "fa": "گرگ بیابان",
+   "en": "Steppenwolf",
+   "y": 1927,
+   "a": "Hermann Hesse",
+   "a_fa": "هرمان هسه",
+   "a_lat": "Hermann Hesse",
+   "g": [
+    "novel"
+   ],
+   "l": "de"
+  },
+  {
+   "t": "Im Westen nichts Neues",
+   "fa": "در جبهه غرب خبری نیست",
+   "en": "All Quiet on the Western Front",
+   "y": 1929,
+   "a": "Erich Maria Remarque",
+   "a_fa": "اریش ماریا رمارک",
+   "a_lat": "Erich Maria Remarque",
+   "g": [
+    "novel",
+    "history"
+   ],
+   "l": "de"
+  },
+  {
+   "t": "Don Quijote de la Mancha",
+   "fa": "دن کیشوت",
+   "en": "Don Quixote",
+   "y": 1605,
+   "a": "Miguel de Cervantes",
+   "a_fa": "میگل د سروانتس",
+   "a_lat": "Miguel de Cervantes",
+   "g": [
+    "novel"
+   ],
+   "l": "es"
+  },
+  {
+   "t": "Cien años de soledad",
+   "fa": "صد سال تنهایی",
+   "en": "One Hundred Years of Solitude",
+   "y": 1967,
+   "a": "Gabriel García Márquez",
+   "a_fa": "گابریل گارسیا مارکز",
+   "a_lat": "Gabriel García Márquez",
+   "g": [
+    "novel"
+   ],
+   "l": "es"
+  },
+  {
+   "t": "Divina Commedia",
+   "fa": "کمدی الهی",
+   "en": "The Divine Comedy",
+   "y": 1320,
+   "a": "Dante Alighieri",
+   "a_fa": "دانته آلیگیری",
+   "a_lat": "Dante Alighieri",
+   "g": [
+    "poetry"
+   ],
+   "l": "it"
+  },
+  {
+   "t": "Il nome della rosa",
+   "fa": "نام گل سرخ",
+   "en": "The Name of the Rose",
+   "y": 1980,
+   "a": "Umberto Eco",
+   "a_fa": "اومبرتو اکو",
+   "a_lat": "Umberto Eco",
+   "g": [
+    "mystery",
+    "history"
+   ],
+   "l": "it"
+  },
+  {
+   "t": "O Alquimista",
+   "fa": "کیمیاگر",
+   "en": "The Alchemist",
+   "y": 1988,
+   "a": "Paulo Coelho",
+   "a_fa": "پائولو کوئیلو",
+   "a_lat": "Paulo Coelho",
+   "g": [
+    "novel",
+    "philosophy"
+   ],
+   "l": "pt"
+  },
+  {
+   "t": "Nesnesitelná lehkost bytí",
+   "fa": "بار هستی",
+   "en": "The Unbearable Lightness of Being",
+   "y": 1984,
+   "a": "Milan Kundera",
+   "a_fa": "میلان کوندرا",
+   "a_lat": "Milan Kundera",
+   "g": [
+    "novel",
+    "philosophy"
+   ],
+   "l": "cs"
+  },
+  {
+   "t": "Ὀδύσσεια",
+   "fa": "ادیسه",
+   "en": "The Odyssey",
+   "y": null,
+   "a": "Ὅμηρος",
+   "a_fa": "هومر",
+   "a_lat": "Homer",
+   "g": [
+    "poetry"
+   ],
+   "l": "el"
+  },
+  {
+   "t": "Πολιτεία",
+   "fa": "جمهور",
+   "en": "The Republic",
+   "y": null,
+   "a": "Πλάτων",
+   "a_fa": "افلاطون",
+   "a_lat": "Plato",
+   "g": [
+    "philosophy"
+   ],
+   "l": "el"
+  },
+  {
+   "t": "Τὰ εἰς ἑαυτόν",
+   "fa": "تأملات",
+   "en": "Meditations",
+   "y": null,
+   "a": "Μάρκος Αὐρήλιος",
+   "a_fa": "مارکوس اورلیوس",
+   "a_lat": "Marcus Aurelius",
+   "g": [
+    "philosophy"
+   ],
+   "l": "el"
+  },
+  {
+   "t": "ノルウェイの森",
+   "fa": "جنگل نروژی",
+   "en": "Norwegian Wood",
+   "y": 1987,
+   "a": "村上春樹",
+   "a_fa": "هاروکی موراکامی",
+   "a_lat": "Haruki Murakami",
+   "g": [
+    "novel"
+   ],
+   "l": "ja"
+  },
+  {
+   "t": "海辺のカフカ",
+   "fa": "کافکا در کرانه",
+   "en": "Kafka on the Shore",
+   "y": 2002,
+   "a": "村上春樹",
+   "a_fa": "هاروکی موراکامی",
+   "a_lat": "Haruki Murakami",
+   "g": [
+    "novel",
+    "fantasy"
+   ],
+   "l": "ja"
+  },
+  {
+   "t": "论语",
+   "fa": "گفتارهای کنفوسیوس",
+   "en": "The Analects",
+   "y": null,
+   "a": "孔子",
+   "a_fa": "کنفوسیوس",
+   "a_lat": "Confucius",
+   "g": [
+    "philosophy"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "道德经",
+   "fa": "تائو ته چینگ",
+   "en": "Tao Te Ching",
+   "y": null,
+   "a": "老子",
+   "a_fa": "لائوتسه",
+   "a_lat": "Laozi",
+   "g": [
+    "philosophy"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "孙子兵法",
+   "fa": "هنر جنگ",
+   "en": "The Art of War",
+   "y": null,
+   "a": "孙武",
+   "a_fa": "سون تزو",
+   "a_lat": "Sun Tzu",
+   "g": [
+    "philosophy",
+    "history"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "红楼梦",
+   "fa": "رویای عمارت سرخ",
+   "en": "Dream of the Red Chamber",
+   "y": 1791,
+   "a": "曹雪芹",
+   "a_fa": "تسائو شوئه‌چین",
+   "a_lat": "Cao Xueqin",
+   "g": [
+    "novel"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "三国演义",
+   "fa": "داستان سه پادشاهی",
+   "en": "Romance of the Three Kingdoms",
+   "y": null,
+   "a": "罗贯中",
+   "a_fa": "لو گوان‌جونگ",
+   "a_lat": "Luo Guanzhong",
+   "g": [
+    "novel",
+    "history"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "西游记",
+   "fa": "سفر به غرب",
+   "en": "Journey to the West",
+   "y": null,
+   "a": "吴承恩",
+   "a_fa": "وو چنگ‌ان",
+   "a_lat": "Wu Cheng'en",
+   "g": [
+    "novel",
+    "fantasy"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "阿Q正传",
+   "fa": "سرگذشت واقعی آ کیو",
+   "en": "The True Story of Ah Q",
+   "y": 1922,
+   "a": "鲁迅",
+   "a_fa": "لو شون",
+   "a_lat": "Lu Xun",
+   "g": [
+    "stories"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "活着",
+   "fa": "زنده بودن",
+   "en": "To Live",
+   "y": 1993,
+   "a": "余华",
+   "a_fa": "یو هوا",
+   "a_lat": "Yu Hua",
+   "g": [
+    "novel"
+   ],
+   "l": "zh"
+  },
+  {
+   "t": "三体",
+   "fa": "مسئله سه جسم",
+   "en": "The Three-Body Problem",
+   "y": 2008,
+   "a": "刘慈欣",
+   "a_fa": "لیو سی‌شین",
+   "a_lat": "Liu Cixin",
+   "g": [
+    "scifi"
+   ],
+   "l": "zh"
+  }
+ ]
+}

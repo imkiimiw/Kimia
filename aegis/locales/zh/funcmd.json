@@ -66,5 +66,10 @@
   "babataher": "巴巴塔希尔|巴巴·塔希尔占卜",
   "echo": "复读",
   "special": "特别成员",
-  "unspecial": "取消特别成员"
+  "unspecial": "取消特别成员",
+  "dialogue": "电影台词",
+  "bookquote": "书摘",
+  "movie": "推荐电影",
+  "music": "推荐音乐|推荐歌曲",
+  "book": "推荐书|推荐图书"
 }

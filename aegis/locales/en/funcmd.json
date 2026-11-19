@@ -66,5 +66,10 @@
   "babataher": "baba taher|babataher|baba taher reading",
   "echo": "echo",
   "special": "special member",
-  "unspecial": "remove special"
+  "unspecial": "remove special",
+  "dialogue": "film quote|movie quote",
+  "bookquote": "book quote|book excerpt",
+  "movie": "recommend a movie|suggest a movie",
+  "music": "recommend music|suggest a song",
+  "book": "recommend a book|suggest a book"
 }

@@ -3902,7 +3902,7 @@ mock.addFile('p9_m', fixture('base420.jpg'));
 mock.addFile('p9_s', fixture('base420.jpg'));
 const mediaEndpoint = (await import('../tgcloud/endpoints/media.js')).default;
 
-await scenario('phase 9 — 🎮 the Fun panel: 59 features in ten groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
+await scenario('phase 9 — 🎮 the Fun panel: 64 features in eleven groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
   tick(600);
   iota = mock.addChat({ id: IOTA, type: 'supergroup', title: 'Iota', count: 15, botRights: { can_manage_chat: true, can_change_info: true, can_delete_messages: true,
     can_restrict_members: true, can_invite_users: true, can_pin_messages: true, can_promote_members: true } });
@@ -3921,8 +3921,8 @@ await scenario('phase 9 — 🎮 the Fun panel: 59 features in ten groups, each 
   assert.ok(dataOf(olgaScreen()).includes(I('fn')) && dataOf(olgaScreen()).includes(I('md')));
   await olga(I('fn'));
   assert.match(olgaScreen().plain, /🎮 Fun — \u2068Iota\u2069/);
-  assert.match(olgaScreen().plain, /On: 59 of 59/);
-  assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 10);
+  assert.match(olgaScreen().plain, /On: 64 of 64/);
+  assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 11);
   await olga(I('fn:c:dice'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:f:/.test(d)).length, 6);
   assert.match(olgaScreen().plain, /✅ 🎲 Dice — everyone · cooldown 30 s · per day 20/);
@@ -3934,7 +3934,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 59 features in ten groups, each 
   await olga(I('fn:s:fun_rate'));
   assert.equal(iVal('fun_rate'), '20');
   await olga(I('fn'));
-  assert.match(olgaScreen().plain, /On: 58 of 59/);
+  assert.match(olgaScreen().plain, /On: 63 of 64/);
   const s = row("SELECT count(*) AS n FROM aegis_audit WHERE chat_id = ? AND action = 'settings.set' AND target LIKE 'fx_%'", IOTA).n;
   assert.equal(s, 5, 'every change is logged');
 });
@@ -4557,6 +4557,61 @@ await scenario('🗣 /echo («بگو») and who may use each fun group — every
   iSet('fcat_fal', 'a');
   iSet('fcat_text', 'a');
   iSet('fx_echo', '1,d,10,20,0');
+});
+
+await scenario('🎬 films, books and music — famous film lines, public-domain excerpts with translations, film / music / book recommendations by genre, artist, author or language; Persian in private', async () => {
+  tick(600);
+  iSet('fun_rate', '0');
+  const d1 = toChat(await imsg(P9.kit, '/dialogue 1'), IOTA)[0];
+  assert.ok(d1.result.ok, JSON.stringify(d1.result));
+  assert.equal(d1.params.text, `🎬 ${n('Kit')}, a famous film line:\n<blockquote>I'm gonna make him an offer he can't refuse.</blockquote>\n🗣 <b>Vito Corleone</b> — played by Marlon Brando\n🎞 The Godfather · 1972\n\n<i>A short quotation with its source; translations written for Aegis.</i>`);
+  assert.deepEqual(dataOf(mock.get(IOTA, midOf(d1))), ['fn:f:dialogue', 'https://www.imdb.com/find/?q=The%20Godfather%201972']);
+  const d64 = inIota(await imsg(P9.lux, '/dialogue 64'))[0];
+  assert.ok(d64.includes('<blockquote>یک پایان تلخ بهتر از یک تلخی بی‌پایان است.</blockquote>') && d64.includes('💬 <b>Translation:</b> A bitter ending is better than a bitterness without end.'), d64);
+  assert.ok(d64.includes('🗣 <b>Ahmad</b> — played by Shahab Hosseini') && d64.includes('🎞 About Elly (درباره الی) · 2009'), d64);
+  assert.equal(inIota(await imsg(P9.lux, '/dialogue 65'))[0], 'Use: /dialogue, or /dialogue 1–64 for a chosen line');
+  const e1 = inIota(await imsg(P9.nia, '/bookquote 1'))[0];
+  assert.match(e1, /^🔖 ⁨Nia⁩, an excerpt from a book:\n<blockquote>بنی‌آدم اعضای یکدیگرند\nکه در آفرینش ز یک گوهرند\n/);
+  assert.ok(e1.includes('💬 <b>Translation:</b> The children of Adam are limbs of one another') && e1.includes('✍️ <b>Saadi</b> — Golestan (The Rose Garden) · 1258'), e1);
+  /* recommendations: the menu, a genre list, a pick; only the asker moves through them */
+  const m = toChat(await imsg(P9.kit, '/movie'), IOTA)[0];
+  assert.match(m.params.text, /^🎞 <b>Film recommendation<\/b> — out of 161 films\./);
+  const mm = midOf(m);
+  assert.deepEqual(dataOf(mock.get(IOTA, mm)), ['fn:r:m:g', 'fn:r:m:l', 'fn:r:m:p:r']);
+  await gpress(P9.kit, IOTA, 'fn:r:m:g', mm);
+  assert.match(mock.get(IOTA, mm).text, /^🎭 Choose a genre:/);
+  assert.ok(dataOf(mock.get(IOTA, mm)).includes('fn:r:m:p:g1') && kb(mock.get(IOTA, mm)).some((b) => b.text === 'Comedy'));
+  await gpress(P9.kit, IOTA, 'fn:r:m:p:g1', mm);
+  const pick = mock.get(IOTA, mm).text;
+  assert.match(pick, /^🎞 ⁨Kit⁩, a film for you \(Comedy\):\n\n<b>[^<]+<\/b>.* · \d{4}\n🎬 Directed by .+\n🎭 .*Comedy.* · 🌍 \S+/);
+  assert.deepEqual(dataOf(mock.get(IOTA, mm)).filter((x) => !x.startsWith('https://')), ['fn:r:m:p:g1', 'fn:r:m']);
+  const other = await gpress(P9.lux, IOTA, 'fn:r:m:p:r', mm);
+  assert.ok(other.alert && other.toast === 'Someone else opened this list; send the command yourself.', other.toast);
+  assert.equal(mock.get(IOTA, mm).text, pick, 'nothing changed');
+  /* typed filters: an artist, an author, a language, nothing found */
+  const g = inIota(await imsg(P9.ivy, '/music googoosh'))[0];
+  assert.match(g, /^🎵 ⁨Ivy⁩, some music for you \(Googoosh\):\n\n<b>[^<]+<\/b> \([^)]+\)\n🎤 Googoosh\n🎭 Pop · 🌍 Persian$/);
+  assert.match(inIota(await imsg(P9.jay, '/book tolstoy'))[0], /\(Leo Tolstoy\):\n\n<b>(War and Peace|Anna Karenina|The Death of Ivan Ilyich)<\/b> \((Война и мир|Анна Каренина|Смерть Ивана Ильича)\) · \d{4}\n✍️ By Leo Tolstoy/);
+  assert.match(inIota(await imsg(P9.ivy, '/movie french'))[0], /a film for you \(French\):/);
+  assert.match(inIota(await imsg(P9.lux, '/movie xyzabc'))[0], /^🎞 <b>Film recommendation<\/b>[^]*🔎 Nothing found for «⁨xyzabc⁩»; choose with the buttons\./);
+  const mu = toChat(await imsg(P9.nia, '/music'), IOTA)[0];
+  const mum = midOf(mu);
+  assert.deepEqual(dataOf(mock.get(IOTA, mum)), ['fn:r:u:g', 'fn:r:u:l', 'fn:r:u:a:0', 'fn:r:u:p:r']);
+  await gpress(P9.nia, IOTA, 'fn:r:u:a:0', mum);
+  assert.match(mock.get(IOTA, mum).text, /^🎤 Choose an artist or band:/);
+  assert.ok(dataOf(mock.get(IOTA, mum)).includes('fn:r:u:a:1'), 'pages of artists');
+  assert.equal(kb(mock.get(IOTA, mum))[0].text, 'Googoosh', 'the most listed first');
+  /* Persian, in private */
+  const roya2 = { id: 800000493, is_bot: false, first_name: 'آوا', language_code: 'fa' };
+  faUsers.add(roya2.id);
+  await onboard(roya2, 'fa');
+  const pm = async (text) => lastSentTo(await dm(roya2, text), roya2.id).params.text;
+  assert.match(await pm('پیشنهاد فیلم کمدی'), /^‏🎞 ⁨آوا⁩، فیلمی برای تو \(کمدی\):\n\n‏<b>[^<]+<\/b>/);
+  const fd = await pm('دیالوگ ۱');
+  assert.ok(fd.includes('💬 <b>ترجمه:</b> یه پیشنهادی بهش می‌دم که نتونه رد کنه.') && fd.includes('🗣 <b>ویتو کورلئونه</b> — با بازی مارلون براندو') && fd.includes('🎞 پدرخوانده (The Godfather) · ۱۹۷۲'), fd);
+  const fb = await pm('تیکه کتاب ۱');
+  assert.ok(!fb.includes('ترجمه:') && fb.includes('✍️ <b>سعدی</b> — گلستان · ۱۲۵۸'), 'a Persian work: no translation');
+  assert.match(await pm('پیشنهاد آهنگ گوگوش'), /🎤 گوگوش\n‏🎭 پاپ · 🌍 فارسی/);
 });
 
 await scenario('phase 9 — 🖼 media in private: image tools, a sticker in the member\'s own pack, sticker → photo, a QR code made and read back, a GIF from photos, video → GIF, the PDF check', async () => {

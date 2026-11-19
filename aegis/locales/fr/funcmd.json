@@ -66,5 +66,10 @@
   "babataher": "baba taher|tirage de baba taher",
   "echo": "écho",
   "special": "membre spécial",
-  "unspecial": "retirer spécial"
+  "unspecial": "retirer spécial",
+  "dialogue": "réplique de film|citation de film",
+  "bookquote": "extrait de livre|citation de livre",
+  "movie": "conseille un film",
+  "music": "conseille une musique|conseille une chanson",
+  "book": "conseille un livre"
 }

@@ -111,6 +111,8 @@ export default async function (input) {
       poems: ['khayyam', 'babataher'].map((b) => Array.from({ length: fun.poems.count(b) }, (_, i) => fun.poems.poem(b, i + 1))
         .filter((p) => p.v.length === 2 && p.v.every((x) => x.length === 2 && x[0] && x[1]) && p.f.length >= 40).length)
         .concat(fun.poems.poem('babataher', 249).v[1][1]),
+      culture: [fun.culture.count('dialogues'), fun.culture.count('excerpts'), ...['m', 'u', 'b'].map((k) => fun.culture.items(k).length), fun.culture.select('u', 'a0').length],
+      mix: Object.fromEntries(fun.fonts.render('Araz').pages.mix).g_bi,
     };
   }
   if (action === 'shabench') {

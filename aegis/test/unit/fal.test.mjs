@@ -448,3 +448,36 @@ test('fonts: 🧬 Combined Unicode — Greek capitals of the same style among La
   assert.ok(Object.fromEntries(fa.pages.mix).g_bi.startsWith('سلام '), 'Persian letters stay');
   assert.equal(fonts.render('سلام').pages.mix, undefined, 'no page without Latin letters');
 });
+
+test('films, books and music: the data, a translation of every line and excerpt in every language, names for every genre and language', () => {
+  const C = fun.culture;
+  const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/culture.json'), 'utf8'));
+  assert.equal(C.count('dialogues'), data.dialogues.length);
+  assert.equal(C.count('excerpts'), data.excerpts.length);
+  assert.ok(C.count('dialogues') >= 60 && C.count('excerpts') >= 40);
+  for (const k of ['m', 'u', 'b']) assert.ok(C.items(k).length >= 120, k);
+  for (const lang of LANGS) {
+    const lines = (key) => t(lang, `cultlist.${key}`).split('\n').map((x) => x.replace(/[‏‎]/g, '').trim());
+    assert.equal(lines('dlg').length, C.count('dialogues'), `${lang} dialogues`);
+    assert.equal(lines('exc').length, C.count('excerpts'), `${lang} excerpts`);
+    assert.ok([...lines('dlg'), ...lines('exc')].every((x) => x.length >= 2), `${lang}: no empty translation`);
+    for (const k of ['m', 'u', 'b']) {
+      for (const g of C.genres(k)) assert.ok(t(lang, `fun.cg_${g}`).trim(), `${lang} ${g}`);
+      for (const l of C.langs(k)) assert.ok(t(lang, `fun.cl_${l}`).trim(), `${lang} ${l}`);
+    }
+  }
+  /*
+   * every excerpt comes from a work in the public domain: its author died before 1956 (life + 70 years) and it was published before 1930
+   * (the United States' rule) — or it is Iranian (Iran: life + 50; Iranian works are not protected in the United States)
+   */
+  const DIED = { 'سعدی': 1291, 'مولوی': 1273, 'فردوسی': 1020, 'صادق هدایت': 1951, 'پروین اعتصامی': 1941, 'Charles Dickens': 1870, 'Jane Austen': 1817, 'Herman Melville': 1891,
+    'William Shakespeare': 1616, 'Oscar Wilde': 1900, 'Lewis Carroll': 1898, 'Charlotte Brontë': 1855, 'Emily Brontë': 1848, 'Mark Twain': 1910, 'F. Scott Fitzgerald': 1940,
+    'Kahlil Gibran': 1931, 'Franz Kafka': 1924, 'Johann Wolfgang von Goethe': 1832, 'Friedrich Nietzsche': 1900, 'Лев Толстой': 1910, 'Фёдор Достоевский': 1881, 'Антон Чехов': 1904,
+    'Николай Гоголь': 1852, 'Александр Пушкин': 1837, 'Victor Hugo': 1885, 'Alexandre Dumas': 1870, 'Voltaire': 1778, 'Marcel Proust': 1922, 'Miguel de Cervantes': 1616,
+    'Dante Alighieri': 1321, '孔子': -479, '老子': -400, '孙武': -496, '曹雪芹': 1763, '罗贯中': 1400, '鲁迅': 1936 };
+  for (const e of data.excerpts) {
+    assert.ok(DIED[e.author] !== undefined && DIED[e.author] < 1956, `${e.author}: public domain?`);
+    assert.ok(!e.year || e.year < 1930 || e.lang === 'fa', `${e.work}: published before 1930`);
+  }
+  assert.ok(data.dialogues.every((d) => [...d.q].length <= 160), 'film lines stay short quotations');
+});

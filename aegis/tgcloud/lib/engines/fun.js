@@ -16,7 +16,7 @@ import { inflateRaw, unbase64 } from '../core/files.js';
 import { nowSec, parseJson, utf8Text } from '../core/util.js';
 import * as lists from './lists.js';
 import { HAFEZ, HAFEZ_COUNT, HAFEZ_PER, TAROT_IMG } from '../data/fal.js';
-import { BABATAHER, BABATAHER_COUNT, KHAYYAM, KHAYYAM_COUNT, POEMS_PER, QURAN, SURAH_AR, SURAH_EN, SURAH_FA } from '../data/fal2.js';
+import { BABATAHER, BABATAHER_COUNT, CULTURE, KHAYYAM, KHAYYAM_COUNT, POEMS_PER, QURAN, SURAH_AR, SURAH_EN, SURAH_FA } from '../data/fal2.js';
 
 /* cat: dice (Telegram's animated dice) · luck · fal (fortune telling) · hours (symbolic hours) · numbers · social · daily · games · duel · text */
 export const FEATURES = [
@@ -71,6 +71,11 @@ export const FEATURES = [
   { code: 'anbia', cat: 'fal', emoji: '🌟', cmds: ['prophets'], def: '1,a,60,5,0' },
   { code: 'font', cat: 'text', emoji: '🔠', cmds: ['font', 'fonts'], def: '1,a,10,20,0', args: true },
   { code: 'echo', cat: 'text', emoji: '🗣', cmds: ['echo', 'say'], def: '1,d,10,20,0', args: true },
+  { code: 'dialogue', cat: 'culture', emoji: '🎬', cmds: ['dialogue'], def: '1,a,30,10,0', args: true },
+  { code: 'bookquote', cat: 'culture', emoji: '🔖', cmds: ['bookquote', 'excerpt'], def: '1,a,30,10,0', args: true },
+  { code: 'movie', cat: 'culture', emoji: '🎞', cmds: ['movie', 'film'], def: '1,a,30,10,0', args: true },
+  { code: 'music', cat: 'culture', emoji: '🎵', cmds: ['music', 'song'], def: '1,a,30,10,0', args: true },
+  { code: 'book', cat: 'culture', emoji: '📚', cmds: ['book'], def: '1,a,30,10,0', args: true },
   { code: 'clock', cat: 'hours', emoji: '🕰', cmds: ['clock', 'hour'], def: '1,a,10,20,0', args: true },
   { code: 'mirror', cat: 'hours', emoji: '🪞', cmds: ['mirror'], def: '1,a,10,20,0', args: true },
   { code: 'reversed', cat: 'hours', emoji: '🔁', cmds: ['reversed'], def: '1,a,10,20,0', args: true },
@@ -80,7 +85,7 @@ export const FEATURES = [
   { code: 'repeat', cat: 'hours', emoji: '🔂', cmds: ['repeat'], def: '1,a,10,20,0', args: true },
   { code: 'number', cat: 'numbers', emoji: '🔢', cmds: ['number', 'num'], def: '1,a,10,20,0', args: true },
 ];
-export const CATS = ['dice', 'luck', 'fal', 'hours', 'numbers', 'social', 'daily', 'games', 'duel', 'text'];
+export const CATS = ['dice', 'luck', 'fal', 'hours', 'numbers', 'social', 'daily', 'games', 'duel', 'text', 'culture'];
 export const CODES = FEATURES.map((f) => f.code);
 export const byCode = (code) => FEATURES.find((f) => f.code === code) || null;
 export const SLASH = Object.fromEntries(FEATURES.flatMap((f) => f.cmds.map((c) => [c, f.code])));
@@ -1039,4 +1044,40 @@ export const poems = (() => {
   }
   const count = (book) => BOOKS[book].count;
   return { poem, count, BOOKS: Object.keys(BOOKS) };
+})();
+
+/* ---------- films, books and music: famous film lines, public-domain excerpts, recommendations ---------- */
+
+export const culture = (() => {
+  let data = null;
+  const all = () => data || (data = JSON.parse(utf8Text(inflateRaw(unbase64(CULTURE)).data)));
+  /* m films · u music · b books */
+  const KINDS = { m: 'movies', u: 'music', b: 'books' };
+  const items = (k) => all()[KINDS[k]];
+  /* most common first, then by name — stable, so a button's index always means the same thing */
+  const ranked = (values) => {
+    const n = new Map();
+    for (const v of values) n.set(v, (n.get(v) || 0) + 1);
+    return [...n.keys()].sort((a, b) => n.get(b) - n.get(a) || (a < b ? -1 : a > b ? 1 : 0));
+  };
+  const memo = new Map();
+  const cached = (key, fn) => (memo.has(key) ? memo.get(key) : memo.set(key, fn()).get(key));
+  const genres = (k) => cached(`g${k}`, () => ranked(items(k).flatMap((x) => x.g)));
+  const langs = (k) => cached(`l${k}`, () => ranked(items(k).map((x) => x.l)));
+  /* artists (music) and authors (books), by their name as credited */
+  const people = (k) => (k === 'm' ? [] : cached(`a${k}`, () => ranked(items(k).map((x) => x.a))));
+  /* the items a filter keeps: r everything · g<i> a genre · l<i> a language · a<i> an artist or author */
+  function select(k, spec) {
+    const m = /^([rgla])(\d*)$/.exec(String(spec || ''));
+    if (!m || !KINDS[k]) return [];
+    const i = Number(m[2]);
+    if (m[1] === 'r') return items(k);
+    if (m[1] === 'g') return genres(k)[i] ? items(k).filter((x) => x.g.includes(genres(k)[i])) : [];
+    if (m[1] === 'l') return langs(k)[i] ? items(k).filter((x) => x.l === langs(k)[i]) : [];
+    return people(k)[i] ? items(k).filter((x) => x.a === people(k)[i]) : [];
+  }
+  const dialogue = (n) => all().dialogues[Math.max(1, Math.min(all().dialogues.length, Math.floor(Number(n)) || 1)) - 1];
+  const excerpt = (n) => all().excerpts[Math.max(1, Math.min(all().excerpts.length, Math.floor(Number(n)) || 1)) - 1];
+  const count = (what) => all()[what].length;
+  return { all, KINDS, items, genres, langs, people, select, dialogue, excerpt, count };
 })();

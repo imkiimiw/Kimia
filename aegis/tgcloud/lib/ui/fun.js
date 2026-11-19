@@ -16,6 +16,7 @@
  * callback_data: fn:<game>:c:<i> quick click · fn:<game>:a accept · fn:<game>:x cancel (the challenger)
  *   · fn:<game>:r|p|s rock-paper-scissors · fn:<game>:t:<cell> tic-tac-toe
  *   · fn:f:<code>[:<arg>] run a fortune command (tarot 1|3, horo <sign 0–11>) · fn:f:horo:p the sign buttons
+ *   · fn:r:<m|u|b>[:g|l|a:<page>|p:<r|g<i>|l<i>|a<i>>] film, music and book recommendations (menu, lists, a pick), for the one who asked
  *   · fn:t:<page>[:<part>] a page of /font (combo, mix, tg, uni, look, mark, fa, frame, extra), for the one who asked
  * Panel: g:c:fn  ·  g:c:fn:s:<key>  ·  g:c:fn:c:<cat>  ·  g:c:fn:m:<cat> (who may use the group: a → s → d)  ·  g:c:fn:f:<code>[:o|w|c|d|r]
  * /special, /unspecial (a reply, an id or @username; the chat's owner and admins): the «fun» list of special members.
@@ -225,6 +226,21 @@ function prepare(parsed, message, lang, s) {
       if (n !== null) return n >= 1 && n <= fun.fal.HAFEZ_COUNT ? { n } : { bad: true };
       return parsed.slash ? {} : { bad: true }; /* a slash command may carry an intention; a word, only a number */
     }
+    case 'dialogue':
+    case 'bookquote': {
+      if (!a.length) return {};
+      const n = toInt(asciiDigits(text));
+      const max = fun.culture.count(parsed.code === 'dialogue' ? 'dialogues' : 'excerpts');
+      if (n !== null) return n >= 1 && n <= max ? { n } : { bad: true };
+      return parsed.slash ? {} : { bad: true };
+    }
+    case 'movie':
+    case 'music':
+    case 'book': {
+      if (!a.length) return {};
+      if (text.length > 60) return { bad: true };
+      return recFind(lang, REC_KIND[parsed.code], text) || { none: text };
+    }
     case 'khayyam':
     case 'babataher': {
       if (!a.length) return {};
@@ -423,6 +439,14 @@ async function run(ctx, x) {
     case 'khayyam':
     case 'babataher':
       return poemReading(ctx, x);
+    case 'dialogue':
+      return dialogueReading(ctx, x);
+    case 'bookquote':
+      return excerptReading(ctx, x);
+    case 'movie':
+    case 'music':
+    case 'book':
+      return recommend(ctx, x);
     case 'tarot':
       return tarot(ctx, x);
     case 'horo':
@@ -887,6 +911,176 @@ async function hours(ctx, x) {
 /* ---------- fonts ---------- */
 
 /* Messages of at most `max` characters, cut between lines. */
+/* ---------- films, books and music ---------- */
+
+const C = fun.culture;
+const REC_KIND = { movie: 'm', music: 'u', book: 'b' };
+const REC_CODE = { m: 'movie', u: 'music', b: 'book' };
+const ARABIC_SCRIPT = /[؀-ۿ]/;
+const LATIN_SCRIPT = /[A-Za-z]/;
+const PEOPLE_PAGE = 10;
+const cultLine = (lang, key, i) => (t(lang, `cultlist.${key}`).split('\n')[i] || '').replace(RLM, '').trim();
+const first = (lang, key) => inline(lang, key).split('|')[0].trim();
+const matchKey = (s) => norm(s).replace(/\s+/g, '');
+const SEP = { fa: '، ', zh: '、' };
+const genreNames = (lang, list) => list.map((g) => first(lang, `fun.cg_${g}`)).join(SEP[lang] || ', ');
+/* a name in the reader's language: Persian readers get the Persian form, the work's own language its original, others Latin letters */
+function personOf(lang, x, orig, fa, lat) {
+  if (lang === 'fa') return fa || (ARABIC_SCRIPT.test(orig) ? orig : (lat || orig));
+  if (lang === x.l) return orig;
+  return lat || orig;
+}
+function titleOf(lang, k, x) {
+  if (k === 'u') return { main: x.t, alt: x.tl && lang !== x.l && !(lang === 'fa' && ARABIC_SCRIPT.test(x.t)) ? x.tl : '' };
+  const main = lang === 'fa' ? (x.fa || x.en || x.t) : (lang === x.l ? x.t : (x.en || x.t));
+  return { main, alt: main !== x.t ? x.t : '' };
+}
+const artistOf = (lang, x) => personOf(lang, x, x.a, x.a_fa, x.a_lat);
+const directorOf = (lang, x) => (lang === 'fa' && x.by_fa ? x.by_fa : x.by);
+
+/* A typed filter: a genre or a language name (in any of the five languages), or an artist / author. */
+function recFind(lang, k, text) {
+  const q = matchKey(text);
+  if (q.length < 2) return null;
+  const names = (key) => LANGS.flatMap((l) => t(l, key).replace(RLM, '').split('|')).map(matchKey);
+  for (const [i, g] of C.genres(k).entries()) if (g === q || names(`fun.cg_${g}`).includes(q)) return { spec: `g${i}` };
+  for (const [i, l] of C.langs(k).entries()) if (l === q || names(`fun.cl_${l}`).includes(q)) return { spec: `l${i}` };
+  if (q.length >= 3) {
+    for (const [i, p] of C.people(k).entries()) {
+      const x = C.items(k).find((y) => y.a === p);
+      if ([x.a, x.a_fa, x.a_lat].filter(Boolean).map(matchKey).some((n) => n.includes(q) || (n.length >= 4 && q.includes(n)))) return { spec: `a${i}` };
+    }
+  }
+  return null;
+}
+
+/* The label of a filter (for the title of a pick). */
+function specLabel(lang, k, spec) {
+  const i = Number(spec.slice(1));
+  if (spec[0] === 'g') return first(lang, `fun.cg_${C.genres(k)[i]}`);
+  if (spec[0] === 'l') return first(lang, `fun.cl_${C.langs(k)[i]}`);
+  if (spec[0] === 'a') return artistOf(lang, C.items(k).find((x) => x.a === C.people(k)[i]));
+  return '';
+}
+
+/* The screens: menu · g (genres) · l (languages) · a:<page> (artists / authors) · p:<spec> a pick. */
+function recScreen(lang, k, view, arg, user, note = '') {
+  const code = REC_CODE[k];
+  const base = `fn:r:${k}`;
+  const back = [btn(inline(lang, 'fun.btn_rec_back'), base)];
+  if (view === 'g' || view === 'l') {
+    const list = view === 'g' ? C.genres(k) : C.langs(k);
+    const rows = [];
+    for (let i = 0; i < list.length; i += 3) {
+      rows.push(list.slice(i, i + 3).map((v, j) => btn(first(lang, `fun.${view === 'g' ? 'cg' : 'cl'}_${v}`), `${base}:p:${view}${i + j}`)));
+    }
+    return { text: t(lang, `fun.rec_pick_${view === 'g' && k === 'u' ? 's' : view}`), rows: [...rows, back] };
+  }
+  if (view === 'a') {
+    const list = C.people(k);
+    const pages = Math.max(1, Math.ceil(list.length / PEOPLE_PAGE));
+    const pg = Math.max(0, Math.min(pages - 1, toInt(arg) || 0));
+    const shown = list.slice(pg * PEOPLE_PAGE, (pg + 1) * PEOPLE_PAGE);
+    const rows = pairs(shown.map((p, j) => btn([...specLabel(lang, k, `a${pg * PEOPLE_PAGE + j}`)].slice(0, 30).join(''), `${base}:p:a${pg * PEOPLE_PAGE + j}`)));
+    if (pages > 1) rows.push([btn('◀', `${base}:a:${(pg + pages - 1) % pages}`), btn(`${num(lang, pg + 1)}/${num(lang, pages)}`, 'nop'), btn('▶', `${base}:a:${(pg + 1) % pages}`)]);
+    return { text: t(lang, `fun.rec_pick_${k === 'u' ? 'a' : 'w'}`), rows: [...rows, back] };
+  }
+  if (view === 'p') {
+    const pool = C.select(k, arg);
+    if (pool.length) {
+      const x = pool[Math.floor(Math.random() * pool.length)];
+      const label = specLabel(lang, k, arg);
+      const { main, alt } = titleOf(lang, k, x);
+      const lines = [t(lang, `fun.rec_title_${code}`, { user, filter: label ? inline(lang, 'fun.rec_filter', { v: esc(label) }) : '' }), '',
+        rtl(lang, `<b>${esc(main)}</b>${alt ? ` (${esc(alt)})` : ''}${x.y ? ` · ${num(lang, x.y)}` : ''}`)];
+      if (k === 'm') lines.push(t(lang, 'fun.rec_director', { by: esc(directorOf(lang, x)) }));
+      if (k === 'u') lines.push(t(lang, 'fun.rec_artist', { by: esc(artistOf(lang, x)) }));
+      if (k === 'b') lines.push(t(lang, 'fun.rec_author', { by: esc(personOf(lang, x, x.a, x.a_fa, x.a_lat)) }));
+      lines.push(t(lang, 'fun.rec_tags', { genres: esc(genreNames(lang, x.g)), lang: esc(first(lang, `fun.cl_${x.l}`)) }));
+      const q = (s) => encodeURIComponent(s);
+      const link = k === 'm' ? urlBtn(inline(lang, 'fun.btn_imdb'), `https://www.imdb.com/find/?q=${q(`${x.en || x.t} ${x.y}`)}`)
+        : k === 'u' ? urlBtn(inline(lang, 'fun.btn_rec_youtube'), `https://www.youtube.com/results?search_query=${q(`${x.a_lat || x.a} ${x.tl || x.t}`)}`)
+          : urlBtn(inline(lang, 'fun.btn_rec_goodreads'), `https://www.goodreads.com/search?q=${q(`${x.en || x.t} ${x.a_lat || x.a}`)}`);
+      return { text: lines.join('\n'), rows: [[btn(inline(lang, 'fun.btn_rec_again'), `${base}:p:${arg}`), link], back] };
+    }
+  }
+  /* the menu */
+  const by = (v) => btn(inline(lang, `fun.rec_by_${v}`), `${base}:${v === 'a' || v === 'w' ? 'a:0' : (v === 's' ? 'g' : v)}`);
+  const rows = [[by(k === 'u' ? 's' : 'g'), by('l')]];
+  if (k !== 'm') rows.push([by(k === 'u' ? 'a' : 'w')]);
+  rows.push([btn(inline(lang, 'fun.rec_random'), `${base}:p:r`)]);
+  const lines = [t(lang, `fun.rec_menu_${code}`, { n: num(lang, C.items(k).length) })];
+  if (note) lines.push('', note);
+  lines.push('', t(lang, `fun.rec_tip_${code}`));
+  return { text: lines.join('\n'), rows };
+}
+
+async function recommend(ctx, x) {
+  const { chatId, s, lang, pre, message, parsed } = x;
+  const k = REC_KIND[parsed.code];
+  const sc = pre.spec ? recScreen(lang, k, 'p', pre.spec, nameOf(message.from))
+    : recScreen(lang, k, 'menu', null, null, pre.none ? t(lang, 'fun.rec_none', { q: iso(pre.none, 40) }) : '');
+  return say(ctx, chatId, s, sc.text, sc.rows, `fun-${parsed.code}`, reply(message));
+}
+
+/* fn:r:<kind>[:<view>[:<arg>]] — only the one who asked moves through the lists (the message answers their command). */
+async function recButton(ctx, cq, parts) {
+  const k = parts[2];
+  const msg = cq.message;
+  if (!REC_CODE[k] || !msg || msg.chat.type === 'channel') return answer(ctx);
+  const u = await users.get(cq.from.id);
+  const mine = u ? u.lang : pickLang(cq.from.language_code);
+  const chat = msg.chat.id < 0 ? await chats.get(msg.chat.id) : null;
+  if (chat) {
+    const s = await settings.all(ctx, chat.chat_id);
+    if (!flag(s, 'fun_on') || !fun.conf(s, REC_CODE[k]).on) return answer(ctx);
+  }
+  const asker = msg.reply_to_message && msg.reply_to_message.from;
+  if (asker && !asker.is_bot && asker.id !== cq.from.id) return answer(ctx, t(mine, 'fun.rec_not_yours').replace(RLM, ''), true);
+  const lang = chat ? chat.lang : mine;
+  const view = parts[3] || 'menu';
+  if (!['menu', 'g', 'l', 'a', 'p'].includes(view) || (view === 'p' && !/^(r|[gla]\d{1,3})$/.test(parts[4] || ''))) return answer(ctx);
+  const sc = recScreen(lang, k, view, parts[4], nameOf(cq.from));
+  await edit(ctx, { chat_id: msg.chat.id, message_id: msg.message_id }, sc.text, sc.rows, `fun-${REC_CODE[k]}`);
+  return answer(ctx);
+}
+
+/* A famous film line: the line as said, a translation in the chat's language, who says it, the film. */
+async function dialogueReading(ctx, x) {
+  const { chatId, s, lang, pre, message } = x;
+  const n = pre.n || fun.randInt(1, C.count('dialogues'));
+  const d = C.dialogue(n);
+  const fa = lang === 'fa';
+  const who = fa ? (ARABIC_SCRIPT.test(d.who) ? d.who : d.who2) : (ARABIC_SCRIPT.test(d.who) ? d.who2 : d.who);
+  const actor = fa ? (ARABIC_SCRIPT.test(d.actor) ? d.actor : d.actor2) : (ARABIC_SCRIPT.test(d.actor) ? d.actor2 : d.actor);
+  const film = fa ? d.film_fa : (lang === d.lang ? d.film : (d.film_en || d.film));
+  const filmAlt = film !== d.film && !(fa && ARABIC_SCRIPT.test(d.film)) ? ` (${d.film})` : '';
+  const lines = [t(lang, 'fun.dlg_title', { user: nameOf(message.from) }), rtl(lang, `<blockquote>${esc(d.q)}</blockquote>`)];
+  if (lang !== d.lang) lines.push(t(lang, 'fun.tr_line', { text: esc(cultLine(lang, 'dlg', n - 1)) }));
+  lines.push(t(lang, 'fun.dlg_who', { who: esc(who), actor: esc(actor) }), t(lang, 'fun.dlg_film', { film: `${esc(film)}${esc(filmAlt)} · ${num(lang, d.year)}` }), '',
+    t(lang, 'fun.dlg_note'));
+  const rows = [[btn(inline(lang, 'fun.btn_dialogue'), 'fn:f:dialogue'),
+    urlBtn(inline(lang, 'fun.btn_imdb'), `https://www.imdb.com/find/?q=${encodeURIComponent(`${d.film_en || d.film} ${d.year}`)}`)]];
+  return say(ctx, chatId, s, lines.join('\n'), rows, 'fun-dialogue', reply(message));
+}
+
+/* An excerpt of a public-domain work: the text as written, a translation, the author, the work and its year. */
+async function excerptReading(ctx, x) {
+  const { chatId, s, lang, pre, message } = x;
+  const n = pre.n || fun.randInt(1, C.count('excerpts'));
+  const e = C.excerpt(n);
+  const author = lang === 'fa' ? e.author_fa : (lang === e.lang ? e.author : e.author_lat);
+  const work = lang === 'fa' ? e.work_fa : (lang === e.lang ? e.work : (e.work_en || e.work));
+  const text = e.q.split('\n').map((l) => `${lang === 'fa' ? '\u200F' : ''}${esc(l)}`).join('\n');
+  const lines = [t(lang, 'fun.exc_title', { user: nameOf(message.from) }), `${lang === 'fa' ? '\u200F' : ''}<blockquote>${text}</blockquote>`];
+  if (lang !== e.lang) lines.push(t(lang, 'fun.tr_line', { text: esc(cultLine(lang, 'exc', n - 1)) }));
+  lines.push(t(lang, 'fun.exc_src', { author: esc(author), work: `${esc(work)}${e.year ? ` · ${num(lang, e.year)}` : ''}` }), '', t(lang, 'fun.exc_note'));
+  const wiki = ['fa', 'en', 'ru', 'zh', 'fr'].includes(lang) ? lang : 'en';
+  const rows = [[btn(inline(lang, 'fun.btn_bookquote'), 'fn:f:bookquote'),
+    urlBtn(inline(lang, 'fun.btn_wiki'), `https://${wiki}.wikipedia.org/w/index.php?search=${encodeURIComponent(work.replace(/\s*\(.*\)\s*$/, ''))}`)]];
+  return say(ctx, chatId, s, lines.join('\n'), rows, 'fun-bookquote', reply(message));
+}
+
 /* ---------- /echo and fun special members ---------- */
 
 /* The message a command really answers: not a forum topic's first message (every message in a topic «replies» to it). */
@@ -1054,7 +1248,7 @@ async function falButton(ctx, cq, parts) {
   const code = parts[2];
   const f = fun.byCode(code);
   const msg = cq.message;
-  if (!f || !['fal', 'hours', 'numbers'].includes(f.cat) || msg.chat.type === 'channel') return answer(ctx);
+  if (!f || !(['fal', 'hours', 'numbers'].includes(f.cat) || code === 'dialogue' || code === 'bookquote') || msg.chat.type === 'channel') return answer(ctx);
   if ((code === 'horo' || code === 'birthmonth') && parts[3] === 'p') {
     const u = await users.get(cq.from.id);
     const chat = msg.chat.id < 0 ? await chats.get(msg.chat.id) : null;
@@ -1344,6 +1538,7 @@ export async function onPollAnswer(ctx, a) {
 
 export async function callback(ctx, cq, parts) {
   if (parts[1] === 'f') return falButton(ctx, cq, parts);
+  if (parts[1] === 'r') return recButton(ctx, cq, parts);
   if (parts[1] === 't') return fontPage(ctx, cq, parts);
   const from = cq.from;
   const u = await users.get(from.id);
