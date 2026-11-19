@@ -308,5 +308,20 @@
   "btn_iching": "☯️ Cast again",
   "btn_tas": "⚄ Roll again",
   "btn_len1": "🌹 One card",
-  "btn_len3": "🌹 Three cards"
+  "btn_len3": "🌹 Three cards",
+  "qr_title": "📖 {user}, istikhara with the Quran — page {page}:",
+  "qr_ref": "<b>Surah {surah}</b> ({arabic}), verse {ayah}",
+  "qr_tr": "<b>Translation (Saheeh International):</b>",
+  "qr_no_tr": "The translation can't be loaded right now; read the Arabic, or see the verse on Quran.com.",
+  "qr_guide": "💡 The traditional way: if the verse speaks of mercy, good news and goodness, the matter is good; if of punishment and warning, better not to do it; if neither, it is in between. Ask a scholar for a sure reading.",
+  "qr_note": "<i>The first verse of a right-hand page of the mushaf, at random. Quran text: Tanzil Project (tanzil.net); translation from api.alquran.cloud. Istikhara is a matter of faith — this bot only shows the verse.</i>",
+  "btn_quran_com": "📖 The verse on Quran.com",
+  "tb_title": "📿 {user}, istikhara with prayer beads:",
+  "tb_count": "Beads: {n} — counted two by two, {left} left over.",
+  "tb_good": "✅ <b>It is good.</b>",
+  "tb_bad": "⛔ <b>Better not to do it.</b>",
+  "tb_note": "<i>Traditionally, after the intention and a blessing on the Prophet, a handful of beads is counted two by two; here the number of beads is random. Istikhara is a matter of faith.</i>",
+  "an_title": "🌟 {user}, the prophets' fortune:",
+  "an_note": "<i>An old folk custom, for reflection — not a prophecy.</i>",
+  "btn_anbia": "🌟 Again"
 }

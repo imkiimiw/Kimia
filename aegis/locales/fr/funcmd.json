@@ -58,5 +58,8 @@
   "runes": "tirage des runes|runes",
   "iching": "yi king|yiking",
   "tas": "présage des dés",
-  "lenormand": "lenormand|tirage lenormand"
+  "lenormand": "lenormand|tirage lenormand",
+  "quran": "istikhara|istikhara coran",
+  "tasbih": "istikhara chapelet|chapelet",
+  "anbia": "présage des prophètes"
 }

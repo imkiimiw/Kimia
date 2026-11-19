@@ -140,6 +140,9 @@ try {
   check('Hafez in the isolate: all 495 ghazals inflated from the data module in one call, each with its interpretation', fal.hafez.join() === '495,غم مخور,1,495', JSON.stringify(fal.hafez));
   check('fonts (every page of a 40-character text under 4096), tarot, zodiac and name numbers in the isolate', fal.fonts.join() === '23,𝐇𝐞𝐥𝐥𝐨 𝟐𝟎𝟐𝟔 سلام,Hello 2026 سـلـام,52,true' && fal.tarot.join() === '78,https://upload.wikimedia.org/wikipedia/commons/thumb,3'
     && fal.sign.join() === '6,0' && fal.num.join() === '110,7', JSON.stringify(fal));
+  check('Quran pages in the isolate, and a translation fetched from api.alquran.cloud by the platform', fal.faith[0] === 'الٓمٓ' && fal.faith[1] === 112
+    && fal.faith[2] === 'In the name o', JSON.stringify(fal.faith));
+  check('I Ching table, Chinese year and life path in the isolate', fal.draw.join() === '63,6,11', JSON.stringify(fal.draw));
 
   const cq = { id: 'smoke', from: user(A, 'fa'), chat_instance: 'x', data: 'lg:fa', message: { message_id: 1, chat: { id: A, type: 'private' }, date: 0, text: 'x' } };
   const r2 = tg(['handlers/callback_query', JSON5.stringify(cq)]);

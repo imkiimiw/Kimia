@@ -12,6 +12,7 @@ import { esc } from '../../tgcloud/lib/core/util.js';
 import * as fun from '../../tgcloud/lib/engines/fun.js';
 import { LANGS, t } from '../../tgcloud/lib/i18n/index.js';
 import { parseCommand, signFrom } from '../../tgcloud/lib/ui/fun.js';
+import { stubFetch } from '../sdk/fetch.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const list = (lang, key) => t(lang, `fallist.${key}`).split('\n').map((x) => x.replace(/[‏‎]/g, '').trim()).filter(Boolean);
@@ -365,5 +366,38 @@ test('drawn readings: different cards, runes that never reverse, the I Ching tab
       assert.equal(list(lang, k).length, n, `${lang} ${k}`);
     }
   }
+});
+
+test('religious readings: the first verse of a right-hand page, surah names, the translation fetched (or not), prayer beads, the prophets', async () => {
+  const f = fun.faith;
+  const src = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/quran.json'), 'utf8'));
+  assert.equal(src.pages.length, 604);
+  for (let p = 1; p <= 604; p += 1) assert.deepEqual(f.verse(p), { page: p, surah: src.pages[p - 1][0], ayah: src.pages[p - 1][1], text: src.pages[p - 1][2] });
+  assert.deepEqual(f.verse(2), { page: 2, surah: 2, ayah: 1, text: 'الٓمٓ' }, 'the basmala the source added is gone');
+  assert.equal(f.verse(1).text.startsWith('بِسْمِ'), true, 'al-Fatiha keeps its first verse');
+  for (let i = 0; i < 200; i += 1) {
+    const v = f.istikhara();
+    assert.ok(v.page % 2 === 1 && v.page >= 1 && v.page <= 603, 'a right-hand page');
+    const b = f.tasbih();
+    assert.ok(b.beads >= 1 && b.beads <= 99 && b.good === (b.beads % 2 === 1));
+  }
+  assert.deepEqual([f.surahName(2, 'fa'), f.surahName(2, 'en'), f.surahName(114, 'fa')], ['بقره', 'Al-Baqara', 'ناس']);
+  const asked = [];
+  stubFetch(async (url) => {
+    asked.push(String(url));
+    return { ok: true, status: 200, json: async () => ({ code: 200, data: { text: 'Translated verse.' } }) };
+  });
+  assert.equal(await f.translation(2, 255, 'fa'), 'Translated verse.');
+  assert.equal(asked[0], 'https://api.alquran.cloud/v1/ayah/2:255/fa.makarem');
+  await f.translation(1, 1, 'zh');
+  assert.equal(asked[1], 'https://api.alquran.cloud/v1/ayah/1:1/zh.jian');
+  stubFetch(async () => ({ ok: false, status: 503, json: async () => ({}) }));
+  assert.equal(await f.translation(2, 255, 'en'), null, 'a failing service: no translation');
+  stubFetch(async () => {
+    throw new Error('offline');
+  });
+  assert.equal(await f.translation(2, 255, 'en'), null, 'no network: no translation');
+  stubFetch(null);
+  for (const lang of LANGS) assert.equal(list(lang, 'anbia').length, 24, `${lang} anbia`);
 });
 

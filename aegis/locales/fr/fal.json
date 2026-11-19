@@ -308,5 +308,20 @@
   "btn_iching": "☯️ Relancer",
   "btn_tas": "⚄ Relancer",
   "btn_len1": "🌹 Une carte",
-  "btn_len3": "🌹 Trois cartes"
+  "btn_len3": "🌹 Trois cartes",
+  "qr_title": "📖 {user}, istikhara avec le Coran — page {page} :",
+  "qr_ref": "<b>Sourate {surah}</b> ({arabic}), verset {ayah}",
+  "qr_tr": "<b>Traduction de Muhammad Hamidullah :</b>",
+  "qr_no_tr": "La traduction est indisponible pour le moment ; lisez l’arabe ou voyez le verset sur Quran.com.",
+  "qr_guide": "💡 Selon la tradition : si le verset parle de miséricorde, de bonne nouvelle et de bien, l’affaire est bonne ; s’il parle de châtiment et d’avertissement, mieux vaut s’abstenir ; sinon, c’est entre les deux. Demandez à un savant pour une lecture sûre.",
+  "qr_note": "<i>Le premier verset d’une page de droite du mushaf, au hasard. Texte du Coran : projet Tanzil (tanzil.net) ; traduction via api.alquran.cloud. L’istikhara relève de la foi — ce bot ne fait qu’afficher le verset.</i>",
+  "btn_quran_com": "📖 Le verset sur Quran.com",
+  "tb_title": "📿 {user}, istikhara au chapelet :",
+  "tb_count": "Grains : {n} — comptés deux par deux, il en reste {left}.",
+  "tb_good": "✅ <b>C’est bon.</b>",
+  "tb_bad": "⛔ <b>Mieux vaut s’abstenir.</b>",
+  "tb_note": "<i>Traditionnellement, après l’intention et une prière sur le Prophète, on compte une poignée de grains deux par deux ; ici le nombre de grains est aléatoire. L’istikhara relève de la foi.</i>",
+  "an_title": "🌟 {user}, le présage des prophètes :",
+  "an_note": "<i>Une vieille coutume populaire, pour réfléchir — pas une prophétie.</i>",
+  "btn_anbia": "🌟 Encore"
 }

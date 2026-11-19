@@ -281,5 +281,11 @@
   "usage_cards": "用法：/cards 或 /cards 1",
   "usage_runes": "用法：/runes 或 /runes 3",
   "usage_iching": "用法：/iching，或 /iching 加你的问题",
-  "usage_lenormand": "用法：/lenormand 或 /lenormand 1"
+  "usage_lenormand": "用法：/lenormand 或 /lenormand 1",
+  "n_quran": "以古兰经求选",
+  "n_tasbih": "以念珠求选",
+  "n_anbia": "众先知占",
+  "d_quran": "随机一页经卷的第一节经文，附译文和传统读法；请自己体会或请教学者。",
+  "d_tasbih": "以念珠求选：两颗两颗地数——吉或不吉。",
+  "d_anbia": "古老的众先知占：一位先知及其故事中的启示。"
 }

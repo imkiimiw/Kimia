@@ -404,6 +404,10 @@ async function run(ctx, x) {
     case 'tas':
     case 'lenormand':
       return drawReading(ctx, x);
+    case 'quran':
+    case 'tasbih':
+    case 'anbia':
+      return faithReading(ctx, x);
     case 'truth':
     case 'dare':
       return say(ctx, chatId, s, t(lang, `fun.${code}`, { user: pre.target ? nameOf(pre.target) : me, text: esc(fun.pick(list(lang, code))) }), null, `fun-${code}`, r);
@@ -558,6 +562,36 @@ async function coffee(ctx, x) {
   }
   lines.push('', t(lang, 'fal.coffee_note'));
   return say(ctx, chatId, s, lines.join('\n'), [[btn(t(lang, 'fal.btn_coffee'), 'fn:f:coffee')]], 'fun-coffee', reply(message));
+}
+
+/* ---------- religious readings ---------- */
+
+async function faithReading(ctx, x) {
+  const { chatId, s, lang, message, parsed } = x;
+  const r = reply(message);
+  const F = fun.faith;
+  const me = nameOf(message.from);
+  if (parsed.code === 'quran') {
+    const v = F.istikhara();
+    const tr = await F.translation(v.surah, v.ayah, lang);
+    const lines = [t(lang, 'fal.qr_title', { user: me, page: num(lang, v.page) }), '',
+      t(lang, 'fal.qr_ref', { surah: esc(F.surahName(v.surah, lang)), arabic: esc(F.surahArabic(v.surah)), ayah: num(lang, v.ayah) }),
+      `\u200F<blockquote>${esc(v.text)}</blockquote>`];
+    if (tr) lines.push(t(lang, 'fal.qr_tr'), rtl(lang, esc(tr)));
+    else lines.push(t(lang, 'fal.qr_no_tr'));
+    lines.push('', t(lang, 'fal.qr_guide'), '', t(lang, 'fal.qr_note'));
+    return say(ctx, chatId, s, lines.join('\n'), [[urlBtn(t(lang, 'fal.btn_quran_com'), `https://quran.com/${v.surah}/${v.ayah}`)]], 'fun-quran', r);
+  }
+  if (parsed.code === 'tasbih') {
+    const b = F.tasbih();
+    const lines = [t(lang, 'fal.tb_title', { user: me }), '', t(lang, 'fal.tb_count', { n: num(lang, b.beads), left: num(lang, b.good ? 1 : 2) }),
+      t(lang, b.good ? 'fal.tb_good' : 'fal.tb_bad'), '', t(lang, 'fal.tb_note')];
+    return say(ctx, chatId, s, lines.join('\n'), null, 'fun-tasbih', r);
+  }
+  const i = fun.randInt(0, F.PROPHETS - 1);
+  const [name, text] = String(flist(lang, 'anbia')[i] || '|').split('|').map((y) => esc(y.trim()));
+  const lines = [t(lang, 'fal.an_title', { user: me }), '', rtl(lang, `<b>${name}</b>`), rtl(lang, text), '', t(lang, 'fal.an_note')];
+  return say(ctx, chatId, s, lines.join('\n'), [[btn(t(lang, 'fal.btn_anbia'), 'fn:f:anbia')]], 'fun-anbia', r);
 }
 
 /* ---------- drawn readings ---------- */

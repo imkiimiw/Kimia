@@ -10,11 +10,12 @@
  * test's anti-paste marks, rock-paper-scissors and tic-tac-toe rules, birthday input; then the font
  * styles (fonts) and the fortune-telling helpers (fal: Hafez, tarot, zodiac, numerology, coffee).
  */
-import { db } from 'sdk';
+import { db, fetch } from 'sdk';
 import { sql } from 'sdk/db';
 import { inflateRaw, unbase64 } from '../core/files.js';
 import { nowSec, parseJson, utf8Text } from '../core/util.js';
 import { HAFEZ, HAFEZ_COUNT, HAFEZ_PER, TAROT_IMG } from '../data/fal.js';
+import { QURAN, SURAH_AR, SURAH_EN, SURAH_FA } from '../data/fal2.js';
 
 /* cat: dice (Telegram's animated dice) · luck · fal (fortune telling) · hours (symbolic hours) · numbers · social · daily · games · duel · text */
 export const FEATURES = [
@@ -62,6 +63,9 @@ export const FEATURES = [
   { code: 'iching', cat: 'fal', emoji: '☯️', cmds: ['iching'], def: '1,a,30,10,0', args: true },
   { code: 'tas', cat: 'fal', emoji: '⚄', cmds: ['dicefortune'], def: '1,a,30,10,0' },
   { code: 'lenormand', cat: 'fal', emoji: '🌹', cmds: ['lenormand'], def: '1,a,30,10,0', args: true },
+  { code: 'quran', cat: 'fal', emoji: '📖', cmds: ['istikhara'], def: '1,a,60,5,0' },
+  { code: 'tasbih', cat: 'fal', emoji: '📿', cmds: ['tasbih'], def: '1,a,60,5,0' },
+  { code: 'anbia', cat: 'fal', emoji: '🌟', cmds: ['prophets'], def: '1,a,60,5,0' },
   { code: 'font', cat: 'text', emoji: '🔠', cmds: ['font', 'fonts'], def: '1,a,10,20,0', args: true },
   { code: 'clock', cat: 'hours', emoji: '🕰', cmds: ['clock', 'hour'], def: '1,a,10,20,0', args: true },
   { code: 'mirror', cat: 'hours', emoji: '🪞', cmds: ['mirror'], def: '1,a,10,20,0', args: true },
@@ -913,4 +917,43 @@ export const draw = (() => {
   const LENORMAND = ['🏇', '☘️', '⛵', '🏠', '🌳', '☁️', '🐍', '⚰️', '💐', '🌾', '〰️', '🐦', '👶', '🦊', '🐻', '⭐', '🦢', '🐕', '🗼', '🌷', '⛰️', '🔀', '🐁', '❤️', '💍', '📖',
     '✉️', '👨', '👩', '⚜️', '☀️', '🌙', '🔑', '🐟', '⚓', '✝️'];
   return { picks, SUITS, RANKS, cardGlyph, RUNES, SAME_REVERSED, runes, hexOf, iching, hexGlyph, FACES, dice, LENORMAND };
+})();
+
+/* ---------- religious readings: istikhara with the Quran, istikhara with prayer beads, the prophets' fortune ---------- */
+
+export const faith = (() => {
+  let pages = null;
+  const quran = () => pages || (pages = JSON.parse(utf8Text(inflateRaw(unbase64(QURAN)).data)));
+  /* Opened at random: the first verse of a right-hand (odd) page of the Medina mushaf */
+  function istikhara(rnd = Math.random) {
+    const page = 1 + 2 * Math.floor(rnd() * 302);
+    const [surah, ayah, text] = quran()[page - 1];
+    return { page, surah, ayah, text };
+  }
+  const verse = (page) => {
+    const [surah, ayah, text] = quran()[page - 1];
+    return { page, surah, ayah, text };
+  };
+  const surahName = (n, lang) => (lang === 'fa' ? SURAH_FA : SURAH_EN)[n - 1];
+  const surahArabic = (n) => SURAH_AR[n - 1];
+  /* A translation of the verse in the language, fetched from the free api.alquran.cloud; null when it can't be had */
+  const EDITION = { fa: 'fa.makarem', en: 'en.sahih', ru: 'ru.kuliev', fr: 'fr.hamidullah', zh: 'zh.jian' };
+  async function translation(surah, ayah, lang) {
+    try {
+      const res = await fetch(`https://api.alquran.cloud/v1/ayah/${surah}:${ayah}/${EDITION[lang] || EDITION.en}`);
+      if (!res || !res.ok) return null;
+      const j = await res.json();
+      const text = j && j.data && j.data.text;
+      return typeof text === 'string' && text.trim() ? text.trim().slice(0, 1200) : null;
+    } catch {
+      return null;
+    }
+  }
+  /* Prayer beads: a handful (1–99) counted two by two — one left over is good, two left over is not */
+  const tasbih = (rnd = Math.random) => {
+    const beads = 1 + Math.floor(rnd() * 99);
+    return { beads, good: beads % 2 === 1 };
+  };
+  const PROPHETS = 24;
+  return { istikhara, verse, surahName, surahArabic, translation, EDITION, tasbih, PROPHETS };
 })();

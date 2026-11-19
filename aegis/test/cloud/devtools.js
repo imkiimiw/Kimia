@@ -106,6 +106,8 @@ export default async function (input) {
       fonts: [f.pages.uni.length, by.bold, Object.fromEntries(f.pages.fa).kashida, f.pages.combo.length, Math.max(...screens) < 4096],
       tarot: [fun.fal.CARDS, fun.fal.image(17).slice(0, 52), new Set(fun.fal.draw(3).map((c) => c.card)).size],
       sign: [fun.fal.signOf('j', 7, 1), fun.fal.signOf('g', 3, 21)], num: [fun.fal.numerology('علی').total, fun.fal.numerology('Kimia').number],
+      faith: [fun.faith.verse(2).text, fun.faith.verse(604).surah, ((await fun.faith.translation(1, 1, 'en')) || '').slice(0, 13)],
+      draw: [fun.draw.hexOf([1, 0, 1, 0, 1, 0]), fun.birth.chinese(2026, 5, 1).animal, fun.birth.lifePath(1990, 11, 8).number],
     };
   }
   if (action === 'shabench') {

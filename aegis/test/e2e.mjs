@@ -4,6 +4,7 @@
 // Every Persian message is checked for right-to-left marks; every button press must be answered once.
 // Run: npm run test:e2e
 import assert from 'node:assert/strict';
+import { stubFetch } from './sdk/fetch.mjs';
 import { createMockTelegram, parseHtml } from './mock-telegram.mjs';
 import { rawDatabase, setupDatabase } from './sdk/db.mjs';
 import * as schema from '../tgcloud/schema.js';
@@ -3901,7 +3902,7 @@ mock.addFile('p9_m', fixture('base420.jpg'));
 mock.addFile('p9_s', fixture('base420.jpg'));
 const mediaEndpoint = (await import('../tgcloud/endpoints/media.js')).default;
 
-await scenario('phase 9 — 🎮 the Fun panel: 53 features in ten groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
+await scenario('phase 9 — 🎮 the Fun panel: 56 features in ten groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
   tick(600);
   iota = mock.addChat({ id: IOTA, type: 'supergroup', title: 'Iota', count: 15, botRights: { can_manage_chat: true, can_change_info: true, can_delete_messages: true,
     can_restrict_members: true, can_invite_users: true, can_pin_messages: true, can_promote_members: true } });
@@ -3920,7 +3921,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 53 features in ten groups, each 
   assert.ok(dataOf(olgaScreen()).includes(I('fn')) && dataOf(olgaScreen()).includes(I('md')));
   await olga(I('fn'));
   assert.match(olgaScreen().plain, /🎮 Fun — \u2068Iota\u2069/);
-  assert.match(olgaScreen().plain, /On: 53 of 53/);
+  assert.match(olgaScreen().plain, /On: 56 of 56/);
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 10);
   await olga(I('fn:c:dice'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:f:/.test(d)).length, 6);
@@ -3933,7 +3934,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 53 features in ten groups, each 
   await olga(I('fn:s:fun_rate'));
   assert.equal(iVal('fun_rate'), '20');
   await olga(I('fn'));
-  assert.match(olgaScreen().plain, /On: 52 of 53/);
+  assert.match(olgaScreen().plain, /On: 55 of 56/);
   const s = row("SELECT count(*) AS n FROM aegis_audit WHERE chat_id = ? AND action = 'settings.set' AND target LIKE 'fx_%'", IOTA).n;
   assert.equal(s, 5, 'every change is logged');
 });
@@ -4141,7 +4142,8 @@ await scenario('🔮 fortune telling and 🔠 fonts — /fal and its buttons, Ha
   for (const c of ['/hafez', '/tarot', '/horoscope', '/abjad', '/coffee', '/fortune']) assert.ok(menu.params.text.includes(c), c);
   const mm = midOf(menu);
   assert.deepEqual(dataOf(mock.get(IOTA, mm)), ['fn:f:hafez', 'fn:f:tarot:1', 'fn:f:tarot:3', 'fn:f:horo:p', 'fn:f:abjad', 'fn:f:coffee', 'fn:f:fortune', 'fn:f:birthmonth',
-    'fn:f:chinese', 'fn:f:lifepath', 'fn:f:weekday', 'fn:f:cards', 'fn:f:runes', 'fn:f:iching', 'fn:f:tas', 'fn:f:lenormand']);
+    'fn:f:chinese', 'fn:f:lifepath', 'fn:f:weekday', 'fn:f:cards', 'fn:f:runes', 'fn:f:iching', 'fn:f:tas', 'fn:f:lenormand',
+    'fn:f:quran', 'fn:f:tasbih', 'fn:f:anbia']);
   /* Hafez: a chosen ghazal, the poem folded in an expandable quote, the interpretation, Ganjoor */
   const h = toChat(await imsg(P9.kit, '/hafez 255'), IOTA)[0];
   assert.ok(h.result.ok, JSON.stringify(h.result));
@@ -4328,7 +4330,7 @@ await scenario('🕰 symbolic hours and 🔢 number meanings — the time now, a
   /* /fun lists the category with its menu */
   tick(61);
   const funl = await at(P9.ivy, '/fun');
-  assert.ok(funl.includes('🕰 Symbolic hours — /clock (7)') && funl.includes('🔢 Number meanings — /number (1)') && funl.includes('🔮 Fortune telling — /fal (15)'), funl);
+  assert.ok(funl.includes('🕰 Symbolic hours — /clock (7)') && funl.includes('🔢 Number meanings — /number (1)') && funl.includes('🔮 Fortune telling — /fal (18)'), funl);
   /* Persian, in private */
   const bahar = { id: 800000498, is_bot: false, first_name: 'بهار', language_code: 'fa' };
   faUsers.add(bahar.id);
@@ -4419,6 +4421,48 @@ await scenario('♠️ drawn readings — playing cards, runes, the I Ching with
   assert.match(await pm('ای چینگ'), /^‏☯️ ⁨نیما⁩، پاسخ ای‌چینگ:\n\n‏<b>\S [۰-۹]+\. [^<]+<\/b>\n‏<code>/);
   assert.match(await pm('فال تاس'), /^‏⚄ ⁨نیما⁩، تاس‌ها: [⚀-⚅] [⚀-⚅] [⚀-⚅] = [۰-۹]+\n\n‏<b>/);
   assert.match(await pm('فال لنورماند ۱'), /^‏🌹 ⁨نیما⁩، کارت لنورماند تو:\n\n‏\S+ <b>[۰-۹]+\. /);
+});
+
+await scenario('📖 religious readings — istikhara with the Quran (verse, translation fetched or not, Quran.com), prayer beads, the prophets; Persian in private', async () => {
+  tick(600);
+  iSet('fun_rate', '0');
+  const asked = [];
+  stubFetch(async (url) => {
+    asked.push(String(url));
+    return { ok: true, status: 200, json: async () => ({ code: 200, data: { text: String(url).includes('fa.makarem') ? 'ترجمهٔ آزمایشی <آیه>' : 'Test translation & more' } }) };
+  });
+  const q = toChat(await imsg(P9.kit, '/istikhara'), IOTA)[0];
+  assert.ok(q.result.ok, JSON.stringify(q.result));
+  const m = /^📖 ⁨Kit⁩, istikhara with the Quran — page (\d+):\n\n<b>Surah [^<]+<\/b> \(.+\), verse (\d+)\n‏<blockquote>[^<]+<\/blockquote>\n<b>Translation \(Saheeh International\):<\/b>\nTest translation &amp; more\n\n💡 The traditional way/.exec(q.params.text);
+  assert.ok(m, q.params.text);
+  assert.equal(Number(m[1]) % 2, 1, 'a right-hand page');
+  assert.match(asked[0], /^https:\/\/api\.alquran\.cloud\/v1\/ayah\/\d+:\d+\/en\.sahih$/);
+  const ref = /ayah\/(\d+):(\d+)\//.exec(asked[0]);
+  assert.equal(ref[2], m[2], 'the verse asked for is the verse shown');
+  assert.deepEqual(dataOf(mock.get(IOTA, midOf(q))), [`https://quran.com/${ref[1]}/${ref[2]}`]);
+  stubFetch(async () => ({ ok: false, status: 503, json: async () => ({}) }));
+  const q2 = inIota(await imsg(P9.lux, '/istikhara'))[0];
+  assert.ok(q2.includes("The translation can't be loaded right now") && q2.includes('<blockquote>'), 'the verse still, without a translation');
+  const tb = inIota(await imsg(P9.nia, '/tasbih'))[0];
+  const b = /^📿 ⁨Nia⁩, istikhara with prayer beads:\n\nBeads: (\d+) — counted two by two, ([12]) left over\.\n(✅ <b>It is good\.<\/b>|⛔ <b>Better not to do it\.<\/b>)\n\n<i>/.exec(tb);
+  assert.ok(b, tb);
+  assert.equal(Number(b[1]) % 2 === 1, b[2] === '1');
+  assert.equal(b[2] === '1', b[3].startsWith('✅'));
+  const an = toChat(await imsg(P9.ivy, '/prophets'), IOTA)[0];
+  assert.match(an.params.text, /^🌟 ⁨Ivy⁩, the prophets' fortune:\n\n<b>Prophet [^<]+<\/b>\n.+\n\n<i>An old folk custom/);
+  assert.deepEqual(dataOf(mock.get(IOTA, midOf(an))), ['fn:f:anbia']);
+  /* Persian, in private */
+  stubFetch(async (url) => ({ ok: true, status: 200, json: async () => ({ code: 200, data: { text: String(url).includes('fa.makarem') ? 'ترجمهٔ آزمایشی <آیه>' : 'x' } }) }));
+  const leila = { id: 800000495, is_bot: false, first_name: 'لیلا', language_code: 'fa' };
+  faUsers.add(leila.id);
+  await onboard(leila, 'fa');
+  const pm = async (text) => lastSentTo(await dm(leila, text), leila.id).params.text;
+  const fq = await pm('استخاره');
+  assert.match(fq, /^‏📖 ⁨لیلا⁩، استخاره با قرآن — صفحهٔ [۰-۹]+:\n\n‏<b>سورهٔ [^<]+<\/b> \(.+\)، آیهٔ [۰-۹]+\n‏<blockquote>/);
+  assert.ok(fq.includes('<b>ترجمهٔ آیت‌الله مکارم شیرازی:</b>\n‏ترجمهٔ آزمایشی &lt;آیه&gt;'), 'the translation, escaped');
+  assert.match(await pm('استخاره با تسبیح'), /^‏📿 ⁨لیلا⁩، استخاره با تسبیح:\n\n‏دانه‌ها: [۰-۹]+ — دوتادوتا شمرده شد و [۱۲] دانه ماند\./);
+  assert.match(await pm('فال انبیا'), /^‏🌟 ⁨لیلا⁩، فال انبیا:\n\n‏<b>حضرت [^<]+<\/b>/);
+  stubFetch(null);
 });
 
 await scenario('phase 9 — 🖼 media in private: image tools, a sticker in the member\'s own pack, sticker → photo, a QR code made and read back, a GIF from photos, video → GIF, the PDF check', async () => {

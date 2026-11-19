@@ -281,5 +281,11 @@
   "usage_cards": "Exemple : /cards ou /cards 1",
   "usage_runes": "Exemple : /runes ou /runes 3",
   "usage_iching": "Exemple : /iching, ou /iching et votre question",
-  "usage_lenormand": "Exemple : /lenormand ou /lenormand 1"
+  "usage_lenormand": "Exemple : /lenormand ou /lenormand 1",
+  "n_quran": "Istikhara avec le Coran",
+  "n_tasbih": "Istikhara au chapelet",
+  "n_anbia": "Présage des prophètes",
+  "d_quran": "Le premier verset d’une page au hasard du mushaf, avec une traduction et la façon traditionnelle de le lire ; lisez-le vous-même ou demandez à un savant.",
+  "d_tasbih": "L’istikhara au chapelet : des grains comptés deux par deux — bon ou non.",
+  "d_anbia": "Le vieux présage des prophètes : l’un des prophètes et un message tiré de son histoire."
 }

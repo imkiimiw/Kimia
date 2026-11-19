@@ -281,5 +281,11 @@
   "usage_cards": "Use: /cards or /cards 1",
   "usage_runes": "Use: /runes or /runes 3",
   "usage_iching": "Use: /iching, or /iching and your question",
-  "usage_lenormand": "Use: /lenormand or /lenormand 1"
+  "usage_lenormand": "Use: /lenormand or /lenormand 1",
+  "n_quran": "Istikhara with the Quran",
+  "n_tasbih": "Istikhara with prayer beads",
+  "n_anbia": "The prophets' fortune",
+  "d_quran": "The first verse of a random page of the mushaf, with a translation and the traditional way to read it; read it yourself or ask a scholar.",
+  "d_tasbih": "Istikhara the prayer-bead way: beads counted two by two — good or not.",
+  "d_anbia": "The old prophets' fortune: one of the prophets and a message from his story."
 }
