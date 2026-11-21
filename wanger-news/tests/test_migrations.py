@@ -30,7 +30,8 @@ PHASE1_TABLES = {
     "system_logs",
 }
 PHASE2_TABLES = {"ai_runs", "summaries", "review_requests"}
-ALL_TABLES = PHASE1_TABLES | PHASE2_TABLES
+PHASE3_TABLES = {"story_clusters", "claims", "evidence"}
+ALL_TABLES = PHASE1_TABLES | PHASE2_TABLES | PHASE3_TABLES
 
 
 def alembic_config(url: str) -> Config:

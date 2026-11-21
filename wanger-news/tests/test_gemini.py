@@ -88,7 +88,7 @@ async def test_request_shape_and_key_hygiene() -> None:
     assert result.data.articles[0].title == "بانک نرخ را بالا برد"
     assert result.usage.input_tokens == 1000 and result.usage.thinking_tokens == 50
     assert result.usage.cost_usd == pytest.approx((1000 * 0.30 + 250 * 2.50) / 1e6)
-    assert result.usage.prompt_version == "summarize_fa_v1"
+    assert result.usage.prompt_version == "summarize_fa_v2"
 
 
 async def test_each_prompt_gets_a_fresh_boundary() -> None:
@@ -235,8 +235,9 @@ def test_repository_prompts_load_with_versions() -> None:
         "extract_claims_v1",
         "extract_entities_v1",
     } <= set(lib.versions)
-    assert lib.get("summarize", "fa").version == "summarize_fa_v1"
-    assert lib.get("verify", "fa").version == "verify_v1"  # "any" language serves every language
+    assert lib.get("summarize", "fa").version == "summarize_fa_v2"  # the newest version wins
+    assert lib.get("verify", "fa").version == "verify_v2"  # "any" language serves every language
+    assert lib.get("update", "fa").version == "update_fa_v1"
     with pytest.raises(PromptError):
         lib.get("summarize", "tr")
 

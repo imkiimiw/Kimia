@@ -19,6 +19,8 @@ from wanger_news.db.tables import (
     AIRun,
     Article,
     ArticleFingerprint,
+    Claim,
+    Evidence,
     Lock,
     PipelineRun,
     ProcessingJob,
@@ -27,6 +29,7 @@ from wanger_news.db.tables import (
     Setting,
     Source,
     SourceHealth,
+    StoryCluster,
     Summary,
     SystemLog,
     TelegramUpdate,
@@ -793,12 +796,17 @@ class AIRunRepo:
         self.s.add(run)
         await self.s.flush()
 
-    async def calls_since(self, since: datetime) -> int:
-        """Calls that count against the provider quota (every attempt that reached it)."""
-        result = await self.s.scalar(
-            sa.select(sa.func.count()).select_from(AIRun).where(AIRun.started_at >= since)
-        )
-        return int(result or 0)
+    async def calls_since(
+        self, since: datetime, *, operation: str | None = None, exclude: str | None = "embed"
+    ) -> int:
+        """Calls that count against a provider quota (every attempt that reached it).
+        Embedding calls have their own quota, so they are left out unless asked for."""
+        stmt = sa.select(sa.func.count()).select_from(AIRun).where(AIRun.started_at >= since)
+        if operation is not None:
+            stmt = stmt.where(AIRun.operation == operation)
+        elif exclude is not None:
+            stmt = stmt.where(AIRun.operation != exclude)
+        return int(await self.s.scalar(stmt) or 0)
 
     async def usage_since(self, since: datetime) -> dict[str, float]:
         row = (
@@ -876,6 +884,85 @@ class ReviewRepo:
         await self.s.flush()
 
 
+class StoryRepo:
+    def __init__(self, session: AsyncSession) -> None:
+        self.s = session
+
+    async def add(self, cluster: StoryCluster) -> StoryCluster:
+        self.s.add(cluster)
+        await self.s.flush()
+        return cluster
+
+    async def get(self, cluster_id: int | None) -> StoryCluster | None:
+        return None if cluster_id is None else await self.s.get(StoryCluster, cluster_id)
+
+    async def candidates(self, since: datetime, limit: int) -> list[StoryCluster]:
+        """Recent stories that can still collect reports (they have an embedding centroid)."""
+        stmt = (
+            sa.select(StoryCluster)
+            .where(StoryCluster.last_updated >= since, StoryCluster.centroid.is_not(None))
+            .order_by(StoryCluster.last_updated.desc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+    async def unclustered(
+        self, since: datetime, statuses: Sequence[ArticleStatus], limit: int
+    ) -> list[Article]:
+        stmt = (
+            sa.select(Article)
+            .where(
+                Article.cluster_id.is_(None),
+                Article.effective_at >= since,
+                Article.status.in_([s.value for s in statuses]),
+            )
+            .order_by(Article.effective_at.asc(), Article.id.asc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+    async def unclustered_duplicates(self, limit: int) -> list[Article]:
+        stmt = (
+            sa.select(Article)
+            .where(
+                Article.cluster_id.is_(None),
+                Article.status == ArticleStatus.DUPLICATE.value,
+                Article.duplicate_of_id.is_not(None),
+            )
+            .order_by(Article.id.asc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+    async def members(self, cluster_id: int) -> list[Article]:
+        stmt = sa.select(Article).where(Article.cluster_id == cluster_id).order_by(Article.id)
+        return list((await self.s.scalars(stmt)).all())
+
+    async def by_role(self, role: str, status: ArticleStatus, limit: int) -> list[Article]:
+        stmt = (
+            sa.select(Article)
+            .where(Article.cluster_role == role, Article.status == status.value)
+            .order_by(Article.priority.desc(), Article.effective_at.asc(), Article.id.asc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+    async def add_claim(self, claim: Claim, evidence: Sequence[Evidence]) -> Claim:
+        self.s.add(claim)
+        await self.s.flush()
+        for item in evidence:
+            item.claim_id = claim.id
+            self.s.add(item)
+        await self.s.flush()
+        return claim
+
+    async def claims_for(self, summary_id: int | None) -> list[Claim]:
+        if summary_id is None:
+            return []
+        stmt = sa.select(Claim).where(Claim.summary_id == summary_id).order_by(Claim.id)
+        return list((await self.s.scalars(stmt)).all())
+
+
 class Repositories:
     """Everything one unit of work needs, sharing one session."""
 
@@ -895,6 +982,7 @@ class Repositories:
         self.summaries = SummaryRepo(session)
         self.ai_runs = AIRunRepo(session)
         self.reviews = ReviewRepo(session)
+        self.stories = StoryRepo(session)
 
     async def commit(self) -> None:
         await self.session.commit()

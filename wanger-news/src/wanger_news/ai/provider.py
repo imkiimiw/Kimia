@@ -22,6 +22,7 @@ from wanger_news.ai.schemas import (
     EntitiesOutput,
     SummarizeOutput,
     TranslateOutput,
+    UpdateOutput,
     VerifyOutput,
 )
 
@@ -90,6 +91,10 @@ class AIProvider(Protocol):
 
     async def verify(self, items: Sequence[dict[str, Any]]) -> AIResult[VerifyOutput]: ...
 
+    async def update(
+        self, items: Sequence[dict[str, Any]], *, language: str, categories: Sequence[str]
+    ) -> AIResult[UpdateOutput]: ...
+
     async def rewrite(
         self, items: Sequence[dict[str, Any]], *, language: str, categories: Sequence[str]
     ) -> AIResult[SummarizeOutput]: ...
@@ -104,7 +109,9 @@ class AIProvider(Protocol):
 
     async def extract_entities(self, item: dict[str, Any]) -> AIResult[EntitiesOutput]: ...
 
-    async def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
+    async def embed(
+        self, texts: Sequence[str], *, model: str | None = None, dimensions: int | None = None
+    ) -> list[list[float]]: ...
 
     def prompt_version(self, operation: str, language: str = "any") -> str: ...
 

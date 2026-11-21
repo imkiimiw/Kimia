@@ -27,9 +27,28 @@ class Quote(_Model):
     speaker: str = Field(default="", description="who said it, as named in the source")
 
 
+class Support(_Model):
+    source_id: str = Field(description="the id of the source that states it, e.g. s12")
+    evidence: str = Field(description="a verbatim excerpt of THAT source supporting the claim")
+
+
 class Claim(_Model):
     text: str = Field(description="one factual statement of the Persian text")
-    evidence: str = Field(description="a verbatim excerpt of the source text that supports it")
+    evidence: str = Field(default="", description="(single source) a verbatim excerpt")
+    support: list[Support] = Field(default=[], description="every source that states it")
+
+
+class Version(_Model):
+    source_id: str
+    statement: str = Field(description="what this source says, in Persian, without its name")
+    evidence: str = Field(description="a verbatim excerpt of this source")
+
+
+class Contradiction(_Model):
+    topic: str = Field(
+        description="what the sources disagree about, in Persian (e.g. شمار قربانیان)"
+    )
+    versions: list[Version] = Field(min_length=2)
 
 
 class ImportanceFactors(_Model):
@@ -52,6 +71,8 @@ class SummaryDraft(_Model):
     entities: list[Entity] = []
     quotes: list[Quote] = []
     claims: list[Claim] = []
+    contradictions: list[Contradiction] = []
+    excluded_sources: list[str] = Field(default=[], description="sources about another event")
     insufficient_information: bool = False
 
     def texts(self) -> list[str]:

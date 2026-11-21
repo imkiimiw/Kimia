@@ -65,6 +65,15 @@ def importance(
     )
 
 
+def independent_score(count: int, cfg: ScoringConfig) -> int:
+    known = sorted(cfg.independent_source_scores.items())
+    best = known[0][1] if known else 0
+    for threshold, score in known:
+        if count >= threshold:
+            best = score
+    return best
+
+
 def confidence(
     *,
     reliability: int,
@@ -73,22 +82,33 @@ def confidence(
     guard_state: str,
     independent_sources: int,
     cfg: ScoringConfig,
+    contradictions: int = 0,
 ) -> Score:
+    """Spec §8: reliability, number of INDEPENDENT sources, primary source, completeness,
+    absence of contradiction. Caps: one source ≤ single_source_cap; contradictions ≤ conflict_cap;
+    a failed guard ≤ guard_failed_cap."""
     if guard_state not in GUARD_STATES:
         raise ValueError(f"unknown guard state {guard_state!r}")
     primary = source_type in cfg.primary_source_types if source_type else False
     components = {
         "reliability": float(reliability),
+        "independent_sources": float(independent_score(independent_sources, cfg)),
         "primary_source": float(
             cfg.primary_source_score if primary else cfg.secondary_source_score
         ),
         "quality": float(quality),
         "guard": float(cfg.guard_scores.get(guard_state, 0)),
+        "consistency": 30.0 if contradictions else 100.0,
     }
     raw = _weighted(components, cfg.confidence_weights)
-    capped = min(raw, cfg.single_source_cap) if independent_sources <= 1 else raw
-    if guard_state == "failed":
-        capped = min(capped, cfg.guard_failed_cap)
+    capped = raw
+    caps: list[str] = []
+    if independent_sources <= 1 and capped > cfg.single_source_cap:
+        capped, caps = cfg.single_source_cap, [*caps, "single_source"]
+    if contradictions and capped > cfg.conflict_cap:
+        capped, caps = cfg.conflict_cap, [*caps, "conflict"]
+    if guard_state == "failed" and capped > cfg.guard_failed_cap:
+        capped, caps = cfg.guard_failed_cap, [*caps, "guard_failed"]
     return Score(
         capped,
         {
@@ -96,7 +116,9 @@ def confidence(
             "weights": dict(cfg.confidence_weights),
             "raw": raw,
             "independent_sources": independent_sources,
+            "contradictions": contradictions,
             "single_source_cap": cfg.single_source_cap if independent_sources <= 1 else None,
+            "caps": caps,
             "capped": capped < raw,
             "guard_state": guard_state,
         },

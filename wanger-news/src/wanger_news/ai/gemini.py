@@ -32,6 +32,7 @@ from wanger_news.ai.schemas import (
     EntitiesOutput,
     SummarizeOutput,
     TranslateOutput,
+    UpdateOutput,
     VerifyOutput,
     json_schema,
 )
@@ -47,7 +48,7 @@ SAFETY_CATEGORIES = (
 )
 #: news about wars and crimes must be summarisable; only high-probability harm is blocked
 SAFETY_THRESHOLD = "BLOCK_ONLY_HIGH"
-EMBEDDING_MODEL = "gemini-embedding-001"
+DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 
 
@@ -80,6 +81,13 @@ class GeminiProvider:
     async def verify(self, items: Sequence[dict[str, Any]]) -> AIResult[VerifyOutput]:
         return await self._call("verify", "any", list(items), VerifyOutput)
 
+    async def update(
+        self, items: Sequence[dict[str, Any]], *, language: str, categories: Sequence[str]
+    ) -> AIResult[UpdateOutput]:
+        return await self._call(
+            "update", language, list(items), UpdateOutput, categories=", ".join(categories)
+        )
+
     async def rewrite(
         self, items: Sequence[dict[str, Any]], *, language: str, categories: Sequence[str]
     ) -> AIResult[SummarizeOutput]:
@@ -103,20 +111,31 @@ class GeminiProvider:
     async def extract_entities(self, item: dict[str, Any]) -> AIResult[EntitiesOutput]:
         return await self._call("extract_entities", "any", item, EntitiesOutput)
 
-    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        """Phase 3 (clustering) uses this; one batch request."""
-        url = f"{self._cfg.api_base}/models/{EMBEDDING_MODEL}:batchEmbedContents"
-        body = {
-            "requests": [
-                {"model": f"models/{EMBEDDING_MODEL}", "content": {"parts": [{"text": t}]}}
-                for t in texts
-            ]
-        }
-        data = await self._post(url, body)
+    async def embed(
+        self, texts: Sequence[str], *, model: str | None = None, dimensions: int | None = None
+    ) -> list[list[float]]:
+        """One batch request (Phase 3 clustering). taskType CLUSTERING, optional smaller
+        vectors (outputDimensionality); vectors are normalized by the caller."""
+        name = model or DEFAULT_EMBEDDING_MODEL
+        url = f"{self._cfg.api_base}/models/{name}:batchEmbedContents"
+        requests: list[dict[str, Any]] = []
+        for text in texts:
+            request: dict[str, Any] = {
+                "model": f"models/{name}",
+                "content": {"parts": [{"text": text}]},
+                "taskType": "CLUSTERING",
+            }
+            if dimensions:
+                request["outputDimensionality"] = dimensions
+            requests.append(request)
+        data = await self._post(url, {"requests": requests})
         try:
-            return [list(map(float, e["values"])) for e in data["embeddings"]]
+            vectors = [list(map(float, e["values"])) for e in data["embeddings"]]
         except (KeyError, TypeError, ValueError) as exc:
             raise AIInvalidOutput(f"embeddings: unexpected answer ({type(exc).__name__})") from None
+        if len(vectors) != len(texts):
+            raise AIInvalidOutput(f"embeddings: {len(vectors)} vectors for {len(texts)} texts")
+        return vectors
 
     # ---------------------------------------------------------------- transport
     async def _call(

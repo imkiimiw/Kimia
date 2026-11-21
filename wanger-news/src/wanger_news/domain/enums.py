@@ -32,6 +32,7 @@ class ArticleStatus(StrEnum):
     PENDING_REVIEW = "pending_review"  # waits for a human decision (review card in PM)
     HELD = "held"  # manual publish mode: prepared, posted only when an admin picks it
     REJECTED = "rejected"  # a human rejected it
+    MERGED = "merged"  # part of a story: its report is carried by the story's posts (Phase 3)
     PUBLISHED = "published"
     DUPLICATE = "duplicate"
     FILTERED = "filtered"  # below the gate, or black/whitelist
@@ -62,6 +63,17 @@ class FingerprintKind(StrEnum):
     TG_ORIGIN = "tg_origin"
 
 
+class ClusterRole(StrEnum):
+    """An article's place in its story (Phase 3)."""
+
+    LEAD = "lead"  # its post represents the story
+    SUPPORT = "support"  # joined before the summary: one more source for it
+    UPDATE = "update"  # joined after publication (or while the lead waited): maybe news
+    CORROBORATION = "corroboration"  # same origin, or nothing new: counted, not posted
+    HUMAN = "human"  # a source-channel post (copied as it is)
+    EXTERNAL = "external"  # posted by hand in a target channel
+
+
 class PostStatus(StrEnum):
     CLAIMED = "claimed"  # claimed by a run, the send is in progress
     SENT = "sent"
@@ -83,7 +95,9 @@ class JobStatus(StrEnum):
 class Stage(StrEnum):
     INGEST = "ingest"
     CLASSIFY = "classify"
+    CLUSTER = "cluster"
     AI_SUMMARIZE = "ai_summarize"
+    AI_UPDATE = "ai_update"
     PUBLISH = "publish"
     SOURCE_POST = "source_post"
     REVIEW = "review"

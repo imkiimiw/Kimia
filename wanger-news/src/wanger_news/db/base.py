@@ -25,6 +25,44 @@ JSONType = sa.JSON().with_variant(JSONB(), "postgresql")
 BigId = sa.BigInteger().with_variant(sa.Integer(), "sqlite")
 
 
+class PgVector(sa.types.UserDefinedType[list[float]]):
+    """pgvector's ``vector`` (no fixed dimension, so the embedding size can change in config).
+
+    Sent as its text form ``[0.1,0.2]`` with an explicit cast; read back into a list of floats.
+    """
+
+    cache_ok = True
+
+    def get_col_spec(self, **kw: Any) -> str:
+        return "vector"
+
+    def bind_processor(self, dialect: Dialect) -> Any:
+        def process(value: Any) -> str | None:
+            if value is None:
+                return None
+            return "[" + ",".join(repr(float(x)) for x in value) + "]"
+
+        return process
+
+    def result_processor(self, dialect: Dialect, coltype: Any) -> Any:
+        def process(value: Any) -> list[float] | None:
+            if value is None:
+                return None
+            if isinstance(value, str):
+                inner = value.strip().strip("[]")
+                return [float(x) for x in inner.split(",") if x.strip()]
+            return [float(x) for x in value]
+
+        return process
+
+    def bind_expression(self, bindvalue: Any) -> Any:
+        return sa.cast(bindvalue, self)
+
+
+#: embeddings: pgvector on PostgreSQL, a JSON list elsewhere (tests, dry runs)
+EmbeddingType = sa.JSON().with_variant(PgVector(), "postgresql")
+
+
 class UTCDateTime(sa.TypeDecorator[datetime]):
     """Always timezone-aware UTC in Python, whatever the backend stores."""
 

@@ -44,7 +44,11 @@ asyncio_default_fixture_loop_scope = "function"
 markers = [
     "postgres: needs a PostgreSQL server (WANGER_NEWS_TEST_POSTGRES_URL); skipped otherwise",
 ]
-filterwarnings = ["error::pytest.PytestUnraisableExceptionWarning"]
+filterwarnings = [
+    "error::pytest.PytestUnraisableExceptionWarning",
+    # schema reflection (the migration drift test) does not know pgvector's type: expected
+    "ignore:Did not recognize type 'vector':sqlalchemy.exc.SAWarning",
+]
 
 [tool.ruff]
 line-length = 100

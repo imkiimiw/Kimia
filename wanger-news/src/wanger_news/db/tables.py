@@ -13,7 +13,7 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
-from wanger_news.db.base import Base, BigId, JSONType
+from wanger_news.db.base import Base, BigId, EmbeddingType, JSONType
 
 _now = sa.text("CURRENT_TIMESTAMP")
 
@@ -120,6 +120,11 @@ class Article(Base):
     approved_by: Mapped[int | None] = mapped_column(sa.BigInteger)
     approved_at: Mapped[datetime | None] = mapped_column()
     publish_now: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.false())
+    # Phase 3 (migration 0003)
+    cluster_id: Mapped[int | None] = mapped_column(sa.BigInteger, index=True)
+    cluster_role: Mapped[str | None] = mapped_column(sa.String(16))
+    cluster_score: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
+    embedding: Mapped[list[float] | None] = mapped_column(EmbeddingType)
     created_at: Mapped[datetime] = mapped_column(server_default=_now)
     updated_at: Mapped[datetime] = mapped_column(server_default=_now)
 
@@ -155,6 +160,9 @@ class PublishedPost(Base):
     claimed_by: Mapped[str | None] = mapped_column(sa.String(64))
     claimed_at: Mapped[datetime | None] = mapped_column()
     sent_at: Mapped[datetime | None] = mapped_column()
+    kind: Mapped[str] = mapped_column(sa.String(16), server_default="story")  # story | update
+    cluster_id: Mapped[int | None] = mapped_column(sa.BigInteger)
+    reply_to_message_id: Mapped[int | None] = mapped_column(sa.BigInteger)
     created_at: Mapped[datetime] = mapped_column(server_default=_now)
     updated_at: Mapped[datetime] = mapped_column(server_default=_now)
 
@@ -301,3 +309,66 @@ class ReviewRequest(Base):
     closed_by: Mapped[int | None] = mapped_column(sa.BigInteger)
     created_at: Mapped[datetime] = mapped_column()
     closed_at: Mapped[datetime | None] = mapped_column()
+
+
+# ------------------------------------------------------------------------------ Phase 3
+
+
+class StoryCluster(Base):
+    """One event (spec §7). Lives on after publication so later reports become update posts."""
+
+    __tablename__ = "story_clusters"
+    id: Mapped[int] = mapped_column(BigId, primary_key=True, autoincrement=True)
+    event_id: Mapped[str] = mapped_column(sa.String(32), unique=True)
+    lead_article_id: Mapped[int | None] = mapped_column(sa.BigInteger)
+    title: Mapped[str | None] = mapped_column(sa.Text)
+    summary_id: Mapped[int | None] = mapped_column(sa.BigInteger)
+    category: Mapped[str | None] = mapped_column(sa.String(32))
+    entities: Mapped[list[str]] = mapped_column(JSONType, default=list)
+    locations: Mapped[list[str]] = mapped_column(JSONType, default=list)
+    first_seen: Mapped[datetime] = mapped_column()
+    last_updated: Mapped[datetime] = mapped_column(index=True)
+    importance_score: Mapped[int | None] = mapped_column(sa.Integer)
+    confidence_score: Mapped[int | None] = mapped_column(sa.Integer)
+    independent_sources: Mapped[int] = mapped_column(sa.Integer, server_default="1")
+    sources: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list)
+    member_count: Mapped[int] = mapped_column(sa.Integer, server_default="0")
+    centroid: Mapped[list[float] | None] = mapped_column(EmbeddingType)
+    contradictions: Mapped[int] = mapped_column(sa.Integer, server_default="0")
+    timeline: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list)
+    published_at: Mapped[datetime | None] = mapped_column()
+    post_chat: Mapped[str | None] = mapped_column(sa.String(64))
+    post_message_id: Mapped[int | None] = mapped_column(sa.BigInteger)
+    published_text: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
+    created_at: Mapped[datetime] = mapped_column(server_default=_now)
+    updated_at: Mapped[datetime] = mapped_column(server_default=_now)
+
+
+class Claim(Base):
+    """A factual claim of a published-or-pending text (spec §8): who says it, how sure we are."""
+
+    __tablename__ = "claims"
+    id: Mapped[int] = mapped_column(BigId, primary_key=True, autoincrement=True)
+    cluster_id: Mapped[int | None] = mapped_column(sa.BigInteger, index=True)
+    summary_id: Mapped[int] = mapped_column(sa.BigInteger, index=True)
+    article_id: Mapped[int] = mapped_column(sa.BigInteger)
+    text: Mapped[str] = mapped_column(sa.Text)
+    status: Mapped[str] = mapped_column(
+        sa.String(16)
+    )  # confirmed likely unconfirmed conflicting rejected
+    confidence: Mapped[int] = mapped_column(sa.Integer)
+    source_article_ids: Mapped[list[int]] = mapped_column(JSONType, default=list)
+    versions: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONType)
+    created_at: Mapped[datetime] = mapped_column(server_default=_now)
+
+
+class Evidence(Base):
+    """A verbatim excerpt of one article that supports (or contradicts) a claim."""
+
+    __tablename__ = "evidence"
+    id: Mapped[int] = mapped_column(BigId, primary_key=True, autoincrement=True)
+    claim_id: Mapped[int] = mapped_column(sa.BigInteger, index=True)
+    article_id: Mapped[int] = mapped_column(sa.BigInteger)
+    excerpt: Mapped[str] = mapped_column(sa.Text)
+    supports: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.true())
+    created_at: Mapped[datetime] = mapped_column(server_default=_now)

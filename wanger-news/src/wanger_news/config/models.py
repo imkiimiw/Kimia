@@ -326,6 +326,31 @@ class GuardConfig(StrictModel):
     max_key_points: int = Field(default=5, ge=0)
 
 
+class StoryConfig(StrictModel):
+    """Phase 3: story clustering (same event, spec §7) and multi-source processing."""
+
+    enabled: bool = True
+    embedding_model: str = "gemini-embedding-001"
+    embedding_dimensions: int = Field(default=768, ge=16, le=3072)
+    embed_text_chars: int = Field(default=1200, ge=100)
+    embed_batch_size: int = Field(default=100, ge=1, le=100)
+    max_embed_calls_per_run: int = Field(default=3, ge=0)
+    window_hours: float = Field(default=72, gt=0)
+    max_candidates: int = Field(default=500, ge=10)
+    # same event when cosine >= min_cosine AND (cosine >= strong_cosine OR shared names)
+    min_cosine: float = Field(default=0.84, gt=0, le=1)
+    strong_cosine: float = Field(default=0.92, gt=0, le=1)
+    min_entity_overlap: float = Field(default=0.2, ge=0, le=1)
+    time_full_hours: float = Field(default=6, gt=0)
+    score_weights: dict[str, float] = {"cosine": 0.7, "entities": 0.2, "time": 0.1}
+    settle_minutes: float = Field(default=15, ge=0)
+    settle_skip_priority: int = Field(default=100, ge=0, le=100)
+    syndication_min_jaccard: float = Field(default=0.6, gt=0, le=1)
+    max_sources_per_story: int = Field(default=5, ge=1, le=10)
+    max_input_chars_per_call: int = Field(default=30000, ge=2000)
+    review_conflicts: bool = True
+
+
 class ScoringConfig(StrictModel):
     """Explainable importance and confidence (spec §8). Weights are relative."""
 
@@ -342,11 +367,16 @@ class ScoringConfig(StrictModel):
     recency_full_hours: float = Field(default=2, ge=0)
     recency_zero_hours: float = Field(default=24, gt=0)
     confidence_weights: dict[str, float] = {
-        "reliability": 0.5,
-        "primary_source": 0.15,
-        "quality": 0.15,
-        "guard": 0.2,
+        "reliability": 0.4,
+        "independent_sources": 0.2,
+        "primary_source": 0.1,
+        "quality": 0.1,
+        "guard": 0.15,
+        "consistency": 0.05,
     }
+    independent_source_scores: dict[int, int] = {1: 40, 2: 75, 3: 100}
+    conflict_cap: int = Field(default=69, ge=0, le=100)  # conflicting reports are never "confirmed"
+    likely_min_reliability: int = Field(default=80, ge=0, le=100)  # one strong primary = "likely"
     primary_source_types: list[SourceType] = [
         SourceType.NEWS_AGENCY,
         SourceType.GOVERNMENT,
@@ -376,6 +406,7 @@ class PipelineConfig(StrictModel):
     ai: AIConfig = AIConfig()
     guard: GuardConfig = GuardConfig()
     scoring: ScoringConfig = ScoringConfig()
+    story: StoryConfig = StoryConfig()
 
 
 # --------------------------------------------------------------------------------------------

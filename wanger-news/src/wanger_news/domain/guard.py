@@ -13,7 +13,7 @@ Any issue means: one rewrite without the unsupported parts, then a human. Never 
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from difflib import SequenceMatcher
@@ -250,16 +250,22 @@ def _contains_name(name: str, source_phrase: str) -> bool:
 # ------------------------------------------------------------------ the guard
 
 
-def check(draft: SummaryDraft, sources: Sequence[str], cfg: GuardConfig) -> GuardReport:
+def check(
+    draft: SummaryDraft, sources: Sequence[str] | Mapping[str, str], cfg: GuardConfig
+) -> GuardReport:
+    """``sources``: the texts the AI was given — a list, or source id → text for a story with
+    several sources (then every piece of evidence must come from the source it names)."""
     report = GuardReport()
-    source = "\n".join(sources)
+    by_id: dict[str, str] = dict(sources) if isinstance(sources, Mapping) else {}
+    source = "\n".join(by_id.values()) if by_id else "\n".join(sources)
     source_phrase = _phrase(source)
     _check_shape(draft, cfg, report)
     _check_numbers(draft, source, report)
     _check_latin(draft, source_phrase, report)
     _check_entities(draft, source_phrase, report)
     _check_quotes(draft, source, cfg, report)
-    _check_claims(draft, source, cfg, report)
+    _check_claims(draft, source, by_id, cfg, report)
+    _check_contradictions(draft, by_id, cfg, report)
     return report
 
 
@@ -288,7 +294,13 @@ def _check_shape(draft: SummaryDraft, cfg: GuardConfig, report: GuardReport) -> 
 def _check_numbers(draft: SummaryDraft, source: str, report: GuardReport) -> None:
     allowed = source_numbers(source)
     written: set[str] = set()
-    for text in [*draft.texts(), *(c.text for c in draft.claims), *(q.fa for q in draft.quotes)]:
+    texts = [
+        *draft.texts(),
+        *(c.text for c in draft.claims),
+        *(q.fa for q in draft.quotes),
+        *(c.topic for c in draft.contradictions),
+    ]
+    for text in texts:
         written |= numbers_in(text)
     for number in sorted(written):
         if number not in allowed:
@@ -325,12 +337,49 @@ def _check_quotes(draft: SummaryDraft, source: str, cfg: GuardConfig, report: Gu
             report.add("quote_not_in_source", quote.original[:80])
 
 
-def _check_claims(draft: SummaryDraft, source: str, cfg: GuardConfig, report: GuardReport) -> None:
+def _check_claims(
+    draft: SummaryDraft, source: str, by_id: dict[str, str], cfg: GuardConfig, report: GuardReport
+) -> None:
     for claim in draft.claims:
-        if not claim.evidence.strip():
+        supports = [s for s in claim.support if s.evidence.strip()]
+        if not supports and not claim.evidence.strip():
             report.add("claim_without_evidence", claim.text[:80])
-        elif window_similarity(claim.evidence, source) < cfg.evidence_min_similarity:
+            continue
+        if (
+            claim.evidence.strip()
+            and window_similarity(claim.evidence, source) < cfg.evidence_min_similarity
+        ):
             report.add("evidence_not_in_source", claim.evidence[:80])
+        for support in supports:
+            text = by_id.get(support.source_id, source if not by_id else None)
+            if text is None:
+                report.add("unknown_source", support.source_id)
+            elif window_similarity(support.evidence, text) < cfg.evidence_min_similarity:
+                report.add(
+                    "evidence_not_in_source", f"{support.source_id}: {support.evidence[:70]}"
+                )
+
+
+def _check_contradictions(
+    draft: SummaryDraft, by_id: dict[str, str], cfg: GuardConfig, report: GuardReport
+) -> None:
+    """Each side of a reported disagreement must really be in the source it is credited to,
+    numbers included: the system reports both versions, it never invents one."""
+    for item in draft.contradictions:
+        if len({v.source_id for v in item.versions}) < 2:
+            report.add("contradiction_one_source", item.topic[:80])
+        for version in item.versions:
+            text = by_id.get(version.source_id)
+            if text is None:
+                report.add("unknown_source", version.source_id)
+                continue
+            if window_similarity(version.evidence, text) < cfg.evidence_min_similarity:
+                report.add(
+                    "evidence_not_in_source", f"{version.source_id}: {version.evidence[:70]}"
+                )
+            missing = numbers_in(version.statement) - source_numbers(text)
+            for number in sorted(missing):
+                report.add("number_not_in_source", f"{version.source_id}: {number}")
 
 
 def unsupported_parts(report: GuardReport) -> list[str]:
@@ -353,6 +402,9 @@ def describe(report: GuardReport, limit: int = 5) -> list[str]:
         "empty": "خالی",
         "unsupported_claim": "ادعای تأییدنشده (بررسی AI)",
         "unsupported_statement": "جملهٔ بدون پشتوانه (بررسی AI)",
+        "unknown_source": "منبع ناشناخته",
+        "contradiction_one_source": "تناقض با یک منبع",
+        "verification_unavailable": "بررسی دوم انجام نشد",
     }
     lines = [f"{labels.get(i.kind, i.kind)}: {i.detail}" for i in report.issues[:limit]]
     if len(report.issues) > limit:

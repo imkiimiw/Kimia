@@ -147,14 +147,45 @@ scoring:                       # spec §8 — every score keeps its breakdown
   recency_full_hours: 2
   recency_zero_hours: 24
   confidence_weights:
-    reliability: 0.5
-    primary_source: 0.15
-    quality: 0.15
-    guard: 0.2
+    reliability: 0.4
+    independent_sources: 0.2
+    primary_source: 0.1
+    quality: 0.1
+    guard: 0.15
+    consistency: 0.05
+  independent_source_scores: {1: 40, 2: 75, 3: 100}   # 3 or more independent origins = 100
   primary_source_types: [news_agency, government, official_organization]
   primary_source_score: 100
   secondary_source_score: 60
   guard_scores: {passed: 100, after_rewrite: 80, human: 90, failed: 0}
   single_source_cap: 69        # one source can never be "confirmed" (needs independent sources)
   guard_failed_cap: 49         # text that failed the hallucination guard is "unconfirmed"
+  conflict_cap: 69             # sources that contradict each other: never "confirmed"
+  likely_min_reliability: 80   # a claim from one primary source this reliable is "likely"
   label_thresholds: {confirmed: 90, likely: 70, preliminary: 50}
+
+# ---------------------------------------------------------------- Phase 3: stories
+story:
+  enabled: true
+  embedding_model: gemini-embedding-001
+  embedding_dimensions: 768       # smaller vectors, a free-tier database stays small
+  embed_text_chars: 1200          # title + start of the text, in the source language
+  embed_batch_size: 100           # texts per embedding request
+  max_embed_calls_per_run: 3
+  window_hours: 72                # an event can collect reports for three days
+  max_candidates: 500
+  # Same event when cosine >= min_cosine AND (cosine >= strong_cosine OR shared names >= overlap).
+  # Conservative on purpose: wrongly merging two events would hide one of them. The AI summary
+  # can still send a source back out of a story (excluded_sources / same_event=false).
+  # NOT calibrated on real embeddings yet — see PLAN.md (watch /status and the cluster report).
+  min_cosine: 0.84
+  strong_cosine: 0.92
+  min_entity_overlap: 0.2
+  time_full_hours: 6
+  score_weights: {cosine: 0.7, entities: 0.2, time: 0.1}
+  settle_minutes: 15              # wait for more sources before summarising (priority 100: no wait)
+  settle_skip_priority: 100
+  syndication_min_jaccard: 0.6    # texts this similar from different outlets = one origin (a wire copy)
+  max_sources_per_story: 5
+  max_input_chars_per_call: 30000
+  review_conflicts: true          # stories whose sources contradict each other go to a human

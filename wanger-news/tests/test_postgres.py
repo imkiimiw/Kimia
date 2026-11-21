@@ -35,6 +35,7 @@ async def pg() -> AsyncIterator[AsyncEngine]:
     assert URL is not None
     engine = create_engine(URL)
     async with engine.begin() as conn:
+        await conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield engine

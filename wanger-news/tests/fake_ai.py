@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -14,6 +15,7 @@ from wanger_news.ai.schemas import (
     EntitiesOutput,
     SummarizeOutput,
     TranslateOutput,
+    UpdateOutput,
     VerifyOutput,
 )
 
@@ -47,6 +49,10 @@ class FakeAI:
     #: substring of the source text → statements the verifier calls unsupported
     unsupported: dict[str, list[str]] = field(default_factory=dict)
     failures: dict[str, list[Exception]] = field(default_factory=dict)
+    #: substring of any source text → fields of the update answer (same_event, has_new_information…)
+    updates: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: substring of the text → a fixed embedding vector
+    vectors: dict[str, list[float]] = field(default_factory=dict)
     calls: list[tuple[str, list[str]]] = field(default_factory=list)
 
     def fail(self, operation: str, exc: Exception) -> None:
@@ -71,14 +77,31 @@ class FakeAI:
     def _match(table: dict[str, Any], text: str) -> Any:
         return next((v for k, v in table.items() if k in text), None)
 
+    @staticmethod
+    def source_texts(item: dict[str, Any]) -> list[tuple[str, str]]:
+        """(source_id, text) pairs of an item, whatever the payload shape."""
+        if item.get("sources"):
+            return [(str(s["source_id"]), str(s["text"])) for s in item["sources"]
+                    if not s.get("previous")] or [
+                (str(s["source_id"]), str(s["text"])) for s in item["sources"]]
+        return [("", str(item.get("text") or item.get("source_text") or ""))]
+
+    def all_text(self, item: dict[str, Any]) -> str:
+        if item.get("sources"):
+            return "\n".join(str(s["text"]) for s in item["sources"])
+        return str(item.get("text") or item.get("source_text") or "")
+
     def _draft(self, item: dict[str, Any], table: dict[str, dict[str, Any]]) -> dict[str, Any]:
-        text = str(item.get("text") or item.get("source_text") or "")
-        draft: dict[str, Any] = {
-            **GENERIC,
-            "id": item["id"],
-            "claims": [{"text": "ادعای اصلی خبر", "evidence": evidence_from(text)}],
-        }
-        draft.update(self._match(table, text) or {})
+        sources = self.source_texts(item)
+        support = [{"source_id": sid, "evidence": evidence_from(text)}
+                   for sid, text in sources if sid]
+        claim: dict[str, Any] = {"text": "ادعای اصلی خبر"}
+        if support:
+            claim["support"] = support
+        else:
+            claim["evidence"] = evidence_from(sources[0][1])
+        draft: dict[str, Any] = {**GENERIC, "id": item["id"], "claims": [claim]}
+        draft.update(self._match(table, self.all_text(item)) or {})
         return draft
 
     def operations(self) -> list[str]:
@@ -103,7 +126,7 @@ class FakeAI:
         self._check("verify", [i["id"] for i in items])
         out = []
         for item in items:
-            bad = self._match(self.unsupported, str(item.get("source_text", ""))) or []
+            bad = self._match(self.unsupported, self.all_text(item)) or []
             draft_text = " ".join(
                 [item["draft"].get("summary", ""), *item["draft"].get("key_points", [])]
             )
@@ -131,6 +154,19 @@ class FakeAI:
         )
         return AIResult(data=data, usage=self._usage("rewrite"), raw="{}")
 
+    async def update(self, items: Sequence[dict[str, Any]], *, language: str,
+                     categories: Sequence[str]) -> AIResult[UpdateOutput]:
+        self._check("update", [i["id"] for i in items])
+        out = []
+        for item in items:
+            draft = self._draft(item, {})
+            draft.update({"title": "به‌روزرسانی آزمایشی", "summary": "اطلاعات تازهٔ آزمایشی.",
+                          "key_points": []})
+            draft.update(self._match(self.updates, self.all_text(item)) or {})
+            out.append(draft)
+        return AIResult(data=UpdateOutput.model_validate({"articles": out}),
+                        usage=self._usage("update"), raw="{}")
+
     async def translate(self, text: str, *, language: str) -> AIResult[TranslateOutput]:
         self._check("translate", [])
         return AIResult(data=TranslateOutput(text="ترجمه"), usage=self._usage("translate"))
@@ -146,5 +182,20 @@ class FakeAI:
     async def extract_entities(self, item: dict[str, Any]) -> AIResult[EntitiesOutput]:
         raise NotImplementedError
 
-    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        return [[0.0] for _ in texts]
+    async def embed(self, texts: Sequence[str], *, model: str | None = None,
+                    dimensions: int | None = None) -> list[list[float]]:
+        """Bag-of-words hashing: texts sharing many words get a high cosine, like a real
+        embedding would for two reports of the same event. ``vectors`` overrides by substring."""
+        self._check("embed", [])
+        size = dimensions or 64
+        out = []
+        for text in texts:
+            forced = self._match(self.vectors, text)
+            if forced is not None:
+                out.append(list(forced))
+                continue
+            vec = [0.0] * size
+            for word in re.findall(r"\w{4,}", text.lower()):
+                vec[int(hashlib.md5(word.encode()).hexdigest(), 16) % size] += 1.0
+            out.append(vec)
+        return out

@@ -25,6 +25,17 @@ class SummarizeOutput(_Model):
     articles: list[SummarizedArticle]
 
 
+class UpdatedArticle(SummarizedArticle):
+    """An update to a published story: only what is NEW (Phase 3)."""
+
+    same_event: bool = True
+    has_new_information: bool = True
+
+
+class UpdateOutput(_Model):
+    articles: list[UpdatedArticle]
+
+
 class ClaimVerdict(_Model):
     index: int = Field(ge=0)
     supported: bool
@@ -80,6 +91,7 @@ __all__ = [
     "Entity",
     "SummarizeOutput",
     "TranslateOutput",
+    "UpdateOutput",
     "VerifyOutput",
     "json_schema",
 ]
