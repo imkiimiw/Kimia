@@ -69,7 +69,7 @@ test('button labels and command descriptions fit Telegram limits', () => {
     for (const [key, s] of Object.entries(dicts[lang])) {
       if (/\.btn_|^common\.(back|cancel|no|yes_remove|refresh)$|^bc\.(aud|mode)_btn_/.test(key)) assert.ok(s.length <= 64, `${lang} ${key} is too long for a button`);
       if (key.startsWith('cmd.')) assert.ok(s.length >= 1 && s.length <= 256, `${lang} ${key}`);
-      if (/^(app|cmd|alias|modcmd|seccmd|advcmd|soccmd|qacmd|funcmd|mediacmd|funlist|fallist|cultlist|ptest|dreamlist|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
+      if (/^(app|cmd|alias|modcmd|seccmd|advcmd|soccmd|qacmd|funcmd|mediacmd|funlist|fallist|cultlist|ptest|dreamlist|gamelist|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
     }
   }
 });
@@ -222,6 +222,10 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'funlist.': ['ball8', 'fortune', 'truth', 'dare', 'wyr', 'quote', 'scramble', 'typing', 'trivia', 'universe', 'weekly', 'lovefal', 'jobfal', 'challenge', 'deepq', 'dateidea', 'likely'],
     'fun.dq_': [1, 2, 3, 4, 5, 6, 7, 8],
     'dreamlist.k_': fun.DREAMS.map(([c]) => c), 'dreamlist.m_': fun.DREAMS.map(([c]) => c), 'dreamlist.': ['lucid', 'lucid_ex'],
+    /* puzzles: countries, riddles, the genie's questions and animals, the escape room */
+    'gamelist.c_': fun.puzzles.COUNTRIES, 'gamelist.rq_': [...Array(24).keys()], 'gamelist.ra_': [...Array(24).keys()], 'gamelist.gq_': [...Array(12).keys()],
+    'gamelist.an_': fun.puzzles.NAMES, 'gamelist.er_': Object.keys(fun.puzzles.ESCAPE), 'gamelist.eo_': Object.keys(fun.puzzles.ESCAPE).filter((n) => fun.puzzles.ESCAPE[n].length),
+    'fun.cipher_how_': ['rev', 'shift', 'num'], 'fun.': ['cipher_win'],
     /* films, books and music */
     'cultlist.': ['dlg', 'exc'], 'fun.cg_': [...new Set(['m', 'u', 'b'].flatMap((k) => fun.culture.genres(k)))], 'fun.cl_': [...new Set(['m', 'u', 'b'].flatMap((k) => fun.culture.langs(k)))],
     'funcmd.': [...fun.CODES.filter((c) => c !== 'act' && c !== 'bday'), ...fun.ACTS, 'birthday', 'birthdays', 'fun', 'fal', 'special', 'unspecial'],

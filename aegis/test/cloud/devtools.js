@@ -113,6 +113,8 @@ export default async function (input) {
         .concat(fun.poems.poem('babataher', 249).v[1][1]),
       culture: [fun.culture.count('dialogues'), fun.culture.count('excerpts'), ...['m', 'u', 'b'].map((k) => fun.culture.items(k).length), fun.culture.select('u', 'a0').length],
       mix: Object.fromEntries(fun.fonts.render('Araz').pages.mix).g_bi,
+      puzzles: [fun.puzzles.cipher('planet', 'shift', 'en'), fun.puzzles.flagOf('ir'), fun.puzzles.FILMS.filter(([, t]) => fun.culture.items('m').some((m) => m.t === t)).length,
+        fun.puzzles.genie('').ask !== undefined ? 'ask' : 'x', fun.puzzles.letters('sun', 'en', []).length],
     };
   }
   if (action === 'shabench') {

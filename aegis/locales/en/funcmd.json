@@ -91,5 +91,14 @@
   "knowme": "how well do you know me",
   "dream": "dream meaning|interpret my dream",
   "lucid": "lucid dreaming|lucid dream",
-  "dreamlog": "dream journal"
+  "dreamlog": "dream journal",
+  "cipher": "secret code|crack the code",
+  "hangman": "hangman",
+  "memory": "memory test",
+  "emojimovie": "guess the film|emoji movie",
+  "flags": "flag quiz",
+  "riddle": "riddle",
+  "genie": "genie|guess my animal",
+  "escape": "escape room",
+  "story": "chain story"
 }

@@ -15,6 +15,7 @@ import { num } from '../tgcloud/lib/i18n/index.js';
 import { fmtTime, localMinutes, TZ_OFFSETS } from '../tgcloud/lib/core/clock.js';
 import { utf8Bytes, utf8Text } from '../tgcloud/lib/core/util.js';
 import { decodeImage, encodeJpeg, qr } from '../tgcloud/lib/core/image.js';
+import { puzzles } from '../tgcloud/lib/engines/fun.js';
 import fs from 'node:fs';
 
 const FIXTURES = new URL('./fixtures/', import.meta.url).pathname; /* before the globals the isolate lacks are removed */
@@ -3902,7 +3903,7 @@ mock.addFile('p9_m', fixture('base420.jpg'));
 mock.addFile('p9_s', fixture('base420.jpg'));
 const mediaEndpoint = (await import('../tgcloud/endpoints/media.js')).default;
 
-await scenario('phase 9 — 🎮 the Fun panel: 84 features in thirteen groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
+await scenario('phase 9 — 🎮 the Fun panel: 93 features in fourteen groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
   tick(600);
   iota = mock.addChat({ id: IOTA, type: 'supergroup', title: 'Iota', count: 15, botRights: { can_manage_chat: true, can_change_info: true, can_delete_messages: true,
     can_restrict_members: true, can_invite_users: true, can_pin_messages: true, can_promote_members: true } });
@@ -3921,8 +3922,8 @@ await scenario('phase 9 — 🎮 the Fun panel: 84 features in thirteen groups, 
   assert.ok(dataOf(olgaScreen()).includes(I('fn')) && dataOf(olgaScreen()).includes(I('md')));
   await olga(I('fn'));
   assert.match(olgaScreen().plain, /🎮 Fun — \u2068Iota\u2069/);
-  assert.match(olgaScreen().plain, /On: 84 of 84/);
-  assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 13);
+  assert.match(olgaScreen().plain, /On: 93 of 93/);
+  assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 14);
   await olga(I('fn:c:dice'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:f:/.test(d)).length, 6);
   assert.match(olgaScreen().plain, /✅ 🎲 Dice — everyone · cooldown 30 s · per day 20/);
@@ -3934,7 +3935,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 84 features in thirteen groups, 
   await olga(I('fn:s:fun_rate'));
   assert.equal(iVal('fun_rate'), '20');
   await olga(I('fn'));
-  assert.match(olgaScreen().plain, /On: 83 of 84/);
+  assert.match(olgaScreen().plain, /On: 92 of 93/);
   const s = row("SELECT count(*) AS n FROM aegis_audit WHERE chat_id = ? AND action = 'settings.set' AND target LIKE 'fx_%'", IOTA).n;
   assert.equal(s, 5, 'every change is logged');
 });
@@ -4789,6 +4790,97 @@ await scenario('🌙 dreams — the symbols of a dream in any language, the dict
   await onboard(tara, 'fa');
   const fd = lastSentTo(await dm(tara, 'تعبیر خواب خواب دیدم دندانم افتاد'), tara.id).params.text;
   assert.match(fd, /^‏🌙 ⁨تارا⁩، نمادهای خوابت:\n\n‏🦷 <b>دندان<\/b> — .+\n‏⬇️ <b>افتادن<\/b> — /);
+});
+
+await scenario('🧩 puzzles — a cipher, hangman, a film from emojis, a flag, a riddle, a chain story, the memory test, the genie and the escape room', async () => {
+  tick(600);
+  iSet('fun_rate', '0');
+  const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  /* the cipher: the first to write the word wins */
+  const cm = inIota(await imsg(P9.ivy, '/cipher'))[0];
+  assert.match(cm, /^🔐 <b>Crack the code!<\/b>\n<code>.+<\/code>\n(The letters are written backwards|Each letter was moved|Each number is)/);
+  const cw = JSON.parse(lastGame('cipher').state).word;
+  assert.equal(inIota(await imsg(P9.kit, 'no idea')).length, 0);
+  assert.match(inIota(await imsg(P9.jay, cw.toUpperCase()))[0], new RegExp(`^🔓 ⁨Jay⁩ cracked it: <b>${reEsc(cw)}</b>`));
+  /* hangman: letter buttons, six mistakes at most */
+  const hm = toChat(await imsg(P9.kit, '/hangman'), IOTA)[0];
+  const hg = lastGame('hangman');
+  const hs = JSON.parse(hg.state);
+  const hmid = midOf(hm);
+  assert.match(hm.params.text, /^🪢 <b>Guess the word<\/b>\n<code>[_ ]+<\/code>\nMistakes: 0 of 6$/);
+  assert.equal(dataOf(mock.get(IOTA, hmid)).length, hs.letters.length);
+  const wrong = hs.letters.findIndex((ch) => !hs.word.includes(ch));
+  const miss = await gpress(P9.lux, IOTA, `fn:${hg.id}:h:${wrong}`, hmid);
+  assert.match(edits(miss.calls)[0].params.text, new RegExp(`Mistakes: 1 of 6 · ${reEsc(hs.letters[wrong])}$`));
+  assert.equal((await gpress(P9.nia, IOTA, `fn:${hg.id}:h:${wrong}`, hmid)).toast, 'That letter was already tried.');
+  let last = null;
+  for (const ch of new Set(hs.word.replace(/\s/g, ''))) last = await gpress(P9.nia, IOTA, `fn:${hg.id}:h:${hs.letters.indexOf(ch)}`, hmid);
+  assert.equal(last.toast, '🏆 You won!');
+  assert.match(edits(last.calls)[0].params.text, new RegExp(`^🪢 ⁨Nia⁩ found the word: <b>${reEsc(hs.word)}</b>!`));
+  /* films from emojis, flags and riddles: any accepted name wins */
+  const em = inIota(await imsg(P9.ivy, '/emojimovie'))[0];
+  const es = JSON.parse(lastGame('emojimovie').state);
+  assert.equal(em, `🍿 <b>Which film is it?</b>\n${es.emoji}\nWrite its title — the original or the English one (5 min).`);
+  assert.equal(inIota(await imsg(P9.jay, 'Some Other Film')).length, 0);
+  assert.match(inIota(await imsg(P9.lux, es.title.toLowerCase()))[0], new RegExp(`^🍿 ⁨Lux⁩ got it: <b>${reEsc(es.title.replace(/&/g, '&amp;'))}</b>`));
+  assert.match(inIota(await imsg(P9.nia, '/flags'))[0], /^🚩 <b>Which country is this\?<\/b>\n[\u{1F1E6}-\u{1F1FF}]{2}\n\(2 min\)$/u);
+  const fs9 = JSON.parse(lastGame('flags').state);
+  assert.match(inIota(await imsg(P9.kit, fs9.name.toUpperCase()))[0], new RegExp(`^🚩 ⁨Kit⁩: right, <b>${puzzles.flagOf(fs9.code)} ${reEsc(fs9.name)}</b>!`));
+  assert.match(inIota(await imsg(P9.jay, '/riddle'))[0], /^❓ <b>Riddle<\/b>\n.+\n\(5 min\)$/);
+  const rs = JSON.parse(lastGame('riddle').state);
+  assert.match(inIota(await imsg(P9.ivy, `${rs.answer}!`))[0], new RegExp(`^❓ ⁨Ivy⁩ solved it: <b>${reEsc(rs.answer)}</b>`));
+  /* the chain story: replies to the story add sentences; the starter (or an admin) ends it */
+  const sm = toChat(await imsg(P9.lux, '/story A cat found a key'), IOTA)[0];
+  const sg = lastGame('story');
+  const smid = midOf(sm);
+  assert.match(sm.params.text, /^🧵 <b>Chain story<\/b> — reply to this message with one sentence to continue it \(12 sentences, 1 h\)\.\n\n1\. A cat found a key — <i>⁨Lux⁩<\/i>$/);
+  assert.equal(inIota(await imsg(P9.kit, 'not a reply')).length, 0);
+  const add = await imsg(P9.kit, 'The key opened a tiny door', { reply_to_message: { message_id: smid, from: { id: BOT_ID, is_bot: true, first_name: 'Aegis' }, chat: iotaChat, date: 0, text: 'x' } });
+  assert.match(edits(add)[0].params.text, /\n2\. The key opened a tiny door — <i>⁨Kit⁩<\/i>$/);
+  assert.equal((await gpress(P9.jay, IOTA, `fn:${sg.id}:e`, smid)).toast, 'This isn\'t your game.');
+  const end = await gpress(P9.lux, IOTA, `fn:${sg.id}:e`, smid);
+  assert.match(edits(end.calls)[0].params.text, /^🧵 <b>The end!<\/b> Here is your story:\n\n1\. A cat found a key — .+\n2\. The key opened a tiny door — /);
+  assert.equal(row('SELECT status FROM aegis_fun_games WHERE id = ?', sg.id).status, 'ended');
+  /* the memory test: only the one who asked plays */
+  const mm = toChat(await imsg(P9.jay, '/memory'), IOTA)[0];
+  const seq = dataOf(mock.get(IOTA, midOf(mm)))[0].split(':')[2];
+  assert.match(mm.params.text, new RegExp(`^🧠 ⁨Jay⁩, remember this order:\n\n${[...seq].map((i) => puzzles.MEMO[Number(i)]).join(' ')}\n\n`));
+  assert.equal((await gpress(P9.kit, IOTA, `fn:mm:${seq}:s`, midOf(mm))).toast, 'Only the one who started this can answer.');
+  const ask = await gpress(P9.jay, IOTA, `fn:mm:${seq}:s`, midOf(mm));
+  assert.equal(edits(ask.calls)[0].params.text, '🧠 Tap the emojis in order (1 of 6):');
+  assert.equal(dataOf(mock.get(IOTA, midOf(mm))).length, 9, 'the emojis are not shown any more');
+  let mr = null;
+  for (let i = 1; i <= 6; i += 1) mr = await gpress(P9.jay, IOTA, `fn:mm:${seq}:${seq.slice(0, i)}`, midOf(mm));
+  assert.equal(edits(mr.calls)[0].params.text, '🧠 ⁨Jay⁩: all 6 in the right order — excellent memory!');
+  const bad = String((Number(seq[1]) + 1) % 9);
+  assert.match(edits((await gpress(P9.jay, IOTA, `fn:mm:${seq}:${seq[0]}${bad}`, midOf(mm))).calls)[0].params.text, /^🧠 ⁨Jay⁩: 1 of 6 right\. The order was:\n/);
+  /* the genie: honest answers about a giraffe */
+  const gm = toChat(await imsg(P9.nia, '/genie'), IOTA)[0];
+  assert.match(gm.params.text, /^🧞 ⁨Nia⁩, think of an animal — I will guess it! Answer honestly\.\n\n🧞 Question 1: .+\?$/);
+  let a = '';
+  let gs = null;
+  for (let step = 0; step < 16; step += 1) {
+    const r = puzzles.genie(a);
+    if (r.won || r.lost) break;
+    a += r.ask !== undefined ? (puzzles.ANIMALS.giraffe[r.ask] === '1' ? 'y' : 'n') : r.guess === 'giraffe' ? 'Y' : 'N';
+    gs = await gpress(P9.nia, IOTA, `fn:gn:${a}`, midOf(gm));
+  }
+  assert.match(edits(gs.calls)[0].params.text, /^🧞 I knew it: <b>a giraffe<\/b>! \(\d+ questions\)$/);
+  /* the escape room: the right way out */
+  const er = toChat(await imsg(P9.kit, '/escape'), IOTA)[0];
+  assert.match(er.params.text, /^🗝 <b>Escape room<\/b>\n\n.+/);
+  assert.deepEqual(dataOf(mock.get(IOTA, midOf(er))), ['fn:er:1', 'fn:er:2', 'fn:er:3']);
+  let ex = null;
+  for (const n of [1, 4, 6, 7]) ex = await gpress(P9.kit, IOTA, `fn:er:${n}`, midOf(er));
+  assert.deepEqual(dataOf(mock.get(IOTA, midOf(er))), ['fn:er:0'], 'the end: play again');
+  assert.ok(edits(ex.calls)[0].params.text.startsWith('🗝 <b>Escape room</b>\n\n'));
+  /* in private, in Persian: a flag; the story needs a group */
+  const tara = { id: 800000490, is_bot: false, first_name: 'تارا', language_code: 'fa' };
+  const pf = lastSentTo(await dm(tara, '/flags'), tara.id).params.text;
+  assert.match(pf, /^‏🚩 <b>این پرچم کدام کشور است؟<\/b>|^‏🚩 /);
+  const pfs = JSON.parse(row('SELECT state FROM aegis_fun_games WHERE chat_id = ? AND kind = ? ORDER BY id DESC LIMIT 1', tara.id, 'flags').state);
+  assert.match(lastSentTo(await dm(tara, pfs.name), tara.id).params.text, new RegExp(`^‏🚩 ⁨تارا⁩: .*<b>${puzzles.flagOf(pfs.code)} ${reEsc(pfs.name)}</b>`));
+  assert.doesNotMatch(lastSentTo(await dm(tara, '/story'), tara.id).params.text, /🧵 <b>/);
 });
 
 await scenario('phase 9 — 🖼 media in private: image tools, a sticker in the member\'s own pack, sticker → photo, a QR code made and read back, a GIF from photos, video → GIF, the PDF check', async () => {

@@ -88,6 +88,15 @@ export const FEATURES = [
   { code: 'spirit', cat: 'mind', emoji: '🪬', cmds: ['spirit'], def: '1,a,30,10,0', args: true },
   { code: 'match', cat: 'mind', emoji: '💞', cmds: ['match'], def: '1,a,60,10,0' },
   { code: 'knowme', cat: 'mind', emoji: '🎯', cmds: ['knowme'], def: '1,a,60,10,0' },
+  { code: 'cipher', cat: 'puzzle', emoji: '🔐', cmds: ['cipher'], def: '1,a,30,20,2', game: true },
+  { code: 'hangman', cat: 'puzzle', emoji: '🪢', cmds: ['hangman'], def: '1,a,60,10,2', game: true },
+  { code: 'emojimovie', cat: 'puzzle', emoji: '🍿', cmds: ['emojimovie'], def: '1,a,30,20,2', game: true },
+  { code: 'flags', cat: 'puzzle', emoji: '🚩', cmds: ['flags', 'flag'], def: '1,a,30,20,1', game: true },
+  { code: 'riddle', cat: 'puzzle', emoji: '❓', cmds: ['riddle'], def: '1,a,30,20,2', game: true },
+  { code: 'story', cat: 'puzzle', emoji: '🧵', cmds: ['story'], def: '1,a,60,5,0', game: true, args: true },
+  { code: 'memory', cat: 'puzzle', emoji: '💭', cmds: ['memory'], def: '1,a,30,10,0' },
+  { code: 'genie', cat: 'puzzle', emoji: '🧞', cmds: ['genie'], def: '1,a,30,10,0' },
+  { code: 'escape', cat: 'puzzle', emoji: '🗝', cmds: ['escape'], def: '1,a,30,10,0' },
   { code: 'dream', cat: 'dream', emoji: '🌙', cmds: ['dream'], def: '1,a,30,10,0', args: true },
   { code: 'lucid', cat: 'dream', emoji: '🌌', cmds: ['lucid'], def: '1,a,60,5,0' },
   { code: 'dreamlog', cat: 'dream', emoji: '📔', cmds: ['dreamlog'], def: '1,a,10,30,0', args: true },
@@ -105,7 +114,7 @@ export const FEATURES = [
   { code: 'repeat', cat: 'hours', emoji: '🔂', cmds: ['repeat'], def: '1,a,10,20,0', args: true },
   { code: 'number', cat: 'numbers', emoji: '🔢', cmds: ['number', 'num'], def: '1,a,10,20,0', args: true },
 ];
-export const CATS = ['dice', 'luck', 'fal', 'hours', 'numbers', 'social', 'daily', 'games', 'duel', 'text', 'culture', 'mind', 'dream'];
+export const CATS = ['dice', 'luck', 'fal', 'hours', 'numbers', 'social', 'daily', 'games', 'puzzle', 'duel', 'text', 'culture', 'mind', 'dream'];
 export const CODES = FEATURES.map((f) => f.code);
 export const byCode = (code) => FEATURES.find((f) => f.code === code) || null;
 export const SLASH = Object.fromEntries(FEATURES.flatMap((f) => f.cmds.map((c) => [c, f.code])));
@@ -122,7 +131,8 @@ export function catMode(s, cat) {
 }
 export const isSpecial = (chatId, userId) => lists.has(chatId, 'fun', String(userId));
 /* how long a game waits for its answer (seconds) */
-export const GAME_TIME = { guess: 600, math: 180, scramble: 180, typing: 180, trivia: 600, click: 120, rps: 600, ttt: 600 };
+export const GAME_TIME = { guess: 600, math: 180, scramble: 180, typing: 180, trivia: 600, click: 120, rps: 600, ttt: 600, cipher: 180, hangman: 600, emojimovie: 300,
+  flags: 120, riddle: 300, story: 3600 };
 
 export function conf(s, code) {
   const [on, who, cd, daily, reward] = String((s && s[`fx_${code}`]) || DEFAULTS[`fx_${code}`] || '0,a,0,0,0').split(',');
@@ -1222,3 +1232,92 @@ export const dreamlog = {
   count: async (userId) => Number((await db.get(sql`SELECT count(*) AS n FROM aegis_dreams WHERE user_id = ${userId}`)).n),
   clear: (userId) => db.run(sql`DELETE FROM aegis_dreams WHERE user_id = ${userId}`),
 };
+
+/* ---------- puzzles: secret code, hangman, films from emojis, flags, riddles, the genie, the escape room, the memory test ---------- */
+
+export const puzzles = (() => {
+  const ALPHABET = { en: 'abcdefghijklmnopqrstuvwxyz', fr: 'abcdefghijklmnopqrstuvwxyz', ru: 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя', fa: 'ابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهی' };
+  /* the ways a word can be hidden in a language (Chinese idioms are only turned around) */
+  const methods = (lang) => (ALPHABET[lang] ? ['rev', 'shift', 'num'] : ['rev']);
+  function cipher(word, method, lang) {
+    const abc = [...(ALPHABET[lang] || '')];
+    const chars = [...String(word).toLowerCase()];
+    if (method === 'rev') return chars.reverse().join('');
+    if (method === 'shift') return chars.map((ch) => (abc.includes(ch) ? abc[(abc.indexOf(ch) + 1) % abc.length] : ch)).join('');
+    return String(word).toLowerCase().split(/\s+/).map((w) => [...w].map((ch) => (abc.includes(ch) ? abc.indexOf(ch) + 1 : ch)).join('-')).join(' / ');
+  }
+  /* hangman: the buttons — the word's letters and others of the language, at most 21, shuffled */
+  function letters(word, lang, others, rnd = Math.random) {
+    const own = [...new Set([...String(word).toLowerCase()].filter((ch) => ch.trim()))];
+    const pool = ALPHABET[lang] ? [...ALPHABET[lang]] : [...new Set(others.join(''))];
+    const extra = pool.filter((ch) => !own.includes(ch)).sort(() => rnd() - 0.5).slice(0, Math.max(0, 21 - own.length));
+    return [...own, ...extra].slice(0, 21).sort(() => rnd() - 0.5);
+  }
+  const mask = (word, guessed) => [...String(word).toLowerCase()].map((ch) => (!ch.trim() ? ' ' : guessed.includes(ch) ? ch : '_')).join(' ');
+  const solved = (word, guessed) => [...String(word).toLowerCase()].every((ch) => !ch.trim() || guessed.includes(ch));
+  /* films from emojis: [emojis, the film's original title in the culture data] */
+  const FILMS = [
+  ['🚢🧊💔', 'Titanic'], ['🦁👑', 'The Lion King'], ['🐠🔍', 'Finding Nemo'],
+  ['🦈🌊🏊', 'Jaws'], ['🦖🏞🚙', 'Jurassic Park'], ['⭐⚔🌌', 'Star Wars'],
+  ['🧙⚡🪄', "Harry Potter and the Philosopher's Stone"], ['🤠🚀🧸', 'Toy Story'], ['🎈🏠👴', 'Up'],
+  ['💊🕶💻', 'The Matrix'], ['🏠👦🎄', 'Home Alone'], ['👽🚲🌕', 'E.T. the Extra-Terrestrial'],
+  ['🚗⚡⏰', 'Back to the Future'], ['👠🌪🦁', 'The Wizard of Oz'], ['🟢👹🐴', 'Shrek'],
+  ['🍝🔫🌹', 'The Godfather'], ['💭🌀🏙', 'Inception'], ['🚀🌌⏳', 'Interstellar'],
+  ['🏃🍫🍤', 'Forrest Gump'], ['🏨🪓❄', 'The Shining'], ['💀🎸🌼', 'Coco'],
+  ['😀😢😡', 'Inside Out'], ['🤖🌱🚀', 'WALL-E'], ['🐉👧🛁', '千と千尋の神隠し'],
+  ['🚿🔪🏨', 'Psycho'], ['👽🚀😱', 'Alien'], ['🥊🏃🎶', 'Rocky'],
+  ['👟👦👧', 'بچه\u200cهای آسمان'], ['🐄👨', 'گاو'], ['🏜🪱', 'Dune'],
+  ['🎹💃🌃', 'La La Land'], ['📺🏝👨', 'The Truman Show'], ['⏱🪖🏃', '1917'],
+  ['🚤🪖🏖', 'Dunkirk'], ['🤡🪜🃏', 'Joker'], ['🦇🃏🌃', 'The Dark Knight'],
+  ];
+  /* flags: ISO codes; the flag is the two regional indicator letters */
+  const COUNTRIES = ['ir', 'af', 'tj', 'tr', 'iq', 'sa', 'ae', 'eg', 'ma', 'dz', 'us', 'ca', 'mx', 'br', 'ar', 'cl', 'co', 'gb', 'ie', 'fr', 'de', 'it', 'es', 'pt', 'nl', 'be', 'ch', 'at', 'se', 'no', 'fi', 'dk', 'pl', 'ua', 'ru', 'gr', 'cn', 'jp', 'kr', 'in', 'pk', 'id', 'th', 'vn', 'au', 'nz', 'za', 'ng', 'ke', 'az'];
+  const flagOf = (code) => [...code.toUpperCase()].map((ch) => String.fromCodePoint(0x1F1E6 + ch.charCodeAt(0) - 65)).join('');
+  /*
+   * The genie: animals and their answers to the 12 questions (mammal, flies, water, bigger than a person, eats meat, a pet, a farm
+   * animal, stripes or spots, Africa, four legs, insect, fast). Each next question is the one that best splits the animals still
+   * possible, so the questions follow from the answers alone: y yes · n no · d not sure; then guesses: Y right · N wrong.
+   */
+  const ANIMALS = {
+  dog: '100011000101', cat: '100011000101', horse: '100100100101', cow: '100100110100',
+  sheep: '100000100100', chicken: '000000100000', lion: '100110001101', tiger: '100110010101',
+  elephant: '100100001100', giraffe: '100100011100', zebra: '100100011101', bear: '100110000100',
+  wolf: '100010000101', rabbit: '100001000101', mouse: '100000000100', monkey: '100000001000',
+  eagle: '010010000001', owl: '010010010000', parrot: '010001000000', penguin: '001010000000',
+  shark: '001110000001', dolphin: '101110000001', whale: '101110000000', goldfish: '001001000000',
+  snake: '000010010000', frog: '001010010000', butterfly: '010000010010', bee: '010000010010',
+  camel: '100100101100', kangaroo: '100100000001', cheetah: '100010011101', crocodile: '001110001100',
+  };
+  const NAMES = Object.keys(ANIMALS);
+  const GUESSES = 3;
+  function genie(answers) {
+    let cands = NAMES;
+    const asked = [];
+    let i = 0;
+    const qs = [...answers].filter((c) => 'ynd'.includes(c));
+    const gs = [...answers].filter((c) => 'YN'.includes(c));
+    for (;;) {
+      const free = [...Array(12).keys()].filter((q) => !asked.includes(q));
+      const best = free.map((q) => [q, Math.abs(cands.filter((a) => ANIMALS[a][q] === '1').length * 2 - cands.length)])
+        .filter(([q]) => { const yes = cands.filter((a) => ANIMALS[a][q] === '1').length; return yes > 0 && yes < cands.length; })
+        .sort((x, y) => x[1] - y[1] || x[0] - y[0])[0];
+      if (cands.length <= 1 || !best) break;
+      if (i >= qs.length) return { ask: best[0], n: asked.length + 1 };
+      const a = qs[i];
+      asked.push(best[0]);
+      if (a !== 'd') cands = cands.filter((x) => ANIMALS[x][best[0]] === (a === 'y' ? '1' : '0'));
+      i += 1;
+      if (!cands.length) return { lost: true };
+    }
+    const guesses = cands.slice(0, GUESSES);
+    if (gs.includes('Y')) return { won: guesses[gs.indexOf('Y')], n: asked.length };
+    if (gs.length >= guesses.length) return { lost: true };
+    return { guess: guesses[gs.length], n: asked.length };
+  }
+  /* the escape room: node → the nodes its choices lead to; 7 is the way out, 8 the wrong end */
+  const ESCAPE = { 0: [1, 2, 3], 1: [4, 3], 2: [5, 1], 3: [1, 2], 4: [6, 3], 5: [0], 6: [7, 8], 7: [], 8: [] };
+  /* the memory test: nine emojis; a sequence is six of their indices */
+  const MEMO = ['🍎', '🚗', '🐶', '⭐', '🎈', '🌙', '🔑', '🎵', '🌵'];
+  const sequence = (n = 6, rnd = Math.random) => [...Array(n)].map(() => Math.floor(rnd() * MEMO.length)).join('');
+  return { ALPHABET, methods, cipher, letters, mask, solved, FILMS, COUNTRIES, flagOf, ANIMALS, NAMES, genie, ESCAPE, MEMO, sequence };
+})();

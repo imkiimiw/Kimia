@@ -519,3 +519,56 @@ test('questionnaires: every question, answer and result of the 19 tests in every
   assert.ok(!T.valid(T.of('eq'), '03'), 'no fourth option');
   assert.equal(T.same('01230', '01111'), 2);
 });
+
+test('puzzles: ciphers, hangman letters, emoji films, flags, the genie, the escape room and the memory test', () => {
+  const P = fun.puzzles;
+  assert.equal(P.cipher('Planet', 'rev', 'en'), 'tenalp');
+  assert.equal(P.cipher('planet', 'shift', 'en'), 'qmbofu');
+  assert.equal(P.cipher('gardEn', 'num', 'en'), '7-1-18-4-5-14');
+  assert.deepEqual(P.methods('xx'), ['rev'], 'no alphabet: only reversing');
+  for (const lang of LANGS) {
+    assert.ok(P.methods(lang).includes('rev'));
+    for (const word of t(lang, 'funlist.scramble').split('\n').map((w) => w.replace('‏', '').trim()).filter(Boolean).slice(0, 30)) {
+      const keys = P.letters(word, lang, [word]);
+      assert.ok(keys.length <= 21, `${lang} ${word}: at most 21 buttons`);
+      assert.ok(P.solved(word, keys), `${lang} ${word}: every letter of the word has a button`);
+      assert.equal(new Set(keys).size, keys.length, `${lang} ${word}: no letter twice`);
+    }
+  }
+  assert.equal(P.mask('sun day', ['s', 'd']), 's _ _   d _ _');
+  assert.ok(!P.solved('sun', ['s', 'u']) && P.solved('sun', ['n', 'u', 's']));
+  const titles = new Set(fun.culture.items('m').map((m) => m.t));
+  for (const [emoji, title] of P.FILMS) assert.ok(titles.has(title) && emoji, `${title} is in the film list`);
+  assert.equal(new Set(P.COUNTRIES).size, P.COUNTRIES.length);
+  assert.equal(P.flagOf('ir'), '🇮🇷');
+  for (const lang of LANGS) for (const c of P.COUNTRIES) assert.ok(t(lang, `gamelist.c_${c}`).trim(), `${lang} ${c}`);
+  for (const lang of LANGS) {
+    for (let i = 0; i < 24; i += 1) assert.ok(t(lang, `gamelist.ra_${i}`).trim() && t(lang, `gamelist.rq_${i}`).trim(), `${lang} riddle ${i}`);
+    for (const n of Object.keys(P.ESCAPE)) {
+      if (P.ESCAPE[n].length) assert.equal(t(lang, `gamelist.eo_${n}`).split('|').length, P.ESCAPE[n].length, `${lang} escape choices ${n}`);
+    }
+  }
+  /* honest answers find every animal within three guesses */
+  for (const name of P.NAMES) {
+    let a = '';
+    for (let step = 0; step < 20; step += 1) {
+      const r = P.genie(a);
+      if (r.ask !== undefined) a += P.ANIMALS[name][r.ask] === '1' ? 'y' : 'n';
+      else if (r.guess) a += r.guess === name || P.ANIMALS[r.guess] === P.ANIMALS[name] ? 'Y' : 'N';
+      else {
+        assert.ok(r.won && P.ANIMALS[r.won] === P.ANIMALS[name], `${name} found`);
+        assert.ok(/^[ynd]{0,12}[YN]{0,3}$/.test(a) && `fn:gn:${a}`.length <= 64);
+        break;
+      }
+    }
+  }
+  assert.ok(P.genie('nnnnnnnnnnnn').lost || P.genie('nnnnnnnnnnnn').guess || P.genie('nnnnnnnnnnnn').ask !== undefined);
+  /* the escape room: every room leads somewhere known, and both ends can be reached from the start */
+  const seen = new Set([0]);
+  const todo = [0];
+  while (todo.length) for (const n of P.ESCAPE[todo.pop()]) if (!seen.has(n)) { assert.ok(P.ESCAPE[n], `room ${n}`); seen.add(n); todo.push(n); }
+  assert.ok(seen.has(7) && seen.has(8) && seen.size === Object.keys(P.ESCAPE).length);
+  const seq = P.sequence();
+  assert.match(seq, /^[0-8]{6}$/);
+  assert.equal(P.MEMO.length, 9);
+});

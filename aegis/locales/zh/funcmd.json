@@ -91,5 +91,14 @@
   "knowme": "你有多了解我",
   "dream": "解梦|周公解梦",
   "lucid": "清醒梦",
-  "dreamlog": "梦境日记"
+  "dreamlog": "梦境日记",
+  "cipher": "密码破译|破解密码",
+  "hangman": "猜字游戏",
+  "memory": "记忆测试",
+  "emojimovie": "表情猜电影",
+  "flags": "猜国旗",
+  "riddle": "猜谜|谜语",
+  "genie": "神灯精灵",
+  "escape": "密室逃脱",
+  "story": "接龙故事|故事接龙"
 }

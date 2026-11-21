@@ -91,5 +91,14 @@
   "knowme": "me connais-tu bien",
   "dream": "interprétation du rêve|sens du rêve",
   "lucid": "rêve lucide",
-  "dreamlog": "journal de rêves"
+  "dreamlog": "journal de rêves",
+  "cipher": "code secret",
+  "hangman": "pendu|jeu du pendu",
+  "memory": "test de mémoire",
+  "emojimovie": "devine le film",
+  "flags": "quiz des drapeaux",
+  "riddle": "devinette",
+  "genie": "génie|le génie",
+  "escape": "escape game",
+  "story": "histoire à la chaîne"
 }

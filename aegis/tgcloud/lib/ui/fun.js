@@ -17,6 +17,7 @@
  *   · fn:<game>:r|p|s rock-paper-scissors · fn:<game>:t:<cell> tic-tac-toe
  *   · fn:f:<code>[:<arg>] run a fortune command (tarot 1|3, horo <sign 0–11>) · fn:f:horo:p the sign buttons
  *   · fn:d:<a|b|e…> the decision helper's answers so far (only the one who asked)
+ *   · fn:<game>:h:<i> a hangman letter · fn:mm:<sequence>:<taps> the memory test · fn:gn:<answers> the genie · fn:er:<node> the escape room
  *   · fn:dl:i|c|y|n the dream journal (private) · fn:q:<test>[:<answers>] · fn:q:m:<self|spirit> a questionnaire (only the one who asked) · fn:m / fn:k:<A's answers>[:j|:<id>:<answers>] /match, /knowme
  *   · fn:r:<m|u|b>[:g|l|a:<page>|p:<r|g<i>|l<i>|a<i>>] film, music and book recommendations (menu, lists, a pick), for the one who asked
  *   · fn:t:<page>[:<part>] a page of /font (combo, mix, tg, uni, look, mark, fa, frame, extra), for the one who asked
@@ -51,7 +52,7 @@ const inline = (lang, key, vars) => t(lang, key, vars).replace(RLM, '');
 const flist = (lang, key) => t(lang, `fallist.${key}`).split('\n').map((x) => x.replace(RLM, '').trim()).filter(Boolean);
 const norm = (s) => normalizeWord(String(s || '').replace(RLM, '').replace(new RegExp(fun.PASTE_MARK, 'g'), ''));
 /* features that need a group (members, replies, the group's own lists); the rest also work in private */
-const GROUP_ONLY = new Set(['love', 'wyr', 'act', 'couple', 'motd', 'bday', 'daily', 'click', 'ttt', 'lottery', 'vote', 'likely', 'lie', 'match', 'knowme']);
+const GROUP_ONLY = new Set(['love', 'wyr', 'act', 'couple', 'motd', 'bday', 'daily', 'click', 'ttt', 'lottery', 'vote', 'likely', 'lie', 'match', 'knowme', 'story']);
 const PRIVATE_OK = new Set(fun.CODES.filter((c) => !GROUP_ONLY.has(c)));
 const KEY_CODE = { hug: 'act', pat: 'act', highfive: 'act', wave: 'act', cheer: 'act', birthday: 'bday', birthdays: 'bday', fun: 'fun', fal: 'fal' };
 const MENUS = new Set(['fun', 'fal']);
@@ -364,6 +365,10 @@ function prepare(parsed, message, lang, s) {
     }
     case 'likely':
       return human ? { target: human } : {};
+    case 'story': {
+      const first = restOf(message.text, parsed.words || 1).text;
+      return [...first].length <= 200 ? { first } : { bad: true };
+    }
     case 'dream': {
       const body = restOf(message.text, parsed.words || 1).text;
       if (!body) return {};
@@ -520,6 +525,19 @@ async function run(ctx, x) {
       const g = parsed.code === 'ptest' ? 'self' : 'spirit';
       const sc = pre.test ? testScreen(lang, pre.test, '', me) : testMenu(lang, g);
       return say(ctx, chatId, s, sc.text, sc.rows, `fun-${parsed.code}`, r);
+    }
+    case 'memory': {
+      const seq = fun.puzzles.sequence();
+      return say(ctx, chatId, s, t(lang, 'fun.mem_show', { user: me, seq: [...seq].map((i) => fun.puzzles.MEMO[Number(i)]).join(' ') }),
+        [[btn(inline(lang, 'fun.mem_ready'), `fn:mm:${seq}:s`)]], 'fun-memory', r);
+    }
+    case 'genie': {
+      const sc = genieScreen(lang, '', me);
+      return say(ctx, chatId, s, sc.text, sc.rows, 'fun-genie', r);
+    }
+    case 'escape': {
+      const sc = escapeScreen(lang, 0);
+      return say(ctx, chatId, s, sc.text, sc.rows, 'fun-escape', r);
     }
     case 'dream':
       return say(ctx, chatId, s, pre.text ? dreamText(lang, pre.text, me) : dreamList(lang), null, 'fun-dream', r);
@@ -1300,6 +1318,96 @@ async function decideButton(ctx, cq, parts) {
   return answer(ctx);
 }
 
+/* ---------- puzzles: helpers of the group games and the single-player ones (memory, genie, escape room) ---------- */
+
+const STORY_MAX = 12;
+/* emoji films, flags and riddles: any accepted name in any language wins; a riddle's answer may sit inside a sentence */
+const QUIZ_WIN = { emojimovie: 'em_win', flags: 'fl_win', riddle: 'rd_win' };
+function quizRight(g, st, text) {
+  const said = titleKey(text);
+  const words = ` ${norm(text).replace(/[.,!?؛،:;'’"«»()]+/g, ' ').replace(/\s+/g, ' ')} `;
+  return (st.alts || []).some((a) => a && (said === a || (g.kind === 'riddle' && words.includes(` ${a} `))));
+}
+const quizAnswer = (g, st) => (g.kind === 'emojimovie' ? st.title : g.kind === 'flags' ? `${fun.puzzles.flagOf(st.code)} ${st.name}` : st.answer);
+/* a title or an answer, compared without case, spaces, punctuation or direction marks */
+const titleKey = (x) => norm(x).replace(/[\s.,!?؛،:;'’"«»\-–—·()]+/g, '');
+function hangmanText(lang, st) {
+  const wrong = st.guessed.filter((ch) => !st.word.includes(ch));
+  return t(lang, 'fun.hm_board', { mask: esc(fun.puzzles.mask(st.word, st.guessed)), miss: num(lang, st.miss), used: wrong.length ? ` · ${esc(wrong.join(' '))}` : '' });
+}
+const hangmanRows = (id, st) => {
+  const rows = [];
+  for (let i = 0; i < st.letters.length; i += 7) {
+    rows.push(st.letters.slice(i, i + 7).map((ch, j) => btn(st.guessed.includes(ch) ? (st.word.includes(ch) ? '✓' : '✗') : ch, `fn:${id}:h:${i + j}`)));
+  }
+  return rows;
+};
+const storyRows = (lang, id) => [[btn(inline(lang, 'fun.st_end_btn'), `fn:${id}:e`)]];
+function storyText(lang, st, left, done = false) {
+  const lines = st.lines.map(([, name, text], i) => t(lang, 'fun.st_line', { n: num(lang, i + 1), text: esc(text), user: name }));
+  if (done) return [t(lang, 'fun.st_end'), '', ...(lines.length ? lines : [t(lang, 'fun.st_first')])].join('\n');
+  return [t(lang, 'fun.st_start', { max: num(lang, STORY_MAX), time: dur(lang, Math.max(60, left || fun.GAME_TIME.story)) }), '', ...(lines.length ? lines : [t(lang, 'fun.st_first')])].join('\n');
+}
+const P9Z = fun.puzzles;
+function genieScreen(lang, answers, user) {
+  const r = P9Z.genie(answers);
+  if (r.ask !== undefined) {
+    const yes = (c) => btn(inline(lang, `fun.gn_${c === 'y' ? 'yes' : c === 'n' ? 'no' : 'dk'}`), `fn:gn:${answers}${c}`);
+    const head = answers ? '' : `${t(lang, 'fun.gn_start', { user })}\n\n`;
+    return { text: `${head}${t(lang, 'fun.gn_q', { i: num(lang, r.n), q: esc(inline(lang, `gamelist.gq_${r.ask}`)) })}`, rows: [[yes('y'), yes('n')], [yes('d')]] };
+  }
+  if (r.guess) {
+    return { text: t(lang, 'fun.gn_guess', { animal: esc(inline(lang, `gamelist.an_${r.guess}`)) }),
+      rows: [[btn(inline(lang, 'fun.gn_yes'), `fn:gn:${answers}Y`), btn(inline(lang, 'fun.gn_no'), `fn:gn:${answers}N`)]] };
+  }
+  if (r.won) return { text: t(lang, 'fun.gn_won', { animal: esc(inline(lang, `gamelist.an_${r.won}`)), n: num(lang, r.n) }), rows: [] };
+  return { text: t(lang, 'fun.gn_lost'), rows: [] };
+}
+function escapeScreen(lang, node) {
+  const next = P9Z.ESCAPE[node];
+  const text = [t(lang, 'fun.er_title'), '', rtl(lang, esc(inline(lang, `gamelist.er_${node}`)))].join('\n');
+  if (!next.length) return { text, rows: [[btn(inline(lang, 'fun.er_again'), 'fn:er:0')]] };
+  const labels = inline(lang, `gamelist.eo_${node}`).split('|');
+  return { text, rows: next.map((n, i) => [btn(labels[i] || '…', `fn:er:${n}`)]) };
+}
+/* fn:mm:<sequence>:<s|taps> · fn:gn:<answers> · fn:er:<node> — only the one who asked plays */
+async function puzzleButton(ctx, cq, parts) {
+  const msg = cq.message;
+  if (!msg || msg.chat.type === 'channel') return answer(ctx);
+  const u = await users.get(cq.from.id);
+  const mine = u ? u.lang : pickLang(cq.from.language_code);
+  const asker = msg.reply_to_message && msg.reply_to_message.from;
+  if (asker && !asker.is_bot && asker.id !== cq.from.id) return answer(ctx, inline(mine, 'fun.pt_not_yours'), true);
+  const chat = msg.chat.id < 0 ? await chats.get(msg.chat.id) : null;
+  const lang = chat ? chat.lang : mine;
+  const user = nameOf(cq.from);
+  let sc = null;
+  if (parts[1] === 'mm') {
+    const seq = String(parts[2] || '');
+    const tap = String(parts[3] || '');
+    if (!/^[0-8]{6}$/.test(seq) || !/^(s|[0-8]{0,6})$/.test(tap)) return answer(ctx);
+    const show = (x) => [...x].map((i) => P9Z.MEMO[Number(i)]).join(' ');
+    const progress = tap === 's' ? '' : tap;
+    const ok = [...progress].every((c, i) => c === seq[i]);
+    if (!ok) sc = { text: t(lang, 'fun.mem_lose', { user, i: num(lang, progress.length - 1), n: num(lang, 6), seq: show(seq) }), rows: [] };
+    else if (progress.length === 6) sc = { text: t(lang, 'fun.mem_win', { user, n: num(lang, 6) }), rows: [] };
+    else {
+      const rows = [0, 3, 6].map((k) => [k, k + 1, k + 2].map((i) => btn(P9Z.MEMO[i], `fn:mm:${seq}:${progress}${i}`)));
+      sc = { text: t(lang, 'fun.mem_ask', { i: num(lang, progress.length + 1), n: num(lang, 6) }), rows };
+    }
+  } else if (parts[1] === 'gn') {
+    const answers = String(parts[2] || '');
+    if (!/^[ynd]{0,12}[YN]{0,3}$/.test(answers)) return answer(ctx);
+    sc = genieScreen(lang, answers, user);
+  } else {
+    const node = toInt(parts[2]);
+    if (node === null || !P9Z.ESCAPE[node]) return answer(ctx);
+    sc = escapeScreen(lang, node);
+  }
+  await edit(ctx, { chat_id: msg.chat.id, message_id: msg.message_id }, sc.text, sc.rows, `fun-${parts[1]}`);
+  return answer(ctx);
+}
+
 /* ---------- dreams: /dream (symbols found in the text), /lucid, /dreamlog (private) ---------- */
 
 /* Persian and English endings a keyword may take; a two-letter keyword only the plural (آب, not آبی «blue») */
@@ -1842,6 +1950,39 @@ async function startGame(ctx, x) {
     ans = norm(sentence);
     state = { sentence, at: nowSec() };
     text = t(lang, 'fun.typing_start', { text: esc(fun.marked(sentence)), time: dur(lang, ttl) });
+  } else if (kind === 'cipher') {
+    const word = fun.pick(list(lang, 'scramble'));
+    const method = fun.pick(fun.puzzles.methods(lang));
+    ans = norm(word);
+    state = { word, method };
+    text = t(lang, 'fun.cipher_start', { code: esc(fun.puzzles.cipher(word, method, lang)), how: inline(lang, `fun.cipher_how_${method}`), time: dur(lang, ttl) });
+  } else if (kind === 'hangman') {
+    const words = list(lang, 'scramble');
+    const word = fun.pick(words).toLowerCase();
+    state = { word, letters: fun.puzzles.letters(word, lang, words), guessed: [], miss: 0 };
+    text = hangmanText(lang, state);
+  } else if (kind === 'emojimovie') {
+    const [emoji, title] = fun.pick(fun.puzzles.FILMS);
+    const film = fun.culture.items('m').find((m) => m.t === title);
+    const alts = [film.t, film.fa, film.en].filter(Boolean).flatMap((x) => [x, x.replace(/^the\s+/i, '')]);
+    ans = titleKey(film.en || film.t);
+    state = { emoji, title: lang === 'fa' ? (film.fa || film.t) : (film.en || film.t), alts: [...new Set(alts.map(titleKey))] };
+    text = t(lang, 'fun.em_start', { emoji, time: dur(lang, ttl) });
+  } else if (kind === 'flags') {
+    const code = fun.pick(fun.puzzles.COUNTRIES);
+    const names = LANGS.flatMap((l) => inline(l, `gamelist.c_${code}`).split('|'));
+    ans = code;
+    state = { code, name: inline(lang, `gamelist.c_${code}`).split('|')[0], alts: [...new Set(names.map(titleKey))] };
+    text = t(lang, 'fun.fl_start', { flag: fun.puzzles.flagOf(code), time: dur(lang, ttl) });
+  } else if (kind === 'riddle') {
+    const i = fun.randInt(0, 23);
+    const alts = LANGS.flatMap((l) => inline(l, `gamelist.ra_${i}`).split('|'));
+    ans = String(i);
+    state = { i, answer: inline(lang, `gamelist.ra_${i}`).split('|')[0], alts: [...new Set(alts.map(titleKey))] };
+    text = t(lang, 'fun.rd_start', { q: esc(inline(lang, `gamelist.rq_${i}`)), time: dur(lang, ttl) });
+  } else if (kind === 'story') {
+    state = { lines: pre.first ? [[from.id, nameOf(from), pre.first]] : [] };
+    text = storyText(lang, state, ttl);
   } else if (kind === 'trivia') {
     return trivia(ctx, x);
   } else if (kind === 'click') {
@@ -1859,6 +2000,8 @@ async function startGame(ctx, x) {
   const id = await fun.startGame(chatId, kind, { state, answer: ans, byId: from.id, ttl });
   if (!id) return say(ctx, chatId, s, t(lang, 'fun.game_busy'), null, 'fun-busy', r);
   if (kind === 'click') rows = clickRows(id, state.pool);
+  else if (kind === 'hangman') rows = hangmanRows(id, state);
+  else if (kind === 'story') rows = storyRows(lang, id);
   else if (kind === 'rps') rows = state.b ? challengeRows(lang, id) : rpsRows(id);
   else if (kind === 'ttt') rows = challengeRows(lang, id);
   if (from) await users.remember(from);
@@ -1930,14 +2073,32 @@ export async function onMessage(ctx, chat, message) {
       }
       continue;
     }
+    if (g.kind === 'story') {
+      const r = message.reply_to_message;
+      if (!r || Number(r.message_id) !== Number(g.msg_id) || st.lines.length >= STORY_MAX || [...text].length > 200) continue;
+      const next = { ...st, lines: [...st.lines, [from.id, nameOf(from), text]] };
+      if (!(await fun.saveState(g, next))) continue;
+      const place = { chat_id: chat.chat_id, message_id: Number(g.msg_id) };
+      if (next.lines.length >= STORY_MAX && (await fun.endGame(g.id, 'ended', 0))) await edit(ctx, place, storyText(lang, next, 0, true), null, 'fun-story-end');
+      else await edit(ctx, place, storyText(lang, next, Number(g.ends_at) - now), storyRows(lang, g.id), 'fun-story');
+      continue;
+    }
+    if (QUIZ_WIN[g.kind]) {
+      if (!quizRight(g, st, text) || !(await fun.endGame(g.id, 'ended', from.id))) continue;
+      await users.remember(from);
+      const extra = await reward(chat.chat_id, s, from.id, c.reward, lang);
+      await say(ctx, chat.chat_id, s, t(lang, `fun.${QUIZ_WIN[g.kind]}`, { user: nameOf(from), answer: esc(quizAnswer(g, st)) }) + extra, null, `fun-${g.kind}-win`, reply(message));
+      continue;
+    }
     if (g.kind === 'math') won = toInt(asciiDigits(text.replace(/\s/g, ''))) === Number(g.answer);
+    else if (g.kind === 'cipher') won = norm(text) === g.answer;
     else if (g.kind === 'scramble') won = norm(text) === g.answer;
     else if (g.kind === 'typing') won = !fun.pasted(text) && norm(text) === g.answer;
     else continue;
     if (!won || !(await fun.endGame(g.id, 'ended', from.id))) continue;
     await users.remember(from);
     const extra = await reward(chat.chat_id, s, from.id, c.reward, lang);
-    const vars = { user: nameOf(from), answer: esc(g.kind === 'scramble' ? st.word : g.answer), time: dur(lang, Math.max(1, now - Number(st.at || g.at))) };
+    const vars = { user: nameOf(from), answer: esc(g.kind === 'scramble' || g.kind === 'cipher' ? st.word : g.answer), time: dur(lang, Math.max(1, now - Number(st.at || g.at))) };
     await say(ctx, chat.chat_id, s, t(lang, `fun.${g.kind}_win`, vars) + extra, null, `fun-${g.kind}-win`, reply(message));
   }
 }
@@ -1967,17 +2128,25 @@ export async function onPrivateText(ctx, user, message) {
       }
       return true;
     }
+    const st0 = fun.stateOf(g);
     if (g.kind === 'math') won = toInt(asciiDigits(text.replace(/\s/g, ''))) === Number(g.answer);
-    else if (g.kind === 'scramble') won = norm(text) === g.answer;
+    else if (g.kind === 'scramble' || g.kind === 'cipher') won = norm(text) === g.answer;
     else if (g.kind === 'typing') won = !fun.pasted(text) && norm(text) === g.answer;
+    else if (QUIZ_WIN[g.kind]) won = quizRight(g, st0, text);
     else continue;
     if (!won) {
       await send(ctx, user.user_id, t(lang, 'fun.solo_wrong'), null, 'fun-solo-wrong');
       return true;
     }
+    if (QUIZ_WIN[g.kind]) {
+      if (await fun.endGame(g.id, 'ended', user.user_id)) {
+        await send(ctx, user.user_id, t(lang, `fun.${QUIZ_WIN[g.kind]}`, { user: iso(fullName(message.from), 32), answer: esc(quizAnswer(g, st0)) }), null, `fun-${g.kind}-win`);
+      }
+      return true;
+    }
     if (await fun.endGame(g.id, 'ended', user.user_id)) {
-      const st = fun.stateOf(g);
-      await send(ctx, user.user_id, t(lang, `fun.${g.kind}_win`, { user: iso(fullName(message.from), 32), answer: esc(g.kind === 'scramble' ? st.word : g.answer),
+      const st = st0;
+      await send(ctx, user.user_id, t(lang, `fun.${g.kind}_win`, { user: iso(fullName(message.from), 32), answer: esc(g.kind === 'scramble' || g.kind === 'cipher' ? st.word : g.answer),
         time: dur(lang, Math.max(1, now - Number(st.at || g.at))) }), null, `fun-${g.kind}-win`);
     }
     return true;
@@ -2010,6 +2179,7 @@ export async function callback(ctx, cq, parts) {
   if (parts[1] === 'd') return decideButton(ctx, cq, parts);
   if (parts[1] === 'q') return testButton(ctx, cq, parts);
   if (parts[1] === 'dl') return dreamButton(ctx, cq, parts);
+  if (parts[1] === 'mm' || parts[1] === 'gn' || parts[1] === 'er') return puzzleButton(ctx, cq, parts);
   if (parts[1] === 'm' || parts[1] === 'k') return pairButton(ctx, cq, parts);
   if (parts[1] === 't') return fontPage(ctx, cq, parts);
   const from = cq.from;
@@ -2039,6 +2209,32 @@ export async function callback(ctx, cq, parts) {
     const b = iso(await users.displayName(Number(st.b)), 32);
     if (g.kind === 'rps') await edit(ctx, place, t(lang, 'fun.rps_pick', { a, b }), rpsRows(g.id), 'fun-rps');
     else await edit(ctx, place, t(lang, 'fun.ttt_turn', { a, b, turn: a }), tttRows(g.id, st.board), 'fun-ttt');
+    return answer(ctx);
+  }
+  if (g.kind === 'story' && act === 'e') {
+    if (from.id !== Number(g.by_id) && !(chat && (await isAdmin(chatId, from.id)))) return answer(ctx, t(lang0, 'fun.not_yours'), true);
+    if (await fun.endGame(g.id, 'ended', 0)) await edit(ctx, place, storyText(lang, st, 0, true), null, 'fun-story-end');
+    return answer(ctx);
+  }
+  if (g.kind === 'hangman' && act === 'h') {
+    const i = toInt(parts[3]);
+    const ch = st.letters[i];
+    if (ch === undefined) return answer(ctx);
+    if (st.guessed.includes(ch)) return answer(ctx, t(lang0, 'fun.hm_used'), true);
+    const next = { ...st, guessed: [...st.guessed, ch], miss: st.miss + (st.word.includes(ch) ? 0 : 1) };
+    if (!(await fun.saveState(g, next))) return answer(ctx);
+    if (fun.puzzles.solved(st.word, next.guessed)) {
+      if (!(await fun.endGame(g.id, 'ended', from.id))) return answer(ctx);
+      await users.remember(from);
+      const extra = await reward(chatId, s, from.id, c.reward, lang);
+      await edit(ctx, place, t(lang, 'fun.hm_win', { user: nameOf(from), answer: esc(st.word) }) + extra, null, 'fun-hangman-win');
+      return answer(ctx, t(lang0, 'fun.you_won'));
+    }
+    if (next.miss >= 6) {
+      if (await fun.endGame(g.id, 'ended', 0)) await edit(ctx, place, t(lang, 'fun.hm_lose', { answer: esc(st.word) }), null, 'fun-hangman-lose');
+      return answer(ctx);
+    }
+    await edit(ctx, place, hangmanText(lang, next), hangmanRows(g.id, next), 'fun-hangman');
     return answer(ctx);
   }
   if (g.kind === 'click' && act === 'c') {
@@ -2112,11 +2308,19 @@ export async function sweep(ctx) {
     const st = fun.stateOf(g);
     const place = { chat_id: chatId, message_id: Number(g.msg_id) };
     if (g.kind === 'trivia') continue;
+    if (g.kind === 'story') {
+      if (Number(g.msg_id)) await edit(ctx, place, storyText(lang, st, 0, true), null, 'fun-story-end');
+      continue;
+    }
+    if (g.kind === 'hangman') {
+      if (Number(g.msg_id)) await edit(ctx, place, t(lang, 'fun.hm_lose', { answer: esc(st.word) }), null, 'fun-timeout');
+      continue;
+    }
     if (['click', 'rps', 'ttt'].includes(g.kind)) {
       if (Number(g.msg_id)) await edit(ctx, place, t(lang, 'fun.timeout'), null, 'fun-timeout');
       continue;
     }
-    const answerText = g.kind === 'scramble' ? st.word : g.kind === 'typing' ? st.sentence : g.answer;
+    const answerText = { scramble: st.word, cipher: st.word, typing: st.sentence, emojimovie: st.title, flags: st.name, riddle: st.answer }[g.kind] || g.answer;
     await send(ctx, chatId, t(lang, 'fun.game_timeout', { answer: esc(answerText || '') }), null, 'fun-timeout',
       Number(g.msg_id) ? { reply_parameters: { message_id: Number(g.msg_id), allow_sending_without_reply: true } } : {});
   }
