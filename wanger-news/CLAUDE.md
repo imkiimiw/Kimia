@@ -77,6 +77,11 @@ python -m wanger_news migrate | db-check | doctor | validate-config   # doctor c
   a winner. Updates are reply posts, never edits. Independent sources = independent origins
   (`domain/independence.py`). In tests, `FakeAI.vectors` fixes embeddings and `$S0`/`$E0`
   placeholders in drafts become real source ids / excerpts.
+- Phase 4 real time: 🔴 breaking changes order and marker only — never a safety check
+  (`domain/breaking.py`, hourly cap per channel). Trend alerts are counts against each topic's
+  own baseline (`domain/trends.py`), never AI text; admins by default. The daily brief and
+  related links reuse already-published titles only. Posts without an article (brief, trend)
+  go through `PublishService.send_extra` (same claim → send → record, `article_id` NULL).
 - New migration per schema change (`alembic revision --autogenerate`, then freeze types: no app
   imports in migrations); upgrade AND downgrade must pass on SQLite and PostgreSQL.
 - Python 3.11+, full type hints, mypy strict, ruff. Tests never touch the network.

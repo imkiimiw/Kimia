@@ -1,6 +1,6 @@
 """Wanger News: news intelligence & publishing platform."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 #: The phase this code base implements. From phase 2 the main channel may be the target.
-PHASE = 3
+PHASE = 4

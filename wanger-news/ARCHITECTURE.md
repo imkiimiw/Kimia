@@ -1,10 +1,11 @@
 # Wanger News — Architecture
 
-Status: **Phase 3** (intelligence: stories of one event across outlets, independent sources,
-claims and evidence, contradictions, update posts) on top of Phase 2 (AI: Persian summaries,
+Status: **Phase 4** (real time: 🔴 breaking, early warning of growing topics, related stories,
+story timeline, daily brief) on top of Phase 3 (stories of one event across outlets, independent
+sources, claims and evidence, contradictions, update posts), Phase 2 (AI: Persian summaries,
 hallucination guard, review, main channel) and Phase 1 (foundation). This document describes what
 exists, where every later feature plugs in, and why each decision was taken (ADRs at the end;
-Phase 2 decisions are ADR-019 onwards, Phase 3 decisions ADR-029 onwards).
+Phase 2 decisions are ADR-019 onwards, Phase 3 ADR-029 onwards, Phase 4 ADR-038 onwards).
 
 ## 1. Overview
 
@@ -14,8 +15,8 @@ Phase 2 decisions are ADR-019 onwards, Phase 3 decisions ADR-029 onwards).
  GitHub Actions cron ──► python -m wanger_news run-once ◄── Docker worker (option B)
                                    │
    ┌────────────────── services/pipeline.py (one pass, isolated stages) ──────────────────┐
-   │ lock → sync → INBOX → INGEST → GATE → CLUSTER → AI → REVIEW CARDS → PUBLISH → retention │
-   └─────────────────────────────────────────────────────────────────────────────────────────┘
+   │ lock → sync → INBOX → INGEST → GATE → CLUSTER → AI → REVIEW → PUBLISH → TRENDS → BRIEF │
+   └──────────────────────────────────────────────────────────────── → retention ───────────┘
    INBOX  : getUpdates → telegram_updates → admin commands · review buttons · edit replies ·
             source-channel posts · posts made by hand in the target channels
    INGEST : FETCH → PARSE → NORMALIZE → VALIDATE → DEDUPLICATE (L1, L2, L3-port)
@@ -28,7 +29,10 @@ Phase 2 decisions are ADR-019 onwards, Phase 3 decisions ADR-029 onwards).
             UPDATE call for new independent reports of a published story → update post | corroboration
    REVIEW : cards with ✅ 📤 ✏️ ❌ in the admins' private chats
    PUBLISH: claim → send (sendPhoto/sendMessage/copyMessage[s]) → record; test or main channel;
-            an update post is a reply to the story's last post
+            an update post is a reply to the story's last post; 🔴 first (hourly cap);
+            related earlier stories linked; update posts list the story so far
+   TRENDS : reports per story / name vs its own 24 h baseline → ⚠️ early warning (admins)
+   BRIEF  : once a day (21:00 Tehran) the day's published titles, linked to their posts
                                    │
                  PostgreSQL (Neon/Supabase free tier) — ALL state lives here
 ```
@@ -102,7 +106,7 @@ on news that will not expire). Publishing takes "publish now" first, then the im
 | 6-hour job limit / minutes | A run is ~1 minute (16 feeds concurrently, few posts). `timeout-minutes: 10`. Public repository → Actions minutes are free. |
 | Scheduled workflows | Run only from the default branch; GitHub disables them after 60 days without repository activity. |
 
-## 5. Data model (migrations `0001` Phase 1, `0002` Phase 2, `0003` Phase 3)
+## 5. Data model (migrations `0001` Phase 1, `0002` Phase 2, `0003` Phase 3, `0004` Phase 4)
 
 | Table | Purpose |
 |---|---|
@@ -124,6 +128,7 @@ on news that will not expire). Publishing takes "publish now" first, then the im
 | `story_clusters` (0003) | one row per event: `event_id`, lead article, title, summary, category, names, first seen / last updated, importance, confidence, independent sources (+ list), member count, centroid embedding, contradictions, timeline, published at / post chat / post message id / published text |
 | `claims` (0003) | claims of a story's summary: text, status (confirmed/likely/unconfirmed/conflicting/rejected), confidence, supporting articles, versions (for conflicting claims) |
 | `evidence` (0003) | verbatim excerpt per (claim, article), supports or not |
+| `trend_alerts` (0004) | early warnings: kind (story/name), key, label, window, reports, outlets, usual count, ratio, story, notified |
 
 `articles` gained (0002): `summary_id`, `importance_score` + breakdown, `confidence_score` +
 breakdown, `publish_mode`, `review_reason`, `approved_by`/`approved_at`, `publish_now`. The
@@ -139,6 +144,11 @@ names, time), `embedding`; `published_posts` gained `kind` (story/update), `clus
 `cluster_articles` table (one article belongs to one story). Embeddings are pgvector `vector`
 columns on PostgreSQL (`CREATE EXTENSION IF NOT EXISTS vector` in 0003) and JSON on SQLite
 (ADR-031). Names stay a JSON list on the story; an `entities` table waits for search (Phase 6).
+
+Phase 4 (0004): `articles.breaking` + `breaking_reason`; `story_clusters.breaking_at` and
+`related` (linked stories with their scores); `published_posts.breaking`, and
+`published_posts.article_id` is nullable so a daily brief or a trend alert (kind `brief` /
+`trend`) uses the same claim → send → record protocol (ADR-043).
 
 Tables of later phases, each in its own migration: `corrections`,
 `reliability_history`, `categories`/`tags` tables if the dashboard needs them (Phase 5). There is
@@ -178,9 +188,9 @@ no separate `translations` table: the Persian summary is the translation (ADR-02
 |---|---|
 | Another AI provider (OpenAI, Anthropic, local) | a new `AIProvider` adapter next to `ai/gemini.py`; `ai.fallback_provider` (config) is where a fallback is chosen |
 | ANN search over many stories | a fixed-dimension `vector(n)` column + HNSW index and `ORDER BY centroid <=> :q` in `StoryRepo.candidates` (ADR-031) |
-| Related stories, story timeline posts (Phase 4) | `story_clusters.timeline` and `entities` are recorded already |
+| Weekly intelligence report (Phase 6) | `BriefService.compose` + `trend_alerts` over 7 days |
+| Trend posts with an AI explanation | `TrendService` → a new prompt; today alerts are counts only (ADR-039) |
 | Corrections of published posts (Phase 5) | `story_clusters.post_message_id` / `published_text`, claims with versions |
-| Breaking 🔴 (Phase 4) | `SummaryPost.breaking` is rendered already; nothing sets it yet |
 | Full rules engine (Phase 5) | `domain/editorial.route` is the single routing function to generalise |
 | Same-event check inside ingest (instant L3) | `EventMatcher` port in `DedupService.check` (kept as a no-op: L3 is the CLUSTER stage, ADR-029) |
 | Webhook instead of polling | a second inbox adapter feeding the same `InboxService.process` |
@@ -458,3 +468,57 @@ the same channel (`reply_parameters`, `allow_sending_without_reply` so a deleted
 not block it). Editing a published post would silently change what readers already saw; real
 corrections are Phase 5. An update in another channel than the story's (after `/settings target`)
 is sent without the reply. The per-article idempotency key is unchanged.
+
+### Phase 4 — real time
+
+**ADR-038 — 🔴 breaking changes the order and the marker, never the safety checks.** An item is
+breaking when its rule priority is 100 (international crisis) or its importance ≥ 85, its
+confidence ≥ 50 (never "unconfirmed") and its story was first seen ≤ 120 minutes ago
+(`domain/breaking.py`; the reason is stored either way). Breaking items are first in the publish
+queue and in the review cards, and their cards are not held back by `max_cards_per_run`; the
+settle wait is already skipped for priority 100. They still need a validated text, and sensitive
+topics still go to a human. At most `breaking.max_per_hour` (3) 🔴 posts per channel per hour —
+more are posted without the marker, because a channel where everything is red numbs its readers.
+Update posts are not breaking by default (`allow_updates`).
+
+**ADR-039 — early warning by counting, against each topic's own history.** A topic is a story
+(one event) or a name. It trends when, in the last 60 minutes, it has ≥ 5 reports from ≥ 3
+outlets (owner groups) and that is ≥ 3× its usual count per hour over the preceding 24 hours
+(`domain/trends.py`). Each outlet counts at most twice per window (one noisy feed cannot make a
+trend); a topic with no history counts as "usually 1"; no alerts while the database holds less
+than `min_history_hours` (6) of reports (a new database knows no "usual"); one alert per topic
+per 6 hours; a name that trends only inside one trending story is not alerted again. The alert is
+a count, never a claim — no AI writes it. It goes to the admins; posting it in the channel is
+the owner's decision (`trends.post_to_channel`, off). Entities are Latin-script names from the
+feeds, shown with the Persian spelling a summary used when there is one. The thresholds were
+checked against one day of real feeds (no alert at the defaults; with relaxed values the
+detector found Trump, Ukraine, FBI…), not tuned on weeks of data.
+
+**ADR-040 — related stories link earlier posts, with stored reasons.** When a story is posted,
+earlier stories posted in the same channel in the last 7 days are related when their meaning is
+close (centroid cosine ≥ 0.75 — below the same-event threshold) or they share ≥ 2 names with an
+overlap ≥ 0.34 (`domain/related.py`). At most 2 links, best first, under «🔗 مرتبط:», each the
+earlier post's own published title (no new text). The scores and shared names are kept in
+`story_clusters.related`. Links go to posts of the same channel only (`t.me/<name>/<id>`, or
+`t.me/c/<id>/<msg>` for a private channel, which opens for members only).
+
+**ADR-041 — the timeline is the story's own record.** Every step of a story is a `timeline`
+event since Phase 3 (created, joined, summarized, published, breaking, update_published,
+corroborated, trend…). From the second update on, an update post lists the story's earlier posts
+in this channel with their Tehran time («🧵 روند خبر»; with one earlier post the reply already
+shows it). `/timeline <article id>` shows admins the whole record.
+
+**ADR-042 — the daily brief contains only what was already published.** At `local_time` (21:00
+Tehran) the first run sends the day's published stories of the channel, most important first
+(3 to 10), each its published title linked to its first post, with its status, 🔴 and the number
+of updates, plus the day's trend topics. No AI text, so nothing new to verify. Cron is late or
+irregular: a run up to `max_late_hours` (3) after the time sends it; a later run skips the day.
+Fewer than `min_items` stories → no brief. `/brief` previews it for admins without sending.
+`destination: admins` sends it to the admins instead of the channel.
+
+**ADR-043 — posts without an article reuse `published_posts`.** A brief or a channel trend
+alert is claimed with the key `brief:<date>:chat:<chat>` / `trend:<id>:chat:<chat>` and
+`article_id` NULL, so the at-most-once guarantee, the uncertain state and the stale-claim
+reconciliation are the same code as for articles — not a second mechanism to get wrong.
+Downgrading 0004 deletes those rows.
+
