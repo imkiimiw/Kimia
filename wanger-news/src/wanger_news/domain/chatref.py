@@ -49,3 +49,15 @@ class ChatRef:
 
     def __str__(self) -> str:
         return str(self.api_value)
+
+
+def post_url(chat_key: str | None, message_id: int | None) -> str | None:
+    """Link to a channel post from a target key (``@name`` or ``-100…``). Links to a private
+    channel (``t.me/c/…``) open for its members only."""
+    if not chat_key or message_id is None:
+        return None
+    if chat_key.startswith("@"):
+        return f"https://t.me/{chat_key[1:]}/{message_id}"
+    if chat_key.startswith("-100") and chat_key[4:].isdigit():
+        return f"https://t.me/c/{chat_key[4:]}/{message_id}"
+    return None

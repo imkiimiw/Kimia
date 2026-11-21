@@ -33,6 +33,7 @@ from wanger_news.db.tables import (
     Summary,
     SystemLog,
     TelegramUpdate,
+    TrendAlert,
 )
 from wanger_news.domain.article import ArticleDraft
 from wanger_news.domain.enums import (
@@ -44,6 +45,7 @@ from wanger_news.domain.enums import (
     PostStatus,
     RunStatus,
     Stage,
+    Transport,
 )
 
 FINGERPRINT_MAX = 255
@@ -330,13 +332,15 @@ class ArticleRepo:
         return list((await self.s.scalars(stmt)).all())
 
     async def publish_queue(self, limit: int) -> list[Article]:
-        """What to post next: "publish now" first, then importance (else priority), oldest first."""
+        """What to post next: "publish now" first, then 🔴 breaking, then importance (else
+        priority), oldest first."""
         rank = sa.func.coalesce(Article.importance_score, Article.priority)
         stmt = (
             sa.select(Article)
             .where(Article.status == ArticleStatus.QUEUED.value)
             .order_by(
                 Article.publish_now.desc(),
+                Article.breaking.desc(),
                 rank.desc(),
                 Article.effective_at.asc(),
                 Article.id.asc(),
@@ -344,6 +348,39 @@ class ArticleRepo:
             .limit(limit)
         )
         return list((await self.s.scalars(stmt)).all())
+
+    async def trend_rows(
+        self, since: datetime, limit: int
+    ) -> list[tuple[int, str, datetime, int | None, list[dict[str, Any]] | None]]:
+        """(id, source, time, story, names) of feed reports since a moment — the raw material of
+        trend detection. Copies, our own posts and filtered items are not reports."""
+        not_reports = [
+            ArticleStatus.DUPLICATE.value,
+            ArticleStatus.EXTERNAL.value,
+            ArticleStatus.FILTERED.value,
+            ArticleStatus.STALE.value,
+            ArticleStatus.THROTTLED.value,
+        ]
+        stmt = (
+            sa.select(
+                Article.id,
+                Article.source_id,
+                Article.effective_at,
+                Article.cluster_id,
+                Article.entities,
+            )
+            .where(
+                Article.effective_at >= since,
+                Article.transport == Transport.RSS.value,
+                Article.status.not_in(not_reports),
+            )
+            .order_by(Article.effective_at.asc(), Article.id.asc())
+            .limit(limit)
+        )
+        return [
+            (int(i), str(src), when, cid, names)
+            for i, src, when, cid, names in (await self.s.execute(stmt)).all()
+        ]
 
     async def recent(self, statuses: Sequence[ArticleStatus], limit: int) -> list[Article]:
         stmt = (
@@ -420,7 +457,7 @@ class PostRepo:
         self,
         *,
         key: str,
-        article_id: int,
+        article_id: int | None,
         role: ChannelRole,
         chat_id: str,
         method: str,
@@ -518,6 +555,22 @@ class PostRepo:
             .order_by(PublishedPost.id.desc())
             .limit(1)
         )
+
+    async def breaking_sent_since(self, chat_id: str, since: datetime) -> int:
+        """🔴 posts sent (or possibly sent) to this chat since a moment (hourly cap)."""
+        stmt = (
+            sa.select(sa.func.count())
+            .select_from(PublishedPost)
+            .where(
+                PublishedPost.chat_id == chat_id,
+                PublishedPost.breaking.is_(True),
+                PublishedPost.status.in_(
+                    [PostStatus.SENT.value, PostStatus.UNCERTAIN.value, PostStatus.CLAIMED.value]
+                ),
+                PublishedPost.claimed_at >= since,
+            )
+        )
+        return int(await self.s.scalar(stmt) or 0)
 
     async def count_by_status(self, since: datetime) -> dict[str, int]:
         stmt = (
@@ -771,6 +824,16 @@ class SummaryRepo:
     async def get(self, summary_id: int | None) -> Summary | None:
         return None if summary_id is None else await self.s.get(Summary, summary_id)
 
+    async def entities_since(self, since: datetime, limit: int) -> list[list[dict[str, Any]]]:
+        """The names declared by recent summaries (Persian spelling + original)."""
+        stmt = (
+            sa.select(Summary.entities)
+            .where(Summary.created_at >= since)
+            .order_by(Summary.id.desc())
+            .limit(limit)
+        )
+        return [list(e or []) for e in (await self.s.scalars(stmt)).all()]
+
     async def cached(self, source_hash: str, prompt_version: str, language: str) -> Summary | None:
         """A valid AI summary of exactly this source text with this prompt (spec §4 cache)."""
         stmt = (
@@ -851,7 +914,9 @@ class ReviewRepo:
         stmt = (
             sa.select(Article)
             .where(Article.status == ArticleStatus.PENDING_REVIEW.value, ~open_card)
-            .order_by(rank.desc(), Article.effective_at.desc(), Article.id.asc())
+            .order_by(
+                Article.breaking.desc(), rank.desc(), Article.effective_at.desc(), Article.id.asc()
+            )
             .limit(limit)
         )
         return list((await self.s.scalars(stmt)).all())
@@ -962,6 +1027,78 @@ class StoryRepo:
         stmt = sa.select(Claim).where(Claim.summary_id == summary_id).order_by(Claim.id)
         return list((await self.s.scalars(stmt)).all())
 
+    async def by_ids(self, ids: Iterable[int]) -> dict[int, StoryCluster]:
+        wanted = sorted(set(ids))
+        if not wanted:
+            return {}
+        stmt = sa.select(StoryCluster).where(StoryCluster.id.in_(wanted))
+        return {s.id: s for s in (await self.s.scalars(stmt)).all()}
+
+    async def by_event_id(self, event_id: str) -> StoryCluster | None:
+        return await self.s.scalar(sa.select(StoryCluster).where(StoryCluster.event_id == event_id))
+
+    async def published_in(self, chat: str, since: datetime, limit: int) -> list[StoryCluster]:
+        """Stories posted in this channel since a moment, most important first."""
+        stmt = (
+            sa.select(StoryCluster)
+            .where(
+                StoryCluster.post_chat == chat,
+                StoryCluster.published_at >= since,
+                StoryCluster.post_message_id.is_not(None),
+            )
+            .order_by(
+                sa.func.coalesce(StoryCluster.importance_score, 0).desc(),
+                StoryCluster.published_at.asc(),
+                StoryCluster.id.asc(),
+            )
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+    async def related_candidates(
+        self, chat: str, since: datetime, exclude: int, limit: int
+    ) -> list[StoryCluster]:
+        """Earlier stories posted in this channel that a new post may link to."""
+        stmt = (
+            sa.select(StoryCluster)
+            .where(
+                StoryCluster.post_chat == chat,
+                StoryCluster.published_at >= since,
+                StoryCluster.post_message_id.is_not(None),
+                StoryCluster.id != exclude,
+            )
+            .order_by(StoryCluster.published_at.desc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+
+class TrendRepo:
+    def __init__(self, session: AsyncSession) -> None:
+        self.s = session
+
+    async def add(self, alert: TrendAlert) -> TrendAlert:
+        self.s.add(alert)
+        await self.s.flush()
+        return alert
+
+    async def last_for(self, key: str) -> TrendAlert | None:
+        return await self.s.scalar(
+            sa.select(TrendAlert)
+            .where(TrendAlert.key == key)
+            .order_by(TrendAlert.created_at.desc())
+            .limit(1)
+        )
+
+    async def since(self, since: datetime, limit: int) -> list[TrendAlert]:
+        stmt = (
+            sa.select(TrendAlert)
+            .where(TrendAlert.created_at >= since)
+            .order_by(TrendAlert.reports.desc(), TrendAlert.created_at.asc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
 
 class Repositories:
     """Everything one unit of work needs, sharing one session."""
@@ -983,6 +1120,7 @@ class Repositories:
         self.ai_runs = AIRunRepo(session)
         self.reviews = ReviewRepo(session)
         self.stories = StoryRepo(session)
+        self.trends = TrendRepo(session)
 
     async def commit(self) -> None:
         await self.session.commit()

@@ -31,7 +31,8 @@ PHASE1_TABLES = {
 }
 PHASE2_TABLES = {"ai_runs", "summaries", "review_requests"}
 PHASE3_TABLES = {"story_clusters", "claims", "evidence"}
-ALL_TABLES = PHASE1_TABLES | PHASE2_TABLES | PHASE3_TABLES
+PHASE4_TABLES = {"trend_alerts"}
+ALL_TABLES = PHASE1_TABLES | PHASE2_TABLES | PHASE3_TABLES | PHASE4_TABLES
 
 
 def alembic_config(url: str) -> Config:
@@ -104,6 +105,32 @@ def insert_phase1_rows(url: str) -> None:
         engine.dispose()
 
 
+def insert_brief_post(url: str) -> None:
+    engine = sa.create_engine(sync_url(url))
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO published_posts (idempotency_key, article_id, channel_role,"
+                    " chat_id, method, status, message_ids, attempts, kind, breaking,"
+                    " created_at, updated_at) VALUES ('brief:2026-11-21:@t', NULL, 'test', '@t',"
+                    " 'send', 'sent', '[]', 1, 'brief', false, CURRENT_TIMESTAMP,"
+                    " CURRENT_TIMESTAMP)"
+                )
+            )
+    finally:
+        engine.dispose()
+
+
+def count_posts(url: str) -> int:
+    engine = sa.create_engine(sync_url(url))
+    try:
+        with engine.connect() as conn:
+            return int(conn.execute(sa.text("SELECT count(*) FROM published_posts")).scalar_one())
+    finally:
+        engine.dispose()
+
+
 def roundtrip(url: str) -> None:
     cfg = alembic_config(url)
     command.downgrade(cfg, "base")  # a clean start even after an interrupted earlier run
@@ -117,6 +144,12 @@ def roundtrip(url: str) -> None:
     assert status_of(url, "rss-q") == "ai_pending"
     assert status_of(url, "rss-p") == "ai_pending"
     assert status_of(url, "tg-q") == "queued"  # source-channel posts need no AI
+    # Phase 4: a post without an article (daily brief) cannot exist below 0004
+    insert_brief_post(url)
+    command.downgrade(cfg, "0003")
+    assert tables(url) == ALL_TABLES - PHASE4_TABLES
+    assert count_posts(url) == 0
+    command.upgrade(cfg, "head")
     command.downgrade(cfg, "0001")
     assert tables(url) == PHASE1_TABLES
     assert status_of(url, "rss-q") == "queued"

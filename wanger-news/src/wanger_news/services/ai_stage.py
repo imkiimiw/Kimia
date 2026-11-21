@@ -42,6 +42,7 @@ from wanger_news.config.models import AppConfig, PublishModes
 from wanger_news.db.repositories import Repositories
 from wanger_news.db.tables import AIRun, Article, Claim, Evidence, StoryCluster, Summary
 from wanger_news.domain import guard as guard_layer1
+from wanger_news.domain.breaking import decide as decide_breaking
 from wanger_news.domain.claims import CONFLICTING, claim_confidence, claim_status
 from wanger_news.domain.editorial import route
 from wanger_news.domain.enums import (
@@ -752,6 +753,7 @@ class AIStage:
         article.importance_score, article.importance = imp.value, imp.as_dict()
         article.confidence_score, article.confidence = conf.value, conf.as_dict()
         await self._store_claims(repos, item, summary, groups)
+        self._mark_breaking(item, imp.value, conf.value, now)
 
         mode = modes.for_category(category)
         decided = route(
@@ -793,6 +795,25 @@ class AIStage:
         )
         report.processed += 1
         report.routed[decided.status.value] = report.routed.get(decided.status.value, 0) + 1
+
+    def _mark_breaking(self, item: Item, importance: int, conf: int, now: datetime) -> None:
+        """🔴 or not (domain/breaking.py) — the reason is kept either way."""
+        article, story = item.article, item.story
+        first_seen = story.first_seen if story is not None else article.effective_at
+        decided = decide_breaking(
+            priority=article.priority,
+            importance=importance,
+            confidence=conf,
+            age_minutes=(now - first_seen).total_seconds() / 60,
+            update=item.kind == UPDATE,
+            cfg=self._cfg.pipeline.breaking,
+        )
+        article.breaking, article.breaking_reason = decided.breaking, decided.reason
+        if decided.breaking and story is not None and story.breaking_at is None:
+            story.breaking_at = now
+            timeline_event(
+                story, now.isoformat(), "breaking", article_id=article.id, reason=decided.reason
+            )
 
     async def _exclude(
         self, repos: Repositories, ctx: RunContext, item: Item, report: AIReport

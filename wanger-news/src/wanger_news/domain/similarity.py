@@ -95,6 +95,25 @@ _NOT_NAMES = frozenset(
         "today",
         "yesterday",
         "tomorrow",
+        # feed boilerplate ("Continue reading", "Sign up", "Click here" …)
+        "continue",
+        "continued",
+        "reading",
+        "listen",
+        "updated",
+        "updates",
+        "photo",
+        "image",
+        "images",
+        "click",
+        "subscribe",
+        "sign",
+        "share",
+        "advertisement",
+        "getty",  # image credits
+        "related",
+        "see",
+        "also",
     ]
 )
 _CAP_PHRASE = re.compile(
@@ -132,7 +151,12 @@ def extract_entities(text: str, limit: int = 30) -> list[str]:
     Persian has no capital letters: for Persian text this finds Latin names only and the
     embeddings carry the rest. Names the AI declares in a summary are added later.
     """
-    found: dict[str, None] = {}
+    return [key for key, _ in extract_entity_names(text, limit)]
+
+
+def extract_entity_names(text: str, limit: int = 30) -> list[tuple[str, str]]:
+    """(normalized key, the name as written) pairs, first spelling wins."""
+    found: dict[str, str] = {}
     for match in _CAP_PHRASE.finditer(text):
         words = match.group(1).split()
         # trim stop words at the edges only: "The Bank of England" → "Bank of England"
@@ -143,10 +167,10 @@ def extract_entities(text: str, limit: int = 30) -> list[str]:
         phrase = " ".join(words)
         if len(phrase) < 3:
             continue
-        found.setdefault(normalize_for_match(phrase), None)
+        found.setdefault(normalize_for_match(phrase), phrase)
         if len(found) >= limit:
             break
-    return list(found)
+    return list(found.items())
 
 
 def overlap(a: Iterable[str], b: Iterable[str]) -> float:
@@ -160,6 +184,14 @@ def overlap(a: Iterable[str], b: Iterable[str]) -> float:
         if any(x == y or f" {x} " in f" {y} " or f" {y} " in f" {x} " for y in right)
     )
     return shared / (len(left) + len(right) - shared)
+
+
+def shared_names(a: Iterable[str], b: Iterable[str]) -> list[str]:
+    """The names of ``a`` that also appear in ``b`` (same containment rule as ``overlap``)."""
+    right = list(b)
+    return sorted(
+        {x for x in a if any(x == y or f" {x} " in f" {y} " or f" {y} " in f" {x} " for y in right)}
+    )
 
 
 def time_proximity(a: datetime, b: datetime, cfg: StoryConfig) -> float:

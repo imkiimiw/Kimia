@@ -135,9 +135,16 @@ class ReviewService:
             return [ctx.owner_id]
         return [ctx.owner_id, *sorted(i for i in ctx.admin_ids if i != ctx.owner_id)]
 
-    async def card_html(self, repos: Repositories, article: Article) -> tuple[str, bool]:
+    async def card_html(
+        self, repos: Repositories, article: Article, ctx: RunContext | None = None
+    ) -> tuple[str, bool]:
         summary = await repos.summaries.get(article.summary_id)
-        rendered = await self._posts.build(repos, article)
+        rendered = await self._posts.build(
+            repos,
+            article,
+            target=ctx.target if ctx is not None else None,
+            now=ctx.now() if ctx is not None else None,
+        )
         report = GuardReport.from_dict(summary.guard if summary else None)
         cat = self._cfg.categories.get(article.category or "")
         card = ReviewCard(
@@ -156,6 +163,7 @@ class ReviewService:
             preview=rendered.text if rendered else None,
             original_title=article.title_original,
             original_url=article.canonical_url or article.url or "",
+            breaking=article.breaking,
             **await self._story_lines(repos, article),
         )
         return render_review_card(card, self._review.preview_chars), rendered is not None
@@ -193,8 +201,11 @@ class ReviewService:
         if self._review.max_cards_per_run == 0:
             return 0
         sent = 0
-        for article in await repos.reviews.needing_cards(self._review.max_cards_per_run):
-            html_text, has_text = await self.card_html(repos, article)
+        cap = self._review.max_cards_per_run
+        for article in await repos.reviews.needing_cards(cap * 2 + 5):
+            if sent >= cap and not article.breaking:  # 🔴 cards never wait for the next run
+                break
+            html_text, has_text = await self.card_html(repos, article, ctx)
             markup = keyboard(article.id, has_text=has_text)
             for admin in self._recipients(ctx):
                 message_id = await self._send(ctx, admin, html_text, markup)

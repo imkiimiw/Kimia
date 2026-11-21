@@ -351,6 +351,76 @@ class StoryConfig(StrictModel):
     review_conflicts: bool = True
 
 
+class BreakingConfig(StrictModel):
+    """Phase 4: 🔴 breaking news (spec §10). Breaking never skips the guard or a human: it only
+    changes the marker, the order and the speed (no settle wait, first in every queue)."""
+
+    enabled: bool = True
+    min_priority: int = Field(default=100, ge=0, le=100)  # rule priority (international crisis)
+    min_importance: int = Field(default=85, ge=0, le=100)  # or the explainable importance score
+    min_confidence: int = Field(default=50, ge=0, le=100)  # never for "unconfirmed" text
+    max_age_minutes: float = Field(default=120, gt=0)  # since the story was first seen
+    max_per_hour: int = Field(default=3, ge=0)  # more than this in a channel → posted as normal
+    allow_updates: bool = False  # an update post is not breaking by default
+
+
+class TrendsConfig(StrictModel):
+    """Phase 4: trend detection / early warning (spec §16, Phase 4). A topic is a story (one
+    event) or a name; "unusual" = many reports from several outlets compared with its own
+    recent baseline. Counts only — no AI, nothing invented."""
+
+    enabled: bool = True
+    window_minutes: int = Field(default=60, ge=10, le=24 * 60)
+    baseline_hours: float = Field(default=24, gt=1)
+    min_reports: int = Field(default=5, ge=2)
+    min_sources: int = Field(default=3, ge=1)  # distinct outlets (by owner group)
+    max_reports_per_source: int = Field(default=2, ge=1)  # one noisy outlet cannot make a trend
+    min_ratio: float = Field(default=3.0, ge=1)  # window count / usual count per window
+    baseline_floor: float = Field(default=1.0, gt=0)  # "usual" is never taken as less than this
+    # no alerts until the reports cover this much time (a new database knows no "usual")
+    min_history_hours: float = Field(default=6, ge=0)
+    cooldown_hours: float = Field(default=6, gt=0)  # one alert per topic in this time
+    max_alerts_per_run: int = Field(default=3, ge=0)
+    kinds: list[Literal["story", "entity"]] = ["story", "entity"]
+    # a name whose window reports are mostly one trending story is not alerted separately
+    entity_story_overlap: float = Field(default=0.8, gt=0, le=1)
+    notify_admins: bool = True
+    post_to_channel: bool = False  # the owner decides (PLAN.md); admins get every alert
+
+
+class RelatedConfig(StrictModel):
+    """Phase 4: links from a new post to earlier posts about related (not the same) events."""
+
+    enabled: bool = True
+    window_days: float = Field(default=7, gt=0)
+    min_cosine: float = Field(default=0.75, gt=0, le=1)
+    min_entity_overlap: float = Field(default=0.34, ge=0, le=1)
+    min_shared_names: int = Field(default=2, ge=1)
+    max_links: int = Field(default=2, ge=0, le=5)
+    max_candidates: int = Field(default=300, ge=10)
+
+
+class TimelineConfig(StrictModel):
+    """Phase 4: a story's earlier posts, listed in an update post (and /timeline for admins)."""
+
+    enabled: bool = True
+    min_previous_posts: int = Field(default=2, ge=1)  # one earlier post is already the reply
+    max_entries: int = Field(default=4, ge=1, le=10)
+
+
+class DailyBriefConfig(StrictModel):
+    """Phase 4: one brief a day of the stories already published (no new AI text)."""
+
+    enabled: bool = True
+    local_time: str = Field(default="21:00", pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
+    max_late_hours: float = Field(default=3, gt=0)  # cron is late or runs stopped: skip the day
+    window_hours: float = Field(default=24, gt=0)
+    min_items: int = Field(default=3, ge=1)
+    max_items: int = Field(default=10, ge=1, le=20)
+    include_trends: bool = True
+    destination: Literal["channel", "admins"] = "channel"
+
+
 class ScoringConfig(StrictModel):
     """Explainable importance and confidence (spec §8). Weights are relative."""
 
@@ -407,6 +477,11 @@ class PipelineConfig(StrictModel):
     guard: GuardConfig = GuardConfig()
     scoring: ScoringConfig = ScoringConfig()
     story: StoryConfig = StoryConfig()
+    breaking: BreakingConfig = BreakingConfig()
+    trends: TrendsConfig = TrendsConfig()
+    related: RelatedConfig = RelatedConfig()
+    timeline: TimelineConfig = TimelineConfig()
+    daily_brief: DailyBriefConfig = DailyBriefConfig()
 
 
 # --------------------------------------------------------------------------------------------

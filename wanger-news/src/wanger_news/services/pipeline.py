@@ -33,6 +33,7 @@ from wanger_news.ports import (
     NullMotherBot,
 )
 from wanger_news.services.ai_stage import AIStage
+from wanger_news.services.brief import BriefService
 from wanger_news.services.commands import PAUSED_KEY, TARGET_KEY, CommandService
 from wanger_news.services.context import RunContext, Target
 from wanger_news.services.dedup import DedupService
@@ -43,6 +44,7 @@ from wanger_news.services.publish import PublishService
 from wanger_news.services.review import ReviewService
 from wanger_news.services.stories import StoryService
 from wanger_news.services.targets import TargetError, resolve_target
+from wanger_news.services.trends import TrendService
 
 log = logging.getLogger("wanger_news.pipeline")
 LOCK_NAME = "pipeline"
@@ -108,7 +110,9 @@ class Pipeline:
         self.stories = StoryService(cfg, deps.ai, sleep=deps.sleep)
         self.ai = AIStage(cfg, deps.ai, sleep=deps.sleep, stories=self.stories)
         self.review = ReviewService(cfg, self.publisher.posts)
-        self.commands = CommandService(cfg, self.review)
+        self.trends = TrendService(cfg, self.publisher)
+        self.brief = BriefService(cfg, self.publisher)
+        self.commands = CommandService(cfg, self.review, trends=self.trends, brief=self.brief)
         self.inbox = InboxService(cfg, self.dedup, self.commands, self.review)
 
     @asynccontextmanager
@@ -175,6 +179,8 @@ class Pipeline:
                 if ctx.bot is not None or ctx.dry_run:
                     await self._stage(repos, ctx, "review", self._review(repos, ctx))
                 await self._stage(repos, ctx, "publish", self._publish(repos, ctx))
+                await self._stage(repos, ctx, "trends", self._trends(repos, ctx))
+                await self._stage(repos, ctx, "brief", self._brief(repos, ctx))
                 if not opts.dry_run:
                     await self._stage(repos, ctx, "maintenance", self._maintenance(repos, ctx))
             finally:
@@ -320,6 +326,23 @@ class Pipeline:
             ctx.count(f"posts_{key}", getattr(report, key))
         for error in report.errors:
             ctx.error(f"publish: {error}")
+
+    async def _trends(self, repos: Repositories, ctx: RunContext) -> None:
+        paused = bool(await repos.settings.get(PAUSED_KEY, False))
+        report = await self.trends.run(repos, ctx, paused=paused)
+        if report.skipped:
+            ctx.counters[f"trends_skipped:{report.skipped}"] = 1
+        for key in ("detected", "alerted", "cooling", "posted"):
+            if getattr(report, key):
+                ctx.count(f"trends_{key}", getattr(report, key))
+
+    async def _brief(self, repos: Repositories, ctx: RunContext) -> None:
+        if bool(await repos.settings.get(PAUSED_KEY, False)):
+            ctx.counters["brief:paused"] = 1
+            return
+        report = await self.brief.run(repos, ctx)
+        if report.outcome != "not_due":
+            ctx.counters[f"brief:{report.outcome}"] = 1
 
     async def _maintenance(self, repos: Repositories, ctx: RunContext) -> None:
         r = self.d.config.pipeline.retention

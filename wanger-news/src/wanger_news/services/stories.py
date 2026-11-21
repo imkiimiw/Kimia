@@ -37,7 +37,12 @@ from wanger_news.domain.enums import (
     Transport,
 )
 from wanger_news.domain.independence import Report, origins
-from wanger_news.domain.similarity import add_to_centroid, extract_entities, match, normalize
+from wanger_news.domain.similarity import (
+    add_to_centroid,
+    extract_entity_names,
+    match,
+    normalize,
+)
 from wanger_news.services.context import RunContext
 
 log = logging.getLogger("wanger_news.stories")
@@ -125,8 +130,11 @@ class StoryService:
         vectors = await self._embed(repos, ctx, articles, report)
         stories = await repos.stories.candidates(since, self._story.max_candidates)
         for article in articles:
-            names = extract_entities(text_of(article, 4000))
-            article.entities = [{"name": n, "kind": "heuristic"} for n in names]
+            pairs = extract_entity_names(text_of(article, 4000))
+            article.entities = [
+                {"name": key, "display": shown, "kind": "heuristic"} for key, shown in pairs
+            ]
+            names = [key for key, _ in pairs]
             vector = vectors.get(article.id)
             article.embedding = vector
             best: tuple[StoryCluster, dict[str, Any]] | None = None
@@ -350,6 +358,8 @@ class StoryService:
     ) -> None:
         """A post made by hand in a target channel now speaks for the story. When it is in
         the channel this run publishes to, later updates reply to it."""
+        ref = hand_post_ref(article)
+        here = ref is not None and ctx.target is not None and ctx.target.chat.matches(*ref[:2])
         if story.published_at is None:
             story.published_at = article.effective_at
             story.published_text = {
@@ -358,11 +368,19 @@ class StoryService:
                 "key_points": [],
             }
             story.lead_article_id = article.id
-            timeline_event(story, at, "published_by_hand", article_id=article.id)
-        ref = hand_post_ref(article)
-        if ref is not None and ctx.target is not None and ctx.target.chat.matches(*ref[:2]):
+        if here and ref is not None and ctx.target is not None:
             story.post_chat = ctx.target.key
             story.post_message_id = ref[2]
+            timeline_event(
+                story,
+                at,
+                "published_by_hand",
+                article_id=article.id,
+                message_ids=[ref[2]],
+                chat=ctx.target.key,
+            )
+        else:
+            timeline_event(story, at, "published_by_hand", article_id=article.id)
 
     async def _demote_unpublished_lead(
         self, repos: Repositories, ctx: RunContext, story: StoryCluster, lead: Article | None

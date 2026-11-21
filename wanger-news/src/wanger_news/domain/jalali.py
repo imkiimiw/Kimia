@@ -40,3 +40,20 @@ def format_tehran(moment: datetime, timezone: str = "Asia/Tehran") -> str:
     local = moment.astimezone(ZoneInfo(timezone))
     jy, jm, jd = gregorian_to_jalali(local.year, local.month, local.day)
     return to_persian_digits(f"{jy:04d}/{jm:02d}/{jd:02d} ساعت {local:%H:%M}")
+
+
+def format_date_fa(moment: datetime, timezone: str = "Asia/Tehran") -> str:
+    """``۱۴۰۵/۰۸/۳۰`` (the local Jalali date)."""
+    local = moment.astimezone(ZoneInfo(timezone))
+    jy, jm, jd = gregorian_to_jalali(local.year, local.month, local.day)
+    return to_persian_digits(f"{jy:04d}/{jm:02d}/{jd:02d}")
+
+
+def format_time_fa(moment: datetime, now: datetime, timezone: str = "Asia/Tehran") -> str:
+    """``۱۴:۳۰`` on the same local day as ``now``, else ``۰۸/۲۹ ۱۴:۳۰`` (month/day)."""
+    zone = ZoneInfo(timezone)
+    local, today = moment.astimezone(zone), now.astimezone(zone)
+    if local.date() == today.date():
+        return to_persian_digits(f"{local:%H:%M}")
+    _, jm, jd = gregorian_to_jalali(local.year, local.month, local.day)
+    return to_persian_digits(f"{jm:02d}/{jd:02d} {local:%H:%M}")

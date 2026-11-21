@@ -5,7 +5,7 @@ Replies arrive on the next run (no server: ADR-003), so /help says so.
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from wanger_news import PHASE, __version__
@@ -14,13 +14,15 @@ from wanger_news.config.models import AppConfig
 from wanger_news.db.repositories import Repositories
 from wanger_news.db.tables import Article
 from wanger_news.domain.enums import ArticleStatus, PublishMode, ReviewAction
-from wanger_news.domain.jalali import format_tehran
+from wanger_news.domain.jalali import format_tehran, format_time_fa
 from wanger_news.domain.text import to_ascii_digits, to_persian_digits
 from wanger_news.formatting.telegram_html import bold, esc, split_html
-from wanger_news.formatting.templates_fa import reason_fa
+from wanger_news.formatting.templates_fa import reason_fa, render_story_timeline
 from wanger_news.services.ai_stage import MODES_KEY, modes_from
+from wanger_news.services.brief import BriefService
 from wanger_news.services.context import RunContext
 from wanger_news.services.review import ReviewService
+from wanger_news.services.trends import TrendService
 
 PAUSED_KEY = "publishing.paused"
 TARGET_KEY = "publish.target"
@@ -54,9 +56,18 @@ def parse_command(text: str) -> tuple[str, str] | None:
 
 
 class CommandService:
-    def __init__(self, config: AppConfig, review: ReviewService) -> None:
+    def __init__(
+        self,
+        config: AppConfig,
+        review: ReviewService,
+        *,
+        trends: TrendService | None = None,
+        brief: BriefService | None = None,
+    ) -> None:
         self._cfg = config
         self._review = review
+        self._trends = trends
+        self._brief = brief
 
     async def handle(self, repos: Repositories, ctx: RunContext, message: Message) -> str:
         sender = message.from_user.id if message.from_user else None
@@ -77,6 +88,8 @@ class CommandService:
             "resume": self._resume,
             "news": self._news,
             "pending": self._pending,
+            "trends": self._trends_now,
+            "brief": self._brief_preview,
         }
         decisions = {
             "approve": ReviewAction.APPROVE,
@@ -89,6 +102,8 @@ class CommandService:
             text = await self._decide(repos, ctx, args, decisions[name], sender)
         elif name == "settings":
             text = await self._settings(repos, ctx, args)
+        elif name == "timeline":
+            text = await self._timeline(repos, ctx, args)
         elif name in LATER_PHASE:
             text = (
                 f"⏳ /{esc(name)} در فاز {to_persian_digits(str(LATER_PHASE[name]))} اضافه می‌شود."
@@ -130,6 +145,9 @@ class CommandService:
                 "/approve 12 · /publish 12 · /reject 12 — تصمیم دربارهٔ خبر #۱۲",
                 "/settings — تنظیمات؛ /settings mode default auto|semi|manual،",
                 "  /settings mode technology auto، /settings target test|main",
+                "/trends — موضوع‌های در حال رشد (هشدار زودهنگام)",
+                "/timeline 12 — روند کامل رویدادِ خبر #۱۲",
+                "/brief — پیش‌نمایش خلاصهٔ روز (چیزی منتشر نمی‌شود)",
                 "",
                 "کارت‌های بررسی دکمه دارند: ✅ تأیید · 📤 انتشار فوری · ✏️ ویرایش · ❌ رد.",
             ]
@@ -325,3 +343,71 @@ class CommandService:
         await repos.settings.set(TARGET_KEY, value, ctx.now())
         where = "کانال اصلی" if value == "main" else "کانال تست"
         return f"✅ از اجرای بعدی پست‌ها در {where} منتشر می‌شوند."
+
+    # ---------------------------------------------------------------- Phase 4
+    async def _trends_now(self, repos: Repositories, ctx: RunContext) -> str:
+        if self._trends is None:
+            return "بخش روندها فعال نیست."
+        cfg = self._cfg.pipeline.trends
+        current = await self._trends.detect(repos, ctx.now())
+        recent = await repos.trends.since(ctx.now() - timedelta(hours=24), 10)
+        window = to_persian_digits(str(cfg.window_minutes))
+        lines = [bold(f"📈 موضوع‌های در حال رشد ({window} دقیقهٔ اخیر)")]
+        if not current:
+            lines.append("الان موضوعی به‌طور غیرعادی رشد نکرده است.")
+        for trend in current[:8]:
+            lines.append(
+                f"• {esc(trend.label[:80])} — {to_persian_digits(str(trend.reports))} گزارش از "
+                f"{to_persian_digits(str(trend.sources))} منبع "
+                f"(×{to_persian_digits(str(round(trend.ratio, 1)))})"
+            )
+        if recent:
+            lines.append("")
+            lines.append(bold("هشدارهای ۲۴ ساعت اخیر"))
+            for alert in recent:
+                when = format_time_fa(alert.created_at, ctx.now(), self._cfg.pipeline.timezone)
+                lines.append(
+                    f"• {esc(when)} — {esc(alert.label[:80])} "
+                    f"({to_persian_digits(str(alert.reports))} گزارش)"
+                )
+        return "\n".join(lines)
+
+    async def _brief_preview(self, repos: Repositories, ctx: RunContext) -> str:
+        if self._brief is None or ctx.target is None:
+            return "خلاصهٔ روز فعال نیست یا کانال مقصد تنظیم نشده."
+        text = await self._brief.compose(repos, ctx)
+        cfg = self._cfg.pipeline.daily_brief
+        when = f"ساعت {to_persian_digits(cfg.local_time)}"
+        if text is None:
+            return (
+                "هنوز خبر کافی برای خلاصهٔ روز منتشر نشده "
+                f"(حداقل {to_persian_digits(str(cfg.min_items))} خبر). خلاصه {when} فرستاده می‌شود."
+            )
+        return f"👁 پیش‌نمایش (منتشر نمی‌شود؛ ارسال خودکار {when}):\n\n{text}"
+
+    async def _timeline(self, repos: Repositories, ctx: RunContext, args: str) -> str:
+        ref = to_ascii_digits(args.strip().lstrip("#"))
+        story = None
+        if ref.isdigit():
+            article = await repos.articles.get(int(ref))
+            story = await repos.stories.get(article.cluster_id) if article is not None else None
+        elif ref:
+            story = await repos.stories.by_event_id(ref)
+        if story is None:
+            return "شمارهٔ خبر را بنویسید، مثلاً /timeline 12 (خبر باید عضو یک رویداد باشد)."
+        tz = self._cfg.pipeline.timezone
+        rows = []
+        for event in story.timeline or []:
+            moment = datetime.fromisoformat(str(event.get("at")))
+            detail = ""
+            if event.get("event") == "joined":
+                detail = f"{event.get('source', '')} ({event.get('role', '')})"
+            elif event.get("article_id"):
+                detail = f"#{event['article_id']}"
+            rows.append((format_time_fa(moment, ctx.now(), tz), str(event.get("event")), detail))
+        title = str((story.published_text or {}).get("title") or story.title or story.event_id)
+        summary_line = (
+            f"\nمنابع مستقل: {to_persian_digits(str(story.independent_sources))} · "
+            f"گزارش‌ها: {to_persian_digits(str(story.member_count))}"
+        )
+        return render_story_timeline(title, rows) + summary_line

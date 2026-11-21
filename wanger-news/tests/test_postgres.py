@@ -137,3 +137,18 @@ async def test_stories_on_postgres_use_pgvector(pg_harness: Harness) -> None:
     assert stories[0].centroid is not None and stories[0].centroid[0] == pytest.approx(1.0)
     assert article is not None and article.embedding is not None and len(article.embedding) == 768
     assert len(pg_harness.telegram.channel_posts()) == 1
+
+
+async def test_trends_and_daily_brief_on_postgres(pg_harness: Harness) -> None:
+    """The Phase 4 queries (trend rows, breaking cap, published stories, brief claim)."""
+    from .test_realtime import five_outlets_on_one_event, posts, text_of
+
+    await five_outlets_on_one_event(pg_harness, daily_brief={"min_items": 1})
+    summary = await pg_harness.run()
+    assert summary.counters["trends_alerted"] == 1
+    pg_harness.clock.advance(hours=5, minutes=35)  # 21:05 Tehran
+    summary = await pg_harness.run()
+    assert summary.counters["brief:sent"] == 1
+    assert text_of(posts(pg_harness)[-1]).startswith("🗞 <b>خلاصهٔ خبرهای امروز</b>")
+    pg_harness.clock.advance(minutes=15)
+    assert (await pg_harness.run()).counters["brief:done"] == 1

@@ -132,8 +132,13 @@ class PublishService:
                 report.expired += 1
                 continue
             rendered = None
+            breaking = article.breaking and await self._breaking_allowed(repos, ctx, ctx.target)
+            if article.breaking and not breaking:
+                ctx.count("breaking_capped")
             if article.transport != Transport.TELEGRAM_CHANNEL.value:
-                rendered = await self.posts.build(repos, article)
+                rendered = await self.posts.build(
+                    repos, article, target=ctx.target, now=now, breaking=breaking
+                )
                 if rendered is None:  # never post unprocessed text: back to the AI stage
                     await repos.articles.set_status(
                         article, ArticleStatus.AI_PENDING, now, "queued without a Persian summary"
@@ -146,7 +151,9 @@ class PublishService:
                 self._preview(ctx, article, rendered)
                 report.previewed += 1
                 continue
-            stop = await self._publish_one(repos, ctx, ctx.target, article, rendered, report)
+            stop = await self._publish_one(
+                repos, ctx, ctx.target, article, rendered, report, breaking=breaking
+            )
             if stop:
                 break
             if cfg.min_interval_seconds:
@@ -177,6 +184,8 @@ class PublishService:
         article: Article,
         rendered: RenderedPost | None,
         report: PublishReport,
+        *,
+        breaking: bool = False,
     ) -> bool:
         """Returns True when publishing must stop for this run."""
         cfg = self._cfg.pipeline.publish
@@ -202,6 +211,7 @@ class PublishService:
         post.kind = "update" if article.cluster_role == ClusterRole.UPDATE.value else "story"
         post.cluster_id = story.id if story is not None else None
         post.reply_to_message_id = reply_to
+        post.breaking = breaking
         await repos.commit()  # the claim is durable BEFORE anything is sent
 
         try:
@@ -260,6 +270,8 @@ class PublishService:
         )
         if story is not None:
             await self._story_published(repos, story, article, target, delivery, now)
+            if rendered is not None and rendered.related:
+                story.related = rendered.related
         await repos.jobs.record(
             article.id,
             Stage.PUBLISH,
@@ -316,8 +328,18 @@ class PublishService:
             await repos.posts.finish(
                 post, PostStatus.UNCERTAIN, ctx.now(), error="claim expired: a run stopped mid-send"
             )
-            article = await repos.articles.get(post.article_id)
-            if article is not None:
+            article = (
+                await repos.articles.get(post.article_id) if post.article_id is not None else None
+            )
+            if article is None:  # a brief or a trend alert
+                await ctx.notify_owner(
+                    repos,
+                    "❓ <b>وضعیت یک پست نامشخص است</b>\n"
+                    f"{esc(post.kind)} ({esc(post.idempotency_key)}): اجرای قبلی وسط ارسال قطع شد. "
+                    "دوباره ارسال نمی‌شود؛ لطفاً کانال را بررسی کنید.",
+                    kind="uncertain",
+                )
+            else:
                 await repos.articles.set_status(
                     article, ArticleStatus.UNCERTAIN, ctx.now(), "claim expired"
                 )
@@ -333,6 +355,64 @@ class PublishService:
             f"علت: {esc(reason[:200])}\n"
             "برای جلوگیری از پست تکراری، دوباره ارسال نمی‌شود. لطفاً کانال را بررسی کنید."
         )
+
+    async def _breaking_allowed(
+        self, repos: Repositories, ctx: RunContext, target: Target | None
+    ) -> bool:
+        """At most ``breaking.max_per_hour`` 🔴 posts per channel: more would numb readers."""
+        if target is None:
+            return False
+        cap = self._cfg.pipeline.breaking.max_per_hour
+        sent = await repos.posts.breaking_sent_since(target.key, ctx.now() - timedelta(hours=1))
+        return sent < cap
+
+    # ---------------------------------------------------------------- posts without an article
+    async def send_extra(
+        self, repos: Repositories, ctx: RunContext, *, key: str, kind: str, text: str
+    ) -> str:
+        """A daily brief or a trend alert to the target channel, with the same at-most-once
+        protocol as articles. Returns sent | exists | failed | uncertain | preview | skipped."""
+        target = ctx.target
+        if target is None or (ctx.bot is None and not ctx.dry_run):
+            return "skipped"
+        if ctx.dry_run:
+            ctx.out(f"=== [dry-run] {kind} → {target.chat}\n{text}\n")
+            return "preview"
+        full_key = f"{key}:chat:{target.key}"
+        post = await repos.posts.claim(
+            key=full_key,
+            article_id=None,
+            role=target.role,
+            chat_id=target.key,
+            method="send",
+            run_id=ctx.run_id,
+            now=ctx.now(),
+            max_attempts=self._cfg.pipeline.publish.max_attempts,
+        )
+        if post is None:
+            return "exists"
+        post.kind = kind
+        await repos.commit()
+        try:
+            delivery = await self._send_text(ctx, target, text)
+        except TelegramUncertain as exc:
+            await repos.posts.finish(post, PostStatus.UNCERTAIN, ctx.now(), error=str(exc))
+            await repos.commit()
+            return "uncertain"
+        except (TelegramNotSent, TelegramRateLimited) as exc:
+            await repos.posts.finish(post, PostStatus.FAILED, ctx.now(), error=str(exc))
+            await repos.commit()
+            return "failed"
+        await repos.posts.finish(
+            post,
+            PostStatus.SENT,
+            ctx.now(),
+            message_ids=delivery.message_ids,
+            text=delivery.text,
+            method=delivery.method,
+        )
+        await repos.commit()
+        return "sent"
 
     # ---------------------------------------------------------------- stories
     @staticmethod

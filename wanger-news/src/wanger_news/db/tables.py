@@ -125,6 +125,8 @@ class Article(Base):
     cluster_role: Mapped[str | None] = mapped_column(sa.String(16))
     cluster_score: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
     embedding: Mapped[list[float] | None] = mapped_column(EmbeddingType)
+    breaking: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.false())  # Phase 4
+    breaking_reason: Mapped[str | None] = mapped_column(sa.String(200))
     created_at: Mapped[datetime] = mapped_column(server_default=_now)
     updated_at: Mapped[datetime] = mapped_column(server_default=_now)
 
@@ -148,7 +150,8 @@ class PublishedPost(Base):
     __table_args__ = (sa.Index("ix_published_posts_status_claimed_at", "status", "claimed_at"),)
     id: Mapped[int] = mapped_column(BigId, primary_key=True, autoincrement=True)
     idempotency_key: Mapped[str] = mapped_column(sa.String(200), unique=True)
-    article_id: Mapped[int] = mapped_column(sa.BigInteger, index=True)
+    # None for posts that belong to no article (Phase 4: daily brief, trend alert)
+    article_id: Mapped[int | None] = mapped_column(sa.BigInteger, index=True)
     channel_role: Mapped[str] = mapped_column(sa.String(8))
     chat_id: Mapped[str] = mapped_column(sa.String(64))
     method: Mapped[str] = mapped_column(sa.String(32))
@@ -160,7 +163,9 @@ class PublishedPost(Base):
     claimed_by: Mapped[str | None] = mapped_column(sa.String(64))
     claimed_at: Mapped[datetime | None] = mapped_column()
     sent_at: Mapped[datetime | None] = mapped_column()
-    kind: Mapped[str] = mapped_column(sa.String(16), server_default="story")  # story | update
+    # story | update | brief | trend
+    kind: Mapped[str] = mapped_column(sa.String(16), server_default="story")
+    breaking: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.false())
     cluster_id: Mapped[int | None] = mapped_column(sa.BigInteger)
     reply_to_message_id: Mapped[int | None] = mapped_column(sa.BigInteger)
     created_at: Mapped[datetime] = mapped_column(server_default=_now)
@@ -340,6 +345,8 @@ class StoryCluster(Base):
     post_chat: Mapped[str | None] = mapped_column(sa.String(64))
     post_message_id: Mapped[int | None] = mapped_column(sa.BigInteger)
     published_text: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
+    breaking_at: Mapped[datetime | None] = mapped_column()  # Phase 4
+    related: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list)
     created_at: Mapped[datetime] = mapped_column(server_default=_now)
     updated_at: Mapped[datetime] = mapped_column(server_default=_now)
 
@@ -372,3 +379,24 @@ class Evidence(Base):
     excerpt: Mapped[str] = mapped_column(sa.Text)
     supports: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.true())
     created_at: Mapped[datetime] = mapped_column(server_default=_now)
+
+
+class TrendAlert(Base):
+    """Phase 4 early warning: a topic with unusually many reports in a short window."""
+
+    __tablename__ = "trend_alerts"
+    __table_args__ = (sa.Index("ix_trend_alerts_key_created_at", "key", "created_at"),)
+    id: Mapped[int] = mapped_column(BigId, primary_key=True, autoincrement=True)
+    kind: Mapped[str] = mapped_column(sa.String(16))  # story | entity
+    key: Mapped[str] = mapped_column(sa.String(200))
+    label: Mapped[str] = mapped_column(sa.Text)
+    window_start: Mapped[datetime] = mapped_column()
+    window_end: Mapped[datetime] = mapped_column()
+    reports: Mapped[int] = mapped_column(sa.Integer)
+    sources: Mapped[int] = mapped_column(sa.Integer)
+    baseline: Mapped[float] = mapped_column(sa.Float)
+    ratio: Mapped[float] = mapped_column(sa.Float)
+    cluster_id: Mapped[int | None] = mapped_column(sa.BigInteger)
+    details: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    notified: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.false())
+    created_at: Mapped[datetime] = mapped_column(index=True)

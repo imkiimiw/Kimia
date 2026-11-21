@@ -48,6 +48,7 @@ class RenderedPost:
     text: str  # Telegram HTML
     photo_url: str | None  # when set, ``text`` is the caption and fits the caption limit
     text_without_photo: str | None = None  # the same post without the image credit
+    related: list[dict[str, object]] = field(default_factory=list)  # Phase 4: linked stories
 
 
 def _render(post: PostInput, teaser: str, with_image: bool, timezone: str) -> str:
@@ -122,6 +123,15 @@ class ContradictionLine:
 
 
 @dataclass(frozen=True, slots=True)
+class PostLink:
+    """An earlier channel post (Phase 4: related stories, story timeline)."""
+
+    title: str
+    url: str | None
+    when: str | None = None  # already formatted (Tehran time)
+
+
+@dataclass(frozen=True, slots=True)
 class SummaryPost:
     """A validated (or human-approved) Persian rendering, ready for the channel (spec §10)."""
 
@@ -136,6 +146,14 @@ class SummaryPost:
     breaking: bool = False  # Phase 4
     update: bool = False  # Phase 3: a follow-up to a published story (sent as a reply)
     contradictions: list[ContradictionLine] = field(default_factory=list)
+    timeline: list[PostLink] = field(default_factory=list)  # Phase 4: earlier posts of the story
+    related: list[PostLink] = field(default_factory=list)  # Phase 4: related earlier stories
+
+
+def _link_line(item: PostLink, title_chars: int = 90) -> str:
+    title = truncate(item.title, title_chars)
+    text = link(item.url, title) if item.url else esc(title)
+    return f"• {esc(item.when)} — {text}" if item.when else f"• {text}"
 
 
 def contradiction_sentence(line: ContradictionLine) -> str:
@@ -157,6 +175,8 @@ def _summary_html(post: SummaryPost, with_image: bool) -> str:
         blocks.append("\n".join(f"• {esc(point)}" for point in post.key_points))
     if post.contradictions:
         blocks.append("\n".join(f"⚖️ {esc(contradiction_sentence(c))}" for c in post.contradictions))
+    if post.timeline:
+        blocks.append("🧵 <b>روند خبر:</b>\n" + "\n".join(_link_line(t) for t in post.timeline))
     status = STATUS_LABELS_FA.get(post.status, post.status)
     lines = [f"📌 وضعیت: {esc(status)}"]
     if len(post.source_names) == 1 and not post.update:
@@ -172,6 +192,8 @@ def _summary_html(post: SummaryPost, with_image: bool) -> str:
     if with_image:
         meta.append(f"🖼 تصویر: {esc(post.source_names[0])}")
     blocks.append("\n".join(meta))
+    if post.related:
+        blocks.append("🔗 <b>مرتبط:</b>\n" + "\n".join(_link_line(r) for r in post.related))
     if post.hashtags:
         blocks.append(" ".join("#" + esc(tag) for tag in post.hashtags[:3]))
     return "\n\n".join(blocks)
@@ -228,6 +250,7 @@ class ReviewCard:
     sources_line: str | None = None  # Phase 3: independent sources of the story
     claims_line: str | None = None  # Phase 3: claim statuses
     update_of: str | None = None  # Phase 3: the published story this update belongs to
+    breaking: bool = False  # Phase 4
 
 
 def render_review_card(card: ReviewCard, preview_chars: int) -> str:
@@ -247,6 +270,8 @@ def render_review_card(card: ReviewCard, preview_chars: int) -> str:
     )
     if card.update_of:
         head.insert(1, f"🔄 به‌روزرسانی خبر منتشرشده: {esc(card.update_of[:120])}")
+    if card.breaking:
+        head.insert(1, "🔴 <b>خبر فوری</b> — لطفاً زودتر تصمیم بگیرید")
     if card.sources_line:
         head.append(f"📚 {esc(card.sources_line)}")
     if card.claims_line:
@@ -271,3 +296,108 @@ def render_review_card(card: ReviewCard, preview_chars: int) -> str:
 
 def _strip_tags(markup: str) -> str:
     return html.unescape(_TAGS.sub("", markup))
+
+
+# ------------------------------------------------------------------ Phase 4: real time
+
+
+@dataclass(frozen=True, slots=True)
+class TrendAlert:
+    label: str
+    reports: int
+    sources: int
+    window_minutes: int
+    usual: float  # usual reports per window
+    source_names: list[str]
+
+
+def render_trend_alert(alert: TrendAlert) -> str:
+    """«⚠️ موضوع در حال رشد: …» (spec, Phase 4). Only counts: nothing here is a claim."""
+
+    def fa(value: float | int) -> str:
+        return to_persian_digits(str(value))
+
+    usual = round(alert.usual, 1)
+    usual_text = fa(int(usual)) if usual == int(usual) else fa(usual).replace(".", "٫")
+    window = fa(alert.window_minutes)
+    before = (
+        f"معمولاً حدود {usual_text} گزارش در هر {window} دقیقه."
+        if usual > 0
+        else "پیش از این، گزارشی دربارهٔ آن ثبت نشده بود."
+    )
+    lines = [
+        f"⚠️ <b>موضوع در حال رشد:</b> تعداد گزارش‌ها دربارهٔ «{esc(alert.label)}» در "
+        f"{window} دقیقهٔ اخیر به شکل غیرعادی افزایش یافته است.",
+        f"📊 {fa(alert.reports)} گزارش از {fa(alert.sources)} منبع؛ {before}",
+    ]
+    if alert.source_names:
+        lines.append("📰 منابع: " + esc("، ".join(alert.source_names[:6])))
+    lines.append("ℹ️ این هشدار فقط بر اساس شمار گزارش‌هاست و به معنی تأیید محتوای آن‌ها نیست.")
+    return "\n".join(lines)
+
+
+@dataclass(frozen=True, slots=True)
+class BriefItem:
+    title: str
+    url: str | None
+    status: str  # a key of STATUS_LABELS_FA
+    breaking: bool = False
+    updates: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class DailyBrief:
+    date: str  # Jalali, already formatted
+    items: list[BriefItem]
+    trends: list[tuple[str, int]] = field(default_factory=list)  # (topic, reports)
+
+
+def render_brief(brief: DailyBrief) -> str:
+    """The day's published stories, most important first — only titles already published
+    (no new AI text), each linked to its post."""
+    blocks = [f"🗞 <b>خلاصهٔ خبرهای امروز</b> — {esc(brief.date)}"]
+    lines = []
+    for n, item in enumerate(brief.items, 1):
+        title = truncate(item.title, 110)
+        text = link(item.url, title) if item.url else esc(title)
+        status = STATUS_LABELS_FA.get(item.status, item.status)
+        extra = f" · {to_persian_digits(str(item.updates))} به‌روزرسانی" if item.updates else ""
+        mark = "🔴 " if item.breaking else ""
+        lines.append(f"{to_persian_digits(str(n))}. {mark}{text}\n   📌 {esc(status)}{extra}")
+    blocks.append("\n".join(lines))
+    if brief.trends:
+        topics = "، ".join(
+            f"{esc(label)} ({to_persian_digits(str(count))} گزارش)" for label, count in brief.trends
+        )
+        blocks.append(f"📈 موضوع‌های پرگزارش امروز: {topics}")
+    blocks.append("#خلاصه_روز")
+    return "\n\n".join(blocks)
+
+
+TIMELINE_EVENTS_FA = {
+    "created": "رویداد ثبت شد",
+    "joined": "منبع تازه",
+    "summarized": "خلاصه آماده شد",
+    "update_ready": "به‌روزرسانی آماده شد",
+    "published": "منتشر شد",
+    "published_by_hand": "پست دستی در کانال",
+    "update_published": "به‌روزرسانی منتشر شد",
+    "corroborated": "تأیید منبع دیگر (بدون اطلاعات تازه)",
+    "detached": "یک منبع جدا شد (رویداد دیگر)",
+    "new_lead": "گزارش اصلی عوض شد",
+    "breaking": "🔴 خبر فوری",
+    "trend": "⚠️ موضوع در حال رشد",
+}
+
+
+def render_story_timeline(title: str, lines: list[tuple[str, str, str]], limit: int = 40) -> str:
+    """Admin view of a story's timeline: (time, event, detail) rows, oldest first."""
+    rows = [
+        f"• {esc(when)} — {esc(TIMELINE_EVENTS_FA.get(event, event))}"
+        + (f": {esc(detail)}" if detail else "")
+        for when, event, detail in lines[-limit:]
+    ]
+    head = f"🧵 <b>روند خبر</b>: {esc(truncate(title, 150))}"
+    if len(lines) > limit:
+        head += f"\n(فقط {to_persian_digits(str(limit))} رویداد آخر)"
+    return head + "\n" + "\n".join(rows)

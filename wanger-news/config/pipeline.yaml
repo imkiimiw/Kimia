@@ -189,3 +189,58 @@ story:
   max_sources_per_story: 5
   max_input_chars_per_call: 30000
   review_conflicts: true          # stories whose sources contradict each other go to a human
+
+# ---------------------------------------------------------------- Phase 4: real time
+# 🔴 Breaking never skips the hallucination guard or a human review: it only adds the marker,
+# puts the item first in every queue and is not held back by the settle time.
+breaking:
+  enabled: true
+  min_priority: 100               # rule priority 100 (international crisis) …
+  min_importance: 85              # … or an importance score this high
+  min_confidence: 50              # never for "unconfirmed" text
+  max_age_minutes: 120            # since the story was first seen
+  max_per_hour: 3                 # more than this per channel are posted without 🔴
+  allow_updates: false            # an update post is not breaking
+
+# Early warning: «⚠️ موضوع در حال رشد». Counts only (no AI). A topic is a story (one event)
+# or a name; it trends when its reports in the window are unusually many for it.
+trends:
+  enabled: true
+  window_minutes: 60
+  baseline_hours: 24
+  min_reports: 5
+  min_sources: 3                  # different outlets (owner groups)
+  max_reports_per_source: 2       # one noisy outlet cannot make a trend
+  min_ratio: 3.0                  # reports in the window / usual reports per window
+  baseline_floor: 1.0
+  min_history_hours: 6            # a new database knows no "usual": no alerts before this
+  cooldown_hours: 6               # one alert per topic in this time
+  max_alerts_per_run: 3
+  kinds: [story, entity]
+  entity_story_overlap: 0.8       # a name mostly reported within one trending story: no 2nd alert
+  notify_admins: true
+  post_to_channel: false          # owner's decision (PLAN.md)
+
+related:
+  enabled: true
+  window_days: 7
+  min_cosine: 0.75                # related, not the same event (that is story.min_cosine)
+  min_entity_overlap: 0.34
+  min_shared_names: 2
+  max_links: 2
+  max_candidates: 300
+
+timeline:
+  enabled: true
+  min_previous_posts: 2           # with one earlier post the reply already shows it
+  max_entries: 4
+
+daily_brief:
+  enabled: true
+  local_time: "21:00"             # pipeline.timezone (Asia/Tehran)
+  max_late_hours: 3               # runs stopped or cron very late: that day's brief is skipped
+  window_hours: 24
+  min_items: 3
+  max_items: 10
+  include_trends: true
+  destination: channel            # or "admins" (a preview in the admins' private chats)
