@@ -1,8 +1,10 @@
 # Wanger News — Architecture
 
-Status: **Phase 2** (AI: Persian summaries, hallucination guard, review, main channel) on top of
-Phase 1 (foundation). This document describes what exists, where every later feature plugs in,
-and why each decision was taken (ADRs at the end; Phase 2 decisions are ADR-019 onwards).
+Status: **Phase 3** (intelligence: stories of one event across outlets, independent sources,
+claims and evidence, contradictions, update posts) on top of Phase 2 (AI: Persian summaries,
+hallucination guard, review, main channel) and Phase 1 (foundation). This document describes what
+exists, where every later feature plugs in, and why each decision was taken (ADRs at the end;
+Phase 2 decisions are ADR-019 onwards, Phase 3 decisions ADR-029 onwards).
 
 ## 1. Overview
 
@@ -12,16 +14,21 @@ and why each decision was taken (ADRs at the end; Phase 2 decisions are ADR-019 
  GitHub Actions cron ──► python -m wanger_news run-once ◄── Docker worker (option B)
                                    │
    ┌────────────────── services/pipeline.py (one pass, isolated stages) ──────────────────┐
-   │ lock → sync → INBOX → INGEST → CLASSIFY+GATE → AI → REVIEW CARDS → PUBLISH → retention │
-   └────────────────────────────────────────────────────────────────────────────────────────┘
+   │ lock → sync → INBOX → INGEST → GATE → CLUSTER → AI → REVIEW CARDS → PUBLISH → retention │
+   └─────────────────────────────────────────────────────────────────────────────────────────┘
    INBOX  : getUpdates → telegram_updates → admin commands · review buttons · edit replies ·
             source-channel posts · posts made by hand in the target channels
    INGEST : FETCH → PARSE → NORMALIZE → VALIDATE → DEDUPLICATE (L1, L2, L3-port)
    GATE   : rule-based category / priority / sensitive topics → ai_pending | filtered
-   AI     : SUMMARIZE (Persian) → GUARD layer 1 (deterministic) + layer 2 (AI verify)
-            → one REWRITE if needed → scores → route: queued | pending_review | held
+   CLUSTER: EMBED → same event? (cosine + names + time) → story_clusters; role per report:
+            lead · support · update · corroboration · human · external (L3 dedup)
+   AI     : one multi-source SUMMARY per story (Persian; claims with per-source evidence,
+            contradictions) → GUARD layer 1 + layer 2 (AI verify) → one REWRITE if needed →
+            claims/evidence rows → scores → route: queued | pending_review | held
+            UPDATE call for new independent reports of a published story → update post | corroboration
    REVIEW : cards with ✅ 📤 ✏️ ❌ in the admins' private chats
-   PUBLISH: claim → send (sendPhoto/sendMessage/copyMessage[s]) → record; test or main channel
+   PUBLISH: claim → send (sendPhoto/sendMessage/copyMessage[s]) → record; test or main channel;
+            an update post is a reply to the story's last post
                                    │
                  PostgreSQL (Neon/Supabase free tier) — ALL state lives here
 ```
@@ -33,11 +40,11 @@ GitHub Actions entrypoint (`run-once`) and the body of the long-running `worker`
 
 | Layer | Package | Rule |
 |---|---|---|
-| Domain (pure) | `domain/` — text, urls, fingerprint, keywords, classify, gate, quality, jalali, chatref, article, normalize, feed | no I/O, fully unit-tested |
+| Domain (pure) | `domain/` — text, urls, fingerprint, keywords, classify, gate, quality, jalali, chatref, article, normalize, feed; summary, guard, scoring, editorial (Phase 2); similarity, independence, claims (Phase 3) | no I/O, fully unit-tested |
 | Formatting (pure) | `formatting/` — Telegram HTML escaping/splitting, Persian templates | the only place output text is built and escaped |
 | Ports | `ports.py` (Clock, FeedFetcher, BotApi, EventMatcher, MotherBot), `ai/provider.py` (AIProvider) | interfaces the services depend on |
 | Adapters | `adapters/http` (SSRF guard, safe fetcher, robots.txt), `adapters/feeds` (feedparser), `adapters/telegram` (Bot API client, update models, post → draft), `db/` (SQLAlchemy models, repositories, engine) | all I/O |
-| Services | `services/` — ingest, dedup, processing, publish, inbox, commands, health, targets, doctor, pipeline | orchestration, depend on ports |
+| Services | `services/` — ingest, dedup, processing, publish, inbox, commands, health, targets, doctor, pipeline; ai_stage, posts, review (Phase 2); stories (Phase 3) | orchestration, depend on ports |
 | Composition root | `runtime.py`, `cli.py` | the only places concrete adapters are built |
 
 Adding a source never needs code (config/sources.yaml). A new transport (licensed API, a
@@ -52,7 +59,11 @@ next one; `processing_jobs` records (article, stage) → done/failed/skipped, at
 ```
 feed entry ─► (known external_id? skip) ─► stale | throttled | new ─► dedup? ─► duplicate
 new ─► classify+gate ─► ai_pending | filtered
-ai_pending ─► summary + guard (+ rewrite) ─► route:
+ai_pending ─► cluster: new story (lead) | joins a story:
+   story not summarised yet → support (merged; one more source of the story's summary)
+   independent origin, story summarised/published → update (waits; then the AI update call)
+   same origin as a member (wire copy, same owner, recorded duplicate) → corroboration (merged)
+lead ─► (settle time) ─► one summary of the story + guard (+ rewrite) ─► route:
    guard failed · insufficient information · sensitive topic · confidence < 50 → pending_review
    mode manual → held · mode semi → pending_review · mode auto (thresholds met) → queued
    AI keeps failing (max_attempts) → pending_review without text · too old → expired
@@ -61,8 +72,12 @@ pending_review ─► ✅ → queued · 📤 → queued + publish_now · ✏️ 
 held ─► /publish id → queued · too old → expired
 queued ─► claim ─► sent → published · definite failure → failed (retry while attempts left)
                  · unknown outcome → uncertain (never re-sent) · too old → expired
+   sources contradict each other → pending_review (conflicting_reports)
+update ─► story published? ─► AI update: other event → detached (own story) · nothing new →
+          merged (corroboration) · new information → summary + guard ─► route ─► reply post
 source-channel post ─► published before? ─► duplicate (owner told) | new ─► queued ─► copied
-post made by hand in a target channel ─► external (a dedup reference only)
+                       (and joins its story as `human`)
+post made by hand in a target channel ─► external: a dedup reference; marks its story published
 ```
 
 Cheap stages run before anything expensive: normalization, exact/near dedup and the
@@ -87,7 +102,7 @@ on news that will not expire). Publishing takes "publish now" first, then the im
 | 6-hour job limit / minutes | A run is ~1 minute (16 feeds concurrently, few posts). `timeout-minutes: 10`. Public repository → Actions minutes are free. |
 | Scheduled workflows | Run only from the default branch; GitHub disables them after 60 days without repository activity. |
 
-## 5. Data model (migrations `0001` Phase 1, `0002` Phase 2)
+## 5. Data model (migrations `0001` Phase 1, `0002` Phase 2, `0003` Phase 3)
 
 | Table | Purpose |
 |---|---|
@@ -106,6 +121,9 @@ on news that will not expire). Publishing takes "publish now" first, then the im
 | `ai_runs` (0002) | every AI call: run, provider, model, operation, prompt version, items, status, tokens (input/output/thinking), cost, error, response excerpt |
 | `summaries` (0002) | Persian renderings: origin ai/rewrite/human, prompt version, model, source hash (cache key), title, summary, key points, entities, quotes, claims with evidence, AI category and importance factors, guard report, valid |
 | `review_requests` (0002) | review cards and edit prompts sent to admins: message ids, open/closed, outcome, who decided |
+| `story_clusters` (0003) | one row per event: `event_id`, lead article, title, summary, category, names, first seen / last updated, importance, confidence, independent sources (+ list), member count, centroid embedding, contradictions, timeline, published at / post chat / post message id / published text |
+| `claims` (0003) | claims of a story's summary: text, status (confirmed/likely/unconfirmed/conflicting/rejected), confidence, supporting articles, versions (for conflicting claims) |
+| `evidence` (0003) | verbatim excerpt per (claim, article), supports or not |
 
 `articles` gained (0002): `summary_id`, `importance_score` + breakdown, `confidence_score` +
 breakdown, `publish_mode`, `review_reason`, `approved_by`/`approved_at`, `publish_now`. The
@@ -115,9 +133,14 @@ text) to `ai_pending`; downgrade maps the new statuses back.
 Times are stored in UTC (`UTCDateTime` refuses naive datetimes); display is `Asia/Tehran` with a
 Jalali date. JSON columns are JSONB on PostgreSQL.
 
-Tables of later phases, each in its own migration: `story_clusters`, `cluster_articles`,
-`claims`, `evidence`, `entities` (Phase 3, with `CREATE EXTENSION vector` and an `embedding`
-column — claims are already stored per summary in Phase 2); `corrections`,
+`articles` gained (0003): `cluster_id`, `cluster_role`, `cluster_score` (why it joined: cosine,
+names, time), `embedding`; `published_posts` gained `kind` (story/update), `cluster_id`,
+`reply_to_message_id`. A story's members are `articles.cluster_id` — no separate
+`cluster_articles` table (one article belongs to one story). Embeddings are pgvector `vector`
+columns on PostgreSQL (`CREATE EXTENSION IF NOT EXISTS vector` in 0003) and JSON on SQLite
+(ADR-031). Names stay a JSON list on the story; an `entities` table waits for search (Phase 6).
+
+Tables of later phases, each in its own migration: `corrections`,
 `reliability_history`, `categories`/`tags` tables if the dashboard needs them (Phase 5). There is
 no separate `translations` table: the Persian summary is the translation (ADR-021).
 
@@ -154,11 +177,12 @@ no separate `translations` table: the Persian summary is the translation (ADR-02
 | Later feature | Where |
 |---|---|
 | Another AI provider (OpenAI, Anthropic, local) | a new `AIProvider` adapter next to `ai/gemini.py`; `ai.fallback_provider` (config) is where a fallback is chosen |
-| Multi-source confidence, contradictions (Phase 3) | `confidence(independent_sources=…)` already takes the count; `summaries.claims` hold claims + evidence |
+| ANN search over many stories | a fixed-dimension `vector(n)` column + HNSW index and `ORDER BY centroid <=> :q` in `StoryRepo.candidates` (ADR-031) |
+| Related stories, story timeline posts (Phase 4) | `story_clusters.timeline` and `entities` are recorded already |
+| Corrections of published posts (Phase 5) | `story_clusters.post_message_id` / `published_text`, claims with versions |
 | Breaking 🔴 (Phase 4) | `SummaryPost.breaking` is rendered already; nothing sets it yet |
 | Full rules engine (Phase 5) | `domain/editorial.route` is the single routing function to generalise |
-| Story clusters, same-event dedup (Phase 3) | `EventMatcher` port, called after L1/L2 in `DedupService.check` |
-| Update/correction posts (Phase 3/5) | `published_posts.message_ids` (reply target) |
+| Same-event check inside ingest (instant L3) | `EventMatcher` port in `DedupService.check` (kept as a no-op: L3 is the CLUSTER stage, ADR-029) |
 | Webhook instead of polling | a second inbox adapter feeding the same `InboxService.process` |
 | Other output languages | template module per language (`formatting/templates_<lang>.py`) |
 | Mother bot | `MotherBot` port (`report_run`, `report_event`), called after each run; no-op now |
@@ -354,3 +378,83 @@ includes the chat, so switching never re-posts what the test channel already got
 the provider is tested against recorded-shape responses (MockTransport) and the stage with a
 deterministic fake. `doctor` checks the key and model names (model metadata, no generation
 quota); the first real runs should be watched (`/status`, `ai_runs`) — see PLAN.md.
+
+### Phase 3 — intelligence
+
+**ADR-029 — same-event detection is a pipeline stage, not a dedup level inside ingest.**
+Level-3 dedup needs embeddings (a budgeted AI call) and should only be paid for items that
+passed the cheap filters, so it runs as the CLUSTER stage after the gate and before the AI. A
+report about an event we already have is not thrown away like an L1/L2 duplicate: it becomes a
+source of that story (`merged` with a role), and it is what makes multi-source confidence
+possible. The `EventMatcher` port in `DedupService.check` stays a no-op for an instant check later.
+
+**ADR-030 — embeddings: `gemini-embedding-001`, 768 dimensions, task type CLUSTERING.** The text
+is the title + the first 1200 characters in the source language (the model is multilingual, so
+nothing is translated first). 768 dimensions (the model's Matryoshka truncation) keep a free-tier
+database small. Embedding requests take up to 100 texts and are budgeted separately
+(`story.max_embed_calls_per_run`); they are logged in `ai_runs` as `embed` but do not count
+towards the daily *generation* quota, which is a separate quota at Google. Without a provider or
+when embedding fails, every report stays a story of its own (nothing is merged — the safe
+direction) and the next run catches up.
+
+**ADR-031 — vectors in pgvector, similarity in Python.** The column type is pgvector's `vector`
+without a fixed dimension (so the dimension is a config value, not a migration), JSON on SQLite
+(tests, dry runs). Candidates are only stories updated within `story.window_hours` (72 h, at most
+`max_candidates`), so comparing a few hundred centroids in Python is cheap and needs no ANN index;
+it also keeps SQLite and PostgreSQL behaving identically. When volume grows: a fixed `vector(768)`
+column, an HNSW index and `ORDER BY centroid <=> :q` in `StoryRepo.candidates` (one function).
+Neon and Supabase ship the extension; the migration runs `CREATE EXTENSION IF NOT EXISTS vector`
+and its downgrade leaves the extension installed (other database objects may use it).
+
+**ADR-032 — a conservative, hybrid same-event rule; the AI can undo a merge.** Same event when
+cosine ≥ `min_cosine` (0.84) AND (cosine ≥ `strong_cosine` (0.92) OR shared names ≥
+`min_entity_overlap` (0.2)), within the time window; candidates are ranked by
+0.7·cosine + 0.2·names + 0.1·time. Wrongly merging two events would hide one of them, which is
+worse than missing a merge (two posts about one event). Second line of defence: the summary call
+may list `excluded_sources` (those reports leave the story), and the update call answers
+`same_event`. **These thresholds are not calibrated on real embeddings** — the development
+session had no Gemini key (ADR-028); every join stores its `cluster_score` so the first real runs
+can be checked and the values tuned in `config/pipeline.yaml`.
+
+**ADR-033 — roles and the life of a story.** `lead` (gets the summary) · `support` (joined before
+the summary: one more source of it) · `update` (an independent report after the summary: waits
+until the story is out, then the AI decides) · `corroboration` (same origin as a member, or an
+update with nothing new: counts, nothing posted) · `human` (a source-channel post) · `external`
+(a post made by hand in a target channel). A lead waits `settle_minutes` (15) after the story's
+last change to collect sources first; priority-100 news does not wait. One summary per story from
+up to `max_sources_per_story` (5) sources, most reliable first. Human posts keep their Phase 1
+behaviour (copied as they are) and become the story's representative when nothing was published
+yet: a hand-made post in the target channel marks the story published (updates reply to it) and
+an unapproved automatic lead becomes an update candidate. If a lead dies (rejected, expired), a
+waiting update becomes the new lead. Every step is a `timeline` event of the story.
+
+**ADR-034 — independent sources = independent origins.** Reports are grouped (union-find) when
+their outlets share an `owner_group`, when one is a recorded L1/L2 duplicate of the other, or when
+their texts are nearly the same (token Jaccard ≥ `syndication_min_jaccard`, 0.6 — a wire copy).
+Each origin is represented by its most reliable report (primary sources first). A story's
+`independent_sources` counts origins of feed reports; our own channels' posts are never sources.
+
+**ADR-035 — claims cite sources; statuses are rules, not AI opinions.** Each claim of the summary
+lists the sources that state it, each with a verbatim excerpt; the guard checks every excerpt
+against *that* source's text and refuses unknown source ids. Status: `rejected` (the verifier
+found no support) · `conflicting` · `confirmed` (≥ 2 independent origins) · `likely` (one primary
+source with reliability ≥ `likely_min_reliability`, 80) · `unconfirmed`. Claims and evidence are
+rows (`claims`, `evidence`). Story confidence adds the number of independent origins (1: 40,
+2: 75, 3+: 100) and a consistency component; caps: one origin ≤ 69, contradictions ≤ 69, failed
+guard ≤ 49.
+
+**ADR-036 — contradictions are reported, never resolved, and always seen by a human.** The AI
+reports a disagreement as a topic plus ≥ 2 versions (source id, Persian predicate, verbatim
+evidence). The guard checks each version against its own source (numbers included); a
+"contradiction" from a single source fails. The post renders it with one fixed sentence —
+«گزارش‌ها دربارهٔ X متفاوت است؛ A …، در حالی که B ….» — plus a note when the reports were
+published ≥ 2 h apart, so a newer figure is not read as a contradiction by accident. Status
+«متناقض»; with `story.review_conflicts` (default) the story goes to review
+(`conflicting_reports`) whatever the publish mode.
+
+**ADR-037 — updates are replies, never edits.** New information becomes a short update post
+(«🔄 به‌روزرسانی», only the new facts, «منابع تازه») sent as a reply to the story's last post in
+the same channel (`reply_parameters`, `allow_sending_without_reply` so a deleted original does
+not block it). Editing a published post would silently change what readers already saw; real
+corrections are Phase 5. An update in another channel than the story's (after `/settings target`)
+is sent without the reply. The per-article idempotency key is unchanged.

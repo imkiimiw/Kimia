@@ -69,6 +69,14 @@ python -m wanger_news migrate | db-check | doctor | validate-config   # doctor c
   (`domain/guard.py` + verify) decides; failures go to a human, never to auto-publish. Safety
   reasons (guard, sensitive, insufficient, confidence < 50) win over the publish mode
   (`domain/editorial.py`). Tests use `tests/fake_ai.py`; never call a real AI API in tests.
+- Phase 3 stories (`services/stories.py`, `services/ai_stage.py`): one story per event, one
+  summary per story, roles lead/support/update/corroboration/human/external. Merging is
+  conservative (a wrong merge hides news); the AI may only send sources OUT of a story. Claims
+  cite source ids with verbatim evidence checked against THAT source. Contradictions are
+  reported side by side with a fixed sentence and always go to a human; the system never picks
+  a winner. Updates are reply posts, never edits. Independent sources = independent origins
+  (`domain/independence.py`). In tests, `FakeAI.vectors` fixes embeddings and `$S0`/`$E0`
+  placeholders in drafts become real source ids / excerpts.
 - New migration per schema change (`alembic revision --autogenerate`, then freeze types: no app
   imports in migrations); upgrade AND downgrade must pass on SQLite and PostgreSQL.
 - Python 3.11+, full type hints, mypy strict, ruff. Tests never touch the network.
