@@ -100,5 +100,12 @@
   "riddle": "riddle",
   "genie": "genie|guess my animal",
   "escape": "escape room",
-  "story": "chain story"
+  "story": "chain story",
+  "poem": "famous poem",
+  "travel": "virtual travel",
+  "parallel": "parallel world",
+  "case": "crime case",
+  "whoami": "who am i",
+  "treasure": "treasure hunt",
+  "codebreak": "code hunt|codebreaker"
 }

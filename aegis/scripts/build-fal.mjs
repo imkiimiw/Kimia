@@ -86,7 +86,7 @@ if (problems.length) {
 const culture = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/culture.json'), 'utf8'));
 const has = (o, keys) => keys.every((k) => o[k] !== undefined);
 const CULTURE_KEYS = { dialogues: ['q', 'lang', 'who', 'who2', 'actor', 'actor2', 'film', 'film_fa', 'film_en', 'year'], excerpts: ['q', 'lang', 'author', 'author_fa', 'author_lat',
-  'work', 'work_fa', 'work_en', 'year'], movies: ['t', 'fa', 'en', 'y', 'by', 'by_fa', 'g', 'l'], music: ['t', 'tl', 'a', 'a_fa', 'a_lat', 'y', 'g', 'l'],
+  'work', 'work_fa', 'work_en', 'year'], verses: ['q', 'lang', 'poet', 'poet_fa', 'poet_lat', 'born', 'died', 'work', 'work_fa', 'work_en', 'year'], movies: ['t', 'fa', 'en', 'y', 'by', 'by_fa', 'g', 'l'], music: ['t', 'tl', 'a', 'a_fa', 'a_lat', 'y', 'g', 'l'],
   books: ['t', 'fa', 'en', 'y', 'a', 'a_fa', 'a_lat', 'g', 'l'] };
 for (const [k, keys] of Object.entries(CULTURE_KEYS)) {
   if (!Array.isArray(culture[k]) || culture[k].length < 40) problems.push(`culture: ${k} must list at least 40`);
@@ -114,7 +114,7 @@ const src2 = `/*
  * dobeytis of Baba Taher (public domain; text as published on ganjoor.net) with an interpretation of each
  * written for Aegis — ${POEMS_PER} poems per chunk, each chunk raw-DEFLATE then base64 of a JSON array of
  * { v: [[line 1, line 2], [line 3, line 4]], f: interpretation }.
- * CULTURE (from data/culture.json): film lines (short quotations with their source), excerpts of public-domain works and the
+ * CULTURE (from data/culture.json): film lines (short quotations with their source), excerpts of public-domain works, famous lines of public-domain poems and the
  * films, music and books to recommend, raw-DEFLATE then base64 of one JSON object; the translations are in the locales (cultlist).
  */
 export const QURAN = '${pack(quran.pages)}';

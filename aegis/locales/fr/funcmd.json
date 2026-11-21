@@ -100,5 +100,12 @@
   "riddle": "devinette",
   "genie": "génie|le génie",
   "escape": "escape game",
-  "story": "histoire à la chaîne"
+  "story": "histoire à la chaîne",
+  "poem": "poème célèbre",
+  "travel": "voyage virtuel",
+  "parallel": "monde parallèle",
+  "case": "affaire criminelle",
+  "whoami": "qui suis-je",
+  "treasure": "chasse au trésor",
+  "codebreak": "chasse au code|casse le code"
 }

@@ -100,5 +100,12 @@
   "riddle": "猜谜|谜语",
   "genie": "神灯精灵",
   "escape": "密室逃脱",
-  "story": "接龙故事|故事接龙"
+  "story": "接龙故事|故事接龙",
+  "poem": "名诗",
+  "travel": "虚拟旅行|去旅行",
+  "parallel": "平行世界",
+  "case": "刑事案件",
+  "whoami": "我是谁",
+  "treasure": "寻宝",
+  "codebreak": "破解密码"
 }

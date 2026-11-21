@@ -17,6 +17,7 @@
  *   · fn:<game>:r|p|s rock-paper-scissors · fn:<game>:t:<cell> tic-tac-toe
  *   · fn:f:<code>[:<arg>] run a fortune command (tarot 1|3, horo <sign 0–11>) · fn:f:horo:p the sign buttons
  *   · fn:d:<a|b|e…> the decision helper's answers so far (only the one who asked)
+ *   · fn:<game>:q a clue (crime case, who am I) · fn:<game>:g:<i> an accusation · fn:<game>:d:<square> a dig for the treasure
  *   · fn:<game>:h:<i> a hangman letter · fn:mm:<sequence>:<taps> the memory test · fn:gn:<answers> the genie · fn:er:<node> the escape room
  *   · fn:dl:i|c|y|n the dream journal (private) · fn:q:<test>[:<answers>] · fn:q:m:<self|spirit> a questionnaire (only the one who asked) · fn:m / fn:k:<A's answers>[:j|:<id>:<answers>] /match, /knowme
  *   · fn:r:<m|u|b>[:g|l|a:<page>|p:<r|g<i>|l<i>|a<i>>] film, music and book recommendations (menu, lists, a pick), for the one who asked
@@ -135,6 +136,8 @@ export async function command(ctx, message, privUser = null, press = null) {
   const parsed = parseCommand(message.text);
   const from = message.from;
   if (!parsed || !from || from.is_bot || message.sender_chat) return false;
+  /* a word that is also the answer of a game running here is an answer, not a command («ساعت» for a riddle, «Khayyam» for who am I) */
+  if (!parsed.slash && !press && (await answersGame(message.chat.id, message.text))) return false;
   const priv = message.chat.type === 'private';
   let chat = null;
   let s = null;
@@ -231,10 +234,12 @@ function prepare(parsed, message, lang, s) {
       return parsed.slash ? {} : { bad: true }; /* a slash command may carry an intention; a word, only a number */
     }
     case 'dialogue':
-    case 'bookquote': {
+    case 'bookquote':
+    case 'poem':
+    case 'travel': {
       if (!a.length) return {};
       const n = toInt(asciiDigits(text));
-      const max = fun.culture.count(parsed.code === 'dialogue' ? 'dialogues' : 'excerpts');
+      const max = parsed.code === 'travel' ? fun.puzzles.PLACES.length : fun.culture.count({ dialogue: 'dialogues', bookquote: 'excerpts', poem: 'verses' }[parsed.code]);
       if (n !== null) return n >= 1 && n <= max ? { n } : { bad: true };
       return parsed.slash ? {} : { bad: true };
     }
@@ -579,6 +584,20 @@ async function run(ctx, x) {
       return dialogueReading(ctx, x);
     case 'bookquote':
       return excerptReading(ctx, x);
+    case 'poem':
+      return verseReading(ctx, x);
+    case 'travel': {
+      const P = fun.puzzles;
+      const place = P.PLACES[(pre.n || fun.randInt(1, P.PLACES.length)) - 1];
+      const text = [t(lang, 'fun.tv_title', { user: me }), '', rtl(lang, `${P.flagOf(place[1])} <b>${esc(inline(lang, `gamelist.tp_n_${place[0]}`))}</b>`),
+        rtl(lang, esc(inline(lang, `gamelist.tp_f_${place[0]}`)))].join('\n');
+      return say(ctx, chatId, s, text, [[btn(inline(lang, 'fun.btn_travel'), 'fn:f:travel'), urlBtn(inline(lang, 'fun.btn_map'), P.mapUrl(place))]], 'fun-travel', r);
+    }
+    case 'parallel': {
+      /* the same all day for each member: one item of each list */
+      const part = (k) => { const items = inline(lang, `gamelist.pw_${k}`).split('|'); return esc(items[fun.hash(`parallel:${k}:${from.id}:${day}`) % items.length]); };
+      return say(ctx, chatId, s, t(lang, 'fun.pw_text', { user: me, ...Object.fromEntries(fun.puzzles.PARALLEL.map((k) => [k, part(k)])) }), null, 'fun-parallel', r);
+    }
     case 'movie':
     case 'music':
     case 'book':
@@ -1200,6 +1219,22 @@ async function dialogueReading(ctx, x) {
   return say(ctx, chatId, s, lines.join('\n'), rows, 'fun-dialogue', reply(message));
 }
 
+/* A famous poem: the lines as written, a translation, the poet and their years, the poem and its year. */
+async function verseReading(ctx, x) {
+  const { chatId, s, lang, pre, message } = x;
+  const n = pre.n || fun.randInt(1, C.count('verses'));
+  const v = C.verse(n);
+  const poet = lang === 'fa' ? v.poet_fa : (lang === v.lang ? v.poet : v.poet_lat);
+  const work = lang === 'fa' ? v.work_fa : (lang === v.lang ? v.work : (v.work_en || v.work));
+  const year = (y) => (y < 0 ? inline(lang, 'fun.vr_bc', { y: num(lang, -y) }) : num(lang, y));
+  const life = v.born < 0 && v.died < 0 ? inline(lang, 'fun.vr_bc', { y: `${num(lang, -v.born)}–${num(lang, -v.died)}` }) : `${year(v.born)}–${year(v.died)}`;
+  const text = v.q.split('\n').map((l) => `${lang === 'fa' ? '\u200F' : ''}${esc(l)}`).join('\n');
+  const lines = [t(lang, 'fun.vr_title', { user: nameOf(message.from) }), `${lang === 'fa' ? '\u200F' : ''}<blockquote>${text}</blockquote>`];
+  if (lang !== v.lang) lines.push(t(lang, 'fun.tr_line', { text: esc(cultLine(lang, 'vrs', n - 1)) }));
+  lines.push(t(lang, 'fun.vr_src', { poet: esc(poet), life, work: `${esc(work)}${v.year ? ` · ${year(v.year)}` : ''}` }), '', t(lang, 'fun.vr_note'));
+  return say(ctx, chatId, s, lines.join('\n'), [[btn(inline(lang, 'fun.btn_poem'), 'fn:f:poem')]], 'fun-poem', reply(message));
+}
+
 /* An excerpt of a public-domain work: the text as written, a translation, the author, the work and its year. */
 async function excerptReading(ctx, x) {
   const { chatId, s, lang, pre, message } = x;
@@ -1321,14 +1356,22 @@ async function decideButton(ctx, cq, parts) {
 /* ---------- puzzles: helpers of the group games and the single-player ones (memory, genie, escape room) ---------- */
 
 const STORY_MAX = 12;
-/* emoji films, flags and riddles: any accepted name in any language wins; a riddle's answer may sit inside a sentence */
-const QUIZ_WIN = { emojimovie: 'em_win', flags: 'fl_win', riddle: 'rd_win' };
+/* emoji films, flags, riddles and famous people: any accepted name in any language wins; a riddle's answer or a one-word name may sit inside a sentence */
+const QUIZ_WIN = { emojimovie: 'em_win', flags: 'fl_win', riddle: 'rd_win', whoami: 'wa_win' };
 function quizRight(g, st, text) {
   const said = titleKey(text);
   const words = ` ${norm(text).replace(/[.,!?؛،:;'’"«»()]+/g, ' ').replace(/\s+/g, ' ')} `;
-  return (st.alts || []).some((a) => a && (said === a || (g.kind === 'riddle' && words.includes(` ${a} `))));
+  return (st.alts || []).some((a) => a && (said === a || ((g.kind === 'riddle' || g.kind === 'whoami') && words.includes(` ${a} `))));
 }
-const quizAnswer = (g, st) => (g.kind === 'emojimovie' ? st.title : g.kind === 'flags' ? `${fun.puzzles.flagOf(st.code)} ${st.name}` : st.answer);
+async function answersGame(chatId, text) {
+  for (const g of await fun.running(chatId)) {
+    const st = fun.stateOf(g);
+    if (['scramble', 'cipher', 'typing'].includes(g.kind) && norm(text) === g.answer) return true;
+    if (QUIZ_WIN[g.kind] && quizRight(g, st, text)) return true;
+  }
+  return false;
+}
+const quizAnswer = (g, st) => (g.kind === 'emojimovie' ? st.title : g.kind === 'flags' ? `${fun.puzzles.flagOf(st.code)} ${st.name}` : g.kind === 'whoami' ? st.name : st.answer);
 /* a title or an answer, compared without case, spaces, punctuation or direction marks */
 const titleKey = (x) => norm(x).replace(/[\s.,!?؛،:;'’"«»\-–—·()]+/g, '');
 function hangmanText(lang, st) {
@@ -1348,6 +1391,42 @@ function storyText(lang, st, left, done = false) {
   if (done) return [t(lang, 'fun.st_end'), '', ...(lines.length ? lines : [t(lang, 'fun.st_first')])].join('\n');
   return [t(lang, 'fun.st_start', { max: num(lang, STORY_MAX), time: dur(lang, Math.max(60, left || fun.GAME_TIME.story)) }), '', ...(lines.length ? lines : [t(lang, 'fun.st_first')])].join('\n');
 }
+/* the crime case: the story, the suspects' words, the clues opened so far */
+function caseText(lang, st, left) {
+  const k = (x) => inline(lang, `gamelist.cs_${x}_${st.c}`);
+  const names = k('n').split('|');
+  const words = k('q').split('|');
+  const suspects = names.map((n, i) => rtl(lang, `👤 <b>${esc(n)}</b>: ${esc(words[i])}`)).join('\n');
+  const clues = Number(st.shown) ? t(lang, 'fun.cs_clues', { list: k('c').split('|').slice(0, Number(st.shown)).map((c, i) => rtl(lang, `${num(lang, i + 1)}. ${esc(c)}`)).join('\n') }) : '';
+  return t(lang, 'fun.cs_start', { title: esc(k('t')), story: esc(k('s')), suspects, clues, time: dur(lang, Math.max(60, left || fun.GAME_TIME.case)) });
+}
+const caseRows = (lang, id, st) => [
+  ...(Number(st.shown) < 3 ? [[btn(inline(lang, 'fun.cs_btn_clue', { n: num(lang, Number(st.shown) + 1) }), `fn:${id}:q`)]] : []),
+  ...inline(lang, `gamelist.cs_n_${st.c}`).split('|').map((n, i) => [btn(inline(lang, 'fun.cs_accuse', { name: n }), `fn:${id}:g:${i}`)]),
+];
+function caseEnd(lang, st, key, user) {
+  const name = inline(lang, `gamelist.cs_n_${st.c}`).split('|')[fun.puzzles.CASES[st.c]];
+  return t(lang, `fun.${key}`, { user, name: esc(name), why: esc(inline(lang, `gamelist.cs_a_${st.c}`)) });
+}
+/* who am I: the clues shown so far */
+function whoText(lang, st, left) {
+  const clues = inline(lang, `gamelist.wa_c_${st.p}`).split('|').slice(0, Number(st.shown)).map((c, i) => rtl(lang, inline(lang, 'fun.wa_clue', { i: num(lang, i + 1), text: esc(c) })));
+  return t(lang, 'fun.wa_start', { clues: clues.join('\n'), time: dur(lang, Math.max(30, left || fun.GAME_TIME.whoami)) });
+}
+const whoRows = (lang, id, st) => (Number(st.shown) < 4 ? [[btn(inline(lang, 'fun.wa_btn'), `fn:${id}:q`)]] : []);
+/* the treasure hunt: 🟫 a square not dug yet, or how close a dug one is */
+const treasureRows = (id, st) => [...Array(fun.puzzles.FIELD).keys()].map((r) => [...Array(fun.puzzles.FIELD).keys()].map((col) => {
+  const cell = r * fun.puzzles.FIELD + col;
+  return btn(st.dug[cell] === undefined ? '🟫' : fun.puzzles.HEAT[Math.min(st.dug[cell], 4)], `fn:${id}:d:${cell}`);
+}));
+const treasureBoard = (st, show) => [...Array(fun.puzzles.FIELD).keys()].map((r) => [...Array(fun.puzzles.FIELD).keys()].map((col) => {
+  const cell = r * fun.puzzles.FIELD + col;
+  if (show && cell === st.t) return '💎';
+  return st.dug[cell] === undefined ? '🟫' : fun.puzzles.HEAT[Math.min(st.dug[cell], 4)];
+}).join('')).join('\n');
+/* the code hunt: four digits (Persian or Arabic digits too), shown in the chat's digits */
+const codeGuess = (text) => { const d = asciiDigits(String(text).replace(/[\s-]/g, '')); return /^\d{4}$/.test(d) ? d : null; };
+const codeText = (lang, code) => [...String(code)].map((d) => num(lang, Number(d))).join('');
 const P9Z = fun.puzzles;
 function genieScreen(lang, answers, user) {
   const r = P9Z.genie(answers);
@@ -1824,7 +1903,7 @@ async function falButton(ctx, cq, parts) {
   const code = parts[2];
   const f = fun.byCode(code);
   const msg = cq.message;
-  if (!f || !(['fal', 'hours', 'numbers'].includes(f.cat) || code === 'dialogue' || code === 'bookquote') || msg.chat.type === 'channel') return answer(ctx);
+  if (!f || !(['fal', 'hours', 'numbers'].includes(f.cat) || ['dialogue', 'bookquote', 'poem', 'travel'].includes(code)) || msg.chat.type === 'channel') return answer(ctx);
   if ((code === 'horo' || code === 'birthmonth' || code === 'weekly') && parts[3] === 'p') {
     const u = await users.get(cq.from.id);
     const chat = msg.chat.id < 0 ? await chats.get(msg.chat.id) : null;
@@ -1983,6 +2062,22 @@ async function startGame(ctx, x) {
   } else if (kind === 'story') {
     state = { lines: pre.first ? [[from.id, nameOf(from), pre.first]] : [] };
     text = storyText(lang, state, ttl);
+  } else if (kind === 'case') {
+    state = { c: fun.randInt(0, fun.puzzles.CASES.length - 1), shown: 0, out: {} };
+    text = caseText(lang, state, ttl);
+  } else if (kind === 'whoami') {
+    const p = fun.pick(fun.puzzles.PEOPLE);
+    const names = LANGS.flatMap((l) => inline(l, `gamelist.wa_n_${p}`).split('|'));
+    ans = p;
+    state = { p, shown: 1, name: inline(lang, `gamelist.wa_n_${p}`).split('|')[0], alts: [...new Set(names.map(titleKey))] };
+    text = whoText(lang, state, ttl);
+  } else if (kind === 'treasure') {
+    state = { t: fun.randInt(0, fun.puzzles.FIELD ** 2 - 1), dug: {}, by: {} };
+    text = t(lang, 'fun.th_start', { n: num(lang, fun.puzzles.DIGS), time: dur(lang, ttl) });
+  } else if (kind === 'codebreak') {
+    ans = fun.puzzles.secret();
+    state = { tries: 0, last: {} };
+    text = t(lang, 'fun.cb_start', { time: dur(lang, ttl) });
   } else if (kind === 'trivia') {
     return trivia(ctx, x);
   } else if (kind === 'click') {
@@ -2002,6 +2097,9 @@ async function startGame(ctx, x) {
   if (kind === 'click') rows = clickRows(id, state.pool);
   else if (kind === 'hangman') rows = hangmanRows(id, state);
   else if (kind === 'story') rows = storyRows(lang, id);
+  else if (kind === 'case') rows = caseRows(lang, id, state);
+  else if (kind === 'whoami') rows = whoRows(lang, id, state);
+  else if (kind === 'treasure') rows = treasureRows(id, state);
   else if (kind === 'rps') rows = state.b ? challengeRows(lang, id) : rpsRows(id);
   else if (kind === 'ttt') rows = challengeRows(lang, id);
   if (from) await users.remember(from);
@@ -2087,7 +2185,24 @@ export async function onMessage(ctx, chat, message) {
       if (!quizRight(g, st, text) || !(await fun.endGame(g.id, 'ended', from.id))) continue;
       await users.remember(from);
       const extra = await reward(chat.chat_id, s, from.id, c.reward, lang);
-      await say(ctx, chat.chat_id, s, t(lang, `fun.${QUIZ_WIN[g.kind]}`, { user: nameOf(from), answer: esc(quizAnswer(g, st)) }) + extra, null, `fun-${g.kind}-win`, reply(message));
+      await say(ctx, chat.chat_id, s, t(lang, `fun.${QUIZ_WIN[g.kind]}`, { user: nameOf(from), answer: esc(quizAnswer(g, st)), n: num(lang, st.shown || 1) }) + extra, null,
+        `fun-${g.kind}-win`, reply(message));
+      continue;
+    }
+    if (g.kind === 'codebreak') {
+      const guess = codeGuess(text);
+      if (!guess || Number(st.last[from.id] || 0) > now - 3) continue;
+      const next = { ...st, tries: Number(st.tries) + 1, last: { ...st.last, [from.id]: now } };
+      if (!(await fun.saveState(g, next))) continue;
+      const sc = fun.puzzles.score(guess, g.answer);
+      if (sc.a < 4) {
+        await say(ctx, chat.chat_id, s, t(lang, 'fun.cb_hint', { guess: codeText(lang, guess), a: num(lang, sc.a), b: num(lang, sc.b) }), null, 'fun-codebreak-hint', reply(message));
+        continue;
+      }
+      if (!(await fun.endGame(g.id, 'ended', from.id))) continue;
+      await users.remember(from);
+      const extra = await reward(chat.chat_id, s, from.id, c.reward, lang);
+      await say(ctx, chat.chat_id, s, t(lang, 'fun.cb_win', { user: nameOf(from), code: codeText(lang, g.answer), n: num(lang, next.tries) }) + extra, null, 'fun-codebreak-win', reply(message));
       continue;
     }
     if (g.kind === 'math') won = toInt(asciiDigits(text.replace(/\s/g, ''))) === Number(g.answer);
@@ -2133,14 +2248,29 @@ export async function onPrivateText(ctx, user, message) {
     else if (g.kind === 'scramble' || g.kind === 'cipher') won = norm(text) === g.answer;
     else if (g.kind === 'typing') won = !fun.pasted(text) && norm(text) === g.answer;
     else if (QUIZ_WIN[g.kind]) won = quizRight(g, st0, text);
-    else continue;
+    else if (g.kind === 'codebreak') {
+      const guess = codeGuess(text);
+      if (!guess) continue;
+      const next = { ...st0, tries: Number(st0.tries) + 1 };
+      await fun.saveState(g, next);
+      const sc = fun.puzzles.score(guess, g.answer);
+      if (sc.a < 4) {
+        await send(ctx, user.user_id, t(lang, 'fun.cb_hint', { guess: codeText(lang, guess), a: num(lang, sc.a), b: num(lang, sc.b) }), null, 'fun-codebreak-hint');
+        return true;
+      }
+      if (await fun.endGame(g.id, 'ended', user.user_id)) {
+        await send(ctx, user.user_id, t(lang, 'fun.cb_win', { user: iso(fullName(message.from), 32), code: codeText(lang, g.answer), n: num(lang, next.tries) }), null, 'fun-codebreak-win');
+      }
+      return true;
+    } else continue;
     if (!won) {
       await send(ctx, user.user_id, t(lang, 'fun.solo_wrong'), null, 'fun-solo-wrong');
       return true;
     }
     if (QUIZ_WIN[g.kind]) {
       if (await fun.endGame(g.id, 'ended', user.user_id)) {
-        await send(ctx, user.user_id, t(lang, `fun.${QUIZ_WIN[g.kind]}`, { user: iso(fullName(message.from), 32), answer: esc(quizAnswer(g, st0)) }), null, `fun-${g.kind}-win`);
+        await send(ctx, user.user_id, t(lang, `fun.${QUIZ_WIN[g.kind]}`, { user: iso(fullName(message.from), 32), answer: esc(quizAnswer(g, st0)), n: num(lang, st0.shown || 1) }), null,
+          `fun-${g.kind}-win`);
       }
       return true;
     }
@@ -2210,6 +2340,51 @@ export async function callback(ctx, cq, parts) {
     if (g.kind === 'rps') await edit(ctx, place, t(lang, 'fun.rps_pick', { a, b }), rpsRows(g.id), 'fun-rps');
     else await edit(ctx, place, t(lang, 'fun.ttt_turn', { a, b, turn: a }), tttRows(g.id, st.board), 'fun-ttt');
     return answer(ctx);
+  }
+  if ((g.kind === 'case' || g.kind === 'whoami') && act === 'q') {
+    const max = g.kind === 'case' ? 3 : 4;
+    if (Number(st.shown) >= max) return answer(ctx, t(lang0, g.kind === 'case' ? 'fun.cs_no_more' : 'fun.wa_no_more'), true);
+    const next = { ...st, shown: Number(st.shown) + 1 };
+    if (!(await fun.saveState(g, next))) return answer(ctx);
+    const left = Number(g.ends_at) - nowSec();
+    if (g.kind === 'case') await edit(ctx, place, caseText(lang, next, left), caseRows(lang, g.id, next), 'fun-case');
+    else await edit(ctx, place, whoText(lang, next, left), whoRows(lang, g.id, next), 'fun-whoami');
+    return answer(ctx);
+  }
+  if (g.kind === 'case' && act === 'g') {
+    const i = toInt(parts[3]);
+    const names = inline(lang, `gamelist.cs_n_${st.c}`).split('|');
+    if (i === null || !names[i]) return answer(ctx);
+    if (st.out[from.id]) return answer(ctx, t(lang0, 'fun.cs_out'), true);
+    if (i !== fun.puzzles.CASES[st.c]) {
+      await fun.saveState(g, { ...st, out: { ...st.out, [from.id]: 1 } });
+      return answer(ctx, t(lang0, 'fun.cs_wrong', { name: names[i] }), true);
+    }
+    if (!(await fun.endGame(g.id, 'ended', from.id))) return answer(ctx);
+    await users.remember(from);
+    const extra = await reward(chatId, s, from.id, c.reward, lang);
+    await edit(ctx, place, caseEnd(lang, st, 'cs_win', nameOf(from)) + extra, null, 'fun-case-win');
+    return answer(ctx, t(lang0, 'fun.you_won'));
+  }
+  if (g.kind === 'treasure' && act === 'd') {
+    const P = fun.puzzles;
+    const cell = toInt(parts[3]);
+    if (cell === null || cell < 0 || cell >= P.FIELD ** 2) return answer(ctx);
+    if (st.dug[cell] !== undefined) return answer(ctx, t(lang0, 'fun.th_dug'), true);
+    const used = Number(st.by[from.id] || 0);
+    if (used >= P.DIGS) return answer(ctx, t(lang0, 'fun.th_out'), true);
+    const d = P.away(cell, st.t);
+    const next = { ...st, dug: { ...st.dug, [cell]: d }, by: { ...st.by, [from.id]: used + 1 } };
+    if (!(await fun.saveState(g, next))) return answer(ctx);
+    if (d === 0) {
+      if (!(await fun.endGame(g.id, 'ended', from.id))) return answer(ctx);
+      await users.remember(from);
+      const extra = await reward(chatId, s, from.id, c.reward, lang);
+      await edit(ctx, place, `${t(lang, 'fun.th_win', { user: nameOf(from) })}${extra}\n\n${treasureBoard(next, true)}`, null, 'fun-treasure-win');
+      return answer(ctx, t(lang0, 'fun.you_won'));
+    }
+    await tryCall(ctx, 'editMessageReplyMarkup', { ...place, reply_markup: markup(treasureRows(g.id, next)) }, 'fun-treasure');
+    return answer(ctx, `${P.HEAT[Math.min(d, 4)]} ${inline(lang0, 'fun.th_left', { n: num(lang0, P.DIGS - used - 1) })}`);
   }
   if (g.kind === 'story' && act === 'e') {
     if (from.id !== Number(g.by_id) && !(chat && (await isAdmin(chatId, from.id)))) return answer(ctx, t(lang0, 'fun.not_yours'), true);
@@ -2316,11 +2491,20 @@ export async function sweep(ctx) {
       if (Number(g.msg_id)) await edit(ctx, place, t(lang, 'fun.hm_lose', { answer: esc(st.word) }), null, 'fun-timeout');
       continue;
     }
+    if (g.kind === 'case') {
+      if (Number(g.msg_id)) await edit(ctx, place, caseEnd(lang, st, 'cs_timeout'), null, 'fun-timeout');
+      continue;
+    }
+    if (g.kind === 'treasure') {
+      if (Number(g.msg_id)) await edit(ctx, place, `${t(lang, 'fun.th_timeout')}\n\n${treasureBoard(st, true)}`, null, 'fun-timeout');
+      continue;
+    }
     if (['click', 'rps', 'ttt'].includes(g.kind)) {
       if (Number(g.msg_id)) await edit(ctx, place, t(lang, 'fun.timeout'), null, 'fun-timeout');
       continue;
     }
-    const answerText = { scramble: st.word, cipher: st.word, typing: st.sentence, emojimovie: st.title, flags: st.name, riddle: st.answer }[g.kind] || g.answer;
+    const answerText = { scramble: st.word, cipher: st.word, typing: st.sentence, emojimovie: st.title, flags: st.name, riddle: st.answer, whoami: st.name,
+      codebreak: g.kind === 'codebreak' ? codeText(lang, g.answer) : '' }[g.kind] || g.answer;
     await send(ctx, chatId, t(lang, 'fun.game_timeout', { answer: esc(answerText || '') }), null, 'fun-timeout',
       Number(g.msg_id) ? { reply_parameters: { message_id: Number(g.msg_id), allow_sending_without_reply: true } } : {});
   }

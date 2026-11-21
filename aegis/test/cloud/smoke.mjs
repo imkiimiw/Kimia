@@ -147,6 +147,8 @@ try {
     JSON.stringify([fal.culture, fal.mix]));
   check('puzzles in the isolate: cipher, flags, the 36 emoji films found in the film list, the genie, hangman letters', JSON.stringify(fal.puzzles) === JSON.stringify(['qmbofu', '🇮🇷', 36, 'ask', 21]),
     JSON.stringify(fal.puzzles));
+  check('famous poems, crime cases, famous people, places, the treasure field and the code hunt in the isolate',
+    JSON.stringify(fal.stageF) === JSON.stringify([64, 'Rudaki', 4, 4, 24, 8, 20]), JSON.stringify(fal.stageF));
   check('poetry in the isolate: the 178 quatrains of Khayyam and 366 dobeytis of Baba Taher, each with its interpretation', fal.poems.join() === '178,366,اجل سنگست و آدم مثل شیشه', JSON.stringify(fal.poems));
 
   const cq = { id: 'smoke', from: user(A, 'fa'), chat_instance: 'x', data: 'lg:fa', message: { message_id: 1, chat: { id: A, type: 'private' }, date: 0, text: 'x' } };

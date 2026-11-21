@@ -115,6 +115,8 @@ export default async function (input) {
       mix: Object.fromEntries(fun.fonts.render('Araz').pages.mix).g_bi,
       puzzles: [fun.puzzles.cipher('planet', 'shift', 'en'), fun.puzzles.flagOf('ir'), fun.puzzles.FILMS.filter(([, t]) => fun.culture.items('m').some((m) => m.t === t)).length,
         fun.puzzles.genie('').ask !== undefined ? 'ask' : 'x', fun.puzzles.letters('sun', 'en', []).length],
+      stageF: [fun.culture.count('verses'), fun.culture.verse(1).poet_lat, fun.puzzles.score('4321', '1234').b, fun.puzzles.away(0, 24), fun.puzzles.PLACES.length,
+        fun.puzzles.CASES.length, fun.puzzles.PEOPLE.length],
     };
   }
   if (action === 'shabench') {

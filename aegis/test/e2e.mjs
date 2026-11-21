@@ -15,7 +15,7 @@ import { num } from '../tgcloud/lib/i18n/index.js';
 import { fmtTime, localMinutes, TZ_OFFSETS } from '../tgcloud/lib/core/clock.js';
 import { utf8Bytes, utf8Text } from '../tgcloud/lib/core/util.js';
 import { decodeImage, encodeJpeg, qr } from '../tgcloud/lib/core/image.js';
-import { puzzles } from '../tgcloud/lib/engines/fun.js';
+import { culture, puzzles } from '../tgcloud/lib/engines/fun.js';
 import fs from 'node:fs';
 
 const FIXTURES = new URL('./fixtures/', import.meta.url).pathname; /* before the globals the isolate lacks are removed */
@@ -3903,7 +3903,7 @@ mock.addFile('p9_m', fixture('base420.jpg'));
 mock.addFile('p9_s', fixture('base420.jpg'));
 const mediaEndpoint = (await import('../tgcloud/endpoints/media.js')).default;
 
-await scenario('phase 9 — 🎮 the Fun panel: 93 features in fourteen groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
+await scenario('phase 9 — 🎮 the Fun panel: 100 features in fourteen groups, each with a switch, who, cooldown, daily limit and points for a win', async () => {
   tick(600);
   iota = mock.addChat({ id: IOTA, type: 'supergroup', title: 'Iota', count: 15, botRights: { can_manage_chat: true, can_change_info: true, can_delete_messages: true,
     can_restrict_members: true, can_invite_users: true, can_pin_messages: true, can_promote_members: true } });
@@ -3922,7 +3922,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 93 features in fourteen groups, 
   assert.ok(dataOf(olgaScreen()).includes(I('fn')) && dataOf(olgaScreen()).includes(I('md')));
   await olga(I('fn'));
   assert.match(olgaScreen().plain, /🎮 Fun — \u2068Iota\u2069/);
-  assert.match(olgaScreen().plain, /On: 93 of 93/);
+  assert.match(olgaScreen().plain, /On: 100 of 100/);
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:c:/.test(d)).length, 14);
   await olga(I('fn:c:dice'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:fn:f:/.test(d)).length, 6);
@@ -3935,7 +3935,7 @@ await scenario('phase 9 — 🎮 the Fun panel: 93 features in fourteen groups, 
   await olga(I('fn:s:fun_rate'));
   assert.equal(iVal('fun_rate'), '20');
   await olga(I('fn'));
-  assert.match(olgaScreen().plain, /On: 92 of 93/);
+  assert.match(olgaScreen().plain, /On: 99 of 100/);
   const s = row("SELECT count(*) AS n FROM aegis_audit WHERE chat_id = ? AND action = 'settings.set' AND target LIKE 'fx_%'", IOTA).n;
   assert.equal(s, 5, 'every change is logged');
 });
@@ -4881,6 +4881,105 @@ await scenario('🧩 puzzles — a cipher, hangman, a film from emojis, a flag, 
   const pfs = JSON.parse(row('SELECT state FROM aegis_fun_games WHERE chat_id = ? AND kind = ? ORDER BY id DESC LIMIT 1', tara.id, 'flags').state);
   assert.match(lastSentTo(await dm(tara, pfs.name), tara.id).params.text, new RegExp(`^‏🚩 ⁨تارا⁩: .*<b>${puzzles.flagOf(pfs.code)} ${reEsc(pfs.name)}</b>`));
   assert.doesNotMatch(lastSentTo(await dm(tara, '/story'), tara.id).params.text, /🧵 <b>/);
+});
+
+await scenario('📜 famous poems, ✈️ virtual travel, 🌌 the parallel world, and four more games — a crime case, who am I, a treasure hunt, a code hunt', async () => {
+  tick(600);
+  iSet('fun_rate', '0');
+  const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const verseNo = (lat) => [...Array(culture.count('verses')).keys()].find((i) => culture.verse(i + 1).poet_lat === lat) + 1;
+  /* a Persian poem in an English group: the lines as written, a translation, the poet and their years */
+  const p1 = await imsg(P9.ivy, `/poem ${verseNo('Rudaki')}`);
+  assert.equal(inIota(p1)[0], '📜 ⁨Ivy⁩, a famous poem:\n<blockquote>بوی جوی مولیان آید همی\nیاد یار مهربان آید همی</blockquote>\n'
+    + '💬 <b>Translation:</b> The scent of the Muliyan stream comes to me; / the memory of a kind friend comes to me.\n✍️ <b>Rudaki</b> (858–941) — Divan\n\n'
+    + '<i>Short quotations from poets in the public domain; translations written for Aegis.</i>');
+  assert.deepEqual(dataOf(mock.get(IOTA, midOf(toChat(p1, IOTA)[0]))), ['fn:f:poem']);
+  const p2 = inIota(await imsg(P9.jay, `/poem ${verseNo('Qu Yuan')}`))[0];
+  assert.match(p2, /✍️ <b>Qu Yuan<\/b> \(340–278 BC\) — Li Sao \(Encountering Sorrow\)/);
+  const p3 = inIota(await imsg(P9.kit, `/poem ${verseNo('William Shakespeare')}`))[0];
+  assert.doesNotMatch(p3, /Translation/, 'an English poem in an English chat needs no translation');
+  assert.match(p3, /✍️ <b>William Shakespeare<\/b> \(1564–1616\) — Sonnet 18 · 1609/);
+  assert.equal(inIota(await imsg(P9.lux, '/poem 99'))[0], 'Use: /poem, or /poem 1–64 for a chosen poem');
+  /* virtual travel: a real place, its flag, a fact and a map */
+  const tv = toChat(await imsg(P9.nia, '/travel 7'), IOTA)[0];
+  assert.match(tv.params.text, /^✈️ ⁨Nia⁩, today’s journey:\n\n🇮🇷 <b>Lut Desert, Iran<\/b>\nSatellites measured/);
+  const tvk = dataOf(mock.get(IOTA, midOf(tv)));
+  assert.equal(tvk[0], 'fn:f:travel');
+  assert.equal(tvk[1], 'https://www.openstreetmap.org/?mlat=30.38&mlon=58.32#map=11/30.38/58.32');
+  /* the parallel world: the same all day */
+  const pw1 = inIota(await imsg(P9.kit, '/parallel'))[0];
+  assert.match(pw1, /^🌌 ⁨Kit⁩, in a parallel world today you are <b>.+<\/b>, living in .+\.\n✨ Your power: you can .+\.\n🐾 Your companion: .+\.\n🎲 And: .+\./);
+  tick(61);
+  assert.equal(inIota(await imsg(P9.kit, '/parallel'))[0], pw1);
+  /* a crime case: clues, one accusation each, the first right one wins */
+  const cm = toChat(await imsg(P9.lux, '/case'), IOTA)[0];
+  const cg = lastGame('case');
+  const cst = JSON.parse(cg.state);
+  const cmid = midOf(cm);
+  assert.match(cm.params.text, /^🕵️ <b>Case: .+<\/b>\n.+\n\n<b>Suspects<\/b>\n👤 <b>.+<\/b>: .+\n👤 <b>.+<\/b>: .+\n👤 <b>.+<\/b>: .+\n\nOpen clues with 🔍/);
+  assert.deepEqual(dataOf(mock.get(IOTA, cmid)), [`fn:${cg.id}:q`, `fn:${cg.id}:g:0`, `fn:${cg.id}:g:1`, `fn:${cg.id}:g:2`]);
+  const clue = await gpress(P9.nia, IOTA, `fn:${cg.id}:q`, cmid);
+  assert.match(edits(clue.calls)[0].params.text, /\n\n🔍 <b>Clues<\/b>\n1\. .+\n\nOpen clues/);
+  assert.equal(kb(mock.get(IOTA, cmid))[0].text, '🔍 A clue (2 of 3)');
+  const guilty = puzzles.CASES[cst.c];
+  const wrongOne = (guilty + 1) % 3;
+  assert.match((await gpress(P9.kit, IOTA, `fn:${cg.id}:g:${wrongOne}`, cmid)).toast, /^❌ It wasn’t .+\. You are out of this case\.$/);
+  assert.equal((await gpress(P9.kit, IOTA, `fn:${cg.id}:g:${guilty}`, cmid)).toast, 'You have already accused someone in this case.');
+  const solved = await gpress(P9.nia, IOTA, `fn:${cg.id}:g:${guilty}`, cmid);
+  assert.equal(solved.toast, '🏆 You won!');
+  assert.match(edits(solved.calls)[0].params.text, /^🕵️ ⁨Nia⁩ solved the case: it was <b>.+<\/b>!\n.+/);
+  /* who am I: clues on request, any accepted name wins */
+  const wm = toChat(await imsg(P9.ivy, '/whoami'), IOTA)[0];
+  const wg = lastGame('whoami');
+  const wst = JSON.parse(wg.state);
+  assert.match(wm.params.text, /^🎭 <b>Who am I\?<\/b>\n💡 1\. .+\n\nWrite the name \(5 min\)\. Stuck\? Press 💡\.$/);
+  const more = await gpress(P9.jay, IOTA, `fn:${wg.id}:q`, midOf(wm));
+  assert.match(edits(more.calls)[0].params.text, /\n💡 2\. .+\n\n/);
+  assert.equal(inIota(await imsg(P9.lux, 'Somebody Else')).length, 0);
+  assert.match(inIota(await imsg(P9.jay, wst.name.toLowerCase()))[0], new RegExp(`^🎭 ⁨Jay⁩ got it: <b>${reEsc(wst.name)}</b> \\(clues used: 2\\)`));
+  /* an answer that is also a command word («Khayyam» opens a quatrain) is taken as the answer while the game runs */
+  await imsg(P9.lux, '/whoami');
+  const kg = lastGame('whoami');
+  rawDatabase().prepare('UPDATE aegis_fun_games SET state = ? WHERE id = ?').run(JSON.stringify({ p: 'khayyam', shown: 1, name: 'Omar Khayyam', alts: ['omarkhayyam', 'khayyam'] }), kg.id);
+  const kh = inIota(await imsg(P9.kit, 'Khayyam'));
+  assert.equal(kh.length, 1);
+  assert.match(kh[0], /^🎭 ⁨Kit⁩ got it: <b>Omar Khayyam<\/b> \(clues used: 1\)/);
+  assert.match(inIota(await imsg(P9.kit, 'Khayyam'))[0], /Khayyam/, 'with no game running it is the command again');
+  /* the treasure hunt: three digs each, the squares say how close it is */
+  const tm = toChat(await imsg(P9.kit, '/treasure'), IOTA)[0];
+  const tg = lastGame('treasure');
+  const tt = JSON.parse(tg.state).t;
+  const tmid = midOf(tm);
+  assert.equal(dataOf(mock.get(IOTA, tmid)).length, 25);
+  const others = [...Array(25).keys()].filter((i) => i !== tt);
+  const d1 = await gpress(P9.jay, IOTA, `fn:${tg.id}:d:${others[0]}`, tmid);
+  assert.equal(d1.toast, `${puzzles.HEAT[puzzles.away(others[0], tt)]} Digs left: 2`);
+  assert.equal((await gpress(P9.lux, IOTA, `fn:${tg.id}:d:${others[0]}`, tmid)).toast, 'This square was already dug.');
+  await gpress(P9.jay, IOTA, `fn:${tg.id}:d:${others[1]}`, tmid);
+  await gpress(P9.jay, IOTA, `fn:${tg.id}:d:${others[2]}`, tmid);
+  assert.equal((await gpress(P9.jay, IOTA, `fn:${tg.id}:d:${tt}`, tmid)).toast, 'No digs left for you in this hunt.');
+  const found = await gpress(P9.nia, IOTA, `fn:${tg.id}:d:${tt}`, tmid);
+  assert.equal(found.toast, '🏆 You won!');
+  assert.match(edits(found.calls)[0].params.text, /^💎 ⁨Nia⁩ found the treasure!/);
+  assert.match(edits(found.calls)[0].params.text, /💎/);
+  /* the code hunt: hints for every guess, the right code wins */
+  const bm = inIota(await imsg(P9.nia, '/codebreak'))[0];
+  assert.match(bm, /^🔢 <b>Code hunt<\/b>\nI chose a code of 4 different digits/);
+  const code = lastGame('codebreak').answer;
+  const rev = [...code].reverse().join('');
+  const sc = puzzles.score(rev, code);
+  assert.equal(inIota(await imsg(P9.lux, rev))[0], `🔢 ${rev} → 🎯 ${sc.a} · 🔄 ${sc.b}`);
+  assert.equal(inIota(await imsg(P9.lux, code)).length, 0, 'one guess every 3 seconds per member');
+  assert.equal(inIota(await imsg(P9.kit, '12345')).length, 0, 'only four digits');
+  tick(4);
+  assert.match(inIota(await imsg(P9.ivy, code))[0], new RegExp(`^🔓 ⁨Ivy⁩ cracked the code <b>${code}</b>! Guesses: 2\\.`));
+  /* in private, in Persian: a poem and the parallel world */
+  const tara = { id: 800000490, is_bot: false, first_name: 'تارا', language_code: 'fa' };
+  const fp = lastSentTo(await dm(tara, `/poem ${verseNo('William Shakespeare')}`), tara.id).params.text;
+  assert.match(fp, /^‏📜 ⁨تارا⁩، یک تیکه شعر ماندگار:\n‏<blockquote>‏Shall I compare thee/);
+  assert.match(fp, /‏💬 <b>ترجمه:<\/b> آیا تو را به روزی از تابستان مانند کنم؟/);
+  assert.match(fp, /‏✍️ <b>ویلیام شکسپیر<\/b> \(۱۵۶۴–۱۶۱۶\) — غزلواره‌ی ۱۸ · ۱۶۰۹/);
+  assert.match(lastSentTo(await dm(tara, 'دنیای موازی'), tara.id).params.text, /^‏🌌 ⁨تارا⁩، امروز در یک دنیای موازی <b>.+<\/b> هستی/);
 });
 
 await scenario('phase 9 — 🖼 media in private: image tools, a sticker in the member\'s own pack, sticker → photo, a QR code made and read back, a GIF from photos, video → GIF, the PDF check', async () => {

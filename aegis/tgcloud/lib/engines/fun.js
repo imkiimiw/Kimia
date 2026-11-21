@@ -88,6 +88,7 @@ export const FEATURES = [
   { code: 'spirit', cat: 'mind', emoji: '🪬', cmds: ['spirit'], def: '1,a,30,10,0', args: true },
   { code: 'match', cat: 'mind', emoji: '💞', cmds: ['match'], def: '1,a,60,10,0' },
   { code: 'knowme', cat: 'mind', emoji: '🎯', cmds: ['knowme'], def: '1,a,60,10,0' },
+  { code: 'parallel', cat: 'mind', emoji: '🌌', cmds: ['parallel'], def: '1,a,60,5,0' },
   { code: 'cipher', cat: 'puzzle', emoji: '🔐', cmds: ['cipher'], def: '1,a,30,20,2', game: true },
   { code: 'hangman', cat: 'puzzle', emoji: '🪢', cmds: ['hangman'], def: '1,a,60,10,2', game: true },
   { code: 'emojimovie', cat: 'puzzle', emoji: '🍿', cmds: ['emojimovie'], def: '1,a,30,20,2', game: true },
@@ -97,6 +98,10 @@ export const FEATURES = [
   { code: 'memory', cat: 'puzzle', emoji: '💭', cmds: ['memory'], def: '1,a,30,10,0' },
   { code: 'genie', cat: 'puzzle', emoji: '🧞', cmds: ['genie'], def: '1,a,30,10,0' },
   { code: 'escape', cat: 'puzzle', emoji: '🗝', cmds: ['escape'], def: '1,a,30,10,0' },
+  { code: 'case', cat: 'puzzle', emoji: '🕵️', cmds: ['case', 'detective'], def: '1,a,60,10,2', game: true },
+  { code: 'whoami', cat: 'puzzle', emoji: '🎭', cmds: ['whoami'], def: '1,a,30,20,2', game: true },
+  { code: 'treasure', cat: 'puzzle', emoji: '\u{1F3F4}\u200D\u2620\uFE0F', cmds: ['treasure'], def: '1,a,60,10,2', game: true },
+  { code: 'codebreak', cat: 'puzzle', emoji: '🔢', cmds: ['codebreak'], def: '1,a,60,10,2', game: true },
   { code: 'dream', cat: 'dream', emoji: '🌙', cmds: ['dream'], def: '1,a,30,10,0', args: true },
   { code: 'lucid', cat: 'dream', emoji: '🌌', cmds: ['lucid'], def: '1,a,60,5,0' },
   { code: 'dreamlog', cat: 'dream', emoji: '📔', cmds: ['dreamlog'], def: '1,a,10,30,0', args: true },
@@ -105,6 +110,8 @@ export const FEATURES = [
   { code: 'movie', cat: 'culture', emoji: '🎞', cmds: ['movie', 'film'], def: '1,a,30,10,0', args: true },
   { code: 'music', cat: 'culture', emoji: '🎵', cmds: ['music', 'song'], def: '1,a,30,10,0', args: true },
   { code: 'book', cat: 'culture', emoji: '📚', cmds: ['book'], def: '1,a,30,10,0', args: true },
+  { code: 'poem', cat: 'culture', emoji: '📜', cmds: ['poem'], def: '1,a,30,10,0', args: true },
+  { code: 'travel', cat: 'culture', emoji: '✈️', cmds: ['travel'], def: '1,a,30,10,0', args: true },
   { code: 'clock', cat: 'hours', emoji: '🕰', cmds: ['clock', 'hour'], def: '1,a,10,20,0', args: true },
   { code: 'mirror', cat: 'hours', emoji: '🪞', cmds: ['mirror'], def: '1,a,10,20,0', args: true },
   { code: 'reversed', cat: 'hours', emoji: '🔁', cmds: ['reversed'], def: '1,a,10,20,0', args: true },
@@ -132,7 +139,7 @@ export function catMode(s, cat) {
 export const isSpecial = (chatId, userId) => lists.has(chatId, 'fun', String(userId));
 /* how long a game waits for its answer (seconds) */
 export const GAME_TIME = { guess: 600, math: 180, scramble: 180, typing: 180, trivia: 600, click: 120, rps: 600, ttt: 600, cipher: 180, hangman: 600, emojimovie: 300,
-  flags: 120, riddle: 300, story: 3600 };
+  flags: 120, riddle: 300, story: 3600, case: 900, whoami: 300, treasure: 600, codebreak: 900 };
 
 export function conf(s, code) {
   const [on, who, cd, daily, reward] = String((s && s[`fx_${code}`]) || DEFAULTS[`fx_${code}`] || '0,a,0,0,0').split(',');
@@ -1108,8 +1115,9 @@ export const culture = (() => {
   }
   const dialogue = (n) => all().dialogues[Math.max(1, Math.min(all().dialogues.length, Math.floor(Number(n)) || 1)) - 1];
   const excerpt = (n) => all().excerpts[Math.max(1, Math.min(all().excerpts.length, Math.floor(Number(n)) || 1)) - 1];
+  const verse = (n) => all().verses[Math.max(1, Math.min(all().verses.length, Math.floor(Number(n)) || 1)) - 1];
   const count = (what) => all()[what].length;
-  return { all, KINDS, items, genres, langs, people, select, dialogue, excerpt, count };
+  return { all, KINDS, items, genres, langs, people, select, dialogue, excerpt, verse, count };
 })();
 
 /* ---------- questionnaires: personality tests, spiritual games, the two-person tests ---------- */
@@ -1319,5 +1327,34 @@ export const puzzles = (() => {
   /* the memory test: nine emojis; a sequence is six of their indices */
   const MEMO = ['🍎', '🚗', '🐶', '⭐', '🎈', '🌙', '🔑', '🎵', '🌵'];
   const sequence = (n = 6, rnd = Math.random) => [...Array(n)].map(() => Math.floor(rnd() * MEMO.length)).join('');
-  return { ALPHABET, methods, cipher, letters, mask, solved, FILMS, COUNTRIES, flagOf, ANIMALS, NAMES, genie, ESCAPE, MEMO, sequence };
+  /* crime cases: the guilty suspect of each (its texts are in the locales: gamelist.cs_*) */
+  const CASES = [0, 1, 2, 1, 2, 1, 1, 0];
+  /* «who am I?»: famous people, four clues each (gamelist.wa_*) */
+  const PEOPLE = ['ferdowsi', 'avicenna', 'rumi', 'cyrus', 'khayyam', 'einstein', 'curie', 'newton', 'davinci', 'shakespeare',
+    'mozart', 'gandhi', 'napoleon', 'cleopatra', 'confucius', 'tolstoy', 'gagarin', 'armstrong', 'chaplin', 'edison'];
+  /* virtual travel: [code, country for the flag, latitude, longitude] (gamelist.tp_*) */
+  const PLACES = [['uyuni', 'bo', -20.13, -67.49], ['pamukkale', 'tr', 37.92, 29.12], ['socotra', 'ye', 12.46, 53.82], ['danakil', 'et', 14.24, 40.3],
+    ['zhangjiajie', 'cn', 29.32, 110.43], ['antelope', 'us', 36.86, -111.37], ['lut', 'ir', 30.38, 58.32], ['hormuz', 'ir', 27.06, 56.46],
+    ['badab', 'ir', 36.06, 53.2], ['kandovan', 'ir', 37.79, 46.25], ['cappadocia', 'tr', 38.64, 34.83], ['petra', 'jo', 30.33, 35.44],
+    ['causeway', 'gb', 55.24, -6.51], ['plitvice', 'hr', 44.88, 15.62], ['halong', 'vn', 20.91, 107.18], ['hillier', 'au', -34.09, 123.2],
+    ['whitedesert', 'eg', 27.32, 28.13], ['bluehole', 'bz', 17.32, -87.53], ['crooked', 'pl', 53.21, 14.48], ['waitomo', 'nz', -38.26, 175.1],
+    ['darvaza', 'tm', 40.25, 58.44], ['spotted', 'ca', 49.08, -119.57], ['meteora', 'gr', 39.72, 21.63], ['easter', 'cl', -27.12, -109.37]];
+  const mapUrl = ([, , lat, lon]) => `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=11/${lat}/${lon}`;
+  /* the parallel world: one of the 12 items of each list (gamelist.pw_*) */
+  const PARALLEL = ['job', 'place', 'power', 'pet', 'twist'];
+  /* the treasure hunt: a 5 × 5 field; how close a square is to the treasure (squares around it count as 1) */
+  const FIELD = 5;
+  const DIGS = 3;
+  const away = (a, b) => Math.max(Math.abs((a % FIELD) - (b % FIELD)), Math.abs(Math.floor(a / FIELD) - Math.floor(b / FIELD)));
+  const HEAT = ['💎', '🔥', '♨️', '🌫', '🧊'];
+  /* the code hunt: four different digits; a guess scores the digits in the right place and the right digits elsewhere */
+  const secret = (rnd = Math.random) => [...'0123456789'].sort(() => rnd() - 0.5).slice(0, 4).join('');
+  function score(guess, code) {
+    const g = [...String(guess)];
+    const a = g.filter((d, i) => d === code[i]).length;
+    const b = [...new Set(g)].filter((d) => code.includes(d)).length - a;
+    return { a, b: Math.max(0, b) };
+  }
+  return { ALPHABET, methods, cipher, letters, mask, solved, FILMS, COUNTRIES, flagOf, ANIMALS, NAMES, genie, ESCAPE, MEMO, sequence,
+    CASES, PEOPLE, PLACES, mapUrl, PARALLEL, FIELD, DIGS, away, HEAT, secret, score };
 })();

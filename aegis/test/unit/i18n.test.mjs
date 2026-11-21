@@ -215,7 +215,7 @@ test('every locale key the code names exists (literal keys and the dynamic famil
   const HOURS = ['clock', 'mirror', 'reversed', 'triple', 'angel', 'sequence', 'repeat', 'number'];
   const TIME_TYPES = ['mirror', 'reversed', 'triple'];
   const p9 = {
-    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt', 'hafez', 'khayyam', 'babataher', 'tarot', 'horo', 'abjad', 'font', 'echo', 'dialogue', 'bookquote', 'movie', 'music', 'book', 'weekly', 'shuffle', 'lottery', 'vote', 'decide', 'lie', 'ptest', 'spirit', 'dream', 'dreamlog', ...HOURS, 'birthmonth', 'chinese', 'lifepath', 'weekday', 'cards', 'runes', 'iching', 'lenormand'], 'fun.who_': ['a', 'd'],
+    'fun.n_': fun.CODES, 'fun.d_': fun.CODES, 'fun.cat_': fun.CATS, 'fun.usage_': ['rand', 'choose', 'ball8', 'rate', 'love', 'ttt', 'hafez', 'khayyam', 'babataher', 'tarot', 'horo', 'abjad', 'font', 'echo', 'dialogue', 'bookquote', 'poem', 'travel', 'movie', 'music', 'book', 'weekly', 'shuffle', 'lottery', 'vote', 'decide', 'lie', 'ptest', 'spirit', 'dream', 'dreamlog', ...HOURS, 'birthmonth', 'chinese', 'lifepath', 'weekday', 'cards', 'runes', 'iching', 'lenormand'], 'fun.who_': ['a', 'd'],
     'fun.act_': [...fun.ACTS, ...fun.ACTS.map((a) => `${a}_all`)], 'fun.bday_date_': ['g', 'j'], 'fun.bday_how_': ['g', 'j'],
     'fun.month_g_': [...Array(12).keys()].map((i) => i + 1), 'fun.month_j_': [...Array(12).keys()].map((i) => i + 1),
     'fun.': [...DICE.flatMap((d) => [`${d}_win`, `${d}_lose`]), 'math_win', 'scramble_win', 'typing_win', 'couple', 'couple_none', 'motd', 'motd_none', 'truth', 'dare'],
@@ -226,8 +226,12 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'gamelist.c_': fun.puzzles.COUNTRIES, 'gamelist.rq_': [...Array(24).keys()], 'gamelist.ra_': [...Array(24).keys()], 'gamelist.gq_': [...Array(12).keys()],
     'gamelist.an_': fun.puzzles.NAMES, 'gamelist.er_': Object.keys(fun.puzzles.ESCAPE), 'gamelist.eo_': Object.keys(fun.puzzles.ESCAPE).filter((n) => fun.puzzles.ESCAPE[n].length),
     'fun.cipher_how_': ['rev', 'shift', 'num'], 'fun.': ['cipher_win'],
+    'gamelist.cs_t_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_s_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_n_': [...fun.puzzles.CASES.keys()],
+    'gamelist.cs_q_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_c_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_a_': [...fun.puzzles.CASES.keys()],
+    'gamelist.wa_n_': fun.puzzles.PEOPLE, 'gamelist.wa_c_': fun.puzzles.PEOPLE, 'gamelist.tp_n_': fun.puzzles.PLACES.map(([k]) => k),
+    'gamelist.tp_f_': fun.puzzles.PLACES.map(([k]) => k), 'gamelist.pw_': fun.puzzles.PARALLEL,
     /* films, books and music */
-    'cultlist.': ['dlg', 'exc'], 'fun.cg_': [...new Set(['m', 'u', 'b'].flatMap((k) => fun.culture.genres(k)))], 'fun.cl_': [...new Set(['m', 'u', 'b'].flatMap((k) => fun.culture.langs(k)))],
+    'cultlist.': ['dlg', 'exc', 'vrs'], 'fun.cg_': [...new Set(['m', 'u', 'b'].flatMap((k) => fun.culture.genres(k)))], 'fun.cl_': [...new Set(['m', 'u', 'b'].flatMap((k) => fun.culture.langs(k)))],
     'funcmd.': [...fun.CODES.filter((c) => c !== 'act' && c !== 'bday'), ...fun.ACTS, 'birthday', 'birthdays', 'fun', 'fal', 'special', 'unspecial'],
     /* fortune telling and fonts */
     'fallist.': ['tarot_names', 'tarot_up', 'tarot_rev', 'signs', 'horo_love', 'horo_work', 'horo_health', 'horo_advice', 'colors', 'numbers', 'coffee',

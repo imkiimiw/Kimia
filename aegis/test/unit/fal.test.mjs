@@ -572,3 +572,57 @@ test('puzzles: ciphers, hangman letters, emoji films, flags, the genie, the esca
   assert.match(seq, /^[0-8]{6}$/);
   assert.equal(P.MEMO.length, 9);
 });
+
+test('famous poems: 64, every one from a poet in the public domain, with its poet, work and a translation in every language', () => {
+  const C = fun.culture;
+  assert.equal(C.count('verses'), 64);
+  for (let n = 1; n <= 64; n += 1) {
+    const v = C.verse(n);
+    assert.ok(v.q.trim() && v.poet && v.poet_fa && v.poet_lat && v.work && v.work_fa && Number.isInteger(v.born) && Number.isInteger(v.died) && v.born < v.died, `poem ${n}`);
+    /* the same rule as the excerpts: died before 1956 and published before 1930, or Iranian (life + 50 in Iran) */
+    assert.ok((v.died < 1956 && (v.year === null || v.year < 1930)) || (v.lang === 'fa' && v.died <= 1975), `poem ${n} (${v.poet_lat}): public domain?`);
+  }
+  for (const lang of LANGS) {
+    const lines = t(lang, 'cultlist.vrs').split('\n');
+    assert.equal(lines.length, 64, `${lang}: a translation of every poem`);
+    for (const l of lines) assert.ok(l.replace('‏', '').trim(), `${lang}: no empty translation`);
+  }
+  assert.equal(C.verse(1).poet_lat, 'Rudaki');
+  assert.equal(C.verse(999).poet_lat, C.verse(64).poet_lat, 'a number past the end gives the last one');
+});
+
+test('crime cases, famous people, places and the parallel world in every language; the treasure field and the code hunt', () => {
+  const P = fun.puzzles;
+  const x = (lang, k) => t(lang, `gamelist.${k}`).replace(/‏/g, '');
+  for (const lang of LANGS) {
+    P.CASES.forEach((guilty, i) => {
+      for (const k of ['t', 's', 'a']) assert.ok(x(lang, `cs_${k}_${i}`).trim(), `${lang} case ${i} ${k}`);
+      for (const k of ['n', 'q', 'c']) assert.equal(x(lang, `cs_${k}_${i}`).split('|').length, 3, `${lang} case ${i} ${k}`);
+      assert.ok(guilty >= 0 && guilty < 3);
+      assert.ok(x(lang, `cs_n_${i}`).split('|').every((n) => `fn:9999999:g:2`.length <= 64 && n.length <= 40), `${lang} case ${i}: names fit a button`);
+    });
+    for (const p of P.PEOPLE) {
+      assert.ok(x(lang, `wa_n_${p}`).split('|').every((n) => n.trim()), `${lang} ${p} names`);
+      assert.equal(x(lang, `wa_c_${p}`).split('|').length, 4, `${lang} ${p} clues`);
+    }
+    for (const [k] of P.PLACES) assert.ok(x(lang, `tp_n_${k}`).trim() && x(lang, `tp_f_${k}`).trim(), `${lang} ${k}`);
+    for (const k of P.PARALLEL) assert.equal(x(lang, `pw_${k}`).split('|').length, 12, `${lang} parallel ${k}`);
+  }
+  assert.equal(new Set(P.CASES.map((g, i) => `${i}:${g}`)).size, 8);
+  for (const [k, cc, lat, lon] of P.PLACES) {
+    assert.ok(Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && /^[a-z]{2}$/.test(cc), k);
+    assert.match(P.mapUrl([k, cc, lat, lon]), /^https:\/\/www\.openstreetmap\.org\/\?mlat=-?\d/);
+  }
+  /* the treasure field: squares around the treasure are 1 away, the far corner 4 */
+  assert.equal(P.away(12, 12), 0);
+  assert.equal(P.away(6, 12), 1);
+  assert.equal(P.away(0, 24), 4);
+  assert.equal(P.away(4, 20), 4);
+  /* the code hunt */
+  for (let i = 0; i < 50; i += 1) assert.match(P.secret(), /^(?!.*(.).*\1)\d{4}$/, 'four different digits');
+  assert.deepEqual(P.score('1234', '1234'), { a: 4, b: 0 });
+  assert.deepEqual(P.score('4321', '1234'), { a: 0, b: 4 });
+  assert.deepEqual(P.score('1567', '1234'), { a: 1, b: 0 });
+  assert.deepEqual(P.score('1111', '1234'), { a: 1, b: 0 }, 'a repeated digit counts once');
+  assert.deepEqual(P.score('5678', '1234'), { a: 0, b: 0 });
+});
