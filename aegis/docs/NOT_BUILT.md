@@ -8,7 +8,7 @@ or tier; only what Telegram Serverless and the Bot API allow.
 > while Phases 1–10 were built (searched the working tree, all branches on GitHub, and the
 > container). They were built from their descriptions in the build instructions (Phases 3–10 by the
 > owner's decision to go ahead without it — the 42 locks, the security modules, the 26 advanced
-> settings, the channel panel, the social features, the 30 fun features (93 with everything added after the release) and the Super Admin panel's
+> settings, the channel panel, the social features, the 30 fun features (100 with everything added after the release) and the Super Admin panel's
 > sections and team levels are Aegis's own design); details the spec would normally settle are listed
 > in [ASSUMPTIONS.md](ASSUMPTIONS.md). Everything here should be re-checked against the spec once it is
 > added.
@@ -200,7 +200,7 @@ an existing feature:
 | **Mafia**, **spy** | **Not built** | Each player must get a secret role in private, but a bot can't write first to a member who never started it; the game also needs day/night phases on a clock, and there is no scheduler (games end only on the next update). | A platform scheduler, and every player starting Aegis first. |
 | **Guess the song** | **Not possible (copyright)** | It needs pieces of recordings or lyrics, which are copyrighted; /music recommends titles only. | Licensed audio. |
 | **Optical illusions**, **spot the difference** | **Not built** | They need prepared pictures; Aegis can't draw them well in the isolate and copying existing ones would break their licences. | A set of free-licence pictures. |
-| **Crime case / guess the killer / detective story**, **guess the person from clues**, **treasure hunt**, **parallel world / strange places / virtual travel** | **Not built (yet)** | Each needs a lot of hand-written, solvable content in five languages. The same kind of play is in /escape (a text adventure), /riddle, /cipher, /genie (twenty questions with animals) and /flags. | Content only — possible later, free. |
+| Crime cases, famous people, places | **Partial** | Built (/case, /whoami, /travel, plus /treasure and /codebreak), from fixed lists written for this project: 8 cases, 20 people, 24 places. They don't grow by themselves; a game can repeat. | More content — free to add. |
 | **Decision journal**, **decision reminder** | **Not built** | A reminder can't be sent without a scheduler; /decide gives its analysis at once. | A platform scheduler. |
 | A **verified** MBTI / Enneagram result | **Not possible** | The official tests are licensed (paid). /ptest has free MBTI-style and Enneagram-style self-tests, which say they are for fun. | — |
 | Yes/no fortune, dice of fate, the fate answer, the wheel of fortune | **Not repeated** | Already there: /tarot with a question (yes, no, maybe), /ball, /rand, /dicefortune; «wheel» became a word for /choose. | — |
