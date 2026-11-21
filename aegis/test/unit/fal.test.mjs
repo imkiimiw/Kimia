@@ -608,7 +608,11 @@ test('crime cases, famous people, places and the parallel world in every languag
     for (const [k] of P.PLACES) assert.ok(x(lang, `tp_n_${k}`).trim() && x(lang, `tp_f_${k}`).trim(), `${lang} ${k}`);
     for (const k of P.PARALLEL) assert.equal(x(lang, `pw_${k}`).split('|').length, 12, `${lang} parallel ${k}`);
   }
-  assert.equal(new Set(P.CASES.map((g, i) => `${i}:${g}`)).size, 8);
+  assert.equal(P.CASES.length, 16);
+  assert.equal(P.PEOPLE.length, 40);
+  assert.equal(new Set(P.PEOPLE).size, 40);
+  assert.equal(P.PLACES.length, 40);
+  assert.equal(new Set(P.PLACES.map(([k]) => k)).size, 40);
   for (const [k, cc, lat, lon] of P.PLACES) {
     assert.ok(Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && /^[a-z]{2}$/.test(cc), k);
     assert.match(P.mapUrl([k, cc, lat, lon]), /^https:\/\/www\.openstreetmap\.org\/\?mlat=-?\d/);

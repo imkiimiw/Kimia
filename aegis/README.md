@@ -174,7 +174,7 @@ the other languages) — words only as the whole message, or with valid argument
   browse genres, languages and people; **/poem** («تیکه شعر») — one of 64 famous poems (Persian, English,
   Russian, Chinese, French, German, Spanish, Japanese), only from poets in the public domain, with the poet
   and their years, the poem and its year, and a translation in the chat's language; **/travel** («سفر
-  مجازی») — one of 24 strange or wonderful real places with its flag, a fact and an OpenStreetMap link.
+  مجازی») — one of 40 strange or wonderful real places with its flag, a fact and an OpenStreetMap link.
 - **🧠 Mind and personality**: **/ptest** — 12 short self-tests with buttons (16 types, Enneagram,
   attachment style, self-esteem, introversion, emotional intelligence, love language, risk, decision
   style, jealousy, lifestyle, memory); **/spirit** — symbolic games (spirit animal, aura colour,
@@ -191,8 +191,8 @@ the other languages) — words only as the whole message, or with valid argument
   languages), **/riddle** (24), **/story** (a chain story: reply to it with one sentence, 12 at most;
   the starter or an admin ends it), **/memory** (six emojis back in order), **/genie** (think of an
   animal; it asks yes/no questions and guesses), **/escape** (a short text escape room), **/case**
-  («پرونده جنایی» — 8 crime cases: the suspects' words, up to three clues, one accusation each),
-  **/whoami** («من کی‌ام» — one of 20 famous people from up to four clues), **/treasure** («گنج‌یابی» —
+  («پرونده جنایی» — 16 crime cases: the suspects' words, up to three clues, one accusation each),
+  **/whoami** («من کی‌ام» — one of 40 famous people from up to four clues), **/treasure** («گنج‌یابی» —
   a 5×5 field, three digs each, the squares say how close the treasure is) and **/codebreak** («شکار کد»
   — four different digits, a hint for every guess). The answer games are a race in groups and also work
   in private; the chain story is for groups. While a game runs, a message that is its answer counts as

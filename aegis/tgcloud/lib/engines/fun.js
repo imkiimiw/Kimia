@@ -1328,17 +1328,23 @@ export const puzzles = (() => {
   const MEMO = ['🍎', '🚗', '🐶', '⭐', '🎈', '🌙', '🔑', '🎵', '🌵'];
   const sequence = (n = 6, rnd = Math.random) => [...Array(n)].map(() => Math.floor(rnd() * MEMO.length)).join('');
   /* crime cases: the guilty suspect of each (its texts are in the locales: gamelist.cs_*) */
-  const CASES = [0, 1, 2, 1, 2, 1, 1, 0];
+  const CASES = [0, 1, 2, 1, 2, 1, 1, 0, 2, 0, 1, 2, 0, 1, 2, 0];
   /* «who am I?»: famous people, four clues each (gamelist.wa_*) */
   const PEOPLE = ['ferdowsi', 'avicenna', 'rumi', 'cyrus', 'khayyam', 'einstein', 'curie', 'newton', 'davinci', 'shakespeare',
-    'mozart', 'gandhi', 'napoleon', 'cleopatra', 'confucius', 'tolstoy', 'gagarin', 'armstrong', 'chaplin', 'edison'];
+    'mozart', 'gandhi', 'napoleon', 'cleopatra', 'confucius', 'tolstoy', 'gagarin', 'armstrong', 'chaplin', 'edison',
+    'hafez', 'saadi', 'razi', 'khwarizmi', 'darius', 'beethoven', 'picasso', 'vangogh', 'galileo', 'darwin',
+    'columbus', 'marcopolo', 'tesla', 'hugo', 'pushkin', 'lincoln', 'mandela', 'caesar', 'verne', 'nightingale'];
   /* virtual travel: [code, country for the flag, latitude, longitude] (gamelist.tp_*) */
   const PLACES = [['uyuni', 'bo', -20.13, -67.49], ['pamukkale', 'tr', 37.92, 29.12], ['socotra', 'ye', 12.46, 53.82], ['danakil', 'et', 14.24, 40.3],
     ['zhangjiajie', 'cn', 29.32, 110.43], ['antelope', 'us', 36.86, -111.37], ['lut', 'ir', 30.38, 58.32], ['hormuz', 'ir', 27.06, 56.46],
     ['badab', 'ir', 36.06, 53.2], ['kandovan', 'ir', 37.79, 46.25], ['cappadocia', 'tr', 38.64, 34.83], ['petra', 'jo', 30.33, 35.44],
     ['causeway', 'gb', 55.24, -6.51], ['plitvice', 'hr', 44.88, 15.62], ['halong', 'vn', 20.91, 107.18], ['hillier', 'au', -34.09, 123.2],
     ['whitedesert', 'eg', 27.32, 28.13], ['bluehole', 'bz', 17.32, -87.53], ['crooked', 'pl', 53.21, 14.48], ['waitomo', 'nz', -38.26, 175.1],
-    ['darvaza', 'tm', 40.25, 58.44], ['spotted', 'ca', 49.08, -119.57], ['meteora', 'gr', 39.72, 21.63], ['easter', 'cl', -27.12, -109.37]];
+    ['darvaza', 'tm', 40.25, 58.44], ['spotted', 'ca', 49.08, -119.57], ['meteora', 'gr', 39.72, 21.63], ['easter', 'cl', -27.12, -109.37],
+    ['naqshejahan', 'ir', 32.66, 51.68], ['shushtar', 'ir', 32.05, 48.85], ['qeshm', 'ir', 26.82, 55.9], ['masuleh', 'ir', 37.15, 48.99],
+    ['iguazu', 'ar', -25.69, -54.44], ['victoria', 'zm', -17.92, 25.86], ['grandcanyon', 'us', 36.1, -112.11], ['jokulsarlon', 'is', 64.05, -16.18],
+    ['redbeach', 'cn', 40.87, 121.86], ['tianmen', 'cn', 29.05, 110.48], ['moraine', 'ca', 51.32, -116.19], ['marblecaves', 'cl', -46.65, -72.62],
+    ['deadvlei', 'na', -24.76, 15.29], ['santorini', 'gr', 36.4, 25.43], ['machupicchu', 'pe', -13.16, -72.55], ['angkor', 'kh', 13.41, 103.87]];
   const mapUrl = ([, , lat, lon]) => `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=11/${lat}/${lon}`;
   /* the parallel world: one of the 12 items of each list (gamelist.pw_*) */
   const PARALLEL = ['job', 'place', 'power', 'pet', 'twist'];
