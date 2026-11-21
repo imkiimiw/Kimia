@@ -25,8 +25,11 @@ from wanger_news.config.models import AppConfig
 from wanger_news.db.repositories import Repositories
 from wanger_news.db.tables import Article, ReviewRequest, Summary
 from wanger_news.domain import guard as guard_layer1
+from wanger_news.domain.claims import STATUS_FA as CLAIM_STATUS_FA
+from wanger_news.domain.claims import summarize_statuses
 from wanger_news.domain.enums import (
     ArticleStatus,
+    ClusterRole,
     JobStatus,
     ReviewAction,
     SourceType,
@@ -37,6 +40,7 @@ from wanger_news.domain.enums import (
 from wanger_news.domain.guard import GuardReport
 from wanger_news.domain.scoring import confidence, label
 from wanger_news.domain.summary import SummaryDraft
+from wanger_news.domain.text import to_persian_digits
 from wanger_news.formatting.telegram_html import esc
 from wanger_news.formatting.templates_fa import ReviewCard, reason_fa, render_review_card
 from wanger_news.services.context import RunContext
@@ -152,8 +156,37 @@ class ReviewService:
             preview=rendered.text if rendered else None,
             original_title=article.title_original,
             original_url=article.canonical_url or article.url or "",
+            **await self._story_lines(repos, article),
         )
         return render_review_card(card, self._review.preview_chars), rendered is not None
+
+    async def _story_lines(self, repos: Repositories, article: Article) -> dict[str, str | None]:
+        """Phase 3 lines: independent sources, claim statuses, the story an update belongs to."""
+        story = await repos.stories.get(article.cluster_id)
+        lines: dict[str, str | None] = {
+            "sources_line": None,
+            "claims_line": None,
+            "update_of": None,
+        }
+        if story is not None and story.sources:
+            names = "، ".join(dict.fromkeys(s["name"] for s in story.sources))
+            lines["sources_line"] = (
+                f"منابع مستقل: {to_persian_digits(str(len(story.sources)))} ({names})"
+            )
+        if (
+            story is not None
+            and article.cluster_role == ClusterRole.UPDATE.value
+            and story.published_at is not None
+        ):
+            lines["update_of"] = story.title or ""
+        claims = await repos.stories.claims_for(article.summary_id)
+        if claims:
+            counts = summarize_statuses([c.status for c in claims])
+            lines["claims_line"] = "ادعاها: " + "، ".join(
+                f"{to_persian_digits(str(n))} {CLAIM_STATUS_FA.get(status, status)}"
+                for status, n in sorted(counts.items(), key=lambda kv: -kv[1])
+            )
+        return lines
 
     async def send_cards(self, repos: Repositories, ctx: RunContext) -> int:
         await self._expire(repos, ctx)

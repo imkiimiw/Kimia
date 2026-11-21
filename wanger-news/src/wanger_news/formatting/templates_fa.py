@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import html
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from wanger_news.config.models import PublishConfig
@@ -113,6 +113,15 @@ STATUS_LABELS_FA = {
 
 
 @dataclass(frozen=True, slots=True)
+class ContradictionLine:
+    """One disagreement between sources, rendered by a fixed sentence (no AI prose)."""
+
+    topic: str
+    versions: list[tuple[str, str]]  # (outlet, what it says — a Persian predicate)
+    earlier: str | None = None  # the outlet that published first, when the times differ clearly
+
+
+@dataclass(frozen=True, slots=True)
 class SummaryPost:
     """A validated (or human-approved) Persian rendering, ready for the channel (spec §10)."""
 
@@ -125,24 +134,39 @@ class SummaryPost:
     hashtags: list[str]
     image_url: str | None = None
     breaking: bool = False  # Phase 4
+    update: bool = False  # Phase 3: a follow-up to a published story (sent as a reply)
+    contradictions: list[ContradictionLine] = field(default_factory=list)
+
+
+def contradiction_sentence(line: ContradictionLine) -> str:
+    """«گزارش‌ها دربارهٔ X متفاوت است؛ رویترز …، در حالی که بی‌بی‌سی ….» (spec §8 example)."""
+    parts = [f"{outlet} {statement}".strip() for outlet, statement in line.versions]
+    body = f"{parts[0]}، در حالی که {parts[1]}" if len(parts) == 2 else "؛ ".join(parts)
+    text = f"گزارش‌ها دربارهٔ {line.topic} متفاوت است؛ {body}."
+    if line.earlier:
+        text += f" (این گزارش‌ها در زمان‌های متفاوتی منتشر شده‌اند؛ گزارش {line.earlier} زودتر بود.)"
+    return text
 
 
 def _summary_html(post: SummaryPost, with_image: bool) -> str:
-    blocks = [("🔴 " if post.breaking else "") + bold(post.title)]
+    head = ("🔴 " if post.breaking else "") + ("🔄 <b>به‌روزرسانی:</b> " if post.update else "")
+    blocks = [head + bold(post.title)]
     paragraphs = [p.strip() for p in post.summary.split("\n") if p.strip()]
     blocks.extend(esc(p) for p in paragraphs)
     if post.key_points:
         blocks.append("\n".join(f"• {esc(point)}" for point in post.key_points))
+    if post.contradictions:
+        blocks.append("\n".join(f"⚖️ {esc(contradiction_sentence(c))}" for c in post.contradictions))
     status = STATUS_LABELS_FA.get(post.status, post.status)
     lines = [f"📌 وضعیت: {esc(status)}"]
-    if len(post.source_names) == 1:
+    if len(post.source_names) == 1 and not post.update:
         lines.append(
             f"⚠️ این خبر در حال حاضر فقط بر اساس گزارش {esc(post.source_names[0])} "
             "است و ممکن است تغییر کند."
         )
     blocks.append("\n".join(lines))
     meta = [
-        f"📰 منابع: {esc('، '.join(post.source_names))}",
+        f"📰 {'منابع تازه' if post.update else 'منابع'}: {esc('، '.join(post.source_names))}",
         "🔗 " + link(post.source_url, "منبع اصلی"),
     ]
     if with_image:
@@ -175,6 +199,7 @@ REASONS_FA = {
     "manual_mode": "حالت دستی",
     "human_edit": "ویرایش شد — منتظر تأیید",
     "ai_failed": "هوش مصنوعی نتوانست پردازش کند",
+    "conflicting_reports": "منابع با هم تناقض دارند",
 }
 
 
@@ -200,6 +225,9 @@ class ReviewCard:
     preview: str | None  # the post HTML as it would be published; None = no usable text yet
     original_title: str
     original_url: str
+    sources_line: str | None = None  # Phase 3: independent sources of the story
+    claims_line: str | None = None  # Phase 3: claim statuses
+    update_of: str | None = None  # Phase 3: the published story this update belongs to
 
 
 def render_review_card(card: ReviewCard, preview_chars: int) -> str:
@@ -217,6 +245,12 @@ def render_review_card(card: ReviewCard, preview_chars: int) -> str:
         f"منبع: {esc(card.source_name)}"
         + (f" · #{esc(card.category_tag)}" if card.category_tag else "")
     )
+    if card.update_of:
+        head.insert(1, f"🔄 به‌روزرسانی خبر منتشرشده: {esc(card.update_of[:120])}")
+    if card.sources_line:
+        head.append(f"📚 {esc(card.sources_line)}")
+    if card.claims_line:
+        head.append(f"🧾 {esc(card.claims_line)}")
     blocks = ["\n".join(head)]
     if card.issues:
         blocks.append(

@@ -41,6 +41,7 @@ from wanger_news.services.ingest import HealthSnapshot, IngestService
 from wanger_news.services.processing import ProcessingService
 from wanger_news.services.publish import PublishService
 from wanger_news.services.review import ReviewService
+from wanger_news.services.stories import StoryService
 from wanger_news.services.targets import TargetError, resolve_target
 
 log = logging.getLogger("wanger_news.pipeline")
@@ -104,7 +105,8 @@ class Pipeline:
         self.ingest = IngestService(cfg, deps.fetcher, deps.robots, self.dedup)
         self.processing = ProcessingService(cfg)
         self.publisher = PublishService(cfg, sleep=deps.sleep)
-        self.ai = AIStage(cfg, deps.ai, sleep=deps.sleep)
+        self.stories = StoryService(cfg, deps.ai, sleep=deps.sleep)
+        self.ai = AIStage(cfg, deps.ai, sleep=deps.sleep, stories=self.stories)
         self.review = ReviewService(cfg, self.publisher.posts)
         self.commands = CommandService(cfg, self.review)
         self.inbox = InboxService(cfg, self.dedup, self.commands, self.review)
@@ -168,6 +170,7 @@ class Pipeline:
                     await self._stage(repos, ctx, "inbox", self._inbox(repos, ctx))
                 await self._stage(repos, ctx, "ingest", self._ingest(repos, ctx, summary))
                 await self._stage(repos, ctx, "classify", self._classify(repos, ctx))
+                await self._stage(repos, ctx, "cluster", self._cluster(repos, ctx))
                 await self._stage(repos, ctx, "ai", self._ai(repos, ctx))
                 if ctx.bot is not None or ctx.dry_run:
                     await self._stage(repos, ctx, "review", self._review(repos, ctx))
@@ -276,6 +279,15 @@ class Pipeline:
             ctx.error(f"target: {exc}")
             return None
 
+    async def _cluster(self, repos: Repositories, ctx: RunContext) -> None:
+        report = await self.stories.run(repos, ctx)
+        if report.skipped:
+            ctx.counters[f"stories_skipped:{report.skipped[:60]}"] = 1
+        ctx.count("stories_embedded", report.embedded)
+        ctx.count("stories_new", report.new_stories)
+        for role, n in report.joined.items():
+            ctx.count(f"stories_{role}", n)
+
     async def _ai(self, repos: Repositories, ctx: RunContext) -> None:
         report = await self.ai.run(repos, ctx)
         if report.skipped:
@@ -286,6 +298,9 @@ class Pipeline:
         ctx.count("ai_processed", report.processed)
         ctx.count("ai_cached", report.cached)
         ctx.count("ai_expired", report.expired)
+        for key in ("updates", "corroborated", "detached", "waiting"):
+            if getattr(report, key):
+                ctx.count(f"ai_{key}", getattr(report, key))
         for status, n in report.routed.items():
             ctx.count(f"ai_routed_{status}", n)
 

@@ -372,6 +372,10 @@ class StoryService:
         )
         story.entities = names[:60]
         story.member_count += 1
+        await self.refresh_sources(repos, story)
+
+    async def refresh_sources(self, repos: Repositories, story: StoryCluster) -> None:
+        """Independent origins of the story's feed reports (own-channel posts are not sources)."""
         members = await repos.stories.members(story.id)
         feed = [m for m in members if not is_human(m)]
         groups = origins([self.report_of(m) for m in feed], self._story.syndication_min_jaccard)
@@ -379,6 +383,7 @@ class StoryService:
             {
                 "name": g.best.source_name,
                 "source_id": g.best.source_id,
+                "article_id": g.best.article_id,
                 "article_ids": g.article_ids,
                 "reliability": g.best.reliability,
                 "primary": g.best.primary,

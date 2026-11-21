@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from wanger_news.adapters.telegram.client import (
@@ -21,12 +21,20 @@ from wanger_news.adapters.telegram.client import (
 )
 from wanger_news.config.models import AppConfig
 from wanger_news.db.repositories import Repositories
-from wanger_news.db.tables import Article, PublishedPost
-from wanger_news.domain.enums import ArticleStatus, JobStatus, PostStatus, Stage, Transport
+from wanger_news.db.tables import Article, PublishedPost, StoryCluster
+from wanger_news.domain.enums import (
+    ArticleStatus,
+    ClusterRole,
+    JobStatus,
+    PostStatus,
+    Stage,
+    Transport,
+)
 from wanger_news.formatting.telegram_html import esc, split_html
 from wanger_news.formatting.templates_fa import RenderedPost
 from wanger_news.services.context import RunContext, Target
 from wanger_news.services.posts import PostBuilder
+from wanger_news.services.stories import timeline_event
 
 #: Telegram error descriptions that concern the channel, not the post: stop, don't burn attempts.
 CHAT_LEVEL_ERRORS = (
@@ -189,10 +197,15 @@ class PublishService:
             await self._sync_article(repos, ctx, article, existing)
             await repos.commit()
             return False
+        story = await repos.stories.get(article.cluster_id)
+        reply_to = self._reply_target(article, story, target)
+        post.kind = "update" if article.cluster_role == ClusterRole.UPDATE.value else "story"
+        post.cluster_id = story.id if story is not None else None
+        post.reply_to_message_id = reply_to
         await repos.commit()  # the claim is durable BEFORE anything is sent
 
         try:
-            delivery = await self._deliver(ctx, target, article, rendered)
+            delivery = await self._deliver(ctx, target, article, rendered, reply_to)
         except TelegramRateLimited as exc:
             await self._failed(repos, ctx, post, article, exc, count_attempt=False)
             report.errors.append(f"rate limited {exc.retry_after}s")
@@ -245,6 +258,8 @@ class PublishService:
         await repos.articles.set_status(
             article, ArticleStatus.PUBLISHED, now, f"sent to {target.role.value}"
         )
+        if story is not None:
+            await self._story_published(repos, story, article, target, delivery, now)
         await repos.jobs.record(
             article.id,
             Stage.PUBLISH,
@@ -319,14 +334,77 @@ class PublishService:
             "برای جلوگیری از پست تکراری، دوباره ارسال نمی‌شود. لطفاً کانال را بررسی کنید."
         )
 
+    # ---------------------------------------------------------------- stories
+    @staticmethod
+    def _reply_target(article: Article, story: StoryCluster | None, target: Target) -> int | None:
+        """An update replies to the story's last post — in the same channel only."""
+        if article.cluster_role != ClusterRole.UPDATE.value or story is None:
+            return None
+        if story.post_message_id is None or story.post_chat != target.key:
+            return None
+        return story.post_message_id
+
+    async def _story_published(
+        self,
+        repos: Repositories,
+        story: StoryCluster,
+        article: Article,
+        target: Target,
+        delivery: Delivery,
+        now: datetime,
+    ) -> None:
+        """Remember where the story is, what it said, and keep the timeline."""
+        summary = await repos.summaries.get(article.summary_id)
+        update = article.cluster_role == ClusterRole.UPDATE.value
+        if summary is not None:
+            said = {
+                "title": summary.title,
+                "summary": summary.summary,
+                "key_points": list(summary.key_points or []),
+            }
+        else:  # a source-channel post copied as it is
+            said = {
+                "title": article.title_original,
+                "summary": article.description_original,
+                "key_points": [],
+            }
+        if update and story.published_text:
+            story.published_text = {
+                **story.published_text,
+                "updates": [*story.published_text.get("updates", []), said],
+            }
+        elif story.published_text is None or story.lead_article_id == article.id:
+            story.published_text = said
+        if story.published_at is None:
+            story.published_at = now
+            story.lead_article_id = story.lead_article_id or article.id
+        if delivery.message_ids:
+            story.post_chat = target.key
+            story.post_message_id = delivery.message_ids[0]
+        timeline_event(
+            story,
+            now.isoformat(),
+            "update_published" if update else "published",
+            article_id=article.id,
+            message_ids=delivery.message_ids,
+            chat=target.key,
+        )
+        story.updated_at = now
+
     # ---------------------------------------------------------------- Bot API calls
     async def _deliver(
-        self, ctx: RunContext, target: Target, article: Article, rendered: RenderedPost | None
+        self,
+        ctx: RunContext,
+        target: Target,
+        article: Article,
+        rendered: RenderedPost | None,
+        reply_to: int | None = None,
     ) -> Delivery:
         assert ctx.bot is not None
         if article.transport == Transport.TELEGRAM_CHANNEL.value:
             return await self._copy(ctx, target, article)
         assert rendered is not None
+        reply = _reply(reply_to)
         if rendered.photo_url:
             try:
                 result = await ctx.bot.call(
@@ -336,6 +414,7 @@ class PublishService:
                         "photo": rendered.photo_url,
                         "caption": rendered.text,
                         "parse_mode": "HTML",
+                        **reply,
                     },
                 )
                 return Delivery("sendPhoto", [int(result["message_id"])], rendered.text)
@@ -343,11 +422,13 @@ class PublishService:
                 if not any(m in (exc.description or "").lower() for m in PHOTO_ERRORS):
                     raise
                 return await self._send_text(
-                    ctx, target, rendered.text_without_photo or rendered.text
+                    ctx, target, rendered.text_without_photo or rendered.text, reply_to
                 )
-        return await self._send_text(ctx, target, rendered.text)
+        return await self._send_text(ctx, target, rendered.text, reply_to)
 
-    async def _send_text(self, ctx: RunContext, target: Target, text: str) -> Delivery:
+    async def _send_text(
+        self, ctx: RunContext, target: Target, text: str, reply_to: int | None = None
+    ) -> Delivery:
         assert ctx.bot is not None
         ids: list[int] = []
         for chunk in split_html(text, self._cfg.pipeline.publish.message_limit):
@@ -361,6 +442,8 @@ class PublishService:
             }
             if ids:
                 payload["reply_parameters"] = {"message_id": ids[0]}
+            elif reply_to is not None:
+                payload.update(_reply(reply_to))
             try:
                 result = await ctx.bot.call("sendMessage", payload)
             except TelegramNotSent as exc:
@@ -393,3 +476,9 @@ class PublishService:
             },
         )
         return Delivery("copyMessages", [int(r["message_id"]) for r in result], None)
+
+
+def _reply(message_id: int | None) -> dict[str, Any]:
+    if message_id is None:
+        return {}
+    return {"reply_parameters": {"message_id": message_id, "allow_sending_without_reply": True}}

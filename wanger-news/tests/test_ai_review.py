@@ -64,7 +64,7 @@ async def test_semi_mode_sends_review_cards_and_publishes_nothing(harness: Harne
     assert {d.split(":")[1] for d in buttons(first)} == {"a", "p", "e", "r"}
     assert "پیش‌نمایش" in first["text"] and "عنوان فارسی آزمایشی" in first["text"]
     runs = [r[0] for r in await harness.rows(sa.select(AIRun.operation).order_by(AIRun.id))]
-    assert runs == ["summarize", "verify", "summarize", "verify"]
+    assert runs == ["embed", "summarize", "verify", "summarize", "verify"]
     assert summary.counters["ai_processed"] == 5
     # a second run sends no duplicate cards
     harness.clock.advance(minutes=15)
@@ -238,7 +238,8 @@ async def test_quota_leaves_items_for_the_next_run(harness: Harness) -> None:
     assert any(k.startswith("ai_stopped:quota") for k in summary.counters)
     pending = [a for a in await harness.articles() if a.status == ArticleStatus.AI_PENDING]
     assert len(pending) == 5
-    statuses = [r[0] for r in await harness.rows(sa.select(AIRun.status))]
+    statuses = [r[0] for r in await harness.rows(
+        sa.select(AIRun.status).where(AIRun.operation != "embed"))]
     assert statuses == ["quota"]
     harness.clock.advance(minutes=15)
     await harness.run()
@@ -332,7 +333,9 @@ async def test_dry_run_previews_ai_posts_and_keeps_nothing(harness: Harness) -> 
     assert summary.counters["posts_previewed"] > 0
     assert any("عنوان فارسی آزمایشی" in line for line in harness.output)
     assert await harness.scalar(sa.select(sa.func.count()).select_from(AIRun)) == 0
-    assert harness.ai is not None and len(harness.ai.calls) == 2  # dry_run_max_calls
+    assert harness.ai is not None
+    generation = [op for op in harness.ai.operations() if op != "embed"]
+    assert len(generation) == 2  # dry_run_max_calls (embeddings have their own quota)
 
 
 # ------------------------------------------------------------------ modes, settings, channel

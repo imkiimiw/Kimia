@@ -26,12 +26,15 @@ def route(
     confidence: int,
     importance: int,
     auto: AutoPublishConfig,
+    conflicting: bool = False,
 ) -> Route:
     """The order matters: the safety reasons win over the mode."""
     if not guard_passed:
         return Route(ArticleStatus.PENDING_REVIEW, "guard_failed")
     if insufficient:
         return Route(ArticleStatus.PENDING_REVIEW, "insufficient_information")
+    if conflicting:  # sources contradict each other: a human reads both versions first
+        return Route(ArticleStatus.PENDING_REVIEW, "conflicting_reports")
     if sensitive_topics:
         return Route(ArticleStatus.PENDING_REVIEW, "sensitive:" + ",".join(sensitive_topics))
     if confidence < NEVER_AUTO_BELOW:
