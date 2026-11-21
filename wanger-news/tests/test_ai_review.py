@@ -238,8 +238,9 @@ async def test_quota_leaves_items_for_the_next_run(harness: Harness) -> None:
     assert any(k.startswith("ai_stopped:quota") for k in summary.counters)
     pending = [a for a in await harness.articles() if a.status == ArticleStatus.AI_PENDING]
     assert len(pending) == 5
-    statuses = [r[0] for r in await harness.rows(
-        sa.select(AIRun.status).where(AIRun.operation != "embed"))]
+    statuses = [
+        r[0] for r in await harness.rows(sa.select(AIRun.status).where(AIRun.operation != "embed"))
+    ]
     assert statuses == ["quota"]
     harness.clock.advance(minutes=15)
     await harness.run()

@@ -80,6 +80,22 @@ def is_human(article: Article) -> bool:
     return article.transport == Transport.TELEGRAM_CHANNEL.value
 
 
+def hand_post_ref(article: Article) -> tuple[int, str | None, int] | None:
+    """(chat id, username, message id) of a Telegram post, from ``tg:<chat>:<message>`` and
+    its public ``t.me`` link."""
+    parts = (article.external_id or "").split(":")
+    if len(parts) != 3 or parts[0] != "tg":
+        return None
+    try:
+        chat_id, message_id = int(parts[1]), int(parts[2])
+    except ValueError:
+        return None
+    username = None
+    if article.url and article.url.startswith("https://t.me/"):
+        username = article.url.removeprefix("https://t.me/").split("/")[0] or None
+    return chat_id, username, message_id
+
+
 def timeline_event(cluster: StoryCluster, at: str, event: str, **data: Any) -> None:
     cluster.timeline = [*(cluster.timeline or []), {"at": at, "event": event, **data}]
 
@@ -229,7 +245,7 @@ class StoryService:
         article.cluster_id = story.id
         if article.status == ArticleStatus.EXTERNAL.value:
             article.cluster_role = ClusterRole.EXTERNAL.value
-            self._mark_published_by_hand(story, article, now.isoformat())
+            self._mark_published_by_hand(ctx, story, article, now.isoformat())
         elif is_human(article):
             article.cluster_role = ClusterRole.HUMAN.value
         else:
@@ -256,7 +272,7 @@ class StoryService:
         lead = next((m for m in members if m.id == story.lead_article_id), None)
         if article.status == ArticleStatus.EXTERNAL.value:
             role = ClusterRole.EXTERNAL
-            self._mark_published_by_hand(story, article, now.isoformat())
+            self._mark_published_by_hand(ctx, story, article, now.isoformat())
             await self._demote_unpublished_lead(repos, ctx, story, lead)
         elif is_human(article):
             role = ClusterRole.HUMAN
@@ -329,7 +345,11 @@ class StoryService:
         return source.name if source else article.source_id
 
     @staticmethod
-    def _mark_published_by_hand(story: StoryCluster, article: Article, at: str) -> None:
+    def _mark_published_by_hand(
+        ctx: RunContext, story: StoryCluster, article: Article, at: str
+    ) -> None:
+        """A post made by hand in a target channel now speaks for the story. When it is in
+        the channel this run publishes to, later updates reply to it."""
         if story.published_at is None:
             story.published_at = article.effective_at
             story.published_text = {
@@ -339,6 +359,10 @@ class StoryService:
             }
             story.lead_article_id = article.id
             timeline_event(story, at, "published_by_hand", article_id=article.id)
+        ref = hand_post_ref(article)
+        if ref is not None and ctx.target is not None and ctx.target.chat.matches(*ref[:2]):
+            story.post_chat = ctx.target.key
+            story.post_message_id = ref[2]
 
     async def _demote_unpublished_lead(
         self, repos: Repositories, ctx: RunContext, story: StoryCluster, lead: Article | None
@@ -460,4 +484,7 @@ class StoryService:
         story = await self._new_story(repos, ctx, article)
         if article.embedding is not None:
             story.centroid = list(article.embedding)
+        if old is not None:
+            # the old story must stop naming this outlet as one of its sources
+            await self.refresh_sources(repos, old)
         return story

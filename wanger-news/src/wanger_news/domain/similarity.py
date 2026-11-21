@@ -134,7 +134,12 @@ def extract_entities(text: str, limit: int = 30) -> list[str]:
     """
     found: dict[str, None] = {}
     for match in _CAP_PHRASE.finditer(text):
-        words = [w for w in match.group(1).split() if w.lower() not in _NOT_NAMES]
+        words = match.group(1).split()
+        # trim stop words at the edges only: "The Bank of England" → "Bank of England"
+        while words and words[0].lower() in _NOT_NAMES:
+            words.pop(0)
+        while words and words[-1].lower() in _NOT_NAMES:
+            words.pop()
         phrase = " ".join(words)
         if len(phrase) < 3:
             continue

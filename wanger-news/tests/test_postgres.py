@@ -113,3 +113,27 @@ async def test_dry_run_rolls_back_on_postgres(pg_harness: Harness) -> None:
     assert summary.counters["posts_previewed"] > 0
     async with AsyncSession(pg_harness.engine) as session:
         assert await session.scalar(sa.select(sa.func.count()).select_from(Article)) == 0
+
+
+async def test_stories_on_postgres_use_pgvector(pg_harness: Harness) -> None:
+    """Embeddings round-trip through the pgvector column; two outlets → one story."""
+    from wanger_news.db.tables import StoryCluster
+
+    from .test_stories import setup
+
+    setup(pg_harness)
+    await pg_harness.run()
+    async with AsyncSession(pg_harness.engine) as session:
+        column_type = await session.scalar(
+            sa.text(
+                "SELECT format_type(atttypid, atttypmod) FROM pg_attribute "
+                "WHERE attrelid = 'story_clusters'::regclass AND attname = 'centroid'"
+            )
+        )
+        stories = list((await session.scalars(sa.select(StoryCluster))).all())
+        article = await session.scalar(sa.select(Article).where(Article.source_id == "delta"))
+    assert column_type == "vector"
+    assert len(stories) == 1 and stories[0].independent_sources == 2
+    assert stories[0].centroid is not None and stories[0].centroid[0] == pytest.approx(1.0)
+    assert article is not None and article.embedding is not None and len(article.embedding) == 768
+    assert len(pg_harness.telegram.channel_posts()) == 1

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -81,9 +82,11 @@ class FakeAI:
     def source_texts(item: dict[str, Any]) -> list[tuple[str, str]]:
         """(source_id, text) pairs of an item, whatever the payload shape."""
         if item.get("sources"):
-            return [(str(s["source_id"]), str(s["text"])) for s in item["sources"]
-                    if not s.get("previous")] or [
-                (str(s["source_id"]), str(s["text"])) for s in item["sources"]]
+            return [
+                (str(s["source_id"]), str(s["text"]))
+                for s in item["sources"]
+                if not s.get("previous")
+            ] or [(str(s["source_id"]), str(s["text"])) for s in item["sources"]]
         return [("", str(item.get("text") or item.get("source_text") or ""))]
 
     def all_text(self, item: dict[str, Any]) -> str:
@@ -93,16 +96,26 @@ class FakeAI:
 
     def _draft(self, item: dict[str, Any], table: dict[str, dict[str, Any]]) -> dict[str, Any]:
         sources = self.source_texts(item)
-        support = [{"source_id": sid, "evidence": evidence_from(text)}
-                   for sid, text in sources if sid]
+        support = [
+            {"source_id": sid, "evidence": evidence_from(text)} for sid, text in sources if sid
+        ]
         claim: dict[str, Any] = {"text": "ادعای اصلی خبر"}
         if support:
             claim["support"] = support
         else:
             claim["evidence"] = evidence_from(sources[0][1])
         draft: dict[str, Any] = {**GENERIC, "id": item["id"], "claims": [claim]}
-        draft.update(self._match(table, self.all_text(item)) or {})
+        draft.update(self._fill(self._match(table, self.all_text(item)) or {}, item))
         return draft
+
+    def _fill(self, override: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
+        """``$S0``/``$S1``… → the item's source ids, ``$E0``… → their first words (verbatim)."""
+        if not override:
+            return override
+        text = json.dumps(override, ensure_ascii=False)
+        for n, (sid, src) in enumerate(self.source_texts(item)):
+            text = text.replace(f"$S{n}", sid).replace(f"$E{n}", evidence_from(src))
+        return dict(json.loads(text))
 
     def operations(self) -> list[str]:
         return [op for op, _ in self.calls]
@@ -154,18 +167,27 @@ class FakeAI:
         )
         return AIResult(data=data, usage=self._usage("rewrite"), raw="{}")
 
-    async def update(self, items: Sequence[dict[str, Any]], *, language: str,
-                     categories: Sequence[str]) -> AIResult[UpdateOutput]:
+    async def update(
+        self, items: Sequence[dict[str, Any]], *, language: str, categories: Sequence[str]
+    ) -> AIResult[UpdateOutput]:
         self._check("update", [i["id"] for i in items])
         out = []
         for item in items:
             draft = self._draft(item, {})
-            draft.update({"title": "به‌روزرسانی آزمایشی", "summary": "اطلاعات تازهٔ آزمایشی.",
-                          "key_points": []})
-            draft.update(self._match(self.updates, self.all_text(item)) or {})
+            draft.update(
+                {
+                    "title": "به‌روزرسانی آزمایشی",
+                    "summary": "اطلاعات تازهٔ آزمایشی.",
+                    "key_points": [],
+                }
+            )
+            draft.update(self._fill(self._match(self.updates, self.all_text(item)) or {}, item))
             out.append(draft)
-        return AIResult(data=UpdateOutput.model_validate({"articles": out}),
-                        usage=self._usage("update"), raw="{}")
+        return AIResult(
+            data=UpdateOutput.model_validate({"articles": out}),
+            usage=self._usage("update"),
+            raw="{}",
+        )
 
     async def translate(self, text: str, *, language: str) -> AIResult[TranslateOutput]:
         self._check("translate", [])
@@ -182,8 +204,9 @@ class FakeAI:
     async def extract_entities(self, item: dict[str, Any]) -> AIResult[EntitiesOutput]:
         raise NotImplementedError
 
-    async def embed(self, texts: Sequence[str], *, model: str | None = None,
-                    dimensions: int | None = None) -> list[list[float]]:
+    async def embed(
+        self, texts: Sequence[str], *, model: str | None = None, dimensions: int | None = None
+    ) -> list[list[float]]:
         """Bag-of-words hashing: texts sharing many words get a high cosine, like a real
         embedding would for two reports of the same event. ``vectors`` overrides by substring."""
         self._check("embed", [])
