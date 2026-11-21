@@ -539,11 +539,15 @@ test('puzzles: ciphers, hangman letters, emoji films, flags, the genie, the esca
   assert.ok(!P.solved('sun', ['s', 'u']) && P.solved('sun', ['n', 'u', 's']));
   const titles = new Set(fun.culture.items('m').map((m) => m.t));
   for (const [emoji, title] of P.FILMS) assert.ok(titles.has(title) && emoji, `${title} is in the film list`);
+  assert.equal(P.FILMS.length, 76);
+  assert.equal(new Set(P.FILMS.map(([, t]) => t)).size, 76, 'no film twice');
+  assert.equal(new Set(P.FILMS.map(([e]) => e)).size, 76, 'no emojis twice');
+  assert.equal(P.RIDDLES, 48);
   assert.equal(new Set(P.COUNTRIES).size, P.COUNTRIES.length);
   assert.equal(P.flagOf('ir'), '🇮🇷');
   for (const lang of LANGS) for (const c of P.COUNTRIES) assert.ok(t(lang, `gamelist.c_${c}`).trim(), `${lang} ${c}`);
   for (const lang of LANGS) {
-    for (let i = 0; i < 24; i += 1) assert.ok(t(lang, `gamelist.ra_${i}`).trim() && t(lang, `gamelist.rq_${i}`).trim(), `${lang} riddle ${i}`);
+    for (let i = 0; i < P.RIDDLES; i += 1) assert.ok(t(lang, `gamelist.ra_${i}`).trim() && t(lang, `gamelist.rq_${i}`).trim(), `${lang} riddle ${i}`);
     for (const n of Object.keys(P.ESCAPE)) {
       if (P.ESCAPE[n].length) assert.equal(t(lang, `gamelist.eo_${n}`).split('|').length, P.ESCAPE[n].length, `${lang} escape choices ${n}`);
     }

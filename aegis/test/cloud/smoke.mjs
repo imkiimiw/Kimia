@@ -145,7 +145,7 @@ try {
   check('I Ching table, Chinese year and life path in the isolate', fal.draw.join() === '63,6,11', JSON.stringify(fal.draw));
   check('films, books and music in the isolate (161 films, 133 pieces, 125 books), and the 🧬 Combined Unicode page', fal.culture.join() === '64,45,161,133,125,4' && fal.mix === '𝜜𝒓𝒂𝒛',
     JSON.stringify([fal.culture, fal.mix]));
-  check('puzzles in the isolate: cipher, flags, the 36 emoji films found in the film list, the genie, hangman letters', JSON.stringify(fal.puzzles) === JSON.stringify(['qmbofu', '🇮🇷', 36, 'ask', 21]),
+  check('puzzles in the isolate: cipher, flags, the 76 emoji films found in the film list, the genie, hangman letters', JSON.stringify(fal.puzzles) === JSON.stringify(['qmbofu', '🇮🇷', 76, 'ask', 21]),
     JSON.stringify(fal.puzzles));
   check('famous poems, crime cases, famous people, places, the treasure field and the code hunt in the isolate',
     JSON.stringify(fal.stageF) === JSON.stringify([64, 'Rudaki', 4, 4, 40, 16, 40]), JSON.stringify(fal.stageF));

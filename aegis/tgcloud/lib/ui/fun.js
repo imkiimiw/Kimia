@@ -2043,7 +2043,8 @@ async function startGame(ctx, x) {
   } else if (kind === 'emojimovie') {
     const [emoji, title] = fun.pick(fun.puzzles.FILMS);
     const film = fun.culture.items('m').find((m) => m.t === title);
-    const alts = [film.t, film.fa, film.en].filter(Boolean).flatMap((x) => [x, x.replace(/^the\s+/i, '')]);
+    /* a title, without «The», and the part before a colon («The Lord of the Rings», «2001») */
+    const alts = [film.t, film.fa, film.en].filter(Boolean).flatMap((x) => [x, x.replace(/^the\s+/i, ''), x.split(':')[0], x.split(':')[0].replace(/^the\s+/i, '')]);
     ans = titleKey(film.en || film.t);
     state = { emoji, title: lang === 'fa' ? (film.fa || film.t) : (film.en || film.t), alts: [...new Set(alts.map(titleKey))] };
     text = t(lang, 'fun.em_start', { emoji, time: dur(lang, ttl) });
@@ -2054,7 +2055,7 @@ async function startGame(ctx, x) {
     state = { code, name: inline(lang, `gamelist.c_${code}`).split('|')[0], alts: [...new Set(names.map(titleKey))] };
     text = t(lang, 'fun.fl_start', { flag: fun.puzzles.flagOf(code), time: dur(lang, ttl) });
   } else if (kind === 'riddle') {
-    const i = fun.randInt(0, 23);
+    const i = fun.randInt(0, fun.puzzles.RIDDLES - 1);
     const alts = LANGS.flatMap((l) => inline(l, `gamelist.ra_${i}`).split('|'));
     ans = String(i);
     state = { i, answer: inline(lang, `gamelist.ra_${i}`).split('|')[0], alts: [...new Set(alts.map(titleKey))] };

@@ -187,8 +187,8 @@ the other languages) — words only as the whole message, or with valid argument
   exercise for the day; **/dreamlog** — a private dream journal (the last 50 dreams kept; read,
   symbols, delete with a confirmation).
 - **🧩 Puzzles**: **/cipher** (a reversed, shifted or numbered word), **/hangman** (letter buttons,
-  six mistakes), **/emojimovie** (36 films from emojis), **/flags** (50 flags, names in five
-  languages), **/riddle** (24), **/story** (a chain story: reply to it with one sentence, 12 at most;
+  six mistakes), **/emojimovie** (76 films from emojis, Iranian ones among them), **/flags** (50 flags, names in five
+  languages), **/riddle** (48), **/story** (a chain story: reply to it with one sentence, 12 at most;
   the starter or an admin ends it), **/memory** (six emojis back in order), **/genie** (think of an
   animal; it asks yes/no questions and guesses), **/escape** (a short text escape room), **/case**
   («پرونده جنایی» — 16 crime cases: the suspects' words, up to three clues, one accusation each),

@@ -1277,7 +1277,23 @@ export const puzzles = (() => {
   ['👟👦👧', 'بچه\u200cهای آسمان'], ['🐄👨', 'گاو'], ['🏜🪱', 'Dune'],
   ['🎹💃🌃', 'La La Land'], ['📺🏝👨', 'The Truman Show'], ['⏱🪖🏃', '1917'],
   ['🚤🪖🏖', 'Dunkirk'], ['🤡🪜🃏', 'Joker'], ['🦇🃏🌃', 'The Dark Knight'],
+  ['⛓🔨🕳', 'The Shawshank Redemption'], ['📜👧🔴', "Schindler's List"], ['💼🍔💃', 'Pulp Fiction'],
+  ['📸🖊🧠', 'Memento'], ['🗡🏛🦁', 'Gladiator'], ['🤖🕶⏳', 'The Terminator'],
+  ['✈🎹🥂', 'Casablanca'], ['🪖🏖🔍', 'Saving Private Ryan'], ['💍🌋🧙', 'The Lord of the Rings: The Fellowship of the Ring'],
+  ['🐑🤫🍷', 'The Silence of the Lambs'], ['🐭⚡🟢', 'The Green Mile'], ['🐿🔁⏰', 'Groundhog Day'],
+  ['⚙🎩🏭', 'Modern Times'], ['☔🎤💃', "Singin' in the Rain"], ['🏡🍑🪨', 'Parasite'],
+  ['🚆🧟😱', 'Train to Busan'], ['🐱🚌🌳', 'となりのトトロ'], ['🐺👸🌲', 'もののけ姫'],
+  ['🚂🎲😄', 'La vita è bella'], ['🧚🌀🌿', 'El laberinto del fauno'], ['🥄🍮📸', "Le Fabuleux Destin d'Amélie Poulain"],
+  ['♿🚗😂', 'Intouchables'], ['🚲🔎👦', 'Ladri di biciclette'], ['🐯🐉⚔', '臥虎藏龍'],
+  ['💔⚖👴', 'جدایی نادر از سیمین'], ['🎈🐟💵', 'بادکنک سفید'], ['👦🦯🌈', 'رنگ خدا'],
+  ['🐢🕊📡', 'لاک\u200Cپشت\u200Cها هم پرواز می\u200Cکنند'], ['⚽👧🏟', 'آفساید'], ['🦎👳🕌', 'مارمولک'],
+  ['🎓🤓🤪', '3 Idiots'], ['🏏🌧💰', 'Lagaan'], ['🤼👧🥇', 'Dangal'],
+  ['🥁⏱😤', 'Whiplash'], ['💻👍🎓', 'The Social Network'], ['💰❓🇮🇳', 'Slumdog Millionaire'],
+  ['🤫👂👽', 'A Quiet Place'], ['🦴🚀🔴', '2001: A Space Odyssey'], ['👸🛵🍦', 'Roman Holiday'],
+  ['⛓🤠🐎', 'Django Unchained'],
   ];
+  /* riddles: their questions and answers are in the locales (gamelist.rq_<i>, gamelist.ra_<i>) */
+  const RIDDLES = 48;
   /* flags: ISO codes; the flag is the two regional indicator letters */
   const COUNTRIES = ['ir', 'af', 'tj', 'tr', 'iq', 'sa', 'ae', 'eg', 'ma', 'dz', 'us', 'ca', 'mx', 'br', 'ar', 'cl', 'co', 'gb', 'ie', 'fr', 'de', 'it', 'es', 'pt', 'nl', 'be', 'ch', 'at', 'se', 'no', 'fi', 'dk', 'pl', 'ua', 'ru', 'gr', 'cn', 'jp', 'kr', 'in', 'pk', 'id', 'th', 'vn', 'au', 'nz', 'za', 'ng', 'ke', 'az'];
   const flagOf = (code) => [...code.toUpperCase()].map((ch) => String.fromCodePoint(0x1F1E6 + ch.charCodeAt(0) - 65)).join('');
@@ -1361,6 +1377,6 @@ export const puzzles = (() => {
     const b = [...new Set(g)].filter((d) => code.includes(d)).length - a;
     return { a, b: Math.max(0, b) };
   }
-  return { ALPHABET, methods, cipher, letters, mask, solved, FILMS, COUNTRIES, flagOf, ANIMALS, NAMES, genie, ESCAPE, MEMO, sequence,
+  return { ALPHABET, methods, cipher, letters, mask, solved, FILMS, RIDDLES, COUNTRIES, flagOf, ANIMALS, NAMES, genie, ESCAPE, MEMO, sequence,
     CASES, PEOPLE, PLACES, mapUrl, PARALLEL, FIELD, DIGS, away, HEAT, secret, score };
 })();

@@ -223,7 +223,7 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'fun.dq_': [1, 2, 3, 4, 5, 6, 7, 8],
     'dreamlist.k_': fun.DREAMS.map(([c]) => c), 'dreamlist.m_': fun.DREAMS.map(([c]) => c), 'dreamlist.': ['lucid', 'lucid_ex'],
     /* puzzles: countries, riddles, the genie's questions and animals, the escape room */
-    'gamelist.c_': fun.puzzles.COUNTRIES, 'gamelist.rq_': [...Array(24).keys()], 'gamelist.ra_': [...Array(24).keys()], 'gamelist.gq_': [...Array(12).keys()],
+    'gamelist.c_': fun.puzzles.COUNTRIES, 'gamelist.rq_': [...Array(fun.puzzles.RIDDLES).keys()], 'gamelist.ra_': [...Array(fun.puzzles.RIDDLES).keys()], 'gamelist.gq_': [...Array(12).keys()],
     'gamelist.an_': fun.puzzles.NAMES, 'gamelist.er_': Object.keys(fun.puzzles.ESCAPE), 'gamelist.eo_': Object.keys(fun.puzzles.ESCAPE).filter((n) => fun.puzzles.ESCAPE[n].length),
     'fun.cipher_how_': ['rev', 'shift', 'num'], 'fun.': ['cipher_win'],
     'gamelist.cs_t_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_s_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_n_': [...fun.puzzles.CASES.keys()],
