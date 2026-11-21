@@ -1,18 +1,31 @@
-"""AIProvider interface (spec §15). Phase 1 defines it; Phase 2 adds the Gemini implementation.
+"""AIProvider interface (spec §15). Gemini is the first implementation (ai/gemini.py); OpenAI,
+Anthropic or a local model are further adapters with no change elsewhere.
 
-Contract for every implementation (enforced in Phase 2 by the pipeline, not trusted to models):
-- article text is DATA: prompts wrap it in delimiters and say so (prompt-injection defence);
-- outputs are JSON validated against a schema; anything else is a failure, never published;
-- every call is recorded in ``ai_runs`` (model, prompt version, tokens, cost, result, error);
-- results are cached by content hash; a per-run budget is enforced; on budget exhaustion or
-  provider outage the item stays queued for the next run.
+Contract every implementation keeps (the pipeline enforces it too, it never trusts a model):
+- article text is DATA: delimited with a random boundary, declared as data (ai/prompts.py);
+- answers are JSON validated against the operation's schema (ai/schemas.py), else an error;
+- errors are classified: quota (wait for the next run), unavailable, blocked, invalid output;
+- nothing is written to the database here: the AI stage records every call in ``ai_runs``.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Generic, Protocol, TypeVar
+
+from pydantic import BaseModel
+
+from wanger_news.ai.schemas import (
+    ClaimsOutput,
+    ClassifyOutput,
+    EntitiesOutput,
+    SummarizeOutput,
+    TranslateOutput,
+    VerifyOutput,
+)
+
+T = TypeVar("T", bound=BaseModel)
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,46 +34,78 @@ class AIUsage:
     prompt_version: str
     input_tokens: int = 0
     output_tokens: int = 0
+    thinking_tokens: int = 0
     cost_usd: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
-class AIResult:
-    data: dict[str, Any]
+class AIResult(Generic[T]):
+    data: T
     usage: AIUsage
     raw: str = ""
     warnings: list[str] = field(default_factory=list)
 
 
-class AIBudgetExhausted(Exception):
-    """The per-run (or provider) quota is used up: keep the item queued, try next run."""
+class AIError(Exception):
+    """Base class. ``usage`` is filled when the provider charged tokens before failing."""
+
+    status = "error"
+
+    def __init__(self, message: str, usage: AIUsage | None = None, raw: str = "") -> None:
+        super().__init__(message)
+        self.usage = usage
+        self.raw = raw
 
 
-class AIUnavailable(Exception):
-    """The provider failed; the item stays queued (a fallback provider only if configured)."""
+class AIBudgetExhausted(AIError):
+    """Our per-run/per-day budget or the provider's quota is used up: try again next run."""
+
+    status = "quota"
+
+
+class AIUnavailable(AIError):
+    """Transport, auth, unknown model, server error: the items stay queued."""
+
+    status = "error"
+
+
+class AIBlocked(AIError):
+    """The provider refused or cut the answer (safety, recitation, max tokens)."""
+
+    status = "blocked"
+
+
+class AIInvalidOutput(AIError):
+    """Not JSON, wrong schema, or ids that do not match the request."""
+
+    status = "invalid_output"
 
 
 class AIProvider(Protocol):
     name: str
 
-    async def translate(self, text: str, *, source_lang: str, target_lang: str) -> AIResult: ...
-
     async def summarize(
-        self, articles: Sequence[dict[str, Any]], *, target_lang: str
-    ) -> AIResult: ...
+        self, items: Sequence[dict[str, Any]], *, language: str, categories: Sequence[str]
+    ) -> AIResult[SummarizeOutput]: ...
+
+    async def verify(self, items: Sequence[dict[str, Any]]) -> AIResult[VerifyOutput]: ...
+
+    async def rewrite(
+        self, items: Sequence[dict[str, Any]], *, language: str, categories: Sequence[str]
+    ) -> AIResult[SummarizeOutput]: ...
+
+    async def translate(self, text: str, *, language: str) -> AIResult[TranslateOutput]: ...
 
     async def classify(
-        self, articles: Sequence[dict[str, Any]], *, categories: Sequence[str]
-    ) -> AIResult: ...
+        self, items: Sequence[dict[str, Any]], *, categories: Sequence[str]
+    ) -> AIResult[ClassifyOutput]: ...
 
-    async def extract_claims(self, article: dict[str, Any]) -> AIResult: ...
+    async def extract_claims(self, item: dict[str, Any]) -> AIResult[ClaimsOutput]: ...
 
-    async def extract_entities(self, article: dict[str, Any]) -> AIResult: ...
+    async def extract_entities(self, item: dict[str, Any]) -> AIResult[EntitiesOutput]: ...
 
     async def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
 
-    async def verify(
-        self, claims: Sequence[dict[str, Any]], evidence: Sequence[dict[str, Any]]
-    ) -> AIResult: ...
+    def prompt_version(self, operation: str, language: str = "any") -> str: ...
 
-    async def rewrite(self, draft: dict[str, Any], *, remove_claims: Sequence[str]) -> AIResult: ...
+    def model_for(self, operation: str) -> str: ...

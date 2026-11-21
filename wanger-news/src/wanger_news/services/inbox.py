@@ -28,20 +28,28 @@ from wanger_news.formatting.telegram_html import esc, link
 from wanger_news.services.commands import CommandService
 from wanger_news.services.context import RunContext
 from wanger_news.services.dedup import DedupService, describe_match, fingerprints_of
+from wanger_news.services.review import ReviewService
 
 log = logging.getLogger("wanger_news.inbox")
 
 OFFSET_KEY = "telegram.offset"
-ALLOWED_UPDATES = ["message", "channel_post"]
+ALLOWED_UPDATES = ["message", "channel_post", "callback_query"]
 PAGE_SIZE = 100
 EXTERNAL_SOURCE_ID = "target-channel"
 
 
 class InboxService:
-    def __init__(self, config: AppConfig, dedup: DedupService, commands: CommandService) -> None:
+    def __init__(
+        self,
+        config: AppConfig,
+        dedup: DedupService,
+        commands: CommandService,
+        review: ReviewService,
+    ) -> None:
         self._cfg = config
         self._dedup = dedup
         self._commands = commands
+        self._review = review
         self._policy = url_policy(config.pipeline.dedup)
         self._sources = [
             (s, s.telegram.chat_ref)
@@ -140,8 +148,16 @@ class InboxService:
         await repos.commit()
 
     async def _handle(self, repos: Repositories, ctx: RunContext, update: Update) -> str:
+        if update.callback_query is not None:
+            return await self._review.on_callback(repos, ctx, update.callback_query)
         if update.message is not None:
-            return await self._commands.handle(repos, ctx, update.message)
+            message = update.message
+            sender = message.from_user.id if message.from_user else None
+            if message.chat.type == "private" and sender in ctx.admin_ids:
+                edited = await self._review.on_edit_reply(repos, ctx, message)
+                if edited is not None:
+                    return edited
+            return await self._commands.handle(repos, ctx, message)
         if update.channel_post is not None:
             return await self._channel_post(repos, ctx, [update.channel_post])
         return "ignored:kind"

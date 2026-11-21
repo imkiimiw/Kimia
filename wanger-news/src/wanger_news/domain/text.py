@@ -37,7 +37,7 @@ _MENTION_OR_TAG = re.compile(r"(?<!\w)[@#][\w‌]+")
 _SPACES = re.compile(r"[ \t  -   　]+")
 _WORD = re.compile(r"\w+")
 _ARABIC_SCRIPT = re.compile("[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]")
-_PERSIAN_ONLY = re.compile("[پچژگکی]")  # پ چ ژ گ ک ی
+_PERSIAN_ONLY = re.compile("[پچژگکی\u06f0-\u06f9]")  # پ چ ژ گ ک ی and Persian digits ۰-۹
 _LATIN = re.compile(r"[A-Za-z]")
 
 

@@ -98,10 +98,12 @@ jobs:
     env:
       WANGER_NEWS_BOT_TOKEN: ${{ secrets.WANGER_NEWS_BOT_TOKEN }}
       WANGER_NEWS_DATABASE_URL: ${{ secrets.WANGER_NEWS_DATABASE_URL }}
+      WANGER_NEWS_GEMINI_API_KEY: ${{ secrets.WANGER_NEWS_GEMINI_API_KEY }}
       WANGER_NEWS_TEST_CHANNEL: ${{ vars.WANGER_NEWS_TEST_CHANNEL }}
       WANGER_NEWS_MAIN_CHANNEL: ${{ vars.WANGER_NEWS_MAIN_CHANNEL }}
       WANGER_NEWS_SOURCE_CHANNEL: ${{ vars.WANGER_NEWS_SOURCE_CHANNEL }}
       WANGER_NEWS_ADMIN_IDS: ${{ vars.WANGER_NEWS_ADMIN_IDS }}
+      WANGER_NEWS_PUBLISH_TARGET: ${{ vars.WANGER_NEWS_PUBLISH_TARGET || 'test' }}
       COMMAND: ${{ github.event_name == 'schedule' && 'run-once' || inputs.command }}
       TRIGGER: ${{ github.event_name == 'schedule' && 'cron' || 'manual' }}
     steps:

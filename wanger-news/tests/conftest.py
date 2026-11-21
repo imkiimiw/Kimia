@@ -26,10 +26,13 @@ from wanger_news.domain.enums import ChannelRole
 from wanger_news.services.context import Target
 from wanger_news.services.pipeline import Deps, Pipeline, RunOptions, RunSummary
 
+from .fake_ai import FakeAI
+
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = Path(__file__).parent / "fixtures"
 NOW = datetime(2026, 11, 18, 12, 0, tzinfo=UTC)
 OWNER = 5557901897
+ADMIN = 7000001
 TEST_CHANNEL = ChatRef.parse("@wanger_test")
 MAIN_CHANNEL = ChatRef.parse("@wanger_main")
 SOURCE_CHANNEL_ID = -1001111111111
@@ -129,24 +132,37 @@ class FakeTelegram:
             return out
         if method == "getMe":
             return {"id": 42, "username": "wanger_news_bot"}
+        if method in ("answerCallbackQuery", "editMessageReplyMarkup", "editMessageText"):
+            return True
         raise AssertionError(f"unexpected method {method}")
 
     def sent(self, *methods: str) -> list[dict[str, Any]]:
         wanted = methods or ("sendMessage", "sendPhoto", "copyMessage", "copyMessages")
         return [p for m, p in self.calls if m in wanted]
 
+    @staticmethod
+    def _is_channel(chat_id: Any) -> bool:
+        return (isinstance(chat_id, str) and chat_id.startswith("@")) or (
+            isinstance(chat_id, int) and chat_id < 0
+        )
+
     def channel_posts(self) -> list[tuple[str, dict[str, Any]]]:
         return [
             (m, p)
             for m, p in self.calls
             if m in ("sendMessage", "sendPhoto", "copyMessage", "copyMessages")
-            and p.get("chat_id") != OWNER
+            and self._is_channel(p.get("chat_id"))
         ]
 
+    def messages_to(self, chat_id: int) -> list[dict[str, Any]]:
+        return [p for m, p in self.calls if m == "sendMessage" and p.get("chat_id") == chat_id]
+
     def owner_messages(self) -> list[str]:
-        return [
-            p["text"] for m, p in self.calls if m == "sendMessage" and p.get("chat_id") == OWNER
-        ]
+        return [p["text"] for p in self.messages_to(OWNER)]
+
+    def owner_notices(self) -> list[str]:
+        """Owner messages that are not review cards."""
+        return [t for t in self.owner_messages() if not t.startswith("🧐")]
 
     def fail(self, method: str, exc: Exception) -> None:
         self.failures.setdefault(method, []).append(exc)
@@ -226,6 +242,31 @@ class Updates:
                 "message_id": forward_from[1],
             }
         return self._update("channel_post", message)
+
+    def callback(self, data: str, *, user_id: int = OWNER, message_id: int = 1) -> dict[str, Any]:
+        self.next_update += 1
+        return {
+            "update_id": self.next_update,
+            "callback_query": {
+                "id": f"cq{self.next_update}",
+                "data": data,
+                "from": {"id": user_id, "is_bot": False, "first_name": "U"},
+                "message": {
+                    "message_id": message_id,
+                    "date": int(NOW.timestamp()),
+                    "chat": {"id": user_id, "type": "private"},
+                },
+            },
+        }
+
+    def reply(self, text: str, reply_to: int, *, user_id: int = OWNER) -> dict[str, Any]:
+        update = self.private(text, user_id=user_id)
+        update["message"]["reply_to_message"] = {
+            "message_id": reply_to,
+            "date": int(NOW.timestamp()),
+            "chat": {"id": user_id, "type": "private"},
+        }
+        return update
 
     def private(self, text: str, *, user_id: int = OWNER) -> dict[str, Any]:
         self.next_message += 1
@@ -312,13 +353,21 @@ def make_config(sources: list[dict[str, Any]] | None = None, **pipeline: Any) ->
     pipe = real.pipeline.model_dump()
     pipe["http"].update(respect_robots_txt=False, retries=1)
     pipe["publish"].update(min_interval_seconds=0)
+    editorial = real.editorial.model_dump()
+    # the harness publishes without a human (auto) unless a test asks for "semi"/"manual"
+    editorial["publish_modes"]["default"] = pipeline.pop("mode", "auto")
     for section, values in pipeline.items():
+        if section == "editorial":
+            for key, value in values.items():
+                editorial[key].update(value)
+            continue
         pipe[section].update(values)
     return AppConfig(
         sources=sources_file,
         categories=real.categories,
         filters=real.filters,
         pipeline=type(real.pipeline).model_validate(pipe),
+        editorial=type(real.editorial).model_validate(editorial),
     )
 
 
@@ -346,6 +395,8 @@ class Harness:
     target: Target | None
     output: list[str]
     observed: list[ChatRef]
+    ai: FakeAI | None = None
+    channels: dict[str, ChatRef | None] = field(default_factory=dict)
 
     def pipeline(self, *, telegram: bool = True) -> Pipeline:
         http_cfg = self.config.pipeline.http
@@ -366,7 +417,9 @@ class Harness:
                 target=self.target,
                 observed_chats=self.observed,
                 owner_id=OWNER,
-                admin_ids=frozenset({OWNER}),
+                admin_ids=frozenset({OWNER, ADMIN}),
+                ai=self.ai,
+                channels=self.channels,
                 out=self.output.append,
                 sleep=no_sleep,
             )
@@ -418,4 +471,5 @@ async def harness(engine: AsyncEngine) -> AsyncIterator[Harness]:
             target=Target(ChannelRole.TEST, TEST_CHANNEL),
             output=[],
             observed=[TEST_CHANNEL],
+            ai=FakeAI(),
         )

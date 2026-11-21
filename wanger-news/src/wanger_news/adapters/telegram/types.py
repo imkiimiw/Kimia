@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -79,6 +77,7 @@ class Message(_Model):
     media_group_id: str | None = None
     forward_origin: MessageOrigin | None = None
     has_protected_content: bool = False
+    reply_to_message: Message | None = None
 
     @property
     def body(self) -> str:
@@ -99,11 +98,18 @@ class Message(_Model):
         return out
 
 
+class CallbackQuery(_Model):
+    id: str
+    from_user: User = Field(alias="from")
+    message: Message | None = None
+    data: str | None = None
+
+
 class Update(_Model):
     update_id: int
     message: Message | None = None
     channel_post: Message | None = None
-    callback_query: dict[str, Any] | None = None
+    callback_query: CallbackQuery | None = None
 
     @property
     def kind(self) -> str:
@@ -115,6 +121,8 @@ class Update(_Model):
     @property
     def chat_id(self) -> int | None:
         msg = self.message or self.channel_post
+        if msg is None and self.callback_query is not None:
+            msg = self.callback_query.message
         return msg.chat.id if msg is not None else None
 
 

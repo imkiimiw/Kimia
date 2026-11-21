@@ -71,7 +71,7 @@ async def test_near_identical_text_is_skipped(harness: Harness) -> None:
     harness.telegram.updates.append(up.channel_post(LONG_TEXT.replace("امروز صبح", "صبح امروز")))
     await run_inbox(harness)
     assert len(copies(harness)) == 1
-    assert "متن بسیار مشابه" in harness.telegram.owner_messages()[0]
+    assert "متن بسیار مشابه" in harness.telegram.owner_notices()[0]
 
 
 async def test_same_photo_or_same_forwarded_original_is_skipped(harness: Harness) -> None:
@@ -116,7 +116,7 @@ async def test_post_whose_link_was_already_published_from_rss(harness: Harness) 
     harness.clock.advance(minutes=15)
     await run_inbox(harness)
     assert copies(harness) == []
-    assert "لینک یکسان" in harness.telegram.owner_messages()[0]
+    assert "لینک یکسان" in harness.telegram.owner_notices()[0]
 
 
 async def test_text_link_entity_counts_too(harness: Harness) -> None:
@@ -275,18 +275,21 @@ async def test_pause_and_resume(harness: Harness) -> None:
     assert harness.telegram.channel_posts()
 
 
-async def test_later_phase_commands_answer_honestly(harness: Harness) -> None:
+async def test_decision_commands_and_help(harness: Harness) -> None:
     up = Updates()
-    harness.telegram.updates = [up.private("/approve 12"), up.private("/help")]
+    harness.telegram.updates = [
+        up.private("/approve 12"),
+        up.private("/help"),
+        up.private("/approve"),
+        up.private("/pending"),
+    ]
     await run_inbox(harness)
     replies = harness.telegram.owner_messages()
-    assert "فاز ۲" in replies[0]
-    assert "/pause" in replies[1]
-    assert all(
-        m != "sendMessage" or p["chat_id"] == OWNER
-        for m, p in harness.telegram.calls
-        if m == "sendMessage"
-    )
+    assert "پیدا نشد" in replies[0]
+    assert "/pause" in replies[1] and "/pending" in replies[1]
+    assert "شمارهٔ خبر" in replies[2]
+    assert "منتظر بررسی نیست" in replies[3]
+    assert all(p["chat_id"] == OWNER for p in harness.telegram.sent("sendMessage"))
 
 
 async def test_a_changed_number_is_published_as_new(harness: Harness) -> None:

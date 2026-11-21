@@ -1,6 +1,6 @@
 """Wanger News: news intelligence & publishing platform."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
-#: The phase this code base implements. Phase 1 publishes to the test channel only.
-PHASE = 1
+#: The phase this code base implements. From phase 2 the main channel may be the target.
+PHASE = 2

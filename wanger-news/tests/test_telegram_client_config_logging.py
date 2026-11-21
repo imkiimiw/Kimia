@@ -159,7 +159,7 @@ def test_env_expansion_with_defaults() -> None:
 
 
 def _write(tmp_path: Path, sources: str) -> Path:
-    for name in ("categories.yaml", "filters.yaml", "pipeline.yaml"):
+    for name in ("categories.yaml", "filters.yaml", "pipeline.yaml", "editorial.yaml"):
         (tmp_path / name).write_text((ROOT / "config" / name).read_text("utf-8"), "utf-8")
     (tmp_path / "sources.yaml").write_text(sources, "utf-8")
     return tmp_path
@@ -224,11 +224,15 @@ def test_settings_tolerate_pasted_tokens(monkeypatch: pytest.MonkeyPatch) -> Non
     assert TOKEN not in repr(settings)
 
 
-def test_phase_one_never_targets_the_main_channel() -> None:
+def test_main_channel_only_from_phase_two() -> None:
     target = resolve_target(TEST_CHANNEL, MAIN_CHANNEL)
     assert target is not None and target.chat == TEST_CHANNEL and target.role == "test"
+    with pytest.raises(TargetError):  # phase 1 code could never post to the main channel
+        resolve_target(TEST_CHANNEL, MAIN_CHANNEL, want_main=True, phase=1)
+    main = resolve_target(TEST_CHANNEL, MAIN_CHANNEL, want_main=True, phase=2)
+    assert main is not None and main.role == "main" and main.chat == MAIN_CHANNEL
     with pytest.raises(TargetError):
-        resolve_target(TEST_CHANNEL, MAIN_CHANNEL, want_main=True)
+        resolve_target(TEST_CHANNEL, None, want_main=True, phase=2)
     with pytest.raises(TargetError):
         resolve_target(TEST_CHANNEL, TEST_CHANNEL)
     assert resolve_target(None, MAIN_CHANNEL) is None

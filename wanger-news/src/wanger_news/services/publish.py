@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any
 
@@ -24,8 +24,9 @@ from wanger_news.db.repositories import Repositories
 from wanger_news.db.tables import Article, PublishedPost
 from wanger_news.domain.enums import ArticleStatus, JobStatus, PostStatus, Stage, Transport
 from wanger_news.formatting.telegram_html import esc, split_html
-from wanger_news.formatting.templates_fa import PostInput, RenderedPost, render_article
+from wanger_news.formatting.templates_fa import RenderedPost
 from wanger_news.services.context import RunContext, Target
+from wanger_news.services.posts import PostBuilder
 
 #: Telegram error descriptions that concern the channel, not the post: stop, don't burn attempts.
 CHAT_LEVEL_ERRORS = (
@@ -85,26 +86,7 @@ class PublishService:
     ) -> None:
         self._cfg = config
         self._sleep = sleep
-
-    def post_input(self, article: Article) -> PostInput:
-        source = self._cfg.source(article.source_id)
-        images = article.images or []
-        hashtags = (article.classification or {}).get("hashtags") or []
-        return PostInput(
-            title=article.title_original,
-            teaser=article.description_original or article.content_original,
-            source_name=source.name if source else article.source_id,
-            url=article.canonical_url or article.url or "",
-            published_at=article.published_at,
-            language=article.language,
-            hashtags=list(hashtags),
-            image_url=images[0]["url"] if images else None,
-        )
-
-    def render(self, article: Article) -> RenderedPost:
-        return render_article(
-            self.post_input(article), self._cfg.pipeline.publish, self._cfg.pipeline.timezone
-        )
+        self.posts = PostBuilder(config)
 
     async def run(self, repos: Repositories, ctx: RunContext, *, paused: bool) -> PublishReport:
         report = PublishReport()
@@ -125,12 +107,15 @@ class PublishService:
             report.skipped = "max_posts_per_run is 0"
             return report
         max_age = timedelta(hours=cfg.max_publish_age_hours)
-        candidates = await repos.articles.by_status(ArticleStatus.QUEUED, limit * 4 + 10)
-        for article in candidates:
-            if report.sent + report.previewed >= limit:
+        counted = 0  # "publish now" (an admin's button) does not count against the cap
+        for article in await repos.articles.publish_queue(limit * 4 + 10):
+            if counted >= limit and not article.publish_now:
                 break
             now = ctx.now()
-            human = article.transport == Transport.TELEGRAM_CHANNEL.value
+            human = (
+                article.transport == Transport.TELEGRAM_CHANNEL.value
+                or article.approved_by is not None
+            )
             if not human and article.effective_at < now - max_age:
                 await repos.articles.set_status(
                     article, ArticleStatus.EXPIRED, now, "too old to publish"
@@ -138,19 +123,33 @@ class PublishService:
                 await repos.commit()
                 report.expired += 1
                 continue
+            rendered = None
+            if article.transport != Transport.TELEGRAM_CHANNEL.value:
+                rendered = await self.posts.build(repos, article)
+                if rendered is None:  # never post unprocessed text: back to the AI stage
+                    await repos.articles.set_status(
+                        article, ArticleStatus.AI_PENDING, now, "queued without a Persian summary"
+                    )
+                    await repos.commit()
+                    continue
+            if not article.publish_now:
+                counted += 1
             if ctx.dry_run:
-                self._preview(ctx, article)
+                self._preview(ctx, article, rendered)
                 report.previewed += 1
                 continue
-            stop = await self._publish_one(repos, ctx, ctx.target, article, report)
+            stop = await self._publish_one(repos, ctx, ctx.target, article, rendered, report)
             if stop:
                 break
-            if cfg.min_interval_seconds and report.sent < limit:
+            if cfg.min_interval_seconds:
                 await self._sleep(cfg.min_interval_seconds)
         return report
 
-    def _preview(self, ctx: RunContext, article: Article) -> None:
-        header = f"=== [dry-run] #{article.id} {article.source_id} priority={article.priority}"
+    def _preview(self, ctx: RunContext, article: Article, rendered: RenderedPost | None) -> None:
+        header = (
+            f"=== [dry-run] #{article.id} {article.source_id} priority={article.priority}"
+            f" importance={article.importance_score} confidence={article.confidence_score}"
+        )
         if article.transport == Transport.TELEGRAM_CHANNEL.value:
             tg = article.telegram or {}
             ctx.out(
@@ -158,7 +157,7 @@ class PublishService:
                 f"to {ctx.target.chat if ctx.target else '-'}\n{article.title_original}\n"
             )
             return
-        rendered = self.render(article)
+        assert rendered is not None
         photo = f" (photo: {rendered.photo_url})" if rendered.photo_url else ""
         ctx.out(f"{header}{photo}\n{rendered.text}\n")
 
@@ -168,6 +167,7 @@ class PublishService:
         ctx: RunContext,
         target: Target,
         article: Article,
+        rendered: RenderedPost | None,
         report: PublishReport,
     ) -> bool:
         """Returns True when publishing must stop for this run."""
@@ -192,7 +192,7 @@ class PublishService:
         await repos.commit()  # the claim is durable BEFORE anything is sent
 
         try:
-            delivery = await self._deliver(ctx, target, article)
+            delivery = await self._deliver(ctx, target, article, rendered)
         except TelegramRateLimited as exc:
             await self._failed(repos, ctx, post, article, exc, count_attempt=False)
             report.errors.append(f"rate limited {exc.retry_after}s")
@@ -241,6 +241,7 @@ class PublishService:
             text=delivery.text,
             method=delivery.method,
         )
+        article.publish_now = False
         await repos.articles.set_status(
             article, ArticleStatus.PUBLISHED, now, f"sent to {target.role.value}"
         )
@@ -319,11 +320,13 @@ class PublishService:
         )
 
     # ---------------------------------------------------------------- Bot API calls
-    async def _deliver(self, ctx: RunContext, target: Target, article: Article) -> Delivery:
+    async def _deliver(
+        self, ctx: RunContext, target: Target, article: Article, rendered: RenderedPost | None
+    ) -> Delivery:
         assert ctx.bot is not None
         if article.transport == Transport.TELEGRAM_CHANNEL.value:
             return await self._copy(ctx, target, article)
-        rendered = self.render(article)
+        assert rendered is not None
         if rendered.photo_url:
             try:
                 result = await ctx.bot.call(
@@ -339,10 +342,8 @@ class PublishService:
             except TelegramNotSent as exc:
                 if not any(m in (exc.description or "").lower() for m in PHOTO_ERRORS):
                     raise
-                rendered = render_article(
-                    replace(self.post_input(article), image_url=None),
-                    self._cfg.pipeline.publish,
-                    self._cfg.pipeline.timezone,
+                return await self._send_text(
+                    ctx, target, rendered.text_without_photo or rendered.text
                 )
         return await self._send_text(ctx, target, rendered.text)
 

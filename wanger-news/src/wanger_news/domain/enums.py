@@ -27,8 +27,11 @@ class Transport(StrEnum):
 
 class ArticleStatus(StrEnum):
     NEW = "new"  # stored, waiting for classification
-    QUEUED = "queued"  # passed the gate, waiting to be published
-    PENDING_REVIEW = "pending_review"  # sensitive: needs a human (review UI arrives in Phase 2)
+    AI_PENDING = "ai_pending"  # passed the gate, waiting for the AI stage (summary + guard)
+    QUEUED = "queued"  # ready: validated (or human-curated / human-approved), waiting to be posted
+    PENDING_REVIEW = "pending_review"  # waits for a human decision (review card in PM)
+    HELD = "held"  # manual publish mode: prepared, posted only when an admin picks it
+    REJECTED = "rejected"  # a human rejected it
     PUBLISHED = "published"
     DUPLICATE = "duplicate"
     FILTERED = "filtered"  # below the gate, or black/whitelist
@@ -80,8 +83,39 @@ class JobStatus(StrEnum):
 class Stage(StrEnum):
     INGEST = "ingest"
     CLASSIFY = "classify"
+    AI_SUMMARIZE = "ai_summarize"
     PUBLISH = "publish"
     SOURCE_POST = "source_post"
+    REVIEW = "review"
+
+
+class PublishMode(StrEnum):
+    """Spec §11, per category. MVP default: semi."""
+
+    AUTO = "auto"  # validated + confident + not sensitive → posted without a human
+    SEMI = "semi"  # AI prepares, an admin approves
+    MANUAL = "manual"  # prepared and held; an admin picks what to post
+
+
+class SummaryOrigin(StrEnum):
+    AI = "ai"
+    REWRITE = "rewrite"  # the guard's one rewrite pass
+    HUMAN = "human"  # an admin's edit
+
+
+class AIRunStatus(StrEnum):
+    OK = "ok"
+    INVALID_OUTPUT = "invalid_output"  # not JSON / wrong schema / wrong ids
+    BLOCKED = "blocked"  # safety or recitation block, or a truncated answer
+    QUOTA = "quota"  # 429 / quota: the rest waits for the next run
+    ERROR = "error"  # transport or server error
+
+
+class ReviewAction(StrEnum):
+    APPROVE = "approve"
+    PUBLISH = "publish"  # approve and post in this run, ahead of the queue
+    EDIT = "edit"
+    REJECT = "reject"
 
 
 class RunStatus(StrEnum):

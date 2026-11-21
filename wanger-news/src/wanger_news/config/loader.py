@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from wanger_news.config.models import (
     AppConfig,
     CategoriesFile,
+    EditorialFile,
     FiltersFile,
     PipelineConfig,
     SourcesFile,
@@ -27,6 +28,7 @@ FILES = {
     "categories": "categories.yaml",
     "filters": "filters.yaml",
     "pipeline": "pipeline.yaml",
+    "editorial": "editorial.yaml",
 }
 
 
@@ -72,6 +74,7 @@ def load_config(config_dir: Path, env: Mapping[str, str] | None = None) -> AppCo
             categories=CategoriesFile.model_validate(raw["categories"]),
             filters=FiltersFile.model_validate(raw["filters"]),
             pipeline=PipelineConfig.model_validate(raw["pipeline"]),
+            editorial=EditorialFile.model_validate(raw["editorial"]),
         )
     except ValidationError as exc:
         raise ConfigError(f"invalid configuration in {config_dir}:\n{exc}") from exc

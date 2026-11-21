@@ -36,11 +36,12 @@ async def test_rss_to_telegram_end_to_end(harness: Harness) -> None:
     assert posts, "something must be published"
     assert all(p["chat_id"] == "@wanger_test" for _, p in posts)  # test channel only
     texts = [p.get("text") or p.get("caption") for _, p in posts]
-    assert all("📰 منبع:" in t and "منبع اصلی" in t for t in texts)
+    assert all("📰 منابع:" in t and "منبع اصلی" in t and "📌 وضعیت:" in t for t in texts)
     # the economy story has a feed image → sendPhoto with a caption
     photo = [p for m, p in posts if m == "sendPhoto"]
     assert photo and photo[0]["photo"] == "https://img.alpha.example/economy.jpg"
-    assert "Central bank raises" in photo[0]["caption"]
+    assert "عنوان فارسی آزمایشی" in photo[0]["caption"]  # the Persian summary, not the original
+    assert "https://alpha.example/news/economy-123" in photo[0]["caption"]
     assert photo[0]["parse_mode"] == "HTML"
     assert "utm_" not in photo[0]["caption"]
 
@@ -234,7 +235,8 @@ async def test_max_posts_per_run_and_priority_order(harness: Harness) -> None:
     await harness.run(max_posts=1)
     posts = harness.telegram.channel_posts()
     assert len(posts) == 1
-    assert "Central bank" in (posts[0][1].get("caption") or "")  # priority 80 goes first
+    # priority 80 (and the highest importance) goes first
+    assert "alpha.example/news/economy-123" in (posts[0][1].get("caption") or "")
 
 
 async def test_photo_that_telegram_cannot_fetch_falls_back_to_text(harness: Harness) -> None:
@@ -243,7 +245,7 @@ async def test_photo_that_telegram_cannot_fetch_falls_back_to_text(harness: Harn
     )
     await harness.run()
     texts = [p["text"] for p in harness.telegram.sent("sendMessage") if p["chat_id"] != OWNER]
-    assert any("Central bank raises" in t and "🖼" not in t for t in texts)
+    assert any("alpha.example/news/economy-123" in t and "🖼" not in t for t in texts)
     assert await status_of(harness, "Central bank raises") == ArticleStatus.PUBLISHED
 
 

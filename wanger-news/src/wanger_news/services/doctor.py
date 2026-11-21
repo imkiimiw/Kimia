@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+import httpx
+
 from wanger_news.adapters.telegram.client import TelegramClient, TelegramError
+from wanger_news.ai.prompts import PromptError, PromptLibrary
 from wanger_news.config.models import AppConfig
 from wanger_news.domain.chatref import ChatRef
 from wanger_news.domain.enums import Transport
@@ -40,8 +43,41 @@ async def _chat_check(
     return 0
 
 
-async def run_doctor(settings: Settings, config: AppConfig, out: Callable[[str], None]) -> int:
+async def _ai_check(settings: Settings, config: AppConfig, out: Callable[[str], None]) -> int:
+    ai = config.pipeline.ai
+    try:
+        PromptLibrary.load(settings.prompts_dir)
+    except PromptError as exc:
+        out(f"✖ prompts: {exc}")
+        return 1
+    if not ai.enabled:
+        out("✖ ai.enabled is false: feed items will never be published (no Persian summary)")
+        return 1
+    if settings.gemini_api_key is None:
+        out("✖ WANGER_NEWS_GEMINI_API_KEY is not set: feed items wait in ai_pending")
+        return 1
     problems = 0
+    async with httpx.AsyncClient(timeout=20) as http:
+        for model in sorted({ai.model, ai.verifier}):
+            try:  # model metadata: proves the key and the model name, uses no generation quota
+                resp = await http.get(
+                    f"{ai.api_base}/models/{model}",
+                    headers={"x-goog-api-key": settings.gemini_api_key.get_secret_value()},
+                )
+            except httpx.HTTPError as exc:
+                out(f"✖ Gemini {model}: {type(exc).__name__}")
+                problems += 1
+                continue
+            if resp.status_code == 200:
+                out(f"✔ Gemini model {model} is available to this key")
+            else:
+                out(f"✖ Gemini {model}: HTTP {resp.status_code} (key or model name)")
+                problems += 1
+    return problems
+
+
+async def run_doctor(settings: Settings, config: AppConfig, out: Callable[[str], None]) -> int:
+    problems = await _ai_check(settings, config, out)
     out(f"config: {len(config.active_sources)} active sources")
     if settings.bot_token is None:
         out("✖ WANGER_NEWS_BOT_TOKEN is not set")
@@ -70,11 +106,12 @@ async def run_doctor(settings: Settings, config: AppConfig, out: Callable[[str],
             problems += await _chat_check(
                 bot, int(me["id"]), "test channel", settings.test_channel_ref, True, out
             )
+        out(f"• publish target: {settings.publish_target} (/settings target can override)")
         if settings.main_channel_ref is not None:
             problems += await _chat_check(
                 bot,
                 int(me["id"]),
-                "main channel (from phase 2)",
+                "main channel",
                 settings.main_channel_ref,
                 True,
                 out,

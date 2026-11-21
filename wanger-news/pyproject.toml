@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wanger-news"
-version = "0.1.0"
+version = "0.2.0"
 description = "Wanger News: news intelligence & publishing platform (Telegram first)"
 readme = "README.md"
 requires-python = ">=3.11"

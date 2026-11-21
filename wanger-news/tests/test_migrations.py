@@ -29,6 +29,8 @@ PHASE1_TABLES = {
     "telegram_updates",
     "system_logs",
 }
+PHASE2_TABLES = {"ai_runs", "summaries", "review_requests"}
+ALL_TABLES = PHASE1_TABLES | PHASE2_TABLES
 
 
 def alembic_config(url: str) -> Config:
@@ -65,15 +67,62 @@ def drift(url: str) -> list[object]:
         engine.dispose()
 
 
+def status_of(url: str, external_id: str) -> str:
+    engine = sa.create_engine(sync_url(url))
+    try:
+        with engine.connect() as conn:
+            return str(
+                conn.execute(
+                    sa.text("SELECT status FROM articles WHERE external_id = :e"),
+                    {"e": external_id},
+                ).scalar_one()
+            )
+    finally:
+        engine.dispose()
+
+
+def insert_phase1_rows(url: str) -> None:
+    engine = sa.create_engine(sync_url(url))
+    now = "2026-11-18 12:00:00+00"
+    try:
+        with engine.begin() as conn:
+            for ext, transport, status in (
+                ("rss-q", "rss", "queued"),
+                ("rss-p", "rss", "pending_review"),
+                ("tg-q", "telegram_channel", "queued"),
+            ):
+                conn.execute(
+                    sa.text(
+                        "INSERT INTO articles (source_id, transport, external_id, title_original, "
+                        "fetched_at, effective_at, language, tags, entities, images, status) VALUES "
+                        "('s', :t, :e, 'title', :n, :n, 'en', '[]', '[]', '[]', :s)"
+                    ),
+                    {"t": transport, "e": ext, "n": now, "s": status},
+                )
+    finally:
+        engine.dispose()
+
+
 def roundtrip(url: str) -> None:
     cfg = alembic_config(url)
-    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "base")  # a clean start even after an interrupted earlier run
+    command.upgrade(cfg, "0001")
     assert tables(url) == PHASE1_TABLES
+    insert_phase1_rows(url)
+    command.upgrade(cfg, "head")
+    assert tables(url) == ALL_TABLES
     assert drift(url) == []
+    # Phase 1 items from feeds had no Persian summary: they wait for the AI stage now
+    assert status_of(url, "rss-q") == "ai_pending"
+    assert status_of(url, "rss-p") == "ai_pending"
+    assert status_of(url, "tg-q") == "queued"  # source-channel posts need no AI
+    command.downgrade(cfg, "0001")
+    assert tables(url) == PHASE1_TABLES
+    assert status_of(url, "rss-q") == "queued"
     command.downgrade(cfg, "base")
     assert tables(url) == set()
     command.upgrade(cfg, "head")  # and up again: downgrade left nothing behind
-    assert tables(url) == PHASE1_TABLES
+    assert tables(url) == ALL_TABLES
     command.downgrade(cfg, "base")
 
 

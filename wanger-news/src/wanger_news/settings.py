@@ -22,16 +22,19 @@ class Settings(BaseSettings):
 
     bot_token: SecretStr | None = None
     database_url: SecretStr | None = None
+    gemini_api_key: SecretStr | None = None
     owner_id: int = DEFAULT_OWNER_ID
     admin_ids: str = ""  # comma-separated numeric ids, besides the owner
     test_channel: str = ""
     main_channel: str = ""
     config_dir: Path = Path("config")
+    prompts_dir: Path = Path("prompts")
+    publish_target: Literal["test", "main"] = "test"  # /settings target overrides it
     log_level: str = "INFO"
     log_format: Literal["json", "text"] = "json"
     telegram_api_base: str = "https://api.telegram.org"
 
-    @field_validator("bot_token", "database_url", mode="before")
+    @field_validator("bot_token", "database_url", "gemini_api_key", mode="before")
     @classmethod
     def _empty_is_none(cls, value: object) -> object:
         if isinstance(value, str):
@@ -69,7 +72,7 @@ class Settings(BaseSettings):
     def secrets(self) -> list[str]:
         """Secret values, for log redaction."""
         out = []
-        for secret in (self.bot_token, self.database_url):
+        for secret in (self.bot_token, self.database_url, self.gemini_api_key):
             if secret is not None and secret.get_secret_value():
                 out.append(secret.get_secret_value())
         return out

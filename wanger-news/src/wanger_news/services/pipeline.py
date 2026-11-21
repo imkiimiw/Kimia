@@ -18,6 +18,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from wanger_news.adapters.http.robots import RobotsChecker
+from wanger_news.ai.provider import AIProvider
 from wanger_news.config.models import AppConfig
 from wanger_news.db.repositories import Repositories
 from wanger_news.domain.chatref import ChatRef
@@ -31,13 +32,16 @@ from wanger_news.ports import (
     NullEventMatcher,
     NullMotherBot,
 )
-from wanger_news.services.commands import PAUSED_KEY, CommandService
+from wanger_news.services.ai_stage import AIStage
+from wanger_news.services.commands import PAUSED_KEY, TARGET_KEY, CommandService
 from wanger_news.services.context import RunContext, Target
 from wanger_news.services.dedup import DedupService
 from wanger_news.services.inbox import InboxService
 from wanger_news.services.ingest import HealthSnapshot, IngestService
 from wanger_news.services.processing import ProcessingService
 from wanger_news.services.publish import PublishService
+from wanger_news.services.review import ReviewService
+from wanger_news.services.targets import TargetError, resolve_target
 
 log = logging.getLogger("wanger_news.pipeline")
 LOCK_NAME = "pipeline"
@@ -84,6 +88,10 @@ class Deps:
     admin_ids: frozenset[int]
     events: EventMatcher = field(default_factory=NullEventMatcher)
     mother: MotherBot = field(default_factory=NullMotherBot)
+    ai: AIProvider | None = None
+    #: configured channels by role; when given, the target is chosen per run (/settings target)
+    channels: dict[str, ChatRef | None] = field(default_factory=dict)
+    default_target: str = "test"
     out: Callable[[str], None] = print
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
 
@@ -96,8 +104,10 @@ class Pipeline:
         self.ingest = IngestService(cfg, deps.fetcher, deps.robots, self.dedup)
         self.processing = ProcessingService(cfg)
         self.publisher = PublishService(cfg, sleep=deps.sleep)
-        self.commands = CommandService(cfg)
-        self.inbox = InboxService(cfg, self.dedup, self.commands)
+        self.ai = AIStage(cfg, deps.ai, sleep=deps.sleep)
+        self.review = ReviewService(cfg, self.publisher.posts)
+        self.commands = CommandService(cfg, self.review)
+        self.inbox = InboxService(cfg, self.dedup, self.commands, self.review)
 
     @asynccontextmanager
     async def _session(self, dry_run: bool) -> AsyncIterator[AsyncSession]:
@@ -128,6 +138,7 @@ class Pipeline:
             bot=None if opts.skip_telegram else self.d.bot,
             target=self.d.target,
             observed_chats=self.d.observed_chats,
+            channels=dict(self.d.channels),
             out=self.d.out,
             max_posts=opts.max_posts,
             only_sources=opts.only_sources,
@@ -151,11 +162,15 @@ class Pipeline:
             summary = RunSummary(run_id, RunStatus.OK)
             try:
                 await self._stage(repos, ctx, "sync", self._sync(repos, ctx))
+                ctx.target = await self._target(repos, ctx)
                 await self.dedup.prepare(repos, ctx.now())
                 if ctx.bot is not None:
                     await self._stage(repos, ctx, "inbox", self._inbox(repos, ctx))
                 await self._stage(repos, ctx, "ingest", self._ingest(repos, ctx, summary))
                 await self._stage(repos, ctx, "classify", self._classify(repos, ctx))
+                await self._stage(repos, ctx, "ai", self._ai(repos, ctx))
+                if ctx.bot is not None or ctx.dry_run:
+                    await self._stage(repos, ctx, "review", self._review(repos, ctx))
                 await self._stage(repos, ctx, "publish", self._publish(repos, ctx))
                 if not opts.dry_run:
                     await self._stage(repos, ctx, "maintenance", self._maintenance(repos, ctx))
@@ -247,6 +262,35 @@ class Pipeline:
             }
             ctx.count("sources_ok" if report.ok else "sources_failed")
             ctx.count("articles_new", report.new)
+
+    async def _target(self, repos: Repositories, ctx: RunContext) -> Target | None:
+        """Test or main channel: /settings target (stored) over WANGER_NEWS_PUBLISH_TARGET."""
+        if not self.d.channels:
+            return self.d.target
+        role = str(await repos.settings.get(TARGET_KEY) or self.d.default_target)
+        try:
+            return resolve_target(
+                self.d.channels.get("test"), self.d.channels.get("main"), want_main=role == "main"
+            )
+        except TargetError as exc:
+            ctx.error(f"target: {exc}")
+            return None
+
+    async def _ai(self, repos: Repositories, ctx: RunContext) -> None:
+        report = await self.ai.run(repos, ctx)
+        if report.skipped:
+            ctx.counters[f"ai_skipped:{report.skipped}"] = 1
+        if report.stopped:
+            ctx.counters[f"ai_stopped:{report.stopped[:60]}"] = 1
+        ctx.count("ai_calls", report.calls)
+        ctx.count("ai_processed", report.processed)
+        ctx.count("ai_cached", report.cached)
+        ctx.count("ai_expired", report.expired)
+        for status, n in report.routed.items():
+            ctx.count(f"ai_routed_{status}", n)
+
+    async def _review(self, repos: Repositories, ctx: RunContext) -> None:
+        ctx.count("review_cards", await self.review.send_cards(repos, ctx))
 
     async def _classify(self, repos: Repositories, ctx: RunContext) -> None:
         for status, n in (await self.processing.run(repos, ctx)).items():

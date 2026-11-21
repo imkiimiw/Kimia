@@ -43,7 +43,7 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e ".[de
 .venv/bin/mypy                            # strict, src/ only
 python -m wanger_news run-once --dry-run  # shows posts, sends nothing, changes nothing
 python -m wanger_news check-sources --all # live feed + robots.txt check (needs internet)
-python -m wanger_news migrate | db-check | doctor | validate-config
+python -m wanger_news migrate | db-check | doctor | validate-config   # doctor checks the Gemini key
 ```
 
 ## Code rules
@@ -59,8 +59,16 @@ python -m wanger_news migrate | db-check | doctor | validate-config
 - Telegram: `parse_mode=HTML`; every dynamic value escaped in `formatting/`; split with `split_html`.
 - The bot token must never reach a log or an exception message (`raise … from None`, redaction).
 - Feed text and Telegram posts are untrusted input. Outbound URLs go through `UrlGuard` (SSRF).
-- Phase 1 posts to the TEST channel only (`services/targets.py` enforces it).
-- Source-channel posts are human-curated: no gate/review, only dedup ("was it published before?").
+- Target: test channel by default; main only from phase 2 and only when the owner switches
+  (`/settings target main` or `WANGER_NEWS_PUBLISH_TARGET`). `services/targets.py` enforces it.
+- Source-channel posts are human-curated: no gate/AI/review, only dedup ("was it published before?").
+- Phase 2 AI rules: a feed item is NEVER published without a validated or human-approved Persian
+  summary. All AI goes through the `AIProvider` port; prompts are versioned files in `prompts/`
+  (a changed prompt = a new version file); article text is data between random-boundary markers;
+  answers are Pydantic-validated JSON; every call is an `ai_runs` row. The guard
+  (`domain/guard.py` + verify) decides; failures go to a human, never to auto-publish. Safety
+  reasons (guard, sensitive, insufficient, confidence < 50) win over the publish mode
+  (`domain/editorial.py`). Tests use `tests/fake_ai.py`; never call a real AI API in tests.
 - New migration per schema change (`alembic revision --autogenerate`, then freeze types: no app
   imports in migrations); upgrade AND downgrade must pass on SQLite and PostgreSQL.
 - Python 3.11+, full type hints, mypy strict, ruff. Tests never touch the network.

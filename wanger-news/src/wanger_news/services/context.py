@@ -41,6 +41,7 @@ class RunContext:
     bot: BotApi | None
     target: Target | None
     observed_chats: list[ChatRef] = field(default_factory=list)  # all configured target channels
+    channels: dict[str, ChatRef | None] = field(default_factory=dict)  # role → configured chat
     out: Callable[[str], None] = print
     counters: Counter[str] = field(default_factory=Counter)
     errors: list[str] = field(default_factory=list)

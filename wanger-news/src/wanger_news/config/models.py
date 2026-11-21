@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from wanger_news.domain.chatref import ChatRef, ChatRefError
-from wanger_news.domain.enums import SourceType, Transport
+from wanger_news.domain.enums import PublishMode, SourceType, Transport
 
 
 class StrictModel(BaseModel):
@@ -281,6 +281,85 @@ class WorkerConfig(StrictModel):
     interval_seconds: int = Field(default=600, ge=30)
 
 
+class AIConfig(StrictModel):
+    """The AI stage (Phase 2). Quota numbers are conservative: free-tier limits are per Google
+    project (see AI Studio → rate limits) and can be raised here."""
+
+    enabled: bool = True
+    provider: Literal["gemini"] = "gemini"
+    model: str = "gemini-3.5-flash-lite"
+    verify_model: str | None = None  # None → same as model
+    api_base: str = "https://generativelanguage.googleapis.com/v1beta"
+    schema_mode: Literal["json_schema", "prompt_only"] = "json_schema"
+    thinking_level: str | None = "minimal"
+    temperature: float = Field(default=0.2, ge=0, le=2)
+    max_output_tokens: int = Field(default=8192, ge=256)
+    timeout_seconds: float = Field(default=90, gt=0)
+    articles_per_call: int = Field(default=4, ge=1, le=10)
+    max_input_chars_per_article: int = Field(default=6000, ge=500)
+    max_calls_per_run: int = Field(default=6, ge=0)
+    max_calls_per_day: int = Field(default=150, ge=0)
+    dry_run_max_calls: int = Field(default=2, ge=0)
+    requests_per_minute: int = Field(default=8, ge=1)
+    quota_reset_timezone: str = "America/Los_Angeles"
+    max_attempts: int = Field(default=3, ge=1)
+    verify: bool = True  # hallucination guard layer 2 (AI claim/evidence check)
+    rewrite_on_failure: bool = True
+    fallback_provider: str | None = None  # spec §13: only when configured (none implemented)
+    output_language: str = "fa"
+    long_summary_min_importance: int = Field(default=70, ge=0, le=100)
+    price_input_per_million: float = Field(default=0.30, ge=0)  # planning only (free tier = 0)
+    price_output_per_million: float = Field(default=2.50, ge=0)
+
+    @property
+    def verifier(self) -> str:
+        return self.verify_model or self.model
+
+
+class GuardConfig(StrictModel):
+    """Hallucination guard, layer 1 (deterministic)."""
+
+    quote_min_similarity: float = Field(default=0.85, gt=0, le=1)
+    evidence_min_similarity: float = Field(default=0.85, gt=0, le=1)
+    max_title_chars: int = Field(default=160, ge=20)
+    max_summary_chars: int = Field(default=2500, ge=200)
+    max_key_points: int = Field(default=5, ge=0)
+
+
+class ScoringConfig(StrictModel):
+    """Explainable importance and confidence (spec §8). Weights are relative."""
+
+    importance_weights: dict[str, float] = {
+        "rule_priority": 2.0,
+        "people_affected": 1.0,
+        "significance": 1.5,
+        "severity": 1.0,
+        "geographic_scope": 1.0,
+        "continuation": 0.5,
+        "international_impact": 1.0,
+        "recency": 0.5,
+    }
+    recency_full_hours: float = Field(default=2, ge=0)
+    recency_zero_hours: float = Field(default=24, gt=0)
+    confidence_weights: dict[str, float] = {
+        "reliability": 0.5,
+        "primary_source": 0.15,
+        "quality": 0.15,
+        "guard": 0.2,
+    }
+    primary_source_types: list[SourceType] = [
+        SourceType.NEWS_AGENCY,
+        SourceType.GOVERNMENT,
+        SourceType.OFFICIAL_ORGANIZATION,
+    ]
+    primary_source_score: int = Field(default=100, ge=0, le=100)
+    secondary_source_score: int = Field(default=60, ge=0, le=100)
+    guard_scores: dict[str, int] = {"passed": 100, "after_rewrite": 80, "human": 90, "failed": 0}
+    single_source_cap: int = Field(default=69, ge=0, le=100)
+    guard_failed_cap: int = Field(default=49, ge=0, le=100)  # failed verification = unconfirmed
+    label_thresholds: dict[str, int] = {"confirmed": 90, "likely": 70, "preliminary": 50}
+
+
 class PipelineConfig(StrictModel):
     timezone: str = "Asia/Tehran"
     http: HttpConfig = HttpConfig()
@@ -294,6 +373,42 @@ class PipelineConfig(StrictModel):
     locks: LocksConfig = LocksConfig()
     retention: RetentionConfig = RetentionConfig()
     worker: WorkerConfig = WorkerConfig()
+    ai: AIConfig = AIConfig()
+    guard: GuardConfig = GuardConfig()
+    scoring: ScoringConfig = ScoringConfig()
+
+
+# --------------------------------------------------------------------------------------------
+# editorial.yaml
+# --------------------------------------------------------------------------------------------
+
+
+class PublishModes(StrictModel):
+    default: PublishMode = PublishMode.SEMI
+    categories: dict[str, PublishMode] = {}
+
+    def for_category(self, category: str | None) -> PublishMode:
+        return self.categories.get(category or "", self.default)
+
+
+class AutoPublishConfig(StrictModel):
+    # spec §8: below 50 is "unconfirmed" and is never published automatically
+    min_confidence: int = Field(default=50, ge=50, le=100)
+    min_importance: int = Field(default=50, ge=0, le=100)
+
+
+class ReviewConfig(StrictModel):
+    max_cards_per_run: int = Field(default=5, ge=0, le=50)
+    expire_after_hours: float = Field(default=12, gt=0)
+    send_to: Literal["owner", "all_admins"] = "all_admins"
+    preview_chars: int = Field(default=2500, ge=300, le=3500)
+
+
+class EditorialFile(StrictModel):
+    version: int = 1
+    publish_modes: PublishModes = PublishModes()
+    auto_publish: AutoPublishConfig = AutoPublishConfig()
+    review: ReviewConfig = ReviewConfig()
 
 
 class AppConfig(StrictModel):
@@ -301,6 +416,7 @@ class AppConfig(StrictModel):
     categories: CategoriesFile
     filters: FiltersFile
     pipeline: PipelineConfig
+    editorial: EditorialFile = EditorialFile()
 
     @model_validator(mode="after")
     def _cross_check(self) -> AppConfig:
@@ -312,6 +428,9 @@ class AppConfig(StrictModel):
             unknown = set(listed) - known
             if unknown:
                 raise ValueError(f"filters: unknown categories {sorted(unknown)}")
+        unknown_modes = set(self.editorial.publish_modes.categories) - known
+        if unknown_modes:
+            raise ValueError(f"editorial: unknown categories {sorted(unknown_modes)}")
         return self
 
     def source(self, source_id: str) -> SourceConfig | None:

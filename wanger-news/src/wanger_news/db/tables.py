@@ -109,6 +109,17 @@ class Article(Base):
     duplicate_of_id: Mapped[int | None] = mapped_column(sa.BigInteger, index=True)
     dedup_level: Mapped[str | None] = mapped_column(sa.String(16))
     dedup_distance: Mapped[int | None] = mapped_column(sa.Integer)
+    # Phase 2 (migration 0002)
+    summary_id: Mapped[int | None] = mapped_column(sa.BigInteger)
+    importance_score: Mapped[int | None] = mapped_column(sa.Integer)
+    importance: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
+    confidence_score: Mapped[int | None] = mapped_column(sa.Integer)
+    confidence: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
+    publish_mode: Mapped[str | None] = mapped_column(sa.String(8))
+    review_reason: Mapped[str | None] = mapped_column(sa.String(300))
+    approved_by: Mapped[int | None] = mapped_column(sa.BigInteger)
+    approved_at: Mapped[datetime | None] = mapped_column()
+    publish_now: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.false())
     created_at: Mapped[datetime] = mapped_column(server_default=_now)
     updated_at: Mapped[datetime] = mapped_column(server_default=_now)
 
@@ -215,3 +226,78 @@ class SystemLog(Base):
     event: Mapped[str] = mapped_column(sa.String(100))
     run_id: Mapped[str | None] = mapped_column(sa.String(64))
     context: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
+
+
+# ------------------------------------------------------------------------------ Phase 2
+
+
+class AIRun(Base):
+    """Every AI call (spec §15): time, items, model, prompt version, tokens, cost, result, error."""
+
+    __tablename__ = "ai_runs"
+    id: Mapped[int] = mapped_column(BigId, primary_key=True, autoincrement=True)
+    run_id: Mapped[str | None] = mapped_column(sa.String(64), index=True)
+    provider: Mapped[str] = mapped_column(sa.String(32))
+    model: Mapped[str] = mapped_column(sa.String(64))
+    operation: Mapped[str] = mapped_column(sa.String(32))
+    prompt_version: Mapped[str] = mapped_column(sa.String(64))
+    article_ids: Mapped[list[int]] = mapped_column(JSONType, default=list)
+    status: Mapped[str] = mapped_column(sa.String(24))
+    started_at: Mapped[datetime] = mapped_column(index=True)
+    finished_at: Mapped[datetime | None] = mapped_column()
+    input_tokens: Mapped[int] = mapped_column(sa.Integer, server_default="0")
+    output_tokens: Mapped[int] = mapped_column(sa.Integer, server_default="0")
+    thinking_tokens: Mapped[int] = mapped_column(sa.Integer, server_default="0")
+    cost_usd: Mapped[float] = mapped_column(sa.Float, server_default="0")
+    error: Mapped[str | None] = mapped_column(sa.Text)
+    response_excerpt: Mapped[str | None] = mapped_column(sa.Text)
+
+
+class Summary(Base):
+    """A Persian rendering of an article (AI, rewrite or a human edit) and its guard report.
+
+    This is also the "translation": full articles are never translated (copyright, spec §3.4).
+    """
+
+    __tablename__ = "summaries"
+    __table_args__ = (
+        sa.Index("ix_summaries_source_hash_prompt_version", "source_hash", "prompt_version"),
+    )
+    id: Mapped[int] = mapped_column(BigId, primary_key=True, autoincrement=True)
+    article_id: Mapped[int] = mapped_column(sa.BigInteger, index=True)
+    language: Mapped[str] = mapped_column(sa.String(8))
+    origin: Mapped[str] = mapped_column(sa.String(16))
+    prompt_version: Mapped[str] = mapped_column(sa.String(64))
+    model: Mapped[str | None] = mapped_column(sa.String(64))
+    source_hash: Mapped[str] = mapped_column(sa.String(80))
+    title: Mapped[str] = mapped_column(sa.Text)
+    summary: Mapped[str] = mapped_column(sa.Text)
+    key_points: Mapped[list[str]] = mapped_column(JSONType, default=list)
+    entities: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list)
+    quotes: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list)
+    claims: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list)
+    category: Mapped[str | None] = mapped_column(sa.String(32))
+    importance_factors: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
+    insufficient: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.false())
+    guard: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
+    valid: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.false())
+    created_by: Mapped[int | None] = mapped_column(sa.BigInteger)
+    created_at: Mapped[datetime] = mapped_column(server_default=_now)
+
+
+class ReviewRequest(Base):
+    """A review card (or an edit prompt) sent to an admin's private chat."""
+
+    __tablename__ = "review_requests"
+    __table_args__ = (sa.Index("ix_review_requests_status_kind", "status", "kind"),)
+    id: Mapped[int] = mapped_column(BigId, primary_key=True, autoincrement=True)
+    article_id: Mapped[int] = mapped_column(sa.BigInteger, index=True)
+    kind: Mapped[str] = mapped_column(sa.String(16))  # card | edit_prompt
+    admin_id: Mapped[int] = mapped_column(sa.BigInteger)
+    chat_id: Mapped[int] = mapped_column(sa.BigInteger)
+    message_id: Mapped[int | None] = mapped_column(sa.BigInteger)
+    status: Mapped[str] = mapped_column(sa.String(16))  # open | closed
+    outcome: Mapped[str | None] = mapped_column(sa.String(32))
+    closed_by: Mapped[int | None] = mapped_column(sa.BigInteger)
+    created_at: Mapped[datetime] = mapped_column()
+    closed_at: Mapped[datetime | None] = mapped_column()

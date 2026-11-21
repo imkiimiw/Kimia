@@ -1,7 +1,8 @@
 # Wanger News — Architecture
 
-Status: **Phase 1** (foundation). This document describes what exists, where every later
-feature plugs in, and why each decision was taken (ADRs at the end).
+Status: **Phase 2** (AI: Persian summaries, hallucination guard, review, main channel) on top of
+Phase 1 (foundation). This document describes what exists, where every later feature plugs in,
+and why each decision was taken (ADRs at the end; Phase 2 decisions are ADR-019 onwards).
 
 ## 1. Overview
 
@@ -10,14 +11,17 @@ feature plugs in, and why each decision was taken (ADRs at the end).
                                    │
  GitHub Actions cron ──► python -m wanger_news run-once ◄── Docker worker (option B)
                                    │
-           ┌──────────── services/pipeline.py (one pass, isolated stages) ───────────┐
-           │ lock → sync config → INBOX → INGEST → CLASSIFY+GATE → PUBLISH → retention │
-           └───────────────────────────────────────────────────────────────────────────┘
-   INBOX  : getUpdates → telegram_updates → admin commands · source-channel posts ·
-            posts made by hand in the target channels
+   ┌────────────────── services/pipeline.py (one pass, isolated stages) ──────────────────┐
+   │ lock → sync → INBOX → INGEST → CLASSIFY+GATE → AI → REVIEW CARDS → PUBLISH → retention │
+   └────────────────────────────────────────────────────────────────────────────────────────┘
+   INBOX  : getUpdates → telegram_updates → admin commands · review buttons · edit replies ·
+            source-channel posts · posts made by hand in the target channels
    INGEST : FETCH → PARSE → NORMALIZE → VALIDATE → DEDUPLICATE (L1, L2, L3-port)
-   GATE   : rule-based category / priority / sensitive topics → queued | filtered | pending_review
-   PUBLISH: claim → send (sendPhoto/sendMessage/copyMessage[s]) → record, test channel only
+   GATE   : rule-based category / priority / sensitive topics → ai_pending | filtered
+   AI     : SUMMARIZE (Persian) → GUARD layer 1 (deterministic) + layer 2 (AI verify)
+            → one REWRITE if needed → scores → route: queued | pending_review | held
+   REVIEW : cards with ✅ 📤 ✏️ ❌ in the admins' private chats
+   PUBLISH: claim → send (sendPhoto/sendMessage/copyMessage[s]) → record; test or main channel
                                    │
                  PostgreSQL (Neon/Supabase free tier) — ALL state lives here
 ```
@@ -47,7 +51,14 @@ next one; `processing_jobs` records (article, stage) → done/failed/skipped, at
 
 ```
 feed entry ─► (known external_id? skip) ─► stale | throttled | new ─► dedup? ─► duplicate
-new ─► classify+gate ─► queued | filtered | pending_review
+new ─► classify+gate ─► ai_pending | filtered
+ai_pending ─► summary + guard (+ rewrite) ─► route:
+   guard failed · insufficient information · sensitive topic · confidence < 50 → pending_review
+   mode manual → held · mode semi → pending_review · mode auto (thresholds met) → queued
+   AI keeps failing (max_attempts) → pending_review without text · too old → expired
+pending_review ─► ✅ → queued · 📤 → queued + publish_now · ✏️ → human text → pending_review
+               · ❌ → rejected · nobody decides in time → expired
+held ─► /publish id → queued · too old → expired
 queued ─► claim ─► sent → published · definite failure → failed (retry while attempts left)
                  · unknown outcome → uncertain (never re-sent) · too old → expired
 source-channel post ─► published before? ─► duplicate (owner told) | new ─► queued ─► copied
@@ -55,12 +66,14 @@ post made by hand in a target channel ─► external (a dedup reference only)
 ```
 
 Cheap stages run before anything expensive: normalization, exact/near dedup and the
-rule-based gate happen before any AI call (Phase 2 inserts TRANSLATE+SUMMARIZE and OUTPUT
-VALIDATION between `queued` and publishing; `pending_review` gets the inline review buttons).
+rule-based gate happen before any AI call. A feed item is never published without a validated
+(or human-approved) Persian text; source-channel posts are human-curated and copied as they are.
 
 Priority queue: 100 (international crisis) · 80 (important politics/economy) · 50 (normal) · 20
-(low); publishing takes the highest priority first, oldest first within a priority. Source-channel
-posts get `telegram.source_post_priority` (80).
+(low). The AI stage takes the highest priority first and fresh items first (quota is best spent
+on news that will not expire). Publishing takes "publish now" first, then the importance score
+(priority when there is none), oldest first. Source-channel posts get
+`telegram.source_post_priority` (80).
 
 ## 4. Option A constraints (GitHub Actions + free PostgreSQL + Gemini free tier)
 
@@ -74,7 +87,7 @@ posts get `telegram.source_post_priority` (80).
 | 6-hour job limit / minutes | A run is ~1 minute (16 feeds concurrently, few posts). `timeout-minutes: 10`. Public repository → Actions minutes are free. |
 | Scheduled workflows | Run only from the default branch; GitHub disables them after 60 days without repository activity. |
 
-## 5. Data model (Phase 1 — migration `0001`)
+## 5. Data model (migrations `0001` Phase 1, `0002` Phase 2)
 
 | Table | Purpose |
 |---|---|
@@ -90,14 +103,23 @@ posts get `telegram.source_post_priority` (80).
 | `locks` | lease locks (`pipeline`) |
 | `system_logs` | warnings/errors worth showing in `/status` (stdout gets everything) |
 | `admins` | owner + admins, synced from the environment |
+| `ai_runs` (0002) | every AI call: run, provider, model, operation, prompt version, items, status, tokens (input/output/thinking), cost, error, response excerpt |
+| `summaries` (0002) | Persian renderings: origin ai/rewrite/human, prompt version, model, source hash (cache key), title, summary, key points, entities, quotes, claims with evidence, AI category and importance factors, guard report, valid |
+| `review_requests` (0002) | review cards and edit prompts sent to admins: message ids, open/closed, outcome, who decided |
+
+`articles` gained (0002): `summary_id`, `importance_score` + breakdown, `confidence_score` +
+breakdown, `publish_mode`, `review_reason`, `approved_by`/`approved_at`, `publish_now`. The
+migration moved Phase 1 feed items that were still waiting (queued/pending_review, no Persian
+text) to `ai_pending`; downgrade maps the new statuses back.
 
 Times are stored in UTC (`UTCDateTime` refuses naive datetimes); display is `Asia/Tehran` with a
 Jalali date. JSON columns are JSONB on PostgreSQL.
 
 Tables of later phases, each in its own migration: `story_clusters`, `cluster_articles`,
 `claims`, `evidence`, `entities` (Phase 3, with `CREATE EXTENSION vector` and an `embedding`
-column); `translations`, `summaries`, `ai_runs`, `review_actions` (Phase 2); `corrections`,
-`reliability_history`, `categories`/`tags` tables if the dashboard needs them (Phase 5).
+column — claims are already stored per summary in Phase 2); `corrections`,
+`reliability_history`, `categories`/`tags` tables if the dashboard needs them (Phase 5). There is
+no separate `translations` table: the Persian summary is the translation (ADR-021).
 
 ## 6. Deployment
 
@@ -131,10 +153,10 @@ column); `translations`, `summaries`, `ai_runs`, `review_actions` (Phase 2); `co
 
 | Later feature | Where |
 |---|---|
-| AI translation/summaries/claims (Phase 2) | `AIProvider` (Gemini first), prompts as versioned files, `ai_runs`; new statuses between `queued` and publish |
-| Hallucination guard (Phase 2) | an OUTPUT VALIDATION stage before PUBLISH; deterministic checks reuse `domain/text` (digit unification, normalization) |
-| Review buttons (Phase 2) | `callback_query` added to `ALLOWED_UPDATES`; `pending_review` items to the owner's PM |
-| Main channel (Phase 2) | `services/targets.py` (`MAIN_CHANNEL_FROM_PHASE`) |
+| Another AI provider (OpenAI, Anthropic, local) | a new `AIProvider` adapter next to `ai/gemini.py`; `ai.fallback_provider` (config) is where a fallback is chosen |
+| Multi-source confidence, contradictions (Phase 3) | `confidence(independent_sources=…)` already takes the count; `summaries.claims` hold claims + evidence |
+| Breaking 🔴 (Phase 4) | `SummaryPost.breaking` is rendered already; nothing sets it yet |
+| Full rules engine (Phase 5) | `domain/editorial.route` is the single routing function to generalise |
 | Story clusters, same-event dedup (Phase 3) | `EventMatcher` port, called after L1/L2 in `DedupService.check` |
 | Update/correction posts (Phase 3/5) | `published_posts.message_ids` (reply target) |
 | Webhook instead of polling | a second inbox adapter feeding the same `InboxService.process` |
@@ -208,7 +230,9 @@ channel produces one owner notice with its numeric id. Short captions alone (< 3
 "#خبر") never make two posts equal. Limits: bots cannot read channel history, so only posts that
 arrived while the bot was admin are known; edits of source posts are not followed in Phase 1.
 
-**ADR-009 — Phase 1 post content.** Without AI there is no translation, so a test-channel post
+**ADR-009 — Phase 1 post content (superseded by ADR-021/022 in Phase 2: only validated Persian
+summaries are posted now; the Phase 1 template stays in `formatting/templates_fa.py`, unused by
+the publisher).** Without AI there is no translation, so a test-channel post
 carries the original title, the feed's own teaser cut to 300 characters (never full text), the
 "گزارش اولیه" single-source note, the source, the canonical link, Tehran time (Jalali), at most
 three hashtags, and the feed image if the feed published one (credited); captions are kept within
@@ -254,3 +278,79 @@ Nowruz dates, instead of a dependency.
 
 **ADR-018 — SimHash thresholds and all limits live in config.** Every number above is a key in
 `config/pipeline.yaml` (defaults in `config/models.py`), so tuning needs no code change.
+
+### Phase 2
+
+**ADR-019 — Gemini over plain REST, behind the AIProvider port.** `generateContent` with
+`x-goog-api-key` (never a key in a URL), JSON answers (`responseMimeType` + `responseJsonSchema`,
+and the same schema in the prompt). If the API refuses an optional field (the schema field, the
+thinking level) the client retries once without it, so a model that lacks a feature degrades
+instead of stopping. Default model `gemini-3.5-flash-lite` (Google lists `gemini-2.5-flash` as
+deprecated from 2026-12-01; flash-lite's default thinking is "minimal", which saves quota);
+`gemini-3.6-flash` can be set in config when the quota allows. No SDK: one small client is
+easier to test and keeps token hygiene under our control. A newer Google API ("Interactions")
+exists; if `generateContent` is ever retired, a new adapter replaces this one only.
+
+**ADR-020 — prompt injection defence.** Article text is untrusted (spec §3.3): it is sent as a
+JSON value (escaped) between two markers carrying a random 16-hex boundary that an article cannot
+predict; the system instruction (a separate API field) says that content is data, never
+instructions; the answer must be JSON matching a Pydantic schema; ids are checked (an id the model
+invents is ignored, a missing one is retried); and every claim must still pass the guard. Prompts
+are versioned files (`prompts/<name>.<lang>.vN.md`); the version used is stored on every summary
+and every `ai_runs` row.
+
+**ADR-021 — the summary is the translation.** Full articles are never translated (copyright,
+spec §3.4); one call per batch produces the Persian title, summary, key points, entities (with
+the original spelling), quotations (with the verbatim original), claims (with verbatim
+evidence), the category and importance factors. So `summaries` replaces the suggested
+`translations` table, and translation, summarization and AI classification cost one call.
+
+**ADR-022 — hallucination guard in two layers, then one rewrite, then a human.** Layer 1 is
+deterministic (`domain/guard.py`): every number written with digits must be in the source (digits
+unified, thousands/decimal separators, number words such as "two"/"دو", scaled values such as
+"$1.2bn"); every Latin-script name and every declared entity must be in the source; every «quote»
+must be declared and its original nearly verbatim in the source; every claim needs nearly
+verbatim evidence; the text must be Persian and free of links/mentions/markup. Converting a date
+to the Jalali calendar fails the number check on purpose (the prompt forbids it). Layer 2 is one
+AI `verify` call per batch: claim-by-claim support and unsupported statements. Verification that
+could not run is an issue, never a pass. Any issue → one `rewrite` without the unsupported parts →
+both layers again → still failing: `pending_review` with the issues on the card, confidence capped
+at 49 ("unconfirmed"). Never published automatically.
+
+**ADR-023 — scores are explainable and conservative.** Importance = weighted mean of the rule
+priority, the AI's six 0–10 factors and recency. Confidence = weighted mean of source reliability,
+primary-source type, quality and the guard result, then capped: one source ≤ 69 ("گزارش اولیه"),
+because independent confirmation only arrives with clustering in Phase 3; failed guard ≤ 49.
+Both store their components, weights and caps.
+
+**ADR-024 — publish modes per category, safety before mode.** auto / semi / manual from
+`config/editorial.yaml`, overridable per category with `/settings`. MVP default: semi. Whatever
+the mode, a failed guard, insufficient information, a sensitive topic or confidence below 50 goes
+to a human; auto additionally needs `auto_publish.min_confidence` (never below 50, enforced by the
+config model) and `min_importance`. Manual = held until an admin picks it (`/pending`, `/publish`).
+
+**ADR-025 — review without a server.** Cards go to the owner (and admins) with ✅ 📤 ✏️ ❌;
+taps and replies are read on the next run, so `answerCallbackQuery` may come too late (Telegram
+then refuses it; the decision still stands). At most `review.max_cards_per_run` cards per run,
+most important first; items nobody decides on expire after `review.expire_after_hours`. Every
+card of an item is closed (buttons replaced by the outcome) when one admin decides. An edit is a
+reply to the bot's prompt: first line title, then text, "•" lines key points; it becomes a human
+summary (guard run as advice) and needs Approve/Publish like any card. "Publish now" bypasses the
+per-run cap and age expiry; approved items do not expire either (a human decided).
+
+**ADR-026 — AI budget.** Calls per run (`max_calls_per_run`), per provider day
+(`max_calls_per_day`, counted from `ai_runs` since midnight Pacific, the Gemini reset) and per
+minute (pacing). A batch only starts when summarize + verify fit; a rewrite only when rewrite +
+re-verify fit, else the item goes to a human. Quota errors or an outage stop the stage; items stay
+`ai_pending` (or expire when stale). A summary of exactly the same source text and prompt version
+is reused instead of calling again. Dry runs may spend at most `dry_run_max_calls`.
+
+**ADR-027 — main channel from Phase 2, switched by the owner.** The code may now target the main
+channel, but the default stays the test channel (`WANGER_NEWS_PUBLISH_TARGET=test`) until the owner
+switches with `/settings target main` (stored in the database) or the variable. The idempotency key
+includes the chat, so switching never re-posts what the test channel already got.
+
+**ADR-028 — the live Gemini check is the owner's.** The development session had no Gemini key, so
+the provider is tested against recorded-shape responses (MockTransport) and the stage with a
+deterministic fake. `doctor` checks the key and model names (model metadata, no generation
+quota); the first real runs should be watched (`/status`, `ai_runs`) — see PLAN.md.

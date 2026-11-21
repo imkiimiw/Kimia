@@ -1,0 +1,18 @@
+# Editorial settings (spec §11). Changeable without code; /settings can override the modes.
+# Publish modes per category: auto | semi | manual. MVP default: semi (AI prepares, an admin
+# approves). Whatever the mode, these ALWAYS go to a human: sensitive topics, items that failed the
+# hallucination guard, items the AI could not process, and confidence below 50.
+version: 1
+publish_modes:
+  default: semi
+  categories: {}        # e.g. {technology: auto, sports: manual}
+
+auto_publish:           # only for categories in auto mode
+  min_confidence: 50    # never below 50 (spec §8)
+  min_importance: 50
+
+review:
+  max_cards_per_run: 5  # review cards sent to the PM per run (most important first)
+  expire_after_hours: 12
+  send_to: all_admins   # owner | all_admins
+  preview_chars: 2500

@@ -16,6 +16,7 @@ RUN pip install .
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY config ./config
+COPY prompts ./prompts
 
 USER app
 ENTRYPOINT ["python", "-m", "wanger_news"]

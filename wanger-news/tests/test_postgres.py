@@ -21,6 +21,7 @@ from wanger_news.domain.enums import ChannelRole
 from wanger_news.services.context import Target
 
 from .conftest import NOW, FakeClock, FakeTelegram, FeedServer, Harness, make_config, standard_feeds
+from .fake_ai import FakeAI
 
 URL = os.environ.get("WANGER_NEWS_TEST_POSTGRES_URL")
 pytestmark = [
@@ -57,6 +58,7 @@ async def pg_harness(pg: AsyncEngine) -> AsyncIterator[Harness]:
             target=Target(ChannelRole.TEST, ChatRef.parse("@wanger_test")),
             output=[],
             observed=[ChatRef.parse("@wanger_test")],
+            ai=FakeAI(),
         )
 
 

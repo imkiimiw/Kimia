@@ -16,15 +16,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from wanger_news.config.models import SourceConfig
 from wanger_news.db.tables import (
     Admin,
+    AIRun,
     Article,
     ArticleFingerprint,
     Lock,
     PipelineRun,
     ProcessingJob,
     PublishedPost,
+    ReviewRequest,
     Setting,
     Source,
     SourceHealth,
+    Summary,
     SystemLog,
     TelegramUpdate,
 )
@@ -309,12 +312,41 @@ class ArticleRepo:
             if r[1] is not None
         ]
 
-    async def by_status(self, status: ArticleStatus, limit: int) -> list[Article]:
-        """Highest priority first; oldest first within a priority (chronological posting)."""
+    async def by_status(
+        self, status: ArticleStatus, limit: int, *, newest_first: bool = False
+    ) -> list[Article]:
+        """Highest priority first; within a priority oldest first (chronological posting) or
+        newest first (the AI stage: fresh news is worth the quota more)."""
+        when = Article.effective_at.desc() if newest_first else Article.effective_at.asc()
         stmt = (
             sa.select(Article)
             .where(Article.status == status.value)
-            .order_by(Article.priority.desc(), Article.effective_at.asc(), Article.id.asc())
+            .order_by(Article.priority.desc(), when, Article.id.asc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+    async def publish_queue(self, limit: int) -> list[Article]:
+        """What to post next: "publish now" first, then importance (else priority), oldest first."""
+        rank = sa.func.coalesce(Article.importance_score, Article.priority)
+        stmt = (
+            sa.select(Article)
+            .where(Article.status == ArticleStatus.QUEUED.value)
+            .order_by(
+                Article.publish_now.desc(),
+                rank.desc(),
+                Article.effective_at.asc(),
+                Article.id.asc(),
+            )
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+    async def recent(self, statuses: Sequence[ArticleStatus], limit: int) -> list[Article]:
+        stmt = (
+            sa.select(Article)
+            .where(Article.status.in_([s.value for s in statuses]))
+            .order_by(Article.updated_at.desc(), Article.id.desc())
             .limit(limit)
         )
         return list((await self.s.scalars(stmt)).all())
@@ -323,9 +355,12 @@ class ArticleRepo:
         """Items counted against the source's hourly burst limit."""
         counted = [
             ArticleStatus.NEW,
+            ArticleStatus.AI_PENDING,
             ArticleStatus.QUEUED,
             ArticleStatus.PUBLISHED,
             ArticleStatus.PENDING_REVIEW,
+            ArticleStatus.HELD,
+            ArticleStatus.REJECTED,
             ArticleStatus.FILTERED,
         ]
         result = await self.s.scalar(
@@ -529,6 +564,14 @@ class JobRepo:
         )
         await self.s.execute(stmt)
 
+    async def attempts(self, article_id: int, stage: Stage) -> int:
+        value = await self.s.scalar(
+            sa.select(ProcessingJob.attempts).where(
+                ProcessingJob.article_id == article_id, ProcessingJob.stage == stage.value
+            )
+        )
+        return int(value or 0)
+
 
 class UpdateRepo:
     def __init__(self, session: AsyncSession) -> None:
@@ -661,6 +704,8 @@ class MaintenanceRepo:
             ArticleStatus.QUEUED.value,
             ArticleStatus.PENDING_REVIEW.value,
             ArticleStatus.NEW.value,
+            ArticleStatus.AI_PENDING.value,
+            ArticleStatus.HELD.value,
         ]
         old_ids = list(
             (
@@ -681,6 +726,11 @@ class MaintenanceRepo:
             await self.s.execute(
                 sa.delete(ProcessingJob).where(ProcessingJob.article_id.in_(old_ids))
             )
+            # no foreign keys: children first (summaries and review requests of those items)
+            await self.s.execute(sa.delete(Summary).where(Summary.article_id.in_(old_ids)))
+            await self.s.execute(
+                sa.delete(ReviewRequest).where(ReviewRequest.article_id.in_(old_ids))
+            )
             await self.s.execute(sa.delete(Article).where(Article.id.in_(old_ids)))
         removed["articles"] = len(old_ids)
         removed["jobs"] = await self._delete(
@@ -695,12 +745,135 @@ class MaintenanceRepo:
         removed["runs"] = await self._delete(
             PipelineRun, PipelineRun.started_at, now - timedelta(days=logs_days)
         )
+        removed["ai_runs"] = await self._delete(
+            AIRun, AIRun.started_at, now - timedelta(days=max(logs_days, 2))
+        )
         return removed
 
     async def _delete(self, table: Any, column: Any, before: datetime) -> int:
         key = sa.inspect(table).primary_key[0]
         result = await self.s.execute(sa.delete(table).where(column < before).returning(key))
         return len(result.all())
+
+
+class SummaryRepo:
+    def __init__(self, session: AsyncSession) -> None:
+        self.s = session
+
+    async def add(self, summary: Summary) -> Summary:
+        self.s.add(summary)
+        await self.s.flush()
+        return summary
+
+    async def get(self, summary_id: int | None) -> Summary | None:
+        return None if summary_id is None else await self.s.get(Summary, summary_id)
+
+    async def cached(self, source_hash: str, prompt_version: str, language: str) -> Summary | None:
+        """A valid AI summary of exactly this source text with this prompt (spec §4 cache)."""
+        stmt = (
+            sa.select(Summary)
+            .where(
+                Summary.source_hash == source_hash,
+                Summary.prompt_version == prompt_version,
+                Summary.language == language,
+                Summary.valid.is_(True),
+                Summary.origin != "human",
+            )
+            .order_by(Summary.id.desc())
+            .limit(1)
+        )
+        return await self.s.scalar(stmt)
+
+
+class AIRunRepo:
+    def __init__(self, session: AsyncSession) -> None:
+        self.s = session
+
+    async def add(self, run: AIRun) -> None:
+        self.s.add(run)
+        await self.s.flush()
+
+    async def calls_since(self, since: datetime) -> int:
+        """Calls that count against the provider quota (every attempt that reached it)."""
+        result = await self.s.scalar(
+            sa.select(sa.func.count()).select_from(AIRun).where(AIRun.started_at >= since)
+        )
+        return int(result or 0)
+
+    async def usage_since(self, since: datetime) -> dict[str, float]:
+        row = (
+            await self.s.execute(
+                sa.select(
+                    sa.func.count(),
+                    sa.func.coalesce(sa.func.sum(AIRun.input_tokens), 0),
+                    sa.func.coalesce(sa.func.sum(AIRun.output_tokens), 0),
+                    sa.func.coalesce(sa.func.sum(AIRun.cost_usd), 0.0),
+                ).where(AIRun.started_at >= since)
+            )
+        ).one()
+        return {
+            "calls": int(row[0]),
+            "input_tokens": int(row[1]),
+            "output_tokens": int(row[2]),
+            "cost_usd": float(row[3]),
+        }
+
+
+class ReviewRepo:
+    def __init__(self, session: AsyncSession) -> None:
+        self.s = session
+
+    async def add(self, request: ReviewRequest) -> ReviewRequest:
+        self.s.add(request)
+        await self.s.flush()
+        return request
+
+    async def needing_cards(self, limit: int) -> list[Article]:
+        """Items waiting for a human that have no open card yet: most important first."""
+        open_card = (
+            sa.select(ReviewRequest.id)
+            .where(
+                ReviewRequest.article_id == Article.id,
+                ReviewRequest.status == "open",
+                ReviewRequest.kind == "card",
+            )
+            .exists()
+        )
+        rank = sa.func.coalesce(Article.importance_score, Article.priority)
+        stmt = (
+            sa.select(Article)
+            .where(Article.status == ArticleStatus.PENDING_REVIEW.value, ~open_card)
+            .order_by(rank.desc(), Article.effective_at.desc(), Article.id.asc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+    async def open_for(self, article_id: int, kind: str | None = None) -> list[ReviewRequest]:
+        stmt = sa.select(ReviewRequest).where(
+            ReviewRequest.article_id == article_id, ReviewRequest.status == "open"
+        )
+        if kind is not None:
+            stmt = stmt.where(ReviewRequest.kind == kind)
+        return list((await self.s.scalars(stmt.order_by(ReviewRequest.id))).all())
+
+    async def edit_prompt(self, chat_id: int, message_id: int) -> ReviewRequest | None:
+        return await self.s.scalar(
+            sa.select(ReviewRequest).where(
+                ReviewRequest.kind == "edit_prompt",
+                ReviewRequest.status == "open",
+                ReviewRequest.chat_id == chat_id,
+                ReviewRequest.message_id == message_id,
+            )
+        )
+
+    async def close(
+        self, request: ReviewRequest, outcome: str, now: datetime, by: int | None = None
+    ) -> None:
+        request.status = "closed"
+        request.outcome = outcome[:32]
+        request.closed_at = now
+        request.closed_by = by
+        await self.s.flush()
 
 
 class Repositories:
@@ -719,6 +892,9 @@ class Repositories:
         self.runs = RunRepo(session)
         self.logs = LogRepo(session)
         self.maintenance = MaintenanceRepo(session)
+        self.summaries = SummaryRepo(session)
+        self.ai_runs = AIRunRepo(session)
+        self.reviews = ReviewRepo(session)
 
     async def commit(self) -> None:
         await self.session.commit()

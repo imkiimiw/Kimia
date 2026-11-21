@@ -61,15 +61,20 @@ class ProcessingService:
                     "gate": decision.reason,
                     "quality": quality.breakdown,
                 }
-                await repos.articles.set_status(article, decision.status, now, decision.reason)
+                status = decision.status
+                if not human and status in (ArticleStatus.QUEUED, ArticleStatus.PENDING_REVIEW):
+                    # Phase 2: feed items always get a validated Persian summary first; whether
+                    # a human must review is decided after it (sensitive topics included)
+                    status = ArticleStatus.AI_PENDING
+                await repos.articles.set_status(article, status, now, decision.reason)
                 await repos.jobs.record(
                     article.id,
                     Stage.CLASSIFY,
                     JobStatus.DONE,
                     ctx.run_id,
                     now,
-                    details={"status": decision.status.value, "reason": decision.reason},
+                    details={"status": status.value, "reason": decision.reason},
                 )
-                counts[decision.status.value] = counts.get(decision.status.value, 0) + 1
+                counts[status.value] = counts.get(status.value, 0) + 1
             await repos.commit()
         return counts
