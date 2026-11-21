@@ -8,7 +8,7 @@ or tier; only what Telegram Serverless and the Bot API allow.
 > while Phases 1–10 were built (searched the working tree, all branches on GitHub, and the
 > container). They were built from their descriptions in the build instructions (Phases 3–10 by the
 > owner's decision to go ahead without it — the 42 locks, the security modules, the 26 advanced
-> settings, the channel panel, the social features, the 30 fun features (58 with fortune telling, symbolic hours, number meanings and fonts) and the Super Admin panel's
+> settings, the channel panel, the social features, the 30 fun features (93 with everything added after the release) and the Super Admin panel's
 > sections and team levels are Aegis's own design); details the spec would normally settle are listed
 > in [ASSUMPTIONS.md](ASSUMPTIONS.md). Everything here should be re-checked against the spec once it is
 > added.
@@ -187,6 +187,36 @@ or tier; only what Telegram Serverless and the Bot API allow.
 | The **Chinese zodiac by the lunar new year** | **Partial** | The year changes on 4 February (Lichun, the solar start of the year); the lunar new year falls between 21 January and 20 February, so someone born in that window may be given the year before or after the lunar count. | A table of lunar new-year dates. |
 | Prayer beads and the prophets' fortune **as real practice** | **Partial** | Both are random: the number of beads and the prophet are drawn by the bot, not by the member's hand, and each reading says so. | — |
 | Symbolic hours **sent when they come** (a 11:11 alert) | **Not possible** | There is no scheduler, so nothing can be sent at a given time; /clock shows the time now and the next symbolic times today. | A platform scheduler. |
+
+### After the release — the owner's entertainment list
+
+The owner's list (written for another bot's plan) was built into Aegis where it is free, possible with
+the Bot API and not a repeat of something Aegis already has. What was **not** built, or was folded into
+an existing feature:
+
+| Idea from the list | State | Why | What it would need |
+|---|---|---|---|
+| Coffee reading **from a photo**; any **AI** feature (an AI advisor, AI dream or personality reading) | **Not built (free only)** | No free vision or language model runs in the isolate (≈ 3 s CPU per update), and no paid API is used. Readings, dream meanings and tests use texts written for this project. | A free model or service. |
+| **Mafia**, **spy** | **Not built** | Each player must get a secret role in private, but a bot can't write first to a member who never started it; the game also needs day/night phases on a clock, and there is no scheduler (games end only on the next update). | A platform scheduler, and every player starting Aegis first. |
+| **Guess the song** | **Not possible (copyright)** | It needs pieces of recordings or lyrics, which are copyrighted; /music recommends titles only. | Licensed audio. |
+| **Optical illusions**, **spot the difference** | **Not built** | They need prepared pictures; Aegis can't draw them well in the isolate and copying existing ones would break their licences. | A set of free-licence pictures. |
+| **Crime case / guess the killer / detective story**, **guess the person from clues**, **treasure hunt**, **parallel world / strange places / virtual travel** | **Not built (yet)** | Each needs a lot of hand-written, solvable content in five languages. The same kind of play is in /escape (a text adventure), /riddle, /cipher, /genie (twenty questions with animals) and /flags. | Content only — possible later, free. |
+| **Decision journal**, **decision reminder** | **Not built** | A reminder can't be sent without a scheduler; /decide gives its analysis at once. | A platform scheduler. |
+| A **verified** MBTI / Enneagram result | **Not possible** | The official tests are licensed (paid). /ptest has free MBTI-style and Enneagram-style self-tests, which say they are for fun. | — |
+| Yes/no fortune, dice of fate, the fate answer, the wheel of fortune | **Not repeated** | Already there: /tarot with a question (yes, no, maybe), /ball, /rand, /dicefortune; «wheel» became a word for /choose. | — |
+| Restaurant / destination / film pick | **Not repeated** | /choose picks from your own options; /movie recommends films. | — |
+| Daily mission, decision challenge, funny votes | **Not repeated** | /challenge («مأموریت روزانه» is one of its words); /wyr, /vote and /likely. | — |
+| Compare two choices, an advisor, regret prediction, the devil's advocate, breaking indecision, a friends' vote | **Folded into /decide and /vote** | /decide asks 8 questions about two choices and gives a suggestion with the case against it; /vote is a group poll. | — |
+| Truth or dare **modes** (private, friendly, couple) | **Partial** | One set of harmless truths and dares (reply to give one to someone); couples have /deepq, /dateidea and /match. | More question sets. |
+| Reaction speed, an IQ contest, knowing friends, guessing answers | **Not repeated** | /click, /trivia and /math, /knowme. | — |
+| Anonymous confessions | **Partial (already there)** | Phase 8's anonymous questions (/anon): the admins see the message without the name and may publish it. Unmoderated anonymous posts are not built (abuse). | — |
+| A predictions contest | **Not built** | It needs real results to score against, which Aegis can't know. | A source of results. |
+| Akashic records, synchronicity | **Folded in** | Into /spirit (a past-life story), /universe, /number and /clock. | — |
+| A lucid-dream **recognition** test | **Partial** | /lucid lists the signs and gives a daily exercise; /ptest has a dream-recall test; Aegis can't tell from a dream's text whether it was lucid. | — |
+| Profile, points and level, ranking, sharing | **Already there** | Phase 8: /me, /top, points, levels and badges; Telegram's own forwarding. A history of past readings isn't stored (privacy and storage). | — |
+| The chain story, hangman and the race games **exactly on time** | **Partial** | No scheduler: a game whose time is up ends on the first update after it (the chain story can be ended with its button). | A platform scheduler. |
+| Riddle and film answers **in every form** | **Partial** | Answers are compared without case, spaces and punctuation, against the names Aegis knows in five languages; another spelling or a translated film title it doesn't know doesn't count. | More aliases. |
+| The dream dictionary **for every symbol** | **Partial** | 92 symbols; for a dream with none of them Aegis says so and suggests main words. Meanings are symbolic, not predictions, and say so. | More symbols. |
 
 ## Phase 10 — Super Admin panel, the bot's team, release
 
