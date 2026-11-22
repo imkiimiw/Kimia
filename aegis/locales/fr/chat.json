@@ -125,5 +125,6 @@
   "btn_analytics": "📈 Analyse",
   "btn_fun": "🎮 Divertissement",
   "btn_media": "🖼 Outils médias",
-  "btn_notes": "📝 Notes et filtres"
+  "btn_notes": "📝 Notes et filtres",
+  "btn_wizard": "🧙 Assistant de configuration"
 }

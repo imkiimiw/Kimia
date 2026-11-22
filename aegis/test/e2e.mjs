@@ -950,7 +950,7 @@ await scenario('phase 2 — the panel: level, rights, outside admins, sections; 
   assert.match(root.plain, /Aegis has every permission it needs/);
   assert.match(root.plain, /Admins not appointed through Aegis: 1/);
   const s = (x) => `g:${ALPHA}:${x}`;
-  assert.deepEqual(dataOf(root), [s('K'), s('S'), s('L'), s('P'), s('W'), s('B'), s('F'), s('U'), s('V'), s('T'), s('nt'), s('st'), s('pt'), s('ct'), s('pl'), s('qa'), s('ap'), s('fn'), s('md'), s('O'), s('p'), s('a'), s('l'), s('g'), s('r'), s('h'), s('x'), 'cl']);
+  assert.deepEqual(dataOf(root), [s('K'), s('S'), s('L'), s('P'), s('W'), s('B'), s('F'), s('U'), s('V'), s('T'), s('nt'), s('wz'), s('st'), s('pt'), s('ct'), s('pl'), s('qa'), s('ap'), s('fn'), s('md'), s('O'), s('p'), s('a'), s('l'), s('g'), s('r'), s('h'), s('x'), 'cl']);
   await press(P.carol, s('p'), carolPanel);
   const perms = screenOf(P.carol, carolPanel).plain;
   assert.equal((perms.match(/✅/g) || []).length, 7);
@@ -1016,6 +1016,37 @@ await scenario('📝 notes and filters: admins save (text with buttons and place
   rawDatabase().prepare('DELETE FROM aegis_notes WHERE chat_id = ?').run(ALPHA);
   rawDatabase().prepare('DELETE FROM aegis_filters WHERE chat_id = ?').run(ALPHA);
   rawDatabase().prepare("DELETE FROM aegis_chat_settings WHERE chat_id = ? AND key = 'filters_on'").run(ALPHA);
+});
+
+await scenario('🧙 the setup wizard: what the group is for, how strict, a summary, «Apply» sets security modules, locks and settings through the logged paths', async () => {
+  const cp2 = (d) => press(P.carol, d, carolPanel);
+  await cp2(`g:${ALPHA}:wz`);
+  assert.match(screenOf(P.carol, carolPanel).plain, /🧙 Setup wizard — ⁨Alpha⁩\n\nWhat is this group for\?/);
+  assert.deepEqual(dataOf(screenOf(P.carol, carolPanel)), ['chat', 'study', 'shop', 'news'].map((x) => `g:${ALPHA}:wz:${x}`).concat(`g:${ALPHA}`));
+  await cp2(`g:${ALPHA}:wz:shop`);
+  assert.match(screenOf(P.carol, carolPanel).plain, /Group: 🛍 Shop \/ business\n\nHow strict should Aegis be\?/);
+  await cp2(`g:${ALPHA}:wz:shop:balanced`);
+  const sum = screenOf(P.carol, carolPanel).plain;
+  assert.match(sum, /🛍 Shop \/ business · 🟡 Balanced — recommended — this is what changes:/);
+  assert.match(sum, /Anti-flood \(5 in 5 s → mute 10 min\)[^]*Notes and filters on/);
+  assert.equal(row('SELECT count(*) AS n FROM aegis_guards WHERE chat_id = ?', ALPHA).n, 0, 'nothing changes before «Apply»');
+  const done = await cp2(`g:${ALPHA}:wz:shop:balanced:ok`);
+  assert.equal(done.toast, '✅ Applied');
+  const guard = (code) => JSON.parse((row('SELECT config FROM aegis_guards WHERE chat_id = ? AND code = ?', ALPHA, code) || { config: '{"on":0}' }).config);
+  assert.deepEqual([guard('flood').on, guard('flood').n, guard('flood').t], [1, 5, 5]);
+  assert.deepEqual([guard('antilink').on, guard('antilink').sc], [1, 'all'], 'a shop: only admins post links');
+  assert.deepEqual([guard('captcha').on, guard('captcha').mode], [1, 'button']);
+  assert.equal(guard('quarantine').on, 0, 'off (unchanged default)');
+  assert.deepEqual(['invite', 'masked'].map((c) => row('SELECT enabled FROM aegis_locks WHERE chat_id = ? AND code = ?', ALPHA, c).enabled), [1, 1]);
+  const set = (k) => (row('SELECT value FROM aegis_chat_settings WHERE chat_id = ? AND key = ?', ALPHA, k) || {}).value;
+  assert.deepEqual(['fun_on', 'del_join', 'bot_kick'].map(set), ['0', '1', '1']);
+  assert.ok(['notes_on', 'filters_on'].every((k) => set(k) !== '0'), 'notes and filters on (their default)');
+  assert.ok(row("SELECT id FROM aegis_audit WHERE chat_id = ? AND action = 'chat.preset' AND actor_id = ?", ALPHA, P.carol.id));
+  assert.ok(row("SELECT count(*) AS n FROM aegis_audit WHERE chat_id = ? AND action = 'guard.set'", ALPHA).n >= 7, 'every module change logged');
+  /* back as it was (the later scenarios expect Alpha's defaults) */
+  rawDatabase().prepare('DELETE FROM aegis_guards WHERE chat_id = ?').run(ALPHA);
+  rawDatabase().prepare("DELETE FROM aegis_locks WHERE chat_id = ? AND code IN ('invite', 'masked')").run(ALPHA);
+  for (const k of ['notes_on', 'filters_on', 'fun_on', 'del_join', 'del_leave', 'bot_kick', 'reports', 'welcome_on']) rawDatabase().prepare('DELETE FROM aegis_chat_settings WHERE chat_id = ? AND key = ?').run(ALPHA, k);
 });
 
 await scenario('phase 2 — appointing an admin through Aegis: pick (shared user), rights editor, locked rights, confirm, promoteChatMember, logged', async () => {
@@ -1480,7 +1511,7 @@ await scenario('phase 3 — the panel: 19 lists; add, search, details, note, edi
   const c = await olgaSays('/config');
   olgaPanel = midOf(sent(c)[0]);
   await olga(`g:${BETA}`);
-  assert.deepEqual(dataOf(olgaScreen()).slice(0, 20), [B('K'), B('S'), B('L'), B('P'), B('W'), B('B'), B('F'), B('U'), B('V'), B('T'), B('nt'), B('st'), B('pt'), B('ct'), B('pl'), B('qa'), B('ap'), B('fn'), B('md'), B('O')]);
+  assert.deepEqual(dataOf(olgaScreen()).slice(0, 21), [B('K'), B('S'), B('L'), B('P'), B('W'), B('B'), B('F'), B('U'), B('V'), B('T'), B('nt'), B('wz'), B('st'), B('pt'), B('ct'), B('pl'), B('qa'), B('ap'), B('fn'), B('md'), B('O')]);
   await olga(B('L'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:L:[a-z]{3}$/.test(d)).length, 19);
   assert.match(olgaScreen().plain, /Each list belongs to this chat only/);

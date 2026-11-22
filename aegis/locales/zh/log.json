@@ -120,5 +120,6 @@
   "notes_save": "保存了笔记 #{key}",
   "notes_clear": "删除了笔记 #{key}",
   "filters_save": "保存了过滤“{key}”",
-  "filters_remove": "删除了过滤“{key}”"
+  "filters_remove": "删除了过滤“{key}”",
+  "chat_preset": "应用了预设配置"
 }

@@ -71,6 +71,8 @@ async function warningRows(ctx, lang, chat, missing, inPrivate) {
   const bot = (await me(ctx)).username;
   const open = inPrivate ? btn(t(lang, 'group.btn_panel'), `g:${chat.chat_id}`) : urlBtn(t(lang, 'group.btn_panel'), panelLink(bot, chat.chat_id));
   const rows = [[open]];
+  /* in private, groups (not channels) also get the setup wizard */
+  if (inPrivate && chat.type !== 'channel') rows.push([btn(t(lang, 'group.btn_wizard'), `g:${chat.chat_id}:wz`)]);
   if (missing.length) rows.push([urlBtn(t(lang, 'group.btn_grant'), grantLink(bot, chat))]);
   return rows;
 }

@@ -120,5 +120,6 @@
   "notes_save": "saved the note #{key}",
   "notes_clear": "removed the note #{key}",
   "filters_save": "saved the filter «{key}»",
-  "filters_remove": "removed the filter «{key}»"
+  "filters_remove": "removed the filter «{key}»",
+  "chat_preset": "applied a setup preset"
 }

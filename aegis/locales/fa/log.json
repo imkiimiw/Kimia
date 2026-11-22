@@ -120,5 +120,6 @@
   "notes_save": "یادداشت #{key} را ذخیره کرد",
   "notes_clear": "یادداشت #{key} را حذف کرد",
   "filters_save": "فیلتر «{key}» را ذخیره کرد",
-  "filters_remove": "فیلتر «{key}» را حذف کرد"
+  "filters_remove": "فیلتر «{key}» را حذف کرد",
+  "chat_preset": "یک تنظیم آماده را اعمال کرد"
 }

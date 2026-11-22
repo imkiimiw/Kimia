@@ -231,7 +231,8 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'ch.dv_log_': ['published', 'rejected', 'failed', 'nobody'], 'ch.dv_choice_': ['y', 'n'],
     /* the quick panel in groups */
     'group.qp_k_': ['f', 'm', 'w', 'j', 'k', 'n', 'e', 'p', 'q', 'r'],
-    'adv.k_': ['notes_on', 'filters_on'], 'notecmd.': ['save', 'get', 'notes', 'clear', 'filter', 'stop', 'filters'],
+    'adv.k_': ['notes_on', 'filters_on'], 'adv.wz_t_': ['chat', 'study', 'shop', 'news'], 'adv.wz_l_': ['relaxed', 'balanced', 'strict'],
+    'adv.wz_sum_': ['relaxed', 'balanced', 'strict'], 'adv.wz_sum_t_': ['chat', 'study', 'shop', 'news'], 'notecmd.': ['save', 'get', 'notes', 'clear', 'filter', 'stop', 'filters'],
     'gamelist.cs_t_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_s_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_n_': [...fun.puzzles.CASES.keys()],
     'gamelist.cs_q_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_c_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_a_': [...fun.puzzles.CASES.keys()],
     'gamelist.wa_n_': fun.puzzles.PEOPLE, 'gamelist.wa_c_': fun.puzzles.PEOPLE, 'gamelist.tp_n_': fun.puzzles.PLACES.map(([k]) => k),

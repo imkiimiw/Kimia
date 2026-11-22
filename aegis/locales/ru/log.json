@@ -120,5 +120,6 @@
   "notes_save": "сохранил(а) заметку #{key}",
   "notes_clear": "удалил(а) заметку #{key}",
   "filters_save": "сохранил(а) фильтр «{key}»",
-  "filters_remove": "удалил(а) фильтр «{key}»"
+  "filters_remove": "удалил(а) фильтр «{key}»",
+  "chat_preset": "применил(а) готовую настройку"
 }

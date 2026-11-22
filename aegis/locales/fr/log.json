@@ -120,5 +120,6 @@
   "notes_save": "a enregistré la note #{key}",
   "notes_clear": "a supprimé la note #{key}",
   "filters_save": "a enregistré le filtre « {key} »",
-  "filters_remove": "a supprimé le filtre « {key} »"
+  "filters_remove": "a supprimé le filtre « {key} »",
+  "chat_preset": "a appliqué une configuration prête"
 }

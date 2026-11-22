@@ -23,6 +23,8 @@ import { esc, iso, normalizeWord, nowSec, parseJson, short } from '../core/util.
 import * as admins from '../engines/admins.js';
 import { parseButtons } from '../core/content.js';
 import * as gd from '../engines/groupdata.js';
+import * as guards from '../engines/guards.js';
+import * as locks from '../engines/locks.js';
 import * as settings from '../engines/settings.js';
 import * as users from '../engines/users.js';
 import { dur, num, t } from '../i18n/index.js';
@@ -367,4 +369,81 @@ export async function notes(ctx, user, g, parts, place) {
   kb.push(...pairs(fs.slice(0, 24).map((r, i) => btn(t(lang, 'adv.btn_del_filter', { trigger: short(r.trigger, 24) }), `g:${c}:nt:xf:${i}`))));
   kb.push(back(lang, `g:${c}`));
   return screen(ctx, user.user_id, place, lines.join('\n'), kb, 'panel-notes');
+}
+
+/* ---------- 🧙 the setup wizard (g:<chat>:wz) ---------- */
+
+/*
+ * Two questions — what the group is for, how strict — then a summary and «Apply». A preset sets the
+ * security modules, a few locks and group settings listed in it (through the same functions as the panel,
+ * so every change is logged); everything not in it stays as it was.
+ */
+const WZ_TYPES = ['chat', 'study', 'shop', 'news'];
+const WZ_LEVELS = ['relaxed', 'balanced', 'strict'];
+const WZ_GUARDS = {
+  relaxed: { flood: { on: 1, a: 'mute', d: 600, n: 8, t: 5 }, antiads: { on: 1, a: 'mute', d: 86400 }, raid: { on: 1, n: 20, t: 60, act: 'captcha' },
+    suspicious: { on: 1, a: 'none', del: 1 }, antilink: { on: 0 }, captcha: { on: 0 }, quarantine: { on: 0 }, risk: { on: 0 } },
+  balanced: { flood: { on: 1, a: 'mute', d: 600, n: 5, t: 5 }, antiads: { on: 1, a: 'mute', d: 86400 }, raid: { on: 1, n: 10, t: 60, act: 'captcha' },
+    suspicious: { on: 1, a: 'none', del: 1 }, antilink: { on: 1, a: 'none', del: 1, sc: 'new' }, captcha: { on: 1, mode: 'button', fail: 'kick' },
+    quarantine: { on: 0 }, risk: { on: 1, lv: 'medium', a: 'mute' } },
+  strict: { flood: { on: 1, a: 'mute', d: 3600, n: 5, t: 10 }, antiads: { on: 1, a: 'ban', d: 0 }, raid: { on: 1, n: 5, t: 60, act: 'lock' },
+    suspicious: { on: 1, a: 'mute', d: 3600, del: 1 }, antilink: { on: 1, a: 'warn', del: 1, sc: 'all' }, captcha: { on: 1, mode: 'math', fail: 'kick' },
+    quarantine: { on: 1, dur: 3600, lvl: 'text' }, risk: { on: 1, lv: 'high', a: 'mute' } },
+};
+const WZ_LOCKS = { relaxed: {}, balanced: { invite: 1, masked: 1 }, strict: { invite: 1, masked: 1, forward: 1, via_bot: 1 } };
+const WZ_SETTINGS = {
+  relaxed: { del_join: '1', del_leave: '1' },
+  balanced: { del_join: '1', del_leave: '1', bot_kick: '1' },
+  strict: { del_join: '1', del_leave: '1', bot_kick: '1', del_cmds: '1', max_mentions: '5', name_watch: '1' },
+};
+const WZ_TYPE_SETTINGS = {
+  chat: { fun_on: '1', pts_on: '1', welcome_on: '1' },
+  study: { fun_on: '0', pts_on: '1', qa_on: '1', welcome_on: '1', slow: '10' },
+  shop: { fun_on: '0', notes_on: '1', filters_on: '1', reports: '1', welcome_on: '1' },
+  news: { fun_on: '0', welcome_on: '0', reports: '1' },
+};
+/* a shop's links come only from its admins */
+const WZ_TYPE_GUARDS = { shop: { antilink: { on: 1, sc: 'all' } } };
+
+export const WIZARD = { WZ_TYPES, WZ_LEVELS, WZ_GUARDS, WZ_LOCKS, WZ_SETTINGS, WZ_TYPE_SETTINGS, WZ_TYPE_GUARDS };
+
+async function applyPreset(ctx, g, type, level, actorId) {
+  const c = g.chat.chat_id;
+  const gp = { ...WZ_GUARDS[level] };
+  for (const [code, patch] of Object.entries(WZ_TYPE_GUARDS[type] || {})) gp[code] = { ...(gp[code] || {}), ...patch };
+  for (const [code, patch] of Object.entries(gp)) await guards.update(ctx, c, code, patch, actorId);
+  for (const [code, on] of Object.entries(WZ_LOCKS[level])) await locks.update(c, code, { on }, actorId);
+  const st = { ...WZ_SETTINGS[level], ...WZ_TYPE_SETTINGS[type] };
+  if (g.chat.type !== 'supergroup') delete st.slow;
+  for (const [key, v] of Object.entries(st)) await settings.set(ctx, c, key, v, actorId);
+  await audit.log(actorId, 'chat.preset', { chatId: c, details: { type, level } });
+}
+
+export async function wizard(ctx, user, g, parts, place) {
+  const lang = user.lang;
+  const c = g.chat.chat_id;
+  const type = WZ_TYPES.includes(parts[3]) ? parts[3] : null;
+  const level = WZ_LEVELS.includes(parts[4]) ? parts[4] : null;
+  const head = [t(lang, 'adv.wz_title', { title: title(g) }), ''];
+  if (!type) {
+    const kb = pairs(WZ_TYPES.map((x) => btn(t(lang, `adv.wz_t_${x}`), `g:${c}:wz:${x}`)));
+    kb.push(back(lang, `g:${c}`));
+    return screen(ctx, user.user_id, place, [...head, t(lang, 'adv.wz_q1')].join('\n'), kb, 'wizard-type');
+  }
+  if (!level) {
+    const kb = WZ_LEVELS.map((x) => [btn(t(lang, `adv.wz_l_${x}`), `g:${c}:wz:${type}:${x}`)]);
+    kb.push([btn(t(lang, 'common.back'), `g:${c}:wz`)]);
+    return screen(ctx, user.user_id, place, [...head, t(lang, 'adv.wz_chosen', { type: t(lang, `adv.wz_t_${type}`) }), '', t(lang, 'adv.wz_q2')].join('\n'), kb, 'wizard-level');
+  }
+  if (parts[5] === 'ok') {
+    if (!(await needLevel(ctx, user, g, L.settings))) return null;
+    await applyPreset(ctx, g, type, level, user.user_id);
+    await answer(ctx, t(lang, 'adv.wz_done_toast'));
+    return screen(ctx, user.user_id, place, [...head, t(lang, 'adv.wz_done', { type: t(lang, `adv.wz_t_${type}`), level: t(lang, `adv.wz_l_${level}`) })].join('\n'),
+      [[btn(t(lang, 'chat.btn_security'), `g:${c}:S`), btn(t(lang, 'chat.btn_locks'), `g:${c}:K`)], back(lang, `g:${c}`)], 'wizard-done');
+  }
+  const lines = [...head, t(lang, 'adv.wz_summary', { type: t(lang, `adv.wz_t_${type}`), level: t(lang, `adv.wz_l_${level}`) }), '',
+    t(lang, `adv.wz_sum_${level}`), t(lang, `adv.wz_sum_t_${type}`), '', t(lang, 'adv.wz_keep')];
+  return screen(ctx, user.user_id, place, lines.join('\n'), [[btn(t(lang, 'adv.wz_apply'), `g:${c}:wz:${type}:${level}:ok`)], [btn(t(lang, 'common.back'), `g:${c}:wz:${type}`)]],
+    'wizard-summary');
 }
