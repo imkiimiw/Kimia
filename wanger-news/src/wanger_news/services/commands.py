@@ -69,6 +69,7 @@ class CommandService:
         self._trends = trends
         self._brief = brief
         self.panel: Any = None  # PanelService, set by the pipeline (it needs this service too)
+        self.corrections: Any = None  # CorrectionService (Phase 5)
 
     async def handle(self, repos: Repositories, ctx: RunContext, message: Message) -> str:
         sender = message.from_user.id if message.from_user else None
@@ -111,6 +112,8 @@ class CommandService:
             text = await self._settings(repos, ctx, args)
         elif name == "timeline":
             text = await self._timeline(repos, ctx, args)
+        elif name == "correct" and self.corrections is not None and sender is not None:
+            text = esc(await self.corrections.from_admin(repos, ctx, args, sender))
         elif name == "channel" and self.panel is not None:
             text = str(await self.panel.channel_command(repos, ctx, args))
         elif name in LATER_PHASE:
@@ -159,6 +162,7 @@ class CommandService:
                 "/trends — موضوع‌های در حال رشد (هشدار زودهنگام)",
                 "/timeline 12 — روند کامل رویدادِ خبر #۱۲",
                 "/brief — پیش‌نمایش خلاصهٔ روز (چیزی منتشر نمی‌شود)",
+                "/correct 12 | مورد | مقدار اشتباه | مقدار درست | منبع — اصلاحیه برای خبر #۱۲",
                 "",
                 "کارت‌های بررسی دکمه دارند: ✅ تأیید · 📤 انتشار فوری · ✏️ ویرایش · ❌ رد.",
             ]

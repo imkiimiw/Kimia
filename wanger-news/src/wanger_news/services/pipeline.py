@@ -36,6 +36,7 @@ from wanger_news.services.ai_stage import AIStage
 from wanger_news.services.brief import BriefService
 from wanger_news.services.commands import PAUSED_KEY, TARGET_KEY, CommandService
 from wanger_news.services.context import RunContext, Target
+from wanger_news.services.corrections import CorrectionService
 from wanger_news.services.dedup import DedupService
 from wanger_news.services.inbox import InboxService
 from wanger_news.services.ingest import HealthSnapshot, IngestService
@@ -110,14 +111,18 @@ class Pipeline:
         self.processing = ProcessingService(cfg)
         self.publisher = PublishService(cfg, sleep=deps.sleep)
         self.stories = StoryService(cfg, deps.ai, sleep=deps.sleep)
-        self.ai = AIStage(cfg, deps.ai, sleep=deps.sleep, stories=self.stories)
+        self.corrections = CorrectionService(cfg, self.publisher)
+        self.ai = AIStage(
+            cfg, deps.ai, sleep=deps.sleep, stories=self.stories, corrections=self.corrections
+        )
         self.review = ReviewService(cfg, self.publisher.posts)
         self.trends = TrendService(cfg, self.publisher)
         self.brief = BriefService(cfg, self.publisher)
         self.commands = CommandService(cfg, self.review, trends=self.trends, brief=self.brief)
         self.panel = PanelService(cfg, deps.base_config or cfg, self.commands)
         self.commands.panel = self.panel
-        self.inbox = InboxService(cfg, self.dedup, self.commands, self.review)
+        self.commands.corrections = self.corrections
+        self.inbox = InboxService(cfg, self.dedup, self.commands, self.review, self.publisher)
 
     @asynccontextmanager
     async def _session(self, dry_run: bool) -> AsyncIterator[AsyncSession]:
@@ -308,7 +313,7 @@ class Pipeline:
         ctx.count("ai_processed", report.processed)
         ctx.count("ai_cached", report.cached)
         ctx.count("ai_expired", report.expired)
-        for key in ("updates", "corroborated", "detached", "waiting"):
+        for key in ("updates", "corroborated", "detached", "waiting", "corrections"):
             if getattr(report, key):
                 ctx.count(f"ai_{key}", getattr(report, key))
         for status, n in report.routed.items():
@@ -316,6 +321,9 @@ class Pipeline:
 
     async def _review(self, repos: Repositories, ctx: RunContext) -> None:
         ctx.count("review_cards", await self.review.send_cards(repos, ctx))
+        cards = await self.corrections.send_cards(repos, ctx)
+        if cards:
+            ctx.count("correction_cards", cards)
 
     async def _classify(self, repos: Repositories, ctx: RunContext) -> None:
         for status, n in (await self.processing.run(repos, ctx)).items():
@@ -328,6 +336,10 @@ class Pipeline:
             ctx.counters[f"publish_skipped:{report.skipped}"] = 1
         for key in ("sent", "previewed", "failed", "uncertain", "expired"):
             ctx.count(f"posts_{key}", getattr(report, key))
+        if not paused and ctx.target is not None:
+            corrected = await self.corrections.publish_approved(repos, ctx)
+            if corrected:
+                ctx.count("corrections_published", corrected)
         for error in report.errors:
             ctx.error(f"publish: {error}")
 

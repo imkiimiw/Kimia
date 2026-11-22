@@ -20,11 +20,13 @@ from wanger_news.db.tables import (
     Article,
     ArticleFingerprint,
     Claim,
+    Correction,
     Evidence,
     Lock,
     PipelineRun,
     ProcessingJob,
     PublishedPost,
+    ReliabilityHistory,
     ReviewRequest,
     Setting,
     Source,
@@ -208,6 +210,13 @@ class ArticleRepo:
 
     async def get(self, article_id: int) -> Article | None:
         return await self.s.get(Article, article_id)
+
+    async def by_external_id(self, source_id: str, external_id: str) -> Article | None:
+        return await self.s.scalar(
+            sa.select(Article).where(
+                Article.source_id == source_id, Article.external_id == external_id
+            )
+        )
 
     async def known_external_ids(self, source_id: str, external_ids: Sequence[str]) -> set[str]:
         if not external_ids:
@@ -1100,6 +1109,72 @@ class TrendRepo:
         return list((await self.s.scalars(stmt)).all())
 
 
+class CorrectionRepo:
+    def __init__(self, session: AsyncSession) -> None:
+        self.s = session
+
+    async def add(self, correction: Correction) -> Correction:
+        self.s.add(correction)
+        await self.s.flush()
+        return correction
+
+    async def get(self, correction_id: int) -> Correction | None:
+        return await self.s.get(Correction, correction_id)
+
+    async def by_status(self, status: str, limit: int) -> list[Correction]:
+        stmt = (
+            sa.select(Correction)
+            .where(Correction.status == status)
+            .order_by(Correction.id.asc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+    async def for_story(self, cluster_id: int) -> list[Correction]:
+        stmt = sa.select(Correction).where(Correction.cluster_id == cluster_id)
+        return list((await self.s.scalars(stmt)).all())
+
+    async def since(self, since: datetime) -> list[Correction]:
+        stmt = sa.select(Correction).where(Correction.created_at >= since)
+        return list((await self.s.scalars(stmt)).all())
+
+
+class ReliabilityRepo:
+    def __init__(self, session: AsyncSession) -> None:
+        self.s = session
+
+    async def add(self, row: ReliabilityHistory) -> ReliabilityHistory:
+        self.s.add(row)
+        await self.s.flush()
+        return row
+
+    async def get(self, row_id: int) -> ReliabilityHistory | None:
+        return await self.s.get(ReliabilityHistory, row_id)
+
+    async def by_status(self, status: str, limit: int = 100) -> list[ReliabilityHistory]:
+        stmt = (
+            sa.select(ReliabilityHistory)
+            .where(ReliabilityHistory.status == status)
+            .order_by(ReliabilityHistory.id.asc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+    async def latest(self) -> ReliabilityHistory | None:
+        return await self.s.scalar(
+            sa.select(ReliabilityHistory).order_by(ReliabilityHistory.created_at.desc()).limit(1)
+        )
+
+    async def history(self, source_id: str, limit: int = 20) -> list[ReliabilityHistory]:
+        stmt = (
+            sa.select(ReliabilityHistory)
+            .where(ReliabilityHistory.source_id == source_id)
+            .order_by(ReliabilityHistory.created_at.desc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+
 class Repositories:
     """Everything one unit of work needs, sharing one session."""
 
@@ -1121,6 +1196,8 @@ class Repositories:
         self.reviews = ReviewRepo(session)
         self.stories = StoryRepo(session)
         self.trends = TrendRepo(session)
+        self.corrections = CorrectionRepo(session)
+        self.reliability = ReliabilityRepo(session)
 
     async def commit(self) -> None:
         await self.session.commit()

@@ -155,7 +155,12 @@ class FakeTelegram:
             if int(payload["chat_id"]) in self.not_admin:
                 return {"status": "member"}
             return {"status": "administrator", "can_post_messages": True}
-        if method in ("answerCallbackQuery", "editMessageReplyMarkup", "editMessageText"):
+        if method in (
+            "answerCallbackQuery",
+            "editMessageReplyMarkup",
+            "editMessageText",
+            "editMessageCaption",
+        ):
             return True
         raise AssertionError(f"unexpected method {method}")
 

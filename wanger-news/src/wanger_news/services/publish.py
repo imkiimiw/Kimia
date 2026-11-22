@@ -112,6 +112,7 @@ class PublishService:
         self._cfg = config
         self._sleep = sleep
         self.posts = PostBuilder(config)
+        self.last_message_ids: list[int] = []  # of the last send_extra (correction posts)
 
     async def run(self, repos: Repositories, ctx: RunContext, *, paused: bool) -> PublishReport:
         report = PublishReport()
@@ -394,7 +395,14 @@ class PublishService:
 
     # ---------------------------------------------------------------- posts without an article
     async def send_extra(
-        self, repos: Repositories, ctx: RunContext, *, key: str, kind: str, text: str
+        self,
+        repos: Repositories,
+        ctx: RunContext,
+        *,
+        key: str,
+        kind: str,
+        text: str,
+        reply_to: int | None = None,
     ) -> str:
         """A daily brief or a trend alert to the target channel, with the same at-most-once
         protocol as articles. Returns sent | exists | failed | uncertain | preview | skipped."""
@@ -419,8 +427,9 @@ class PublishService:
             return "exists"
         post.kind = kind
         await repos.commit()
+        post.reply_to_message_id = reply_to
         try:
-            delivery = await self._send_text(ctx, target, text)
+            delivery = await self._send_text(ctx, target, text, reply_to)
         except TelegramUncertain as exc:
             await repos.posts.finish(post, PostStatus.UNCERTAIN, ctx.now(), error=str(exc))
             await repos.commit()
@@ -438,6 +447,7 @@ class PublishService:
             method=delivery.method,
         )
         await repos.commit()
+        self.last_message_ids = delivery.message_ids
         return "sent"
 
     # ---------------------------------------------------------------- stories
@@ -675,6 +685,55 @@ class PublishService:
             "sendMediaGroup", {"chat_id": target.chat.api_value, "media": media}
         )
         return Delivery("sendMediaGroup", [int(r["message_id"]) for r in result], styled.text)
+
+    # ---------------------------------------------------------------- edits (Phase 5)
+    async def edit_relayed(
+        self, repos: Repositories, ctx: RunContext, article: Article, post: PublishedPost
+    ) -> str:
+        """The source post was edited: edit the bot's copy with the same rule (rebrand/copy)."""
+        assert ctx.target is not None
+        tg = article.telegram or {}
+        items = list(tg.get("items") or [])
+        relay = self.relay(article, ctx.target)
+        if relay.kind == "empty":
+            return "edit:empty"
+        if relay.styled is not None:
+            text, entities = relay.styled.text, relay.styled.entities
+            index = relay.caption_index if relay.kind == "album" else 0
+            as_caption = relay.kind in ("caption", "album")
+        elif items:  # copy mode: the copy gets the edited text unchanged
+            index = next((n for n, i in enumerate(items) if i.get("text")), 0)
+            text = str(items[index].get("text") or "")
+            entities = list(items[index].get("entities") or [])
+            as_caption = items[index].get("kind") != "text"
+        else:
+            return "edit:not_editable"
+        if index >= len(post.message_ids):
+            return "edit:not_editable"
+        method = "editMessageCaption" if as_caption else "editMessageText"
+        payload: dict[str, Any] = {
+            "chat_id": ctx.target.chat.api_value,
+            "message_id": post.message_ids[index],
+            ("caption" if as_caption else "text"): text,
+            ("caption_entities" if as_caption else "entities"): entities,
+        }
+        if ctx.dry_run or ctx.bot is None:
+            ctx.out(f"=== [dry-run] {method} {post.message_ids[index]}\n{text}\n")
+            return "edit:preview"
+        try:
+            await ctx.bot.call(method, payload)
+        except TelegramNotSent as exc:
+            if "not modified" in (exc.description or ""):
+                return "edit:unchanged"
+            return "edit:failed"
+        post.text = text
+        story = await repos.stories.get(article.cluster_id)
+        if story is not None:
+            timeline_event(
+                story, ctx.now().isoformat(), "source_post_edited", article_id=article.id
+            )
+        await repos.commit()
+        return "edit:applied"
 
 
 def _reply(message_id: int | None) -> dict[str, Any]:

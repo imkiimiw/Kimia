@@ -80,6 +80,7 @@ class AIReport:
     corroborated: int = 0
     detached: int = 0
     waiting: int = 0
+    corrections: int = 0  # Phase 5: proposals waiting for a human
     routed: dict[str, int] = field(default_factory=dict)
     expired: int = 0
     skipped: str | None = None
@@ -143,8 +144,10 @@ class AIStage:
         provider: AIProvider | None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         stories: StoryService | None = None,
+        corrections: Any = None,  # CorrectionService (Phase 5)
     ) -> None:
         self._cfg = config
+        self._corrections = corrections
         self._ai = config.pipeline.ai
         self._story = config.pipeline.story
         self._provider = provider
@@ -512,8 +515,11 @@ class AIStage:
                     **(item.previous or {}),
                     "_same_event": answer.same_event,
                     "_has_new": answer.has_new_information,
+                    "_corrections": [c.model_dump() for c in getattr(answer, "corrections", [])],
                 }
-            fields = answer.model_dump(exclude={"id", "same_event", "has_new_information"})
+            fields = answer.model_dump(
+                exclude={"id", "same_event", "has_new_information", "corrections"}
+            )
             item.draft = SummaryDraft.model_validate(fields).cleaned()
             item.model = result.usage.model
 
@@ -526,6 +532,13 @@ class AIStage:
         """Different event → own story · nothing new → corroboration · else: an update text."""
         flags = item.previous or {}
         reports = [item.article, *item.members]
+        proposals = flags.get("_corrections") or []
+        wanted = flags.get("_same_event", True) and proposals and item.story is not None
+        if wanted and self._corrections is not None and item.story is not None:
+            names = {f"s{a.id}": self._stories.report_of(a).source_name for a in reports}
+            report.corrections += await self._corrections.propose(
+                repos, ctx, item.story, proposals, item.sources, names
+            )
         if not flags.get("_same_event", True):
             for article in reports:
                 await self._stories.detach(repos, ctx, article, "AI: a different event")

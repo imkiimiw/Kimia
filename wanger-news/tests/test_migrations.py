@@ -32,7 +32,8 @@ PHASE1_TABLES = {
 PHASE2_TABLES = {"ai_runs", "summaries", "review_requests"}
 PHASE3_TABLES = {"story_clusters", "claims", "evidence"}
 PHASE4_TABLES = {"trend_alerts"}
-ALL_TABLES = PHASE1_TABLES | PHASE2_TABLES | PHASE3_TABLES | PHASE4_TABLES
+PHASE5_TABLES = {"corrections", "reliability_history"}
+ALL_TABLES = PHASE1_TABLES | PHASE2_TABLES | PHASE3_TABLES | PHASE4_TABLES | PHASE5_TABLES
 
 
 def alembic_config(url: str) -> Config:
@@ -147,7 +148,7 @@ def roundtrip(url: str) -> None:
     # Phase 4: a post without an article (daily brief) cannot exist below 0004
     insert_brief_post(url)
     command.downgrade(cfg, "0003")
-    assert tables(url) == ALL_TABLES - PHASE4_TABLES
+    assert tables(url) == ALL_TABLES - PHASE4_TABLES - PHASE5_TABLES
     assert count_posts(url) == 0
     command.upgrade(cfg, "head")
     command.downgrade(cfg, "0001")

@@ -404,3 +404,28 @@ def render_story_timeline(title: str, lines: list[tuple[str, str, str]], limit: 
     if len(lines) > limit:
         head += f"\n(فقط {to_persian_digits(str(limit))} رویداد آخر)"
     return head + "\n" + "\n".join(rows)
+
+
+# ------------------------------------------------------------------ Phase 5: corrections
+
+
+def render_correction(sentence: str) -> str:
+    """«⚠️ اصلاح خبر» (spec §10); ``sentence`` from domain/corrections.correction_text."""
+    return f"⚠️ <b>اصلاح خبر</b>\n{esc(sentence)}"
+
+
+def render_correction_card(
+    correction_id: int, story_title: str, sentence: str, evidence: str | None, origin: str
+) -> str:
+    who = "پیشنهاد هوش مصنوعی از گزارش تازه" if origin == "ai" else "نوشتهٔ ادمین"
+    lines = [
+        f"⚠️ <b>پیشنهاد اصلاح #{to_persian_digits(str(correction_id))}</b> — {esc(who)}",
+        f"خبر منتشرشده: {esc(truncate(story_title, 150))}",
+        "",
+        "━━━━━━ پیش‌نمایش ━━━━━━",
+        render_correction(sentence),
+    ]
+    if evidence:
+        lines += ["", f"📎 شاهد از منبع: «{esc(truncate(evidence, 300))}»"]
+    lines += ["", "اگر تأیید کنید، به‌صورت Reply زیر پست منتشرشده می‌رود."]
+    return "\n".join(lines)

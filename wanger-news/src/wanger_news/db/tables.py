@@ -400,3 +400,47 @@ class TrendAlert(Base):
     details: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
     notified: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.false())
     created_at: Mapped[datetime] = mapped_column(index=True)
+
+
+class Correction(Base):
+    """Phase 5: a correction of a published story (spec §10) — proposed by the AI from a new
+    report or written by an admin; published only after an admin approves it."""
+
+    __tablename__ = "corrections"
+    id: Mapped[int] = mapped_column(BigId, primary_key=True, autoincrement=True)
+    cluster_id: Mapped[int | None] = mapped_column(sa.BigInteger, index=True)
+    article_id: Mapped[int | None] = mapped_column(sa.BigInteger)  # the published post's article
+    source_article_id: Mapped[int | None] = mapped_column(sa.BigInteger)
+    source_name: Mapped[str] = mapped_column(sa.String(120))
+    item: Mapped[str] = mapped_column(sa.Text)
+    old_value: Mapped[str] = mapped_column(sa.Text)
+    new_value: Mapped[str] = mapped_column(sa.Text)
+    evidence: Mapped[str | None] = mapped_column(sa.Text)
+    origin: Mapped[str] = mapped_column(sa.String(8))  # ai | human
+    status: Mapped[str] = mapped_column(sa.String(16), index=True)
+    # proposed → approved → published | rejected | invalid (failed the deterministic check)
+    problems: Mapped[list[str]] = mapped_column(JSONType, default=list)
+    review_messages: Mapped[list[dict[str, int]]] = mapped_column(JSONType, default=list)
+    decided_by: Mapped[int | None] = mapped_column(sa.BigInteger)
+    decided_at: Mapped[datetime | None] = mapped_column()
+    post_chat: Mapped[str | None] = mapped_column(sa.String(64))
+    post_message_id: Mapped[int | None] = mapped_column(sa.BigInteger)
+    created_at: Mapped[datetime] = mapped_column()
+
+
+class ReliabilityHistory(Base):
+    """Phase 5: reliability learning — suggestions and decisions, never applied automatically."""
+
+    __tablename__ = "reliability_history"
+    __table_args__ = (sa.Index("ix_reliability_history_source_created", "source_id", "created_at"),)
+    id: Mapped[int] = mapped_column(BigId, primary_key=True, autoincrement=True)
+    source_id: Mapped[str] = mapped_column(sa.String(64))
+    old_score: Mapped[int] = mapped_column(sa.Integer)
+    new_score: Mapped[int] = mapped_column(sa.Integer)
+    signals: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    explanation: Mapped[str] = mapped_column(sa.Text)
+    status: Mapped[str] = mapped_column(sa.String(16), index=True)
+    # suggested → applied | dismissed | superseded
+    decided_by: Mapped[int | None] = mapped_column(sa.BigInteger)
+    decided_at: Mapped[datetime | None] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column()

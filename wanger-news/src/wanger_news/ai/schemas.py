@@ -25,11 +25,22 @@ class SummarizeOutput(_Model):
     articles: list[SummarizedArticle]
 
 
+class CorrectionProposal(_Model):
+    """Phase 5: a published fact that a new report shows to be wrong (not merely updated)."""
+
+    item: str = Field(description="what was wrong, in Persian (e.g. «شمار کشته‌ها»)")
+    old: str = Field(description="what the published Persian text said, as it said it")
+    new: str = Field(description="the correct value, in Persian, as the new report states it")
+    source_id: str = Field(description="the NEW report that states the correct value")
+    evidence: str = Field(description="word-for-word excerpt of that report with the value")
+
+
 class UpdatedArticle(SummarizedArticle):
-    """An update to a published story: only what is NEW (Phase 3)."""
+    """An update to a published story: only what is NEW (Phase 3); corrections (Phase 5)."""
 
     same_event: bool = True
     has_new_information: bool = True
+    corrections: list[CorrectionProposal] = Field(default_factory=list)
 
 
 class UpdateOutput(_Model):
