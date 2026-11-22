@@ -89,6 +89,11 @@ python -m wanger_news migrate | db-check | doctor | validate-config   # doctor c
   own baseline (`domain/trends.py`), never AI text; admins by default. The daily brief and
   related links reuse already-published titles only. Posts without an article (brief, trend)
   go through `PublishService.send_extra` (same claim → send → record, `article_id` NULL).
+- Phase 5: rules (`config/rules.yaml`, `domain/rules.py`) run AFTER the safety routing and only
+  tighten (`domain/editorial.apply_rules`). Corrections are always human-approved and checked
+  (`domain/corrections.check`). Reliability changes are suggestions only (`reliability_history`);
+  an applied score is a panel setting. The API (`api/app.py`) must call the same services as
+  the bot's buttons and refuse to start without `WANGER_NEWS_API_TOKEN`.
 - New migration per schema change (`alembic revision --autogenerate`, then freeze types: no app
   imports in migrations); upgrade AND downgrade must pass on SQLite and PostgreSQL.
 - Python 3.11+, full type hints, mypy strict, ruff. Tests never touch the network.

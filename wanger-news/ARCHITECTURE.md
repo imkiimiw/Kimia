@@ -1,11 +1,13 @@
 # Wanger News — Architecture
 
-Status: **Phase 4** (real time: 🔴 breaking, early warning of growing topics, related stories,
-story timeline, daily brief) on top of Phase 3 (stories of one event across outlets, independent
+Status: **Phase 5** (operations: editorial rules engine, corrections, analytics and cost tracking,
+source reliability learning, admin dashboard API) on top of Phase 4 (real time: 🔴 breaking, early
+warning of growing topics, related stories, story timeline, daily brief) on top of Phase 3 (stories of one event across outlets, independent
 sources, claims and evidence, contradictions, update posts), Phase 2 (AI: Persian summaries,
 hallucination guard, review, main channel) and Phase 1 (foundation). This document describes what
 exists, where every later feature plugs in, and why each decision was taken (ADRs at the end;
-Phase 2 decisions are ADR-019 onwards, Phase 3 ADR-029 onwards, Phase 4 ADR-038 onwards).
+Phase 2 decisions are ADR-019 onwards, Phase 3 ADR-029 onwards, Phase 4 ADR-038 onwards, Phase 5
+ADR-046 onwards).
 
 ## 1. Overview
 
@@ -33,6 +35,9 @@ Phase 2 decisions are ADR-019 onwards, Phase 3 ADR-029 onwards, Phase 4 ADR-038 
             related earlier stories linked; update posts list the story so far
    TRENDS : reports per story / name vs its own 24 h baseline → ⚠️ early warning (admins)
    BRIEF  : once a day (21:00 Tehran) the day's published titles, linked to their posts
+   OPERATIONS: weekly reliability suggestions (owner applies) · monthly cost alert
+   (rules.yaml applies inside CLUSTER and AI routing; corrections: cards → reply posts)
+   API    : option B — FastAPI admin API over the same services (`python -m wanger_news api`)
                                    │
                  PostgreSQL (Neon/Supabase free tier) — ALL state lives here
 ```
@@ -106,7 +111,7 @@ on news that will not expire). Publishing takes "publish now" first, then the im
 | 6-hour job limit / minutes | A run is ~1 minute (16 feeds concurrently, few posts). `timeout-minutes: 10`. Public repository → Actions minutes are free. |
 | Scheduled workflows | Run only from the default branch; GitHub disables them after 60 days without repository activity. |
 
-## 5. Data model (migrations `0001` Phase 1, `0002` Phase 2, `0003` Phase 3, `0004` Phase 4)
+## 5. Data model (migrations `0001`–`0005`, one per phase)
 
 | Table | Purpose |
 |---|---|
@@ -129,6 +134,8 @@ on news that will not expire). Publishing takes "publish now" first, then the im
 | `claims` (0003) | claims of a story's summary: text, status (confirmed/likely/unconfirmed/conflicting/rejected), confidence, supporting articles, versions (for conflicting claims) |
 | `evidence` (0003) | verbatim excerpt per (claim, article), supports or not |
 | `trend_alerts` (0004) | early warnings: kind (story/name), key, label, window, reports, outlets, usual count, ratio, story, notified |
+| `corrections` (0005) | corrections of published stories: item, wrong/correct value, source, evidence, origin (ai/human), status (proposed/approved/published/rejected/invalid), check problems, review messages, who decided, the reply post |
+| `reliability_history` (0005) | reliability suggestions and decisions: source, old/new score, signals, explanation, status (suggested/applied/dismissed/superseded), who decided |
 
 `articles` gained (0002): `summary_id`, `importance_score` + breakdown, `confidence_score` +
 breakdown, `publish_mode`, `review_reason`, `approved_by`/`approved_at`, `publish_now`. The
@@ -550,4 +557,56 @@ applied at the start of the next run over the environment and the config files
 server every tap is handled on the next run (minutes) — said on the panel itself; a webhook
 (option B) would make it instant. The owner's three channels are defaults in the workflow, so no
 GitHub variables are needed.
+
+### Phase 5 — operations
+
+**ADR-046 — the rules engine only tightens.** `config/rules.yaml` (spec §11) holds `if` → `then`
+rules, validated at load: unknown categories, sensitive topics or sources, empty conditions, and
+an action used at the wrong stage are refused. Conditions are AND, a list means "any of".
+Actions: `require_human_review`, `hold`, `skip`, `{priority}`, `{mode}` in the AI routing, and
+`merge` / `new_story` (with `duplicate_similarity_gt`) at clustering. Rules run AFTER the safety
+routing (`domain/editorial.apply_rules`), and only in the strict direction: skip > review > hold.
+A guard failure, a sensitive topic, contradicting sources or confidence < 50 can never be turned
+into "publish" by a rule. Every hit is recorded on the article and named on the review card; the
+owner can switch each rule off in the panel (stored like the other panel switches).
+
+**ADR-047 — a correction is a stricter update and always seen by a human.** The update prompt
+(v2) may list `corrections` when a new report states that a published fact was wrong (a rising
+toll is new information, not a correction). `domain/corrections.check` needs the old value in what
+we published (numbers compared), the new value in the new source (numbers included) and a
+verbatim excerpt; failing proposals are kept as `invalid`, never shown. Admins can also write one
+(`/correct id | item | wrong | correct | source`). Every proposal becomes a card; only an approved
+one is posted, in the publish stage (pause, dry run and the at-most-once key apply), as a reply
+under the story's post with the spec §10 sentence. The wording "به اشتباه" asserts an error,
+which is why a human decides.
+
+**ADR-048 — edits in the source channel follow the post.** `edited_channel_post` is now read.
+The stored text of the source post is updated; if it was already published, the bot's copy is
+edited (`editMessageText` / `editMessageCaption`) with the same rebrand rule. Posts of a target
+channel are never treated as source posts.
+
+**ADR-049 — analytics and costs are read-only views.** `services/analytics.py` aggregates what is
+already recorded (articles, posts by kind, admin decisions, time to publish, `ai_runs` tokens and
+estimated cost per operation and model, guard results, stories, corrections): `/report [days]`,
+the panel's 💰 screen and `/api/analytics`. The cost is the paid-plan estimate (`ai.price_*`); the
+free tier costs nothing. `costs.monthly_budget_usd` (0 = off) warns the owner once a month at
+`alert_at_fraction` of the budget.
+
+**ADR-050 — reliability learning suggests; the owner decides.** Weekly, per RSS source, over 30
+days: the admins' approvals vs rejections, the guard's verdicts on texts made from it, how often
+its claims were confirmed by another independent origin (only in stories that had at least two
+origins — an exclusive report is not a weakness) and published corrections of stories it led.
+`domain/reliability.suggest` turns them into a bounded change (≤ ±10, ignored below 3, signals
+with fewer than 5 cases ignored), every point explained. Suggestions and decisions are rows of
+`reliability_history`; an applied score is a panel setting used from the next run. Nothing is
+ever applied automatically (spec §16).
+
+**ADR-051 — the dashboard API is the bot's services over HTTP.** `api/app.py` (FastAPI, optional
+`[api]` extra, option B: `python -m wanger_news api`, docker-compose profile `api`): status, news
+and decisions, stories, sources and rules (switches), analytics, trends, reliability, corrections.
+Every route but `/health` needs `Authorization: Bearer <WANGER_NEWS_API_TOKEN>` (constant-time
+compare); without a token the app refuses to start. Decisions call the same code as the bot's
+buttons, so the API cannot do anything the bot would not. It is bound to 127.0.0.1 in compose:
+expose it only behind a TLS reverse proxy. A web dashboard UI and the Telegram webhook (instant
+replies) belong to option B and are not built.
 

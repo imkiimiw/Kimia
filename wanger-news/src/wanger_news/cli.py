@@ -232,6 +232,53 @@ def _migrate(settings: Settings, args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+# ---------------------------------------------------------------- api (Phase 5)
+
+
+def _api(settings: Settings, args: argparse.Namespace) -> int:
+    """Serve the admin API. Needs WANGER_NEWS_API_TOKEN, a database and the [api] extra."""
+    try:
+        import uvicorn
+    except ImportError:
+        _out("✖ the API needs the extra: pip install 'wanger-news[api]'")
+        return EXIT_SETUP
+    if settings.api_token is None:
+        _out("✖ WANGER_NEWS_API_TOKEN is not set: the API never runs without a token")
+        return EXIT_SETUP
+    if settings.database_url is None:
+        _out("✖ WANGER_NEWS_DATABASE_URL is not set")
+        return EXIT_SETUP
+    import httpx
+
+    from wanger_news.adapters.telegram.client import TelegramClient
+    from wanger_news.api.app import ApiDeps, create_app
+    from wanger_news.db.engine import create_engine
+    from wanger_news.ports import SystemClock
+    from wanger_news.services.targets import resolve_target
+
+    config = _load(settings)
+    engine = create_engine(settings.database_url.get_secret_value())
+    bot = None
+    if settings.bot_token is not None:
+        bot = TelegramClient(settings.bot_token, httpx.AsyncClient(timeout=20))
+    test, main = settings.test_channel_ref, settings.main_channel_ref
+    app = create_app(
+        ApiDeps(
+            config=config,
+            engine=engine,
+            token=settings.api_token,
+            clock=SystemClock(),
+            owner_id=settings.owner_id,
+            admin_ids=settings.admin_id_set,
+            bot=bot,
+            target=resolve_target(test, main),
+            channels={"test": test, "main": main},
+        )
+    )
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    return EXIT_OK
+
+
 # ---------------------------------------------------------------- doctor
 
 
@@ -306,6 +353,9 @@ def parser() -> argparse.ArgumentParser:
     check.add_argument("--markdown", action="store_true")
     sub.add_parser("validate-config")
     sub.add_parser("doctor")
+    api = sub.add_parser("api", help="admin dashboard API (option B; needs the [api] extra)")
+    api.add_argument("--host", default="0.0.0.0")  # noqa: S104 — inside the container
+    api.add_argument("--port", type=int, default=8080)
     sub.add_parser("db-check")
     migrate = sub.add_parser("migrate")
     migrate.add_argument(
@@ -330,6 +380,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run(_check_sources(settings, args))
         if args.command == "doctor":
             return _run(_doctor(settings, args))
+        if args.command == "api":
+            return _api(settings, args)
         if args.command == "db-check":
             return _run(_db_check(settings, args))
         if args.command == "migrate":
