@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from wanger_news.config.models import AutoPublishConfig
 from wanger_news.domain.enums import ArticleStatus, PublishMode
+from wanger_news.domain.rules import Outcome as RuleOutcome
 
 #: confidence below this is "unconfirmed" and never goes out without a human (spec §8)
 NEVER_AUTO_BELOW = 50
@@ -46,3 +47,29 @@ def route(
     if confidence < auto.min_confidence or importance < auto.min_importance:
         return Route(ArticleStatus.PENDING_REVIEW, "below_auto_threshold")
     return Route(ArticleStatus.QUEUED, "auto")
+
+
+#: routing reasons that come from a safety rule — a rule may never soften them
+SAFETY_REASONS = (
+    "guard_failed",
+    "insufficient_information",
+    "conflicting_reports",
+    "sensitive:",
+    "low_confidence",
+)
+
+
+def apply_rules(decided: Route, outcome: RuleOutcome) -> Route:
+    """The editorial rules on top of the safety routing — only in the strict direction:
+    skip > require_human_review > hold. A safety reason is never replaced by "hold"."""
+    if outcome.skip:
+        return Route(ArticleStatus.FILTERED, "rule:" + outcome.skip[0])
+    if decided.status is ArticleStatus.QUEUED and outcome.review:
+        return Route(ArticleStatus.PENDING_REVIEW, "rule:" + outcome.review[0])
+    if outcome.hold:
+        safety = decided.reason.startswith(SAFETY_REASONS)
+        if decided.status is ArticleStatus.QUEUED or (
+            decided.status is ArticleStatus.PENDING_REVIEW and not safety
+        ):
+            return Route(ArticleStatus.HELD, "rule:" + outcome.hold[0])
+    return decided

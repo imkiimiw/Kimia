@@ -27,6 +27,7 @@ log = logging.getLogger("wanger_news")
 
 CHANNELS_KEY = "panel.channels"
 SOURCES_KEY = "panel.sources"
+RULES_KEY = "panel.rules"
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,10 +47,11 @@ class Overrides:
     sources: list[Channel] = field(default_factory=list)  # source channels added in the panel
     removed: set[str] = field(default_factory=set)  # configured source channels switched off
     active: dict[str, bool] = field(default_factory=dict)  # RSS source id → on/off
+    rules: dict[str, bool] = field(default_factory=dict)  # editorial rule id → on/off
 
     # ---------------------------------------------------------------- storage
     @classmethod
-    def from_settings(cls, channels: Any, sources: Any) -> Overrides:
+    def from_settings(cls, channels: Any, sources: Any, rules: Any = None) -> Overrides:
         ch = channels if isinstance(channels, dict) else {}
 
         def one(value: Any) -> Channel | None:
@@ -65,6 +67,7 @@ class Overrides:
             active={str(k): bool(v) for k, v in (sources or {}).items()}
             if isinstance(sources, dict)
             else {},
+            rules={str(k): bool(v) for k, v in rules.items()} if isinstance(rules, dict) else {},
         )
 
     def channels_value(self) -> dict[str, Any]:
@@ -81,12 +84,15 @@ class Overrides:
     @classmethod
     async def read(cls, repos: Repositories) -> Overrides:
         return cls.from_settings(
-            await repos.settings.get(CHANNELS_KEY), await repos.settings.get(SOURCES_KEY)
+            await repos.settings.get(CHANNELS_KEY),
+            await repos.settings.get(SOURCES_KEY),
+            await repos.settings.get(RULES_KEY),
         )
 
     async def save(self, repos: Repositories, now: Any) -> None:
         await repos.settings.set(CHANNELS_KEY, self.channels_value(), now)
         await repos.settings.set(SOURCES_KEY, dict(sorted(self.active.items())), now)
+        await repos.settings.set(RULES_KEY, dict(sorted(self.rules.items())), now)
 
 
 async def load(engine: AsyncEngine) -> Overrides:
@@ -154,7 +160,16 @@ def apply(config: AppConfig, ov: Overrides) -> AppConfig:
             )
         )
         taken.add(sid)
-    return config.model_copy(update={"sources": SourcesFile(sources=sources)})
+    rules = [
+        r.model_copy(update={"enabled": ov.rules[r.id]}) if r.id in ov.rules else r
+        for r in config.rules.rules
+    ]
+    return config.model_copy(
+        update={
+            "sources": SourcesFile(sources=sources),
+            "rules": config.rules.model_copy(update={"rules": rules}),
+        }
+    )
 
 
 def channels(

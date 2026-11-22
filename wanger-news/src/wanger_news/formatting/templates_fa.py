@@ -222,6 +222,7 @@ REASONS_FA = {
     "human_edit": "ویرایش شد — منتظر تأیید",
     "ai_failed": "هوش مصنوعی نتوانست پردازش کند",
     "conflicting_reports": "منابع با هم تناقض دارند",
+    "rule": "قانون ویرایشی",
 }
 
 
@@ -231,6 +232,8 @@ def reason_fa(reason: str | None, topic_names: dict[str, str]) -> str:
     if reason.startswith("sensitive:"):
         topics = [topic_names.get(t, t) for t in reason.split(":", 1)[1].split(",") if t]
         return "موضوع حساس: " + "، ".join(topics)
+    if reason.startswith("rule:"):
+        return f"قانون ویرایشی «{reason.split(':', 1)[1]}»"
     return REASONS_FA.get(reason.split(":", 1)[0], reason)
 
 

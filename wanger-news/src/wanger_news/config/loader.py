@@ -18,6 +18,7 @@ from wanger_news.config.models import (
     EditorialFile,
     FiltersFile,
     PipelineConfig,
+    RulesFile,
     SourcesFile,
 )
 
@@ -30,6 +31,7 @@ FILES = {
     "pipeline": "pipeline.yaml",
     "editorial": "editorial.yaml",
 }
+OPTIONAL_FILES = {"rules": "rules.yaml"}  # Phase 5: absent = no editorial rules
 
 
 class ConfigError(Exception):
@@ -68,6 +70,8 @@ def _read_yaml(path: Path, env: Mapping[str, str]) -> Any:
 def load_config(config_dir: Path, env: Mapping[str, str] | None = None) -> AppConfig:
     env = environment() if env is None else env
     raw = {key: _read_yaml(config_dir / name, env) for key, name in FILES.items()}
+    for key, name in OPTIONAL_FILES.items():
+        raw[key] = _read_yaml(config_dir / name, env) if (config_dir / name).is_file() else {}
     try:
         return AppConfig(
             sources=SourcesFile.model_validate(raw["sources"]),
@@ -75,6 +79,7 @@ def load_config(config_dir: Path, env: Mapping[str, str] | None = None) -> AppCo
             filters=FiltersFile.model_validate(raw["filters"]),
             pipeline=PipelineConfig.model_validate(raw["pipeline"]),
             editorial=EditorialFile.model_validate(raw["editorial"]),
+            rules=RulesFile.model_validate(raw["rules"]),
         )
     except ValidationError as exc:
         raise ConfigError(f"invalid configuration in {config_dir}:\n{exc}") from exc
