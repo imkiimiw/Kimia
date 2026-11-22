@@ -133,7 +133,16 @@ jobs:
         name: Run
         run: |
           case "$COMMAND" in
-            "run-once")           python -m wanger_news run-once --trigger "$TRIGGER" ;;
+            "run-once")
+              # a scheduled run with a setup problem (wrong secret, database not migrated)
+              # warns instead of failing: no failure e-mail every 15 minutes. Manual runs fail.
+              status=0
+              python -m wanger_news run-once --trigger "$TRIGGER" || status=$?
+              if [ "$status" = "1" ] && [ "$TRIGGER" = "cron" ]; then
+                echo "::warning::setup problem (see the lines above); run 'doctor' from Actions"
+                status=0
+              fi
+              exit "$status" ;;
             "run-once --dry-run") python -m wanger_news run-once --dry-run --trigger "$TRIGGER" ;;
             "migrate")            python -m wanger_news migrate ;;
             "doctor")             python -m wanger_news doctor ;;

@@ -183,8 +183,10 @@ def _alembic_config(settings: Settings) -> Any:
 async def _revision_problem(settings: Settings) -> str | None:
     from alembic.runtime.migration import MigrationContext
     from alembic.script import ScriptDirectory
+    from sqlalchemy.exc import SQLAlchemyError
 
     from wanger_news.db.engine import create_engine
+    from wanger_news.settings import describe_db_error
 
     assert settings.database_url is not None
     head = ScriptDirectory.from_config(_alembic_config(settings)).get_current_head()
@@ -194,6 +196,8 @@ async def _revision_problem(settings: Settings) -> str | None:
             current = await conn.run_sync(
                 lambda sync_conn: MigrationContext.configure(sync_conn).get_current_revision()
             )
+    except (SQLAlchemyError, OSError) as exc:  # a clear line, not a traceback with the host
+        return describe_db_error(exc)
     finally:
         await engine.dispose()
     if current != head:
