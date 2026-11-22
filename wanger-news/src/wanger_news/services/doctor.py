@@ -58,7 +58,7 @@ async def _ai_check(settings: Settings, config: AppConfig, out: Callable[[str], 
         return 1
     problems = 0
     async with httpx.AsyncClient(timeout=20) as http:
-        for model in sorted({ai.model, ai.verifier}):
+        for model in sorted({ai.model, ai.verifier, *ai.fallback_models}):
             try:  # model metadata: proves the key and the model name, uses no generation quota
                 resp = await http.get(
                     f"{ai.api_base}/models/{model}",
