@@ -110,6 +110,7 @@ ai:
   # gemini-2.5-flash is deprecated (Dec 2026). flash-lite is the cheapest current model and its
   # default thinking is "minimal"; gemini-3.6-flash is stronger if the quota allows.
   model: gemini-3.5-flash-lite
+  fallback_models: [gemini-3.6-flash]  # tried when the model is overloaded (Gemini 503)
   verify_model: null          # null = same model
   api_base: https://generativelanguage.googleapis.com/v1beta
   schema_mode: json_schema    # json_schema | prompt_only (the schema is always in the prompt too)

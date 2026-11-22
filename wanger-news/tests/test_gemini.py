@@ -283,3 +283,27 @@ def test_json_schema_is_self_contained() -> None:
     item = schema["properties"]["articles"]["items"]
     assert {"id", "title", "summary", "claims"} <= set(item["properties"])
     assert set(item["required"]) == {"id", "title", "summary"}
+
+
+async def test_an_overloaded_model_falls_back_to_the_next_one() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "gemini-3.5-flash-lite" in request.url.path:
+            return httpx.Response(503, json={"error": {"message": "high demand"}})
+        return answer()
+
+    p, seen = provider(handler, fallback_models=["gemini-3.6-flash"])
+    result = await summarize(p)
+    assert [r.url.path.split("/")[-1] for r in seen] == [
+        "gemini-3.5-flash-lite:generateContent",
+        "gemini-3.6-flash:generateContent",
+    ]
+    assert result.usage.model == "gemini-3.6-flash"
+
+
+async def test_other_errors_do_not_fall_back() -> None:
+    p, seen = provider(
+        lambda r: httpx.Response(404, text="no such model"), fallback_models=["gemini-3.6-flash"]
+    )
+    with pytest.raises(AIUnavailable):
+        await summarize(p)
+    assert len(seen) == 1

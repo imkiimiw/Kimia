@@ -326,6 +326,8 @@ class AIConfig(StrictModel):
     verify: bool = True  # hallucination guard layer 2 (AI claim/evidence check)
     rewrite_on_failure: bool = True
     fallback_provider: str | None = None  # spec §13: only when configured (none implemented)
+    # same provider, another model: tried when the model answers "overloaded" (500/503/504)
+    fallback_models: list[str] = ["gemini-3.6-flash"]
     output_language: str = "fa"
     long_summary_min_importance: int = Field(default=70, ge=0, le=100)
     price_input_per_million: float = Field(default=0.30, ge=0)  # planning only (free tier = 0)

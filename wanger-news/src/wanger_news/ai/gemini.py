@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections.abc import Sequence
 from typing import Any, TypeVar
@@ -50,6 +51,9 @@ SAFETY_CATEGORIES = (
 SAFETY_THRESHOLD = "BLOCK_ONLY_HIGH"
 DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
+#: server errors that mean "this model is busy": another model may answer
+OVERLOADED = ("gemini 500", "gemini 503", "gemini 504")
+log = logging.getLogger("wanger_news")
 
 
 class GeminiProvider:
@@ -145,7 +149,6 @@ class GeminiProvider:
         schema = json_schema(output)
         rendered = prompt.render(data, schema, **values)
         model = self.model_for(operation)
-        url = f"{self._cfg.api_base}/models/{model}:generateContent"
         generation: dict[str, Any] = {
             "temperature": self._cfg.temperature,
             "maxOutputTokens": self._cfg.max_output_tokens,
@@ -163,12 +166,25 @@ class GeminiProvider:
         }
         if self._schema_field_ok:
             generation["responseJsonSchema"] = schema
-        try:
-            answer = await self._post(url, body)
-        except AIUnavailable as exc:
-            if not self._drop_unsupported(str(exc), generation):
+        models = [model, *(m for m in self._cfg.fallback_models if m != model)]
+        for n, model in enumerate(models):
+            url = f"{self._cfg.api_base}/models/{model}:generateContent"
+            try:
+                try:
+                    answer = await self._post(url, body)
+                except AIUnavailable as exc:
+                    if not self._drop_unsupported(str(exc), generation):
+                        raise
+                    answer = await self._post(url, body)
+                break
+            except AIUnavailable as exc:
+                # an overloaded model ("high demand", 503): the next configured model may answer
+                if n + 1 < len(models) and str(exc).startswith(OVERLOADED):
+                    log.warning(
+                        "ai_model_overloaded", extra={"model": model, "next": models[n + 1]}
+                    )
+                    continue
                 raise
-            answer = await self._post(url, body)
         usage = self._usage(answer, model, prompt.version)
         text = self._text(answer, usage)
         try:
