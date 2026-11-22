@@ -116,5 +116,9 @@
   "chat_refused": "Aegis 已退出：不接受新聊天",
   "fun_echo": "让 Aegis 发送了一条消息（/echo）",
   "channel_dm_vote": "将 {target} 的私信交付管理员投票",
-  "channel_dm_vote_end": "结束了对 {target} 私信的投票"
+  "channel_dm_vote_end": "结束了对 {target} 私信的投票",
+  "notes_save": "保存了笔记 #{key}",
+  "notes_clear": "删除了笔记 #{key}",
+  "filters_save": "保存了过滤“{key}”",
+  "filters_remove": "删除了过滤“{key}”"
 }

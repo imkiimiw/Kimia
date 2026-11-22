@@ -121,7 +121,7 @@ export const DEFAULTS = {
   welcome_on: '0', welcome_text: '', welcome_btns: '', welcome_clean: '1', goodbye_on: '0', goodbye_text: '',
   fj_chats: '[]', fa_n: '0', clean_on: '0', clean_times: '[]', clean_scope: 'all', night_on: '0', night_from: '0', night_to: '420',
   tz: 'auto', min_len: '0', max_len: '0', reports: '1', report_dest: 'admins', ev_chat: '0', ev_join: '1', ev_leave: '1', ev_admin: '1',
-  ev_names: '1', linked: 'keep', title_locked: '',
+  ev_names: '1', linked: 'keep', title_locked: '', notes_on: '1', filters_on: '1',
   /* Phase 7: channels */
   ch_jr_mode: 'manual', ch_jr_captcha: '0', ch_jr_names: '1', ch_jr_flood: '30',
   ch_imp: '1', ch_imp_action: 'alert', ch_fakes: '[]',
@@ -157,7 +157,7 @@ export const BETRAY_SECS = [60, 300, 600, 3600];
 const FLAGS = new Set(['audit', 'notify', 'warn_reset', 'betray_on', 'log_on', 'log_punish', 'log_lists', 'log_admin', 'log_settings', 'log_locks', 'log_security',
   'del_join', 'del_leave', 'del_pin', 'del_chatinfo', 'del_videochat', 'del_cmds', 'del_bots', 'caps', 'junk', 'rules_btn', 'member_cmds', 'reply_private',
   'admin_call', 'anon_cmds', 'bot_kick', 'name_watch', 'title_lock', 'bot_alert', 'welcome_on', 'welcome_clean', 'goodbye_on', 'clean_on', 'night_on', 'reports',
-  'ev_join', 'ev_leave', 'ev_admin', 'ev_names',
+  'ev_join', 'ev_leave', 'ev_admin', 'ev_names', 'notes_on', 'filters_on',
   'ch_jr_captcha', 'ch_jr_names', 'ch_imp', 'ch_al_admins', 'ch_al_info', 'ch_al_edits', 'ch_al_bot', 'ch_title_lock', 'ch_archive',
   'ch_approval', 'ch_edit_lock', 'dg_members', 'dg_as_channel', 'dg_imp', 'dg_first', 'dm_on', 'dm_links', 'dm_scam', 'dm_fakes', 'dm_suggest', 'dm_vote',
   'ch_protect', 'ch_silent', 'stats_on', 'pts_on', 'pts_thanks', 'pts_announce', 'qa_on', 'anon_on', 'appeals_on', 'review_all',

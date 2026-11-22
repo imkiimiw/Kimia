@@ -1,0 +1,9 @@
+{
+  "save": "save note",
+  "get": "get note",
+  "notes": "notes",
+  "clear": "clear note|delete note",
+  "filter": "add filter",
+  "stop": "stop filter|remove filter",
+  "filters": "filters"
+}

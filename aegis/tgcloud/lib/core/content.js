@@ -48,14 +48,19 @@ export async function publish(ctx, chatId, kind, c, opts = {}, view = 'publish')
   if (opts.rows && opts.rows.length) common.reply_markup = { inline_keyboard: opts.rows };
   if (opts.silent) common.disable_notification = true;
   if (opts.protect) common.protect_content = true;
+  if (opts.reply) common.reply_parameters = { message_id: opts.reply, allow_sending_without_reply: true };
+  if (opts.thread) common.message_thread_id = opts.thread;
+  /* opts.html: the text is HTML (placeholders filled in), sent without the stored entities */
+  if (opts.html) common.parse_mode = 'HTML';
+  const ents = !opts.html && c.e && c.e.length ? c.e : undefined;
   if (kind === 'text') {
-    return call(ctx, 'sendMessage', { ...common, text: withFooter(kind, c.t, opts.footer), entities: c.e && c.e.length ? c.e : undefined }, view);
+    return call(ctx, 'sendMessage', { ...common, text: withFooter(kind, c.t, opts.footer), entities: ents }, view);
   }
   const params = { ...common, [kind]: c.f };
   if (CAPTIONED.has(kind)) {
     const caption = withFooter(kind, c.t, opts.footer);
     if (caption) params.caption = caption;
-    if (c.e && c.e.length) params.caption_entities = c.e;
+    if (ents) params.caption_entities = ents;
   }
   return call(ctx, METHOD[kind], params, view);
 }

@@ -59,7 +59,7 @@ fs.copyFileSync(DEV_SRC, DEV_DST);
 try {
   const before = dev('read');
   const tables = before.tables.map((t) => t.name);
-  check('71 aegis_ tables exist', tables.length === 71, tables.join(', '));
+  check('73 aegis_ tables exist', tables.length === 73, tables.join(', '));
   check('indexes exist', before.indexes.length >= 111, `${before.indexes.length} idx_aegis_*`);
   for (const t of ['aegis_staff', 'aegis_audit_seals']) check(`Phase 10 table ${t}`, tables.includes(t));
   for (const t of ['aegis_fun_use', 'aegis_fun_games', 'aegis_birthdays', 'aegis_fun_daily', 'aegis_media_jobs', 'aegis_sticker_packs']) check(`Phase 9 table ${t}`, tables.includes(t));

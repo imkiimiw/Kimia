@@ -23,10 +23,12 @@ import { db } from 'sdk';
 import { sql } from 'sdk/db';
 import { ADMIN_CALL_GAP_SEC, FJ_CACHE_SEC, REPORT_ADMINS_MAX, REPORT_GAP_SEC } from '../config.js';
 import * as audit from '../core/audit.js';
+import { canPublish, contentOf, parseButtons, publish } from '../core/content.js';
+import * as kv from '../core/kv.js';
 import { answer, btn, me, send, tryCall, urlBtn } from '../core/tg.js';
 import { inWindow, localMinutes, nextTime, tzOf } from '../core/clock.js';
 import { parseModCommand } from '../core/commands.js';
-import { esc, fullName, iso, nowSec, parseJson, short, toInt } from '../core/util.js';
+import { esc, fullName, iso, normalizeWord, nowSec, parseJson, short, toInt } from '../core/util.js';
 import * as admins from '../engines/admins.js';
 import * as chats from '../engines/chats.js';
 import * as gd from '../engines/groupdata.js';
@@ -42,7 +44,7 @@ import * as users from '../engines/users.js';
 import { pickLang, t, wordCommand } from '../i18n/index.js';
 import { deleteMessage, isAdmin, postNotice } from './enforce.js';
 import * as security from './security.js';
-import { goodbye, welcome } from './welcome.js';
+import { goodbye, render, welcome } from './welcome.js';
 
 export const HEADS = new Set(['fj', 'rp', 'an']);
 export { welcome };
@@ -529,4 +531,228 @@ export async function afterUpdate(ctx) {
     const ttl = Number(s.notice_ttl);
     if (ttl || (flag(s, 'clean_on') && ['all', 'service'].includes(s.clean_scope))) await msglog.add(e.chat, e.mid, 0, 'aegis', ttl ? now + ttl : 0);
   }
+}
+
+/* ---------- notes, filters and custom commands ---------- */
+
+/*
+ * Notes: /save name text (or reply to a message with /save name) — sent for #name, /get name or /name (a custom
+ * command). Filters: /filter word text (or reply) — Aegis replies when a message contains the word or the "phrase".
+ * /notes /filters list them, /clear and /stop remove them (admins with Settings access change them; everyone uses them).
+ * Link buttons go after a line ---, one row per line: «Title - https://…», several in a row with |.
+ * Placeholders {name} {mention} {group} {count} work in texts without formatting (like the welcome message).
+ */
+const NOTE_NAME = /^[\p{L}\p{N}_]{1,32}$/u;
+const NOTE_SLASH = new Set(['save', 'get', 'notes', 'clear', 'filter', 'stop', 'filters']);
+const NOTE_ADMIN = new Set(['save', 'clear', 'filter', 'stop']);
+const PLACEHOLDER = /\{(name|mention|group|count)\}/;
+const PUNCT = /[.,!?؟،؛:;()«»"'…\-–—]+/g;
+const ftNorm = (x) => normalizeWord(String(x || '')).replace(PUNCT, ' ').replace(/\s+/g, ' ').trim();
+const replyOf = (m) => ({ reply_parameters: { message_id: m.message_id, allow_sending_without_reply: true } });
+const topicRoot = (m) => !!(m.reply_to_message && m.is_topic_message && m.reply_to_message.message_id === m.message_thread_id);
+
+/* { cmd, at (where the arguments start), mention } or null */
+export function parseNoteCommand(text) {
+  const s = String(text || '');
+  const lead = s.length - s.trimStart().length;
+  const body = s.slice(lead);
+  const m = /^\/([A-Za-z]{3,7})(?:@([A-Za-z0-9_]+))?(?=\s|$)/.exec(body);
+  if (m) {
+    const cmd = m[1].toLowerCase();
+    return NOTE_SLASH.has(cmd) ? { cmd, at: lead + m[0].length, mention: m[2] ? m[2].toLowerCase() : null, slash: true } : null;
+  }
+  const words = [...body.matchAll(/\S+/g)].slice(0, 3);
+  for (let n = words.length; n >= 1; n -= 1) {
+    const cmd = wordCommand('notecmd', words.slice(0, n).map((w) => w[0]).join(' '));
+    if (cmd) return { cmd, at: lead + words[n - 1].index + words[n - 1][0].length, mention: null, slash: false };
+  }
+  return null;
+}
+
+/* The name or trigger (a "quoted" phrase when allowed) and where the content starts. */
+function noteArgs(text, at, quoted) {
+  let i = at;
+  while (i < text.length && /\s/.test(text[i])) i += 1;
+  let key = '';
+  let end = i;
+  const close = text[i] === '"' ? '"' : text[i] === '«' ? '»' : null;
+  if (quoted && close) {
+    const j = text.indexOf(close, i + 1);
+    if (j > i + 1) {
+      key = text.slice(i + 1, j);
+      end = j + 1;
+    }
+  }
+  if (!key) {
+    key = (/^\S+/.exec(text.slice(i)) || [''])[0];
+    end = i + key.length;
+  }
+  let r = end;
+  while (r < text.length && /\s/.test(text[r])) r += 1;
+  return { key, rest: r };
+}
+
+/* What to store: the replied message, or the text after the name (entities kept); buttons after a line ---. */
+function noteContent(message, rest) {
+  const r = message.reply_to_message;
+  let kind;
+  let c;
+  if (r && !topicRoot(message)) ({ kind, c } = contentOf(r));
+  else {
+    const text = String(message.text || '');
+    kind = 'text';
+    c = { t: text.slice(rest), e: (message.entities || []).filter((x) => x.offset >= rest).map((x) => ({ ...x, offset: x.offset - rest })) };
+  }
+  if (!canPublish(kind) || (kind === 'text' && !String(c.t || '').trim())) return { error: 'usage' };
+  const t0 = String(c.t || '');
+  const m = /(^|\n)[ \t]*---[ \t]*(\n|$)/.exec(t0);
+  let b = [];
+  if (m) {
+    const parsed = parseButtons(t0.slice(m.index + m[0].length));
+    if (parsed.error) return { error: 'buttons', line: parsed.line || 1 };
+    b = parsed.rows;
+    const before = t0.slice(0, m.index).replace(/\s+$/, '');
+    c = { ...c, t: before, e: (c.e || []).filter((x) => x.offset + x.length <= before.length) };
+    if (kind === 'text' && !before.trim()) return { error: 'usage' };
+  }
+  if ([...String(c.t || '')].length > (kind === 'text' ? 4096 : 1024)) return { error: 'long' };
+  return { kind, c: { t: c.t || '', e: c.e && c.e.length ? c.e : undefined, f: c.f, b: b.length ? b : undefined } };
+}
+
+/* A note or a filter's reply; placeholders are filled in when the text has no formatting. */
+async function sendNote(ctx, chat, row, message, replyId) {
+  const c = parseJson(row.content, {}) || {};
+  const html = !(c.e && c.e.length) && PLACEHOLDER.test(c.t || '');
+  const body = html ? { ...c, t: await render(ctx, c.t, chat, message.from || {}) } : c;
+  try {
+    return await publish(ctx, chat.chat_id, row.kind, body, { rows: c.b, reply: replyId, html, thread: message.is_topic_message ? message.message_thread_id : 0 }, 'note');
+  } catch {
+    return null;
+  }
+}
+
+async function canEditNotes(ctx, chatId, userId) {
+  const acc = await admins.liveAccess(ctx, chatId, userId);
+  return !!acc.member && ['creator', 'administrator'].includes(acc.member.status) && acc.level >= admins.L.settings;
+}
+
+/* The note commands in a group. Gives true when the message was one (handled). */
+export async function notesCommand(ctx, message) {
+  const p = parseNoteCommand(message.text);
+  if (!p) return false;
+  if (p.mention && p.mention !== String((await me(ctx)).username).toLowerCase()) return true;
+  const chat = await chats.get(message.chat.id);
+  const from = message.from;
+  if (!chat || !Number(chat.registered) || !from || message.sender_chat) return false;
+  const c = chat.chat_id;
+  const lang = chat.lang;
+  const say = (key, vars = {}) => send(ctx, c, t(lang, key, vars), null, `note-${p.cmd}`, replyOf(message));
+  if (NOTE_ADMIN.has(p.cmd) && !(await canEditNotes(ctx, c, from.id))) {
+    if (!p.slash) return false; /* a member's everyday words are just a message */
+    await say('adv.nt_admins_only');
+    return true;
+  }
+  const text = String(message.text || '');
+  const isFilter = p.cmd === 'filter' || p.cmd === 'stop';
+  const { key, rest } = noteArgs(text, p.at, isFilter);
+  const title = iso(chat.title || '', 48);
+  if (p.cmd === 'notes') {
+    const list = await gd.notes.list(c);
+    await say(list.length ? 'adv.nt_list' : 'adv.nt_none', { title, list: list.map((r) => `#${esc(r.name)}`).join(' ') });
+    return true;
+  }
+  if (p.cmd === 'filters') {
+    const list = await gd.filters.list(c);
+    await say(list.length ? 'adv.ft_list' : 'adv.ft_none', { title, list: list.map((r) => `«${esc(r.trigger)}»`).join(' · ') });
+    return true;
+  }
+  if (isFilter) {
+    const trigger = ftNorm(key);
+    if (!trigger || [...trigger].length > 64) {
+      if (p.slash) await say('adv.ft_usage');
+      return p.slash;
+    }
+    if (p.cmd === 'stop') {
+      const gone = await gd.filters.remove(c, trigger);
+      if (gone) await audit.log(from.id, 'filters.remove', { chatId: c, target: trigger });
+      await say(gone ? 'adv.ft_removed' : 'adv.ft_not_found', { trigger: esc(trigger) });
+      return true;
+    }
+    const got = noteContent(message, rest);
+    if (got.error) {
+      await say(got.error === 'buttons' ? 'adv.nt_buttons_error' : got.error === 'long' ? 'adv.nt_too_long' : 'adv.ft_usage', { line: got.line || 1 });
+      return true;
+    }
+    if (!(await gd.filters.get(c, trigger)) && (await gd.filters.count(c)) >= gd.NOTES_MAX) {
+      await say('adv.ft_too_many', { n: gd.NOTES_MAX });
+      return true;
+    }
+    await gd.filters.save(c, trigger, got.kind, got.c, from.id);
+    await audit.log(from.id, 'filters.save', { chatId: c, target: trigger });
+    await say('adv.ft_saved', { trigger: esc(trigger) });
+    return true;
+  }
+  const name = key.replace(/^#/, '').toLowerCase();
+  if (!NOTE_NAME.test(name)) {
+    if (!p.slash && p.cmd === 'get') return false;
+    await say(p.cmd === 'save' ? 'adv.nt_bad_name' : 'adv.nt_usage_get');
+    return true;
+  }
+  if (p.cmd === 'get') {
+    const note = await gd.notes.get(c, name);
+    if (!note) {
+      if (p.slash) await say('adv.nt_not_found', { name: esc(name) });
+      return p.slash;
+    }
+    const r = message.reply_to_message;
+    await sendNote(ctx, chat, note, message, r && !topicRoot(message) ? r.message_id : message.message_id);
+    return true;
+  }
+  if (p.cmd === 'clear') {
+    const gone = await gd.notes.remove(c, name);
+    if (gone) await audit.log(from.id, 'notes.clear', { chatId: c, target: name });
+    await say(gone ? 'adv.nt_cleared' : 'adv.nt_not_found', { name: esc(name) });
+    return true;
+  }
+  const got = noteContent(message, rest);
+  if (got.error) {
+    await say(got.error === 'buttons' ? 'adv.nt_buttons_error' : got.error === 'long' ? 'adv.nt_too_long' : 'adv.nt_usage_save', { line: got.line || 1 });
+    return true;
+  }
+  if (!(await gd.notes.get(c, name)) && (await gd.notes.count(c)) >= gd.NOTES_MAX) {
+    await say('adv.nt_too_many', { n: gd.NOTES_MAX });
+    return true;
+  }
+  await gd.notes.save(c, name, got.kind, got.c, from.id);
+  await audit.log(from.id, 'notes.save', { chatId: c, target: name });
+  await say('adv.nt_saved', { name: esc(name) });
+  return true;
+}
+
+/* A message that asks for a note (#name, /name) or contains a filter's trigger. Gives true when Aegis replied. */
+export async function notesReply(ctx, chat, message) {
+  const text = String(message.text || message.caption || '');
+  if (!text || !chat || !Number(chat.registered) || !message.from || message.from.is_bot) return false;
+  const c = chat.chat_id;
+  const s = await settings.all(ctx, c);
+  if (flag(s, 'notes_on') && message.text) {
+    const m = /^#([\p{L}\p{N}_]{1,32})$/u.exec(text.trim()) || /^\/([\p{L}\p{N}_]{1,32})(?:@([A-Za-z0-9_]+))?$/u.exec(text.trim());
+    if (m && (!m[2] || m[2].toLowerCase() === String((await me(ctx)).username).toLowerCase())) {
+      const note = await gd.notes.get(c, m[1].toLowerCase());
+      if (note) {
+        const r = message.reply_to_message;
+        await sendNote(ctx, chat, note, message, r && !topicRoot(message) ? r.message_id : message.message_id);
+        return true;
+      }
+    }
+  }
+  if (!flag(s, 'filters_on')) return false;
+  const list = await gd.filters.list(c);
+  if (!list.length) return false;
+  const words = ` ${ftNorm(text)} `;
+  const hit = list.find((f) => words.includes(` ${f.trigger} `));
+  /* at most one filter reply every 3 s in a chat (two filters can't answer each other in a loop: bots are ignored) */
+  if (!hit || !(await kv.claim(`flt_${c}`, nowSec(), 3))) return false;
+  await sendNote(ctx, chat, hit, message, message.message_id);
+  return true;
 }

@@ -303,7 +303,7 @@ async function handleGroupMessage(ctx, message) {
     else await group.configInGroup(ctx, message);
     return;
   }
-  if ((await advanced.command(ctx, message)) || (await social.command(ctx, message)) || (await qa.command(ctx, message))
+  if ((await advanced.command(ctx, message)) || (await advanced.notesCommand(ctx, message)) || (await social.command(ctx, message)) || (await qa.command(ctx, message))
     || (ctx.funOn && (await fun.command(ctx, message))) || (ctx.mediaOn && (await media.command(ctx, message)))
     || (await security.command(ctx, message)) || (await moderation.handle(ctx, message))) {
     await deleteCommand(ctx, known, message);
@@ -312,6 +312,7 @@ async function handleGroupMessage(ctx, message) {
   const row = await chats.get(chat.id);
   if (row) {
     await social.onMessage(ctx, row, message);
+    await advanced.notesReply(ctx, row, message);
     if (ctx.funOn) await fun.onMessage(ctx, row, message);
     await group.onActivity(ctx, row);
   }

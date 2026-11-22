@@ -117,6 +117,7 @@ async function root(ctx, user, g, place, notice = '') {
     [btn(t(lang, 'chat.btn_warns'), `g:${c}:W`), btn(t(lang, 'chat.btn_betray'), `g:${c}:B`)],
     [btn(t(lang, 'chat.btn_fed'), `g:${c}:F`), btn(t(lang, settings.flag(s, 'audit') ? 'chat.btn_audit_on' : 'chat.btn_audit_off'), `g:${c}:U`)],
     [btn(t(lang, 'chat.btn_adv'), `g:${c}:V`), btn(t(lang, 'chat.btn_topics'), `g:${c}:T`)],
+    [btn(t(lang, 'chat.btn_notes'), `g:${c}:nt`)],
     [btn(t(lang, 'chat.btn_stats'), `g:${c}:st`), btn(t(lang, 'chat.btn_points'), `g:${c}:pt`)],
     [btn(t(lang, 'chat.btn_contests'), `g:${c}:ct`), btn(t(lang, 'chat.btn_polls'), `g:${c}:pl`)],
     [btn(t(lang, 'chat.btn_questions'), `g:${c}:qa`), btn(t(lang, 'chat.btn_appeals'), `g:${c}:ap`)],
@@ -637,6 +638,7 @@ export async function callback(ctx, user, parts, place) {
     case 'S': return secPanel.callback(ctx, user, g, parts, place);
     case 'F': return fedPanel.callback(ctx, user, g, parts, place);
     case 'V': return advPanel.callback(ctx, user, g, parts, place);
+    case 'nt': return g.chat.type === 'channel' ? root(ctx, user, g, place) : advPanel.notes(ctx, user, g, parts, place);
     case 'T': return topicPanel.callback(ctx, user, g, parts, place);
     case 'L': case 'P': case 'W': case 'B': case 'U': case 'O': return mod.callback(ctx, user, g, parts, place);
     case 'J': case 'M': case 'I': case 'Q': case 'A': case 'D': case 'H': case 'E':

@@ -116,5 +116,9 @@
   "chat_refused": "Aegis خارج شد: پذیرش چت جدید بسته است",
   "fun_echo": "Aegis را وادار کرد پیامی بفرستد (/echo)",
   "channel_dm_vote": "دایرکت {target} را به رأی مدیران گذاشت",
-  "channel_dm_vote_end": "رأی‌گیری دایرکت {target} را بست"
+  "channel_dm_vote_end": "رأی‌گیری دایرکت {target} را بست",
+  "notes_save": "یادداشت #{key} را ذخیره کرد",
+  "notes_clear": "یادداشت #{key} را حذف کرد",
+  "filters_save": "فیلتر «{key}» را ذخیره کرد",
+  "filters_remove": "فیلتر «{key}» را حذف کرد"
 }

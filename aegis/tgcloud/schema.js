@@ -838,6 +838,35 @@ export const dmBallots = table('aegis_dm_ballots', {
   byVoteUser: uniqueIndex('idx_aegis_dm_ballots_vote_user').on(t.voteId, t.userId),
 }));
 
+/*
+ * A group's notes: sent for #name, /get name or /name (a custom command). content: { t, e, f, b }
+ * (text or caption, its entities, the file_id, link-button rows); kind: text or a media kind.
+ */
+export const notes = table('aegis_notes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  name: text('name').notNull(),
+  kind: text('kind').notNull(),
+  content: text('content').notNull(),
+  byId: integer('by_id').notNull().default(0),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byChatName: uniqueIndex('idx_aegis_notes_chat_name').on(t.chatId, t.name),
+}));
+
+/* A group's filters: an automatic reply when a message contains the trigger (a word or a phrase, normalized). */
+export const filters = table('aegis_filters', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  chatId: integer('chat_id').notNull(),
+  trigger: text('trigger').notNull(),
+  kind: text('kind').notNull(),
+  content: text('content').notNull(),
+  byId: integer('by_id').notNull().default(0),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byChatTrigger: uniqueIndex('idx_aegis_filters_chat_trigger').on(t.chatId, t.trigger),
+}));
+
 /* ---------- Phase 8: reports, stats and social features ---------- */
 
 /* A member's activity in a group: messages, points (levels come from points), thanks, daily streak. */

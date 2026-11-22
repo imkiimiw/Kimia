@@ -116,5 +116,9 @@
   "chat_refused": "Aegis left: new chats are closed",
   "fun_echo": "made Aegis say a message (/echo)",
   "channel_dm_vote": "put a direct message from {target} to the admins’ vote",
-  "channel_dm_vote_end": "closed the vote on a direct message from {target}"
+  "channel_dm_vote_end": "closed the vote on a direct message from {target}",
+  "notes_save": "saved the note #{key}",
+  "notes_clear": "removed the note #{key}",
+  "filters_save": "saved the filter «{key}»",
+  "filters_remove": "removed the filter «{key}»"
 }

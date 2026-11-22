@@ -69,7 +69,7 @@ test('button labels and command descriptions fit Telegram limits', () => {
     for (const [key, s] of Object.entries(dicts[lang])) {
       if (/\.btn_|^common\.(back|cancel|no|yes_remove|refresh)$|^bc\.(aud|mode)_btn_/.test(key)) assert.ok(s.length <= 64, `${lang} ${key} is too long for a button`);
       if (key.startsWith('cmd.')) assert.ok(s.length >= 1 && s.length <= 256, `${lang} ${key}`);
-      if (/^(app|cmd|alias|modcmd|seccmd|advcmd|soccmd|qacmd|funcmd|mediacmd|funlist|fallist|cultlist|ptest|dreamlist|gamelist|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
+      if (/^(app|cmd|alias|modcmd|seccmd|advcmd|soccmd|qacmd|funcmd|mediacmd|funlist|fallist|cultlist|ptest|dreamlist|gamelist|notecmd|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
     }
   }
 });
@@ -231,6 +231,7 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'ch.dv_log_': ['published', 'rejected', 'failed', 'nobody'], 'ch.dv_choice_': ['y', 'n'],
     /* the quick panel in groups */
     'group.qp_k_': ['f', 'm', 'w', 'j', 'k', 'n', 'e', 'p', 'q', 'r'],
+    'adv.k_': ['notes_on', 'filters_on'], 'notecmd.': ['save', 'get', 'notes', 'clear', 'filter', 'stop', 'filters'],
     'gamelist.cs_t_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_s_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_n_': [...fun.puzzles.CASES.keys()],
     'gamelist.cs_q_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_c_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_a_': [...fun.puzzles.CASES.keys()],
     'gamelist.wa_n_': fun.puzzles.PEOPLE, 'gamelist.wa_c_': fun.puzzles.PEOPLE, 'gamelist.tp_n_': fun.puzzles.PLACES.map(([k]) => k),

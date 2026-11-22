@@ -15,6 +15,7 @@
  * Pending input: adv_input { chat, key }.
  */
 import { CLEAN_MAX_TIMES, FJ_MAX_CHANNELS } from '../config.js';
+import * as audit from '../core/audit.js';
 import { answer, btn, me, screen, send, tryCall } from '../core/tg.js';
 import { fmtTime, parseTimes, TZ_OFFSETS, tzLabel, tzOf } from '../core/clock.js';
 import * as state from '../core/state.js';
@@ -331,4 +332,39 @@ export async function input(ctx, user, message, pending) {
   }
   await state.clear(user.user_id);
   return overview(ctx, user, g, null);
+}
+
+/* ---------- 📝 notes and filters (g:<chat>:nt) ---------- */
+
+/* nt · nt:s:<notes_on|filters_on> · nt:xn:<i> / nt:xf:<i> removes the i-th note or filter (in name order) */
+export async function notes(ctx, user, g, parts, place) {
+  const lang = user.lang;
+  const c = g.chat.chat_id;
+  const sub = parts[3];
+  if (sub === 's' && (parts[4] === 'notes_on' || parts[4] === 'filters_on')) {
+    if (!(await needLevel(ctx, user, g, L.settings))) return null;
+    const s0 = await settings.all(ctx, c);
+    await settings.set(ctx, c, parts[4], s0[parts[4]] === '1' ? '0' : '1', user.user_id);
+  }
+  if (sub === 'xn' || sub === 'xf') {
+    if (!(await needLevel(ctx, user, g, L.settings))) return null;
+    const i = Number(parts[4]);
+    if (sub === 'xn') {
+      const row = (await gd.notes.list(c))[i];
+      if (row && (await gd.notes.remove(c, row.name))) await audit.log(user.user_id, 'notes.clear', { chatId: c, target: row.name });
+    } else {
+      const row = (await gd.filters.list(c))[i];
+      if (row && (await gd.filters.remove(c, row.trigger))) await audit.log(user.user_id, 'filters.remove', { chatId: c, target: row.trigger });
+    }
+  }
+  const s = await settings.all(ctx, c);
+  const ns = await gd.notes.list(c);
+  const fs = await gd.filters.list(c);
+  const lines = [t(lang, 'adv.nt_title', { title: title(g) }), t(lang, 'adv.nt_intro'), '', t(lang, 'adv.nt_counts', { n: num(lang, ns.length), f: num(lang, fs.length) })];
+  const sw = (key) => btn(t(lang, 'adv.setting_btn', { name: t(lang, `adv.k_${key}`), value: onOff(lang, s[key] === '1') }), `g:${c}:nt:s:${key}`);
+  const kb = [[sw('notes_on'), sw('filters_on')]];
+  kb.push(...pairs(ns.slice(0, 24).map((r, i) => btn(t(lang, 'adv.btn_del_note', { name: short(r.name, 24) }), `g:${c}:nt:xn:${i}`))));
+  kb.push(...pairs(fs.slice(0, 24).map((r, i) => btn(t(lang, 'adv.btn_del_filter', { trigger: short(r.trigger, 24) }), `g:${c}:nt:xf:${i}`))));
+  kb.push(back(lang, `g:${c}`));
+  return screen(ctx, user.user_id, place, lines.join('\n'), kb, 'panel-notes');
 }

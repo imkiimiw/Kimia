@@ -950,11 +950,72 @@ await scenario('phase 2 — the panel: level, rights, outside admins, sections; 
   assert.match(root.plain, /Aegis has every permission it needs/);
   assert.match(root.plain, /Admins not appointed through Aegis: 1/);
   const s = (x) => `g:${ALPHA}:${x}`;
-  assert.deepEqual(dataOf(root), [s('K'), s('S'), s('L'), s('P'), s('W'), s('B'), s('F'), s('U'), s('V'), s('T'), s('st'), s('pt'), s('ct'), s('pl'), s('qa'), s('ap'), s('fn'), s('md'), s('O'), s('p'), s('a'), s('l'), s('g'), s('r'), s('h'), s('x'), 'cl']);
+  assert.deepEqual(dataOf(root), [s('K'), s('S'), s('L'), s('P'), s('W'), s('B'), s('F'), s('U'), s('V'), s('T'), s('nt'), s('st'), s('pt'), s('ct'), s('pl'), s('qa'), s('ap'), s('fn'), s('md'), s('O'), s('p'), s('a'), s('l'), s('g'), s('r'), s('h'), s('x'), 'cl']);
   await press(P.carol, s('p'), carolPanel);
   const perms = screenOf(P.carol, carolPanel).plain;
   assert.equal((perms.match(/✅/g) || []).length, 7);
   assert.match(perms, /Nothing is missing/);
+});
+
+await scenario('📝 notes and filters: admins save (text with buttons and placeholders, or a replied photo), everyone gets #name, /get, /name; filters reply to a word or a "phrase"; members can\'t change them; the panel section', async () => {
+  tick(30);
+  const say = async (u, text, extra) => toChat(await gmsg(alphaChat, u, text, extra), ALPHA);
+  /* a member can't save; an admin can */
+  assert.match((await say(P.frank, '/save info Be nice'))[0].params.text, /Only admins with Settings access/);
+  assert.equal((await say(P.frank, 'save note info Be nice')).length, 0, 'a member\'s plain words are just a message');
+  assert.match((await say(P.frank, '/rules'))[0].params.text, /rules/i, '/rules stays the group\'s rules command');
+  const saved = await say(P.carol, '/save info Hello {name}, be nice in {group}!\n---\nOur site - https://example.com | FAQ - https://example.com/faq');
+  assert.match(saved[0].params.text, /Note <b>#info<\/b> saved/);
+  const row1 = row("SELECT * FROM aegis_notes WHERE chat_id = ? AND name = 'info'", ALPHA);
+  assert.deepEqual(JSON.parse(row1.content).b, [[{ text: 'Our site', url: 'https://example.com' }, { text: 'FAQ', url: 'https://example.com/faq' }]]);
+  /* everyone gets it: #name (placeholders filled, buttons), /get name, /name */
+  const got = (await say(P.frank, '#info'))[0];
+  assert.equal(got.params.text, 'Hello ⁨Frank⁩, be nice in Alpha!'.replace('⁨Frank⁩', 'Frank'));
+  assert.equal(got.params.parse_mode, 'HTML');
+  assert.equal(got.params.reply_markup.inline_keyboard[0].length, 2);
+  assert.ok(got.params.reply_parameters, 'a reply to the one who asked');
+  assert.match((await say(P.frank, '/get info'))[0].params.text, /^Hello Frank/);
+  assert.match((await say(P.frank, '/info'))[0].params.text, /^Hello Frank/, 'a custom command');
+  assert.equal((await say(P.frank, '/nothinghere')).length, 0);
+  /* a replied photo as a note (Persian name) */
+  const ph = msgId;
+  mock.userMessage(ALPHA, ph, { from: P.carol, kind: 'photo' });
+  msgId += 1;
+  await say(P.carol, '/save منو', { reply_to_message: { message_id: ph, from: P.carol, chat: alphaChat, date: 0, photo: [{ file_id: 'menu-photo', file_unique_id: 'mp', width: 10, height: 10 }], caption: 'Today\'s menu' } });
+  const menu = await gmsg(alphaChat, P.frank, '#منو');
+  const sp = sent(menu, 'sendPhoto')[0];
+  assert.deepEqual([sp.params.photo, sp.params.caption], ['menu-photo', 'Today\'s menu']);
+  assert.match((await say(P.frank, '/notes'))[0].params.text, /#info[^]*#منو|#منو[^]*#info/);
+  /* filters: a word, a "phrase"; members can't add */
+  await say(P.carol, '/filter price Prices are in the pinned message.');
+  await say(P.carol, '/filter "opening hours" We are open 9–17.');
+  assert.match((await say(P.frank, 'What is the PRICE, please?'))[0].params.text, /^Prices are in the pinned message\./);
+  tick(4);
+  assert.match((await say(P.frank, 'opening hours?'))[0].params.text, /^We are open 9–17\./);
+  tick(4);
+  assert.equal((await say(P.frank, 'priceless')).length, 0, 'whole words only');
+  assert.match((await say(P.frank, '/filters'))[0].params.text, /«opening hours» · «price»/);
+  assert.match((await say(P.frank, '/filter spam x'))[0].params.text, /Only admins/);
+  assert.match((await say(P.carol, '/stop price'))[0].params.text, /Filter «price» removed/);
+  tick(4);
+  assert.equal((await say(P.frank, 'price?')).length, 0);
+  /* the panel section: counts, switches, delete buttons */
+  const pmid = carolPanel;
+  await press(P.carol, `g:${ALPHA}`, pmid);
+  assert.ok(dataOf(screenOf(P.carol, pmid)).includes(`g:${ALPHA}:nt`));
+  await press(P.carol, `g:${ALPHA}:nt`, pmid);
+  assert.match(screenOf(P.carol, pmid).plain, /Notes: 2 · Filters: 1/);
+  await press(P.carol, `g:${ALPHA}:nt:s:filters_on`, pmid);
+  assert.equal(row("SELECT value FROM aegis_chat_settings WHERE chat_id = ? AND key = 'filters_on'", ALPHA).value, '0');
+  tick(4);
+  assert.equal((await say(P.frank, 'opening hours')).length, 0, 'filters off');
+  await press(P.carol, `g:${ALPHA}:nt:xn:0`, pmid);
+  assert.match(screenOf(P.carol, pmid).plain, /Notes: 1 · Filters: 1/);
+  assert.ok(row("SELECT id FROM aegis_audit WHERE chat_id = ? AND action = 'notes.clear'", ALPHA));
+  /* back as it was */
+  rawDatabase().prepare('DELETE FROM aegis_notes WHERE chat_id = ?').run(ALPHA);
+  rawDatabase().prepare('DELETE FROM aegis_filters WHERE chat_id = ?').run(ALPHA);
+  rawDatabase().prepare("DELETE FROM aegis_chat_settings WHERE chat_id = ? AND key = 'filters_on'").run(ALPHA);
 });
 
 await scenario('phase 2 — appointing an admin through Aegis: pick (shared user), rights editor, locked rights, confirm, promoteChatMember, logged', async () => {
@@ -1419,7 +1480,7 @@ await scenario('phase 3 — the panel: 19 lists; add, search, details, note, edi
   const c = await olgaSays('/config');
   olgaPanel = midOf(sent(c)[0]);
   await olga(`g:${BETA}`);
-  assert.deepEqual(dataOf(olgaScreen()).slice(0, 19), [B('K'), B('S'), B('L'), B('P'), B('W'), B('B'), B('F'), B('U'), B('V'), B('T'), B('st'), B('pt'), B('ct'), B('pl'), B('qa'), B('ap'), B('fn'), B('md'), B('O')]);
+  assert.deepEqual(dataOf(olgaScreen()).slice(0, 20), [B('K'), B('S'), B('L'), B('P'), B('W'), B('B'), B('F'), B('U'), B('V'), B('T'), B('nt'), B('st'), B('pt'), B('ct'), B('pl'), B('qa'), B('ap'), B('fn'), B('md'), B('O')]);
   await olga(B('L'));
   assert.equal(dataOf(olgaScreen()).filter((d) => /:L:[a-z]{3}$/.test(d)).length, 19);
   assert.match(olgaScreen().plain, /Each list belongs to this chat only/);
@@ -5293,7 +5354,7 @@ await scenario('phase 10 — 🛠 Management from the owner panel: version, heal
   for (const d of ['sa:c:f:a:0', 'sa:h', 'sa:e', 'sa:q', 'sa:v', 'sa:l:a:0', 'sa:s', 'sa:g', 'sa:b', 'sy:st', 'op']) assert.ok(saData().includes(d), d);
   await saPress('sa:v');
   assert.match(saText(), /Aegis 1\.0\.0 · فاز ۱۰ · انتشار 2026-10-31/);
-  assert.match(saText(), /جدول‌های پایگاه داده: ۷۱/);
+  assert.match(saText(), /جدول‌های پایگاه داده: ۷۳/);
   await saPress('sa:h');
   assert.match(saText(), /سلامت سرویس/);
   assert.match(saText(), /Bot API: پاسخ می‌دهد/);

@@ -116,5 +116,9 @@
   "chat_refused": "Aegis est parti : nouvelles discussions fermées",
   "fun_echo": "a fait envoyer un message à Aegis (/echo)",
   "channel_dm_vote": "a mis au vote des admins un message privé de {target}",
-  "channel_dm_vote_end": "a clos le vote sur un message privé de {target}"
+  "channel_dm_vote_end": "a clos le vote sur un message privé de {target}",
+  "notes_save": "a enregistré la note #{key}",
+  "notes_clear": "a supprimé la note #{key}",
+  "filters_save": "a enregistré le filtre « {key} »",
+  "filters_remove": "a supprimé le filtre « {key} »"
 }

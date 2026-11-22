@@ -98,7 +98,30 @@ export async function takeAnon(id, byId) {
   return r.rowsAffected ? { ...row, message: parseJson(row.message, {}) } : null;
 }
 
+/* ---------- notes and filters (ui/advanced.js) ---------- */
+
+export const NOTES_MAX = 200;
+export const notes = {
+  get: (chatId, name) => db.get(sql`SELECT * FROM aegis_notes WHERE chat_id = ${chatId} AND name = ${name}`),
+  list: (chatId, limit = NOTES_MAX) => db.all(sql`SELECT name, kind FROM aegis_notes WHERE chat_id = ${chatId} ORDER BY name LIMIT ${limit}`),
+  count: async (chatId) => Number((await db.get(sql`SELECT count(*) AS n FROM aegis_notes WHERE chat_id = ${chatId}`)).n),
+  save: (chatId, name, kind, content, byId) => db.run(sql`INSERT INTO aegis_notes (chat_id, name, kind, content, by_id, at)
+    VALUES (${chatId}, ${name}, ${kind}, ${JSON.stringify(content)}, ${byId}, ${nowSec()})
+    ON CONFLICT(chat_id, name) DO UPDATE SET kind = excluded.kind, content = excluded.content, by_id = excluded.by_id, at = excluded.at`),
+  remove: async (chatId, name) => (await db.run(sql`DELETE FROM aegis_notes WHERE chat_id = ${chatId} AND name = ${name}`)).rowsAffected > 0,
+};
+export const filters = {
+  get: (chatId, trigger) => db.get(sql`SELECT * FROM aegis_filters WHERE chat_id = ${chatId} AND "trigger" = ${trigger}`),
+  list: (chatId, limit = NOTES_MAX) => db.all(sql`SELECT "trigger", kind, content FROM aegis_filters WHERE chat_id = ${chatId} ORDER BY "trigger" LIMIT ${limit}`),
+  count: async (chatId) => Number((await db.get(sql`SELECT count(*) AS n FROM aegis_filters WHERE chat_id = ${chatId}`)).n),
+  save: (chatId, trigger, kind, content, byId) => db.run(sql`INSERT INTO aegis_filters (chat_id, "trigger", kind, content, by_id, at)
+    VALUES (${chatId}, ${trigger}, ${kind}, ${JSON.stringify(content)}, ${byId}, ${nowSec()})
+    ON CONFLICT(chat_id, "trigger") DO UPDATE SET kind = excluded.kind, content = excluded.content, by_id = excluded.by_id, at = excluded.at`),
+  remove: async (chatId, trigger) => (await db.run(sql`DELETE FROM aegis_filters WHERE chat_id = ${chatId} AND "trigger" = ${trigger}`)).rowsAffected > 0,
+};
+
 export async function migrate(oldId, newId) {
+  for (const tb of ['aegis_notes', 'aegis_filters']) await db.run(sql`UPDATE ${sql.raw(tb)} SET chat_id = ${newId} WHERE chat_id = ${oldId}`);
   for (const t of ['aegis_member_flags', 'aegis_reports', 'aegis_topics', 'aegis_anon_cmds']) {
     await db.run(sql`UPDATE ${sql.raw(t)} SET chat_id = ${newId} WHERE chat_id = ${oldId}`);
   }
