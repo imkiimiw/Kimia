@@ -328,10 +328,19 @@ export default async function (input) {
     const k2 = await crisis.start(FAKE_CHAT, LO, { settings: {} });
     const ended = await crisis.end(k1, LO);
     const file = JSON.stringify(await backup.make({ chat_id: FAKE_CHAT, type: 'channel', title: 'Smoke' }));
+    /* the admins' vote on a direct message: opened once per message, votes changed and counted, closed once */
+    const dv1 = await channels.dmVotes.open(FAKE_CHAT, FAKE_CHAT - 1, 77, LO, now);
+    const dv2 = await channels.dmVotes.open(FAKE_CHAT, FAKE_CHAT - 1, 77, LO, now);
+    await channels.dmVotes.cast(dv1, LO, 'n', now);
+    await channels.dmVotes.cast(dv1, LO, 'y', now);
+    const tally = await channels.dmVotes.cast(dv1, LO + 1, 'y', now);
+    const dvRow = await channels.dmVotes.get(dv1);
+    const dvClose = [await channels.dmVotes.close(dv1, 'published'), await channels.dmVotes.close(dv1, 'rejected')];
     return {
       request: [!!d1, !!d2, (await channels.request(rid)).status], flow: [flow.joins, flow.leaves], members: await channels.membersAgo(FAKE_CHAT, 0),
       link: [Number(link.joins), link.name], post: [Number((await posts.get(pid)).versions), vs.length, posts.unpack(await posts.get(pid)).t],
       queue: [due, c1, c2], crisis: [k1 > 0, k2 === 0, !!ended], backup: JSON.parse(file).aegis,
+      dmVote: [dv1 > 0, dv2, tally.yes, tally.no, Number(dvRow.yes), Number(dvRow.no), ...dvClose, await channels.dmVotes.openBy(FAKE_CHAT, LO)],
       pure: [contentOf({ photo: [{ file_id: 'a' }, { file_id: 'b' }] }).c.f, withFooter('text', 'x', 'f'), utf8Text(bytesOf('سلام')), parseWhen('2026-01-02 00:00', 1767225600, 0) > 0],
     };
   }
@@ -399,6 +408,8 @@ export default async function (input) {
     for (const t of ['aegis_join_requests', 'aegis_channel_stats', 'aegis_invite_links', 'aegis_post_queue', 'aegis_crises']) {
       await db.run(sql`DELETE FROM ${sql.raw(t)} WHERE chat_id = ${FAKE_CHAT}`);
     }
+    for (const v of await db.all(sql`SELECT id FROM aegis_dm_votes WHERE channel_id = ${FAKE_CHAT} LIMIT 50`)) await db.run(sql`DELETE FROM aegis_dm_ballots WHERE vote_id = ${v.id}`);
+    await db.run(sql`DELETE FROM aegis_dm_votes WHERE channel_id = ${FAKE_CHAT}`);
     for (const p of await db.all(sql`SELECT id FROM aegis_posts WHERE chat_id = ${FAKE_CHAT} LIMIT 50`)) await db.run(sql`DELETE FROM aegis_post_versions WHERE post_id = ${p.id}`);
     await db.run(sql`DELETE FROM aegis_posts WHERE chat_id = ${FAKE_CHAT}`);
     for (const t of ['aegis_msg_log', 'aegis_schedules', 'aegis_member_flags', 'aegis_reports', 'aegis_topics', 'aegis_anon_cmds']) {

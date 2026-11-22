@@ -88,5 +88,21 @@
   "why_impersonation": "仿冒频道或管理员",
   "why_scam_bio": "简介中有诈骗词语",
   "why_name_pattern": "名字在「名字」列表中",
-  "why_fake": "已知假冒"
+  "why_fake": "已知假冒",
+  "dv_ask": "📮 <b>发给 {title} 的私信</b>\n发送者：{user}\n要在频道中发布吗？投票将在 {time} 后结束，届时若管理员的 ✅ 多于 ❌ 就会发布。\n\n✅ {yes} · ❌ {no}",
+  "dv_ask_mine": "📮 <b>发给 {title} 的私信</b>\n发送者：{user}\n要在频道中发布吗？投票将在 {time} 后结束，届时若管理员的 ✅ 多于 ❌ 就会发布。\n\n✅ {yes} · ❌ {no} · 你的投票：{choice}",
+  "dv_btn_yes": "✅ 发布",
+  "dv_btn_no": "❌ 不发布",
+  "dv_choice_y": "✅ 发布",
+  "dv_choice_n": "❌ 不发布",
+  "dv_voted": "你的投票：{choice} · ✅ {yes} · ❌ {no}",
+  "dv_not_admin": "只有频道管理员可以投票。",
+  "dv_closed": "这次投票已经结束。",
+  "dv_published": "📮 管理员投票后已在 {title} <b>发布</b> — ✅ {yes} · ❌ {no}",
+  "dv_rejected": "📮 <b>未发布</b> — ✅ {yes} · ❌ {no}（需要 ✅ 多于 ❌）",
+  "dv_failed": "📮 多数管理员投票赞成发布（✅ {yes} · ❌ {no}），但 Aegis 无法发送：{reason}",
+  "dv_log_published": "📮 {user} 的私信经管理员投票后已发布（✅ {yes} · ❌ {no}）。",
+  "dv_log_rejected": "📮 {user} 的私信未发布（✅ {yes} · ❌ {no}）。",
+  "dv_log_failed": "📮 {user} 的私信赢得了投票（✅ {yes} · ❌ {no}），但无法发送：{reason}",
+  "dv_log_nobody": "📮 {user} 的私信已交付投票，但频道没有管理员在私聊中启动过 Aegis，所以没人能投票。"
 }

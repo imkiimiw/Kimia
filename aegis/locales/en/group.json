@@ -19,5 +19,10 @@
   "config_no_access": "🔒 {name}, your access to Aegis in this chat is set to None. Ask the chat owner.",
   "anon_admin": "🕶 You're posting anonymously, so Aegis can't tell who you are. Turn «Remain anonymous» off for a moment, or send «پیکربندی» / config in Aegis's private chat to see all your chats.",
   "right_line": "{mark} {name}",
-  "right_item": "• {name}"
+  "right_item": "• {name}",
+  "help_title": "🛡 <b>Aegis in this group</b>",
+  "help_members": "<b>Everyone</b>\n/rules — the rules (rules · قوانین)\n/report — report a message to the admins, as a reply (report · گزارش)\n/admins — the admins (admins · ادمین ها)\n/mywarns — your warnings (mywarns · اخطارهای من)\n/me · /top — your points and the leaderboard\n/ask — a question to the admins (پرسش از مدیران)\n/fun — games and fun · /fal — fortune telling · /font — fonts\n<i>Some of these may be turned off by the admins.</i>",
+  "help_admins": "<b>Admins</b> (as a reply, or with @username or an id)\n/warn · /mute · /restrict · /kick · /ban, and /unwarn · /unmute · /unrestrict · /unban\n/lockdown · /readonly — emergency locks\n«پنل» / panel or /config — all of Aegis’s settings for this group, in private",
+  "btn_help_private": "📖 Full help",
+  "panel_member": "🛡 {name}, Aegis’s panel is for this group’s admins. Send «راهنما» / help to see what you can do here."
 }

@@ -114,7 +114,7 @@ import * as start from './ui/start.js';
 const OWNER_HEADS = new Set(['op', 'os', 'oj', 'ob', 'bc', 'ox', 'sy']);
 const PANEL_HEADS = new Set(['cl', 'g']);
 const OWNER_INPUTS = new Set(['join_add', 'bc_content', 'bc_buttons']);
-const GROUP_HEADS = new Set(['pu', 'bt', 'cp', 'rk', 'ld', 'fj', 'rp', 'an', 'pq', 'ct', 'qa', 'apl', 'apc', 'rv', 'fn', 'md', 'nop']);
+const GROUP_HEADS = new Set(['pu', 'bt', 'cp', 'rk', 'ld', 'fj', 'rp', 'an', 'pq', 'ct', 'qa', 'apl', 'apc', 'rv', 'fn', 'md', 'nop', 'dv']);
 const DASH_HEADS = new Set(['db', 'xp']);
 const PANELS = [panelMod, panelLocks, panelFed, panelAdv, panelTopics, panelChannel, panelPosts, dashboard, panelSocial, panelQa, qa];
 const isUserInput = (kind) => kind === 'adm_pick' || PANELS.some((p) => p.INPUTS.has(kind));
@@ -167,6 +167,7 @@ async function openPayload(ctx, user, from, payload, place = null) {
   if (q) return qa.startQuestion(ctx, user, toInt(q[2]), q[1] === 'a');
   const ap = /^ap_(\d{1,12})$/.exec(String(payload || ''));
   if (ap) return qa.startAppeal(ctx, user, toInt(ap[1]));
+  if (payload === 'help') return start.help(ctx, user);
   const md = /^md_(\d{1,12})$/.exec(String(payload || ''));
   if (md && ctx.mediaOn) return media.openJob(ctx, user, toInt(md[1]));
   return start.welcome(ctx, user, from, place);
@@ -293,10 +294,13 @@ async function handleGroupMessage(ctx, message) {
   if (await security.onMessage(ctx, known, message)) return;
   if (await advanced.onMessage(ctx, known, message)) return;
   const cmd = parseCommand(message.text, { aliases: true });
-  if (cmd === 'config') {
+  /* the panel (config, «پنل») and the help («راهنما», help); /start only as a slash command («منو» is also an everyday word) */
+  const slash = String(message.text || '').trim().startsWith('/');
+  if (cmd === 'config' || cmd === 'panel' || cmd === 'help' || (cmd === 'start' && slash)) {
     const mention = mentionOf(message.text);
     if (mention && mention !== String((await me(ctx)).username).toLowerCase()) return;
-    await group.configInGroup(ctx, message);
+    if (cmd === 'help' || cmd === 'start') await group.helpInGroup(ctx, message);
+    else await group.configInGroup(ctx, message);
     return;
   }
   if ((await advanced.command(ctx, message)) || (await social.command(ctx, message)) || (await qa.command(ctx, message))
@@ -426,6 +430,7 @@ async function handleCallback(ctx, cq) {
     const parts = String(cq.data).split(':');
     if (advanced.HEADS.has(head0)) return advanced.callback(ctx, cq, parts, { roleOf: moderation.roleOf, security: security.command, moderation: moderation.handle });
     if (head0 === 'pq') return channel.queueCallback(ctx, cq, parts);
+    if (head0 === 'dv') return channel.dmVoteButton(ctx, cq, parts);
     if (head0 === 'ct') return social.callback(ctx, cq, parts);
     if (head0 === 'fn') return fun.callback(ctx, cq, parts);
     if (head0 === 'md') return media.callback(ctx, cq, parts);

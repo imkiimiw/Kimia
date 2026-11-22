@@ -22,7 +22,7 @@
  *   ch_imp_action ch_fakes; alerts ch_al_admins ch_al_info ch_al_edits ch_al_bot ch_title_lock
  *   ch_title_locked; posts ch_archive ch_approval ch_edit_lock ch_edit_grace; the discussion group
  *   dg_members dg_as_channel dg_imp dg_first; direct messages dm_on dm_links dm_scam dm_fakes
- *   dm_flood dm_suggest; extras ch_footer ch_buttons ch_post_ttl ch_protect ch_silent; backup ch_mirror.
+ *   dm_flood dm_suggest, the admins' vote on publishing them dm_vote dm_vote_mode (f forward · c copy); extras ch_footer ch_buttons ch_post_ttl ch_protect ch_silent; backup ch_mirror.
  * Phase 8 — stats_on (count activity), points pts_on pts_msg pts_gap pts_thanks pts_announce,
  *   questions qa_on anon_on, appeals_on, review_all (decisions of non-Full admins go to review).
  */
@@ -128,7 +128,7 @@ export const DEFAULTS = {
   ch_al_admins: '1', ch_al_info: '1', ch_al_edits: '0', ch_al_bot: '1', ch_title_lock: '0', ch_title_locked: '',
   ch_archive: '1', ch_approval: '0', ch_edit_lock: '0', ch_edit_grace: '300',
   dg_members: '0', dg_as_channel: '0', dg_imp: '0', dg_first: '0',
-  dm_on: '0', dm_links: '1', dm_scam: '1', dm_fakes: '1', dm_flood: '10', dm_suggest: '0',
+  dm_on: '0', dm_links: '1', dm_scam: '1', dm_fakes: '1', dm_flood: '10', dm_suggest: '0', dm_vote: '0', dm_vote_mode: 'f',
   ch_footer: '', ch_buttons: '', ch_post_ttl: '0', ch_protect: '0', ch_silent: '0', ch_mirror: '0',
   /* Phase 8 */
   stats_on: '1', pts_on: '0', pts_msg: '1', pts_gap: '60', pts_thanks: '1', pts_announce: '1', qa_on: '1', anon_on: '0', appeals_on: '1', review_all: '0',
@@ -144,7 +144,7 @@ export const CHOICES = {
   media_ttl: [0, 3600, 21600, 86400], jr_mode: ['manual', 'approve', 'decline'], fa_n: [0, 1, 2, 3, 5, 10], clean_scope: ['all', 'media', 'service'],
   min_len: [0, 2, 3, 5, 10], max_len: [0, 200, 500, 1000, 2000, 4000], report_dest: ['admins', 'log'], linked: ['keep', 'unpin', 'delete'],
   ch_jr_mode: ['manual', 'approve', 'decline'], ch_jr_flood: [0, 10, 30, 100], ch_imp_action: ['alert', 'remove'], ch_edit_grace: [0, 300, 900, 3600],
-  dm_flood: [0, 5, 10, 20], ch_post_ttl: [0, 3600, 21600, 43200, 86400],
+  dm_flood: [0, 5, 10, 20], dm_vote_mode: ['f', 'c'], ch_post_ttl: [0, 3600, 21600, 43200, 86400],
   pts_msg: [1, 2, 5], pts_gap: [0, 30, 60, 300],
   fun_rate: [0, 5, 10, 20, 30], fun_clean: [0, 60, 300, 3600], bday_cal: ['auto', 'g', 'j'], media_who: ['a', 'd'], media_daily: [3, 5, 10, 20, 50],
 };
@@ -159,7 +159,7 @@ const FLAGS = new Set(['audit', 'notify', 'warn_reset', 'betray_on', 'log_on', '
   'admin_call', 'anon_cmds', 'bot_kick', 'name_watch', 'title_lock', 'bot_alert', 'welcome_on', 'welcome_clean', 'goodbye_on', 'clean_on', 'night_on', 'reports',
   'ev_join', 'ev_leave', 'ev_admin', 'ev_names',
   'ch_jr_captcha', 'ch_jr_names', 'ch_imp', 'ch_al_admins', 'ch_al_info', 'ch_al_edits', 'ch_al_bot', 'ch_title_lock', 'ch_archive',
-  'ch_approval', 'ch_edit_lock', 'dg_members', 'dg_as_channel', 'dg_imp', 'dg_first', 'dm_on', 'dm_links', 'dm_scam', 'dm_fakes', 'dm_suggest',
+  'ch_approval', 'ch_edit_lock', 'dg_members', 'dg_as_channel', 'dg_imp', 'dg_first', 'dm_on', 'dm_links', 'dm_scam', 'dm_fakes', 'dm_suggest', 'dm_vote',
   'ch_protect', 'ch_silent', 'stats_on', 'pts_on', 'pts_thanks', 'pts_announce', 'qa_on', 'anon_on', 'appeals_on', 'review_all',
   'fun_on', 'fun_reward', 'fun_free', 'media_on']);
 export const isFlag = (key) => FLAGS.has(key);

@@ -695,7 +695,8 @@ await scenario('group messages: Phase 1 only records a group → supergroup migr
   assert.equal(c.filter((x) => !['getChatMemberCount'].includes(x.method)).length, 0);
   assert.equal(row('SELECT type FROM aegis_chats WHERE chat_id = -1005001').type, 'supergroup');
   const g = await run(H.message, { message_id: 2, from: U.ali, chat: { id: -1005001, type: 'supergroup' }, date: 0, text: '/start' });
-  assert.equal(sent(g).length, 0);
+  assert.equal(sent(g).length, 1, '/start in a group answers with the group help');
+  assert.match(sent(g)[0].params.text, /Aegis در این گروه/, 'in the chat\'s language');
 });
 
 await scenario('housekeeping runs on the side of updates: old update ids and expired inputs are swept', async () => {
@@ -820,8 +821,13 @@ await scenario('phase 2 — the bot\'s rights change: a notice in the group and 
   assert.ok(row("SELECT id FROM aegis_audit WHERE action = 'chat.rights' AND chat_id = ?", ALPHA));
 });
 
-await scenario('phase 2 — «پیکربندی» / config in the group: admins get a link to the private panel, members are never answered', async () => {
-  assert.equal(sent(await gmsg(alphaChat, P.frank, 'پیکربندی')).length, 0, 'ordinary members get no answer');
+await scenario('phase 2 — «پیکربندی» / config in the group: admins get a link to the private panel, members a short answer (at most one every 20 s)', async () => {
+  tick(30);
+  const fm = sent(await gmsg(alphaChat, P.frank, 'پیکربندی'));
+  assert.equal(fm.length, 1, 'an ordinary member gets a short answer');
+  assert.match(fm[0].params.text, /Aegis’s panel is for this group’s admins/);
+  assert.equal(fm[0].params.reply_markup, undefined, 'no panel link for a member');
+  assert.equal(sent(await gmsg(alphaChat, P.frank, 'panel')).length, 0, 'not again within 20 s');
   const d = await gmsg(alphaChat, P.dave, 'config');
   const [r] = sent(d);
   assert.match(r.params.text, new RegExp(`${n('Dave')}, Aegis's settings for this chat open in a private chat`));
@@ -834,6 +840,29 @@ await scenario('phase 2 — «پیکربندی» / config in the group: admins g
     { sender_chat: { id: ALPHA, type: 'supergroup', title: 'Alpha' } });
   assert.match(sent(anon)[0].params.text, /posting anonymously/);
   assert.equal(sent(await gmsg(alphaChat, P.frank, 'hello everyone')).length, 0, 'ordinary chat: nothing');
+});
+
+await scenario('groups answer «راهنما» / help and «پنل» / panel: the help for everyone (and the admin part with a panel link for admins), the panel link for admins', async () => {
+  tick(30);
+  const mh = sent(await gmsg(alphaChat, P.frank, 'help'));
+  assert.equal(mh.length, 1);
+  assert.match(mh[0].params.text, /^🛡 <b>Aegis in this group<\/b>\n\n<b>Everyone<\/b>\n\/rules/);
+  assert.doesNotMatch(mh[0].params.text, /<b>Admins<\/b>/, 'members see their part only');
+  assert.deepEqual(mh[0].params.reply_markup.inline_keyboard[0].map((b) => b.url), ['https://t.me/aegis_test_bot?start=help']);
+  assert.ok(mh[0].params.reply_parameters, 'a reply to the request');
+  assert.equal(sent(await gmsg(alphaChat, P.dave, '/help')).length, 0, 'at most one help every 20 s in a chat');
+  tick(21);
+  const ah = sent(await gmsg(alphaChat, P.dave, '/help@aegis_test_bot'));
+  assert.match(ah[0].params.text, /<b>Admins<\/b> \(as a reply/);
+  assert.deepEqual(ah[0].params.reply_markup.inline_keyboard[0].map((b) => b.url), ['https://t.me/aegis_test_bot?start=help', `https://t.me/aegis_test_bot?start=c_${ALPHA}`]);
+  assert.equal(sent(await gmsg(alphaChat, P.dave, '/help@other_bot')).length, 0, 'another bot\'s help');
+  const ap = sent(await gmsg(alphaChat, P.dave, 'پنل'));
+  assert.equal(ap.length, 1);
+  assert.equal(ap[0].params.reply_markup.inline_keyboard[0][0].url, `https://t.me/aegis_test_bot?start=c_${ALPHA}`, '«پنل» gives an admin the panel link');
+  assert.equal(sent(await gmsg(alphaChat, P.dave, 'منو')).length, 0, '«منو» (an everyday word) is not /start in a group');
+  /* the «Full help» button opens the help in private */
+  const pm = await dm(P.carol, '/start help');
+  assert.match(toChat(pm, P.carol.id).pop().params.text, /^❓ <b>Help<\/b>/);
 });
 
 await scenario('phase 2 — «پیکربندی» in private: the chats where the user is an allowed admin', async () => {
@@ -1051,7 +1080,11 @@ await scenario('phase 2 — former admins lose access at once: a chat_member dem
   assert.equal(row("SELECT actor_id FROM aegis_audit WHERE action = 'admin.outside' AND target = ?", String(P.dave.id)).actor_id, P.carol.id);
   await press(P.dave, `g:${ALPHA}`, davePanel);
   assert.match(screenOf(P.dave, davePanel).plain, new RegExp(`not an admin of ${n('Alpha')}`));
-  assert.equal(sent(await gmsg(alphaChat, P.dave, 'config')).length, 0, 'no longer answered in the group either');
+  tick(21);
+  const former = sent(await gmsg(alphaChat, P.dave, 'config'));
+  assert.equal(former.length, 1);
+  assert.match(former[0].params.text, /panel is for this group’s admins/, 'in the group only the members\' answer now');
+  assert.equal(former[0].params.reply_markup, undefined, 'no panel link any more');
   alpha.admins.delete(P.frank.id);
   alpha.members.add(P.frank.id);
   await press(P.frank, `g:${ALPHA}`, frankPanel);
@@ -3251,6 +3284,72 @@ await scenario('phase 7 — ✉\uFE0F the channel\'s direct messages: links, blo
   chReset('dm_on', 'dm_suggest');
 });
 
+await scenario('✉️📮 the admins vote on publishing direct messages: copies and ✅/❌ in private, votes can change, after 24 h forwarded when ✅ win, nothing with no votes or a tie', async () => {
+  const topic = (u) => ({ direct_messages_topic: { topic_id: u.id, user: u } });
+  await onboard(Q.abe, 'en');
+  await cp(Cg('H'));
+  assert.match(cscreen().plain, /Admins who can vote \(they started Aegis in private\): 2 of 2 · open votes: 0/);
+  await cp(Cg('H:s:dm_vote'));
+  assert.equal(chVal('dm_vote'), '1');
+  assert.ok(labelsOf(Q.olga, cpanel).includes('📮 Admins vote on publishing: ON'), labelsOf(Q.olga, cpanel).join(' | '));
+  /* a direct message: a copy and a vote message for each admin */
+  const d1 = await gmsg(dmChat, P7.vic, 'I wrote a poem for the channel', topic(P7.vic));
+  const v1 = row('SELECT * FROM aegis_dm_votes ORDER BY id DESC LIMIT 1');
+  assert.equal(Number(v1.from_id), P7.vic.id);
+  assert.equal(Number(v1.ends_at) - Number(v1.at), 86400);
+  for (const a of [Q.olga, Q.abe]) {
+    assert.equal(sent(d1, 'copyMessage').filter((x) => x.params.chat_id === a.id && x.params.from_chat_id === DMC).length, 1, `a copy for ${a.first_name}`);
+  }
+  const ov = lastTo(d1, Q.olga.id, /dv:/);
+  assert.match(ov.params.text, /^📮 <b>A direct message to ⁨Omega News⁩<\/b>\nFrom: ⁨Vic⁩\nShould it be published in the channel\? It is posted when the vote ends, in 1 d, if more admins vote ✅ than ❌\.\n\n✅ 0 · ❌ 0$/);
+  assert.deepEqual(ov.params.reply_markup.inline_keyboard[0].map((b) => b.callback_data), [`dv:${v1.id}:y`, `dv:${v1.id}:n`]);
+  assert.ok(ov.params.reply_parameters, 'a reply to the copy');
+  const omid = ov.result.result.message_id;
+  const amid = lastTo(d1, Q.abe.id, /dv:/).result.result.message_id;
+  /* votes: an admin may change theirs; others are refused */
+  assert.equal((await press(Q.olga, `dv:${v1.id}:n`, omid)).toast, 'Your vote: ❌ don’t publish · ✅ 0 · ❌ 1');
+  const changed = await press(Q.olga, `dv:${v1.id}:y`, omid);
+  assert.equal(changed.toast, 'Your vote: ✅ publish · ✅ 1 · ❌ 0');
+  assert.match(edits(changed.calls)[0].params.text, /✅ 1 · ❌ 0 · your vote: ✅ publish$/);
+  const stranger = await run(H.callback_query, { id: `cb${seq++}`, from: P7.uma, chat_instance: 'x', data: `dv:${v1.id}:y`, message: mock.messageObject(Q.olga.id, omid) });
+  assert.equal(stranger.find((c) => c.method === 'answerCallbackQuery').params.text, 'Only the channel’s admins vote.');
+  /* a second message nobody votes on, a third with a tie */
+  await gmsg(dmChat, P7.uma, 'hello admins', topic(P7.uma));
+  const v2 = row('SELECT * FROM aegis_dm_votes ORDER BY id DESC LIMIT 1');
+  const d3 = await gmsg(dmChat, P7.uma, 'another one', topic(P7.uma));
+  const v3 = row('SELECT * FROM aegis_dm_votes ORDER BY id DESC LIMIT 1');
+  await press(Q.olga, `dv:${v3.id}:y`, lastTo(d3, Q.olga.id, /dv:/).result.result.message_id);
+  await press(Q.abe, `dv:${v3.id}:n`, lastTo(d3, Q.abe.id, /dv:/).result.result.message_id);
+  /* no vote for an admin's own message, a non-content message or past three open votes per sender */
+  assert.equal(sent(await gmsg(dmChat, Q.olga, 'admin reply', topic(P7.vic)), 'copyMessage').length, 0);
+  await gmsg(dmChat, P7.uma, 'third', topic(P7.uma));
+  assert.equal(sent(await gmsg(dmChat, P7.uma, 'fourth', topic(P7.uma)), 'copyMessage').length, 0, 'at most three open votes per sender');
+  await cp(Cg('H'));
+  assert.match(cscreen().plain, /open votes: 4/);
+  /* 24 hours later, on the first update: the first is forwarded, the others are not */
+  tick(86401);
+  const end = await olgaSays('/help');
+  const fw = sent(end, 'forwardMessage');
+  assert.equal(fw.length, 1);
+  assert.deepEqual([fw[0].params.chat_id, fw[0].params.from_chat_id, fw[0].params.message_id], [CH, DMC, Number(v1.message_id)]);
+  assert.deepEqual(['published', 'rejected', 'rejected'].map(String), [v1.id, v2.id, v3.id].map((id) => row('SELECT status FROM aegis_dm_votes WHERE id = ?', id).status));
+  assert.equal(mock.get(Q.olga.id, omid).text.replace(/<[^>]+>/g, ''), '📮 Published in ⁨Omega News⁩ after the admins’ vote — ✅ 1 · ❌ 0');
+  assert.equal(kb(mock.get(Q.abe.id, amid)).length, 0, 'the buttons are gone');
+  assert.match(mock.get(Q.olga.id, lastTo(d3, Q.olga.id, /dv:/).result.result.message_id).text, /Not published<\/b> — ✅ 1 · ❌ 1/);
+  assert.equal((await press(Q.olga, `dv:${v1.id}:y`, omid)).toast, 'This vote is over.');
+  /* «copy» posts it as the channel */
+  await cp(Cg('H:s:dm_vote_mode'));
+  assert.equal(chVal('dm_vote_mode'), 'c');
+  const d5 = await gmsg(dmChat, P7.vic, 'a copy please', topic(P7.vic));
+  const v5 = row('SELECT * FROM aegis_dm_votes ORDER BY id DESC LIMIT 1');
+  await press(Q.abe, `dv:${v5.id}:y`, lastTo(d5, Q.abe.id, /dv:/).result.result.message_id);
+  tick(86401);
+  const end2 = await olgaSays('/help');
+  assert.equal(sent(end2, 'copyMessage').filter((x) => x.params.chat_id === CH && x.params.from_chat_id === DMC).length, 1);
+  assert.equal(sent(end2, 'forwardMessage').length, 0);
+  chReset('dm_vote', 'dm_vote_mode');
+});
+
 await scenario('phase 7 — 🆘 crisis: links revoked, new primary link, requests declined, posts held, Aegis admins demoted, discussion locked — and all put back', async () => {
   chan.admins.set(P7.zoe.id, { status: 'administrator', user: P7.zoe, rights: { can_manage_chat: true, can_post_messages: true, can_edit_messages: true }, promotedBy: BOT_ID });
   chan.members.add(P7.zoe.id);
@@ -5144,7 +5243,7 @@ await scenario('phase 10 — 🛠 Management from the owner panel: version, heal
   for (const d of ['sa:c:f:a:0', 'sa:h', 'sa:e', 'sa:q', 'sa:v', 'sa:l:a:0', 'sa:s', 'sa:g', 'sa:b', 'sy:st', 'op']) assert.ok(saData().includes(d), d);
   await saPress('sa:v');
   assert.match(saText(), /Aegis 1\.0\.0 · فاز ۱۰ · انتشار 2026-10-31/);
-  assert.match(saText(), /جدول‌های پایگاه داده: ۶۹/);
+  assert.match(saText(), /جدول‌های پایگاه داده: ۷۱/);
   await saPress('sa:h');
   assert.match(saText(), /سلامت سرویس/);
   assert.match(saText(), /Bot API: پاسخ می‌دهد/);

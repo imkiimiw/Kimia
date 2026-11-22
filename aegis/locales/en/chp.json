@@ -193,5 +193,10 @@
   "v_bday_cal_g": "Gregorian",
   "v_bday_cal_j": "Persian (Jalali)",
   "v_media_who_a": "everyone",
-  "v_media_who_d": "admins"
+  "v_media_who_d": "admins",
+  "k_dm_vote": "📮 Admins vote on publishing",
+  "k_dm_vote_mode": "Publish as",
+  "v_dm_vote_mode_f": "a forward (shows the sender)",
+  "v_dm_vote_mode_c": "a copy (posted as the channel)",
+  "h_vote": "📮 <b>Admins’ vote on publishing:</b> each direct message is sent to the channel’s admins in private with ✅ / ❌. After 24 hours it is posted to the channel if more voted ✅ than ❌; with no votes, a tie or more ❌, nothing happens.\nAdmins who can vote (they started Aegis in private): {n} of {total} · open votes: {open}\n<i>Bots have no timer: the result is applied on Aegis’s first activity after the 24 hours.</i>"
 }

@@ -88,5 +88,21 @@
   "why_impersonation": "ressemble au canal ou à un admin",
   "why_scam_bio": "mots d'arnaque dans la bio",
   "why_name_pattern": "un nom de la liste « noms »",
-  "why_fake": "un faux connu"
+  "why_fake": "un faux connu",
+  "dv_ask": "📮 <b>Un message privé pour {title}</b>\nDe : {user}\nFaut-il le publier dans la chaîne ? Il sera publié à la fin du vote, dans {time}, si les admins votent plus ✅ que ❌.\n\n✅ {yes} · ❌ {no}",
+  "dv_ask_mine": "📮 <b>Un message privé pour {title}</b>\nDe : {user}\nFaut-il le publier dans la chaîne ? Il sera publié à la fin du vote, dans {time}, si les admins votent plus ✅ que ❌.\n\n✅ {yes} · ❌ {no} · votre vote : {choice}",
+  "dv_btn_yes": "✅ Publier",
+  "dv_btn_no": "❌ Ne pas publier",
+  "dv_choice_y": "✅ publier",
+  "dv_choice_n": "❌ ne pas publier",
+  "dv_voted": "Votre vote : {choice} · ✅ {yes} · ❌ {no}",
+  "dv_not_admin": "Seuls les admins de la chaîne votent.",
+  "dv_closed": "Ce vote est terminé.",
+  "dv_published": "📮 <b>Publié</b> dans {title} après le vote des admins — ✅ {yes} · ❌ {no}",
+  "dv_rejected": "📮 <b>Non publié</b> — ✅ {yes} · ❌ {no} (il faut plus de ✅ que de ❌)",
+  "dv_failed": "📮 La majorité des admins a voté pour la publication (✅ {yes} · ❌ {no}), mais Aegis n’a pas pu l’envoyer : {reason}",
+  "dv_log_published": "📮 Un message privé de {user} a été publié après le vote des admins (✅ {yes} · ❌ {no}).",
+  "dv_log_rejected": "📮 Un message privé de {user} n’a pas été publié (✅ {yes} · ❌ {no}).",
+  "dv_log_failed": "📮 Un message privé de {user} a gagné le vote (✅ {yes} · ❌ {no}) mais n’a pas pu être publié : {reason}",
+  "dv_log_nobody": "📮 Un message privé de {user} a été mis au vote, mais aucun admin de la chaîne n’a lancé Aegis en privé : personne ne peut voter."
 }

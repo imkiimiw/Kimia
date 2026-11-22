@@ -88,5 +88,21 @@
   "why_impersonation": "looks like the channel or an admin",
   "why_scam_bio": "scam words in the bio",
   "why_name_pattern": "a name on the «names» list",
-  "why_fake": "a known fake"
+  "why_fake": "a known fake",
+  "dv_ask": "📮 <b>A direct message to {title}</b>\nFrom: {user}\nShould it be published in the channel? It is posted when the vote ends, in {time}, if more admins vote ✅ than ❌.\n\n✅ {yes} · ❌ {no}",
+  "dv_ask_mine": "📮 <b>A direct message to {title}</b>\nFrom: {user}\nShould it be published in the channel? It is posted when the vote ends, in {time}, if more admins vote ✅ than ❌.\n\n✅ {yes} · ❌ {no} · your vote: {choice}",
+  "dv_btn_yes": "✅ Publish",
+  "dv_btn_no": "❌ Don’t publish",
+  "dv_choice_y": "✅ publish",
+  "dv_choice_n": "❌ don’t publish",
+  "dv_voted": "Your vote: {choice} · ✅ {yes} · ❌ {no}",
+  "dv_not_admin": "Only the channel’s admins vote.",
+  "dv_closed": "This vote is over.",
+  "dv_published": "📮 <b>Published</b> in {title} after the admins’ vote — ✅ {yes} · ❌ {no}",
+  "dv_rejected": "📮 <b>Not published</b> — ✅ {yes} · ❌ {no} (it needs more ✅ than ❌)",
+  "dv_failed": "📮 More admins voted to publish (✅ {yes} · ❌ {no}), but Aegis could not post it: {reason}",
+  "dv_log_published": "📮 A direct message from {user} was published after the admins’ vote (✅ {yes} · ❌ {no}).",
+  "dv_log_rejected": "📮 A direct message from {user} was not published (✅ {yes} · ❌ {no}).",
+  "dv_log_failed": "📮 A direct message from {user} won the vote (✅ {yes} · ❌ {no}) but could not be posted: {reason}",
+  "dv_log_nobody": "📮 A direct message from {user} was put to the vote, but no admin of the channel has started Aegis in private, so nobody can vote."
 }

@@ -34,7 +34,7 @@ import { addToGroupUrl } from '../engines/rights.js';
 import * as settings from '../engines/settings.js';
 import * as users from '../engines/users.js';
 import { dur, num, t } from '../i18n/index.js';
-import { decideRequest } from './channel.js';
+import { decideRequest, dmVoters } from './channel.js';
 import { back, guard, needLevel, pairs, removeKeyboard } from './guard.js';
 
 const { L } = admins;
@@ -501,8 +501,11 @@ async function dmScreen(ctx, user, g, place) {
   const lines = [t(lang, 'chp.title_h', { title: title(g) }), t(lang, 'chp.intro_h'), ''];
   lines.push(t(lang, Number(g.chat.dm_chat) ? 'chp.h_seen' : 'chp.h_unseen'));
   if (botRights(g).can_manage_direct_messages !== true) lines.push(t(lang, 'chp.h_need_right'));
+  const vt = await dmVoters(c);
+  lines.push('', t(lang, 'chp.h_vote', { n: num(lang, vt.voters.length), total: num(lang, vt.total), open: num(lang, await channels.dmVotes.openIn(c)) }));
   const kb = [[settingBtn(lang, c, s, 'dm_on', 'H')], [settingBtn(lang, c, s, 'dm_links', 'H'), settingBtn(lang, c, s, 'dm_scam', 'H')],
-    [settingBtn(lang, c, s, 'dm_fakes', 'H'), settingBtn(lang, c, s, 'dm_flood', 'H')], [settingBtn(lang, c, s, 'dm_suggest', 'H')], back(lang, `g:${c}`)];
+    [settingBtn(lang, c, s, 'dm_fakes', 'H'), settingBtn(lang, c, s, 'dm_flood', 'H')], [settingBtn(lang, c, s, 'dm_suggest', 'H')],
+    [settingBtn(lang, c, s, 'dm_vote', 'H')], [settingBtn(lang, c, s, 'dm_vote_mode', 'H')], back(lang, `g:${c}`)];
   return screen(ctx, user.user_id, place, lines.join('\n'), kb, 'channel-dms');
 }
 

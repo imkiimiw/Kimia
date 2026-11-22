@@ -26,7 +26,7 @@ renames a feature from the instructions.
 | Who manages admins | Full level **and** Telegram's own «Add new admins» right (or being the owner) — the same rule Telegram applies to people. |
 | Anti-escalation | Nobody can give a right they (or Aegis) don't have; such rights keep their current value when someone edits an admin. An Aegis admin at your level or above can only be edited by whoever appointed them, or by the owner. |
 | Where the "added" warning goes | Group: in the group and in the adder's private chat. Channel: only the adder's private chat (a channel post would reach every subscriber). |
-| «پیکربندی» in a group | Answered only for admins (a button to the private panel); ordinary members get no answer, so the command can't be used to spam. Anonymous admins are asked to use the private chat. |
+| «پیکربندی» in a group | Admins get a button to the private panel. (Changed later, at the owner's request:) ordinary members get a short answer that the panel is for admins, at most one every 20 s per chat so it can't be used to spam; «پنل» / panel works the same way, and «راهنما» / help or `/start` give the group help (at most one every 20 s per chat). «منو» / «شروع» as plain words are not taken as /start in a group (everyday words). Anonymous admins are asked to use the private chat. |
 | Group language | The language of the admin who added Aegis, changeable in the panel (Settings level). |
 | Persistent reminder | Admins appointed outside Aegis are always listed in the panel; in the group a reminder is posted right after such an admin appears (at most every 10 minutes) and then at most once a day while any remain, on the next group activity (there is no scheduler). Admins with Settings level can switch the group reminder off. |
 | Former admins | Revoked the moment Telegram reports the change (chat_member) or at the next live re-check: cached rights and manual level are deleted and the revocation is logged. |
@@ -212,6 +212,16 @@ existing feature were not built twice (see NOT_BUILT.md for the full list and re
 | Virtual travel and the parallel world | 40 real places (10 of them in Iran) with a fact (written for this project), their flag and an OpenStreetMap link (free, no key). The parallel world picks one of 12 jobs, homes, powers, companions and twists by a hash of the member and the day. |
 | Answers that are also command words | While a game runs in the chat, a message that is one of its answers (scramble, cipher, typing, emoji films, flags, riddles, who am I) is not treated as a command word, so «ساعت» answers a riddle instead of opening /clock. Slash commands always run. |
 | Module cap | Still 95 modules: everything new went into existing modules (`engines/fun.js`, `ui/fun.js`, `data/fal2.js`). |
+
+### After the release — the admins' vote on direct messages (the owner's request)
+
+| Topic | Decision |
+|---|---|
+| What is voted on | With «📮 Admins vote on publishing» on (off by default), every direct message to the channel that the filters (if on) let through and that Aegis can post — text, photo, video, GIF, file, audio, voice, video note, sticker — except admins' own messages and suggested posts. At most three open votes per sender, so a flood of messages doesn't flood the admins. |
+| Who votes, where | The channel's human admins who have started Aegis in private (a bot can't write first), at most 10: each gets a copy of the message and a vote message with ✅ / ❌. Only current admins of the channel can vote; an admin can change their vote until the end. If no admin can be reached, the log channel says so and nothing is published. |
+| The result | After 24 hours: published if ✅ > ❌; with no votes, a tie or more ❌, nothing happens (the message stays in the direct messages). There is no scheduler, so the result is applied on Aegis's first activity after the 24 hours (the timed work runs at most once a minute on any update). |
+| How it is published | «Publish as»: a forward (the default — Telegram shows the sender as their privacy settings allow) or a copy posted as the channel. The channel's «silent» and «protected» publishing settings apply. If Telegram refuses (e.g. Aegis can't post), the admins and the log channel see why. |
+| Storage | Two new tables, `aegis_dm_votes` (one per message) and `aegis_dm_ballots` (one per admin and vote); finished votes are deleted after 30 days. |
 
 ## Phase 10
 

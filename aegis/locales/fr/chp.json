@@ -193,5 +193,10 @@
   "v_bday_cal_g": "grégorien",
   "v_bday_cal_j": "persan (jalali)",
   "v_media_who_a": "tout le monde",
-  "v_media_who_d": "admins"
+  "v_media_who_d": "admins",
+  "k_dm_vote": "📮 Vote des admins pour publier",
+  "k_dm_vote_mode": "Publier en",
+  "v_dm_vote_mode_f": "transfert (montre l’expéditeur)",
+  "v_dm_vote_mode_c": "copie (au nom de la chaîne)",
+  "h_vote": "📮 <b>Vote des admins pour publier :</b> chaque message privé est envoyé aux admins de la chaîne, en privé, avec ✅ / ❌. Après 24 heures, il est publié dans la chaîne s’il y a plus de ✅ que de ❌ ; sans vote, à égalité ou avec plus de ❌, rien ne se passe.\nAdmins qui peuvent voter (ils ont lancé Aegis en privé) : {n} sur {total} · votes en cours : {open}\n<i>Les bots n’ont pas de minuterie : le résultat est appliqué à la première activité d’Aegis après les 24 heures.</i>"
 }

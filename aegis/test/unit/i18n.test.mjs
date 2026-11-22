@@ -226,6 +226,9 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     'gamelist.c_': fun.puzzles.COUNTRIES, 'gamelist.rq_': [...Array(fun.puzzles.RIDDLES).keys()], 'gamelist.ra_': [...Array(fun.puzzles.RIDDLES).keys()], 'gamelist.gq_': [...Array(12).keys()],
     'gamelist.an_': fun.puzzles.NAMES, 'gamelist.er_': Object.keys(fun.puzzles.ESCAPE), 'gamelist.eo_': Object.keys(fun.puzzles.ESCAPE).filter((n) => fun.puzzles.ESCAPE[n].length),
     'fun.cipher_how_': ['rev', 'shift', 'num'], 'fun.': ['cipher_win'],
+    /* the admins' vote on direct messages to a channel */
+    'chp.k_': ['dm_vote', 'dm_vote_mode'], 'chp.v_dm_vote_mode_': ['f', 'c'], 'ch.dv_': ['published', 'rejected', 'failed'],
+    'ch.dv_log_': ['published', 'rejected', 'failed', 'nobody'], 'ch.dv_choice_': ['y', 'n'],
     'gamelist.cs_t_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_s_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_n_': [...fun.puzzles.CASES.keys()],
     'gamelist.cs_q_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_c_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_a_': [...fun.puzzles.CASES.keys()],
     'gamelist.wa_n_': fun.puzzles.PEOPLE, 'gamelist.wa_c_': fun.puzzles.PEOPLE, 'gamelist.tp_n_': fun.puzzles.PLACES.map(([k]) => k),

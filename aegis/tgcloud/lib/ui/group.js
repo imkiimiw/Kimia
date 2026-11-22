@@ -173,8 +173,15 @@ export async function configInGroup(ctx, message) {
     return;
   }
   const from = message.from;
+  if (!from) return;
   const acc = await admins.liveAccess(ctx, tgChat.id, from.id);
-  if (!acc.member || !['creator', 'administrator'].includes(acc.member.status)) return; /* ordinary members: no answer */
+  if (!acc.member || !['creator', 'administrator'].includes(acc.member.status)) {
+    /* an ordinary member: a short answer (at most one every 20 s in a chat) that the panel is for admins */
+    if (await kv.claim(`gpanel_${tgChat.id}`, nowSec(), 20)) {
+      await send(ctx, tgChat.id, t(chat.lang, 'group.panel_member', { name: iso(fullName(from)) }), null, 'panel-member', reply);
+    }
+    return;
+  }
   if (!Number(chat.registered)) chat = await register(ctx, chat, null);
   if (acc.level < admins.L.view) {
     await send(ctx, tgChat.id, t(chat.lang, 'group.config_no_access', { name: iso(fullName(from)) }), null, 'config-no-access', reply);
@@ -183,6 +190,29 @@ export async function configInGroup(ctx, message) {
   const bot = (await me(ctx)).username;
   await send(ctx, tgChat.id, t(chat.lang, 'group.config_reply', { name: iso(fullName(from)) }), [[urlBtn(t(chat.lang, 'group.btn_panel'), panelLink(bot, tgChat.id))]],
     'config-link', reply);
+}
+
+/* «راهنما» / help (or /start) in a group: what members can do here, and for admins the moderation commands and the panel. */
+export async function helpInGroup(ctx, message) {
+  const tgChat = message.chat;
+  const chat = await ensureChat(ctx, tgChat);
+  if (!chat) return;
+  if (!(await kv.claim(`ghelp_${tgChat.id}`, nowSec(), 20))) return; /* at most one help every 20 s in a chat */
+  const lang = chat.lang;
+  const from = message.from;
+  let admin = !!(message.sender_chat && message.sender_chat.id === tgChat.id); /* an anonymous admin */
+  if (!admin && from && !message.sender_chat) {
+    const acc = await admins.liveAccess(ctx, tgChat.id, from.id);
+    admin = !!acc.member && ['creator', 'administrator'].includes(acc.member.status);
+  }
+  const bot = (await me(ctx)).username;
+  const lines = [t(lang, 'group.help_title'), '', t(lang, 'group.help_members')];
+  const rows = [[urlBtn(t(lang, 'group.btn_help_private'), `https://t.me/${bot}?start=help`)]];
+  if (admin) {
+    lines.push('', t(lang, 'group.help_admins'));
+    rows[0].push(urlBtn(t(lang, 'group.btn_panel'), panelLink(bot, tgChat.id)));
+  }
+  await send(ctx, tgChat.id, lines.join('\n'), rows, 'group-help', { reply_parameters: { message_id: message.message_id, allow_sending_without_reply: true } });
 }
 
 /* The reminder about admins Aegis can't manage. event: right after one appeared (shorter gap). */

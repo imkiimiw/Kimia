@@ -15,7 +15,10 @@
  *   fakes, «first comment» bots, comments from non-subscribers (settings dg_* of the channel).
  * dmMessage(): the channel's direct messages chat — blocked users, links, scams, fakes, floods,
  *   suggested posts (settings dm_*); offending messages are deleted (or a suggested post declined).
- * sweep() (at most once a minute): scheduled posts, and one step of copying older posts to backup.
+ *   With dm_vote, every other message goes to the channel's admins in private for a vote (dv:<id>:y|n);
+ *   after 24 h it is forwarded (or copied) to the channel when ✅ outnumber ❌ (resolved in sweep()).
+ * sweep() (at most once a minute): scheduled posts, one step of copying older posts to backup, and the
+ *   direct-message votes whose 24 hours are over.
  * Audit Mode (of the channel): nothing is held, reverted, declined, removed or deleted by Aegis on
  * its own; it is logged instead.
  */
@@ -23,7 +26,8 @@ import { db } from 'sdk';
 import { sql } from 'sdk/db';
 import { APP_URL, BACKUP_BATCH, DM_WINDOW_SEC, JR_FLOOD_HOLD_SEC, QUEUE_MAX } from '../config.js';
 import * as audit from '../core/audit.js';
-import { answer, btn, call, describeError, isFlood, me, retryAfter, send, tryCall, urlBtn } from '../core/tg.js';
+import * as kv from '../core/kv.js';
+import { answer, btn, call, describeError, edit, isFlood, me, retryAfter, send, tryCall, urlBtn } from '../core/tg.js';
 import { canPublish, contentOf, editTo, hasCaption, parseButtons, publish, same, withFooter } from '../core/content.js';
 import { linksOf, scan } from '../core/msgscan.js';
 import { dangerousFile, fingerprint, makeCaptcha, nameSignals, scamHits, skeleton } from '../core/signals.js';
@@ -43,7 +47,7 @@ import * as punish from '../engines/punish.js';
 import { rightsOf } from '../engines/rights.js';
 import * as settings from '../engines/settings.js';
 import * as users from '../engines/users.js';
-import { pickLang, t } from '../i18n/index.js';
+import { dur, num, pickLang, t } from '../i18n/index.js';
 import { deleteMessage, isAdmin, postNotice } from './enforce.js';
 import { requestCaptcha } from './security.js';
 
@@ -668,9 +672,12 @@ export async function dmMessage(ctx, message) {
   if (!isChannel(channel)) return;
   const s = await settings.all(ctx, chId);
   const user = message.from;
-  if (!flag(s, 'dm_on') || !user || user.is_bot || await isAdmin(chId, user.id)) return;
-  const rule = await dmRule(ctx, channel, s, message, user, dm.id);
-  if (!rule) return;
+  if (!user || user.is_bot || (!flag(s, 'dm_on') && !flag(s, 'dm_vote')) || await isAdmin(chId, user.id)) return;
+  const rule = flag(s, 'dm_on') ? await dmRule(ctx, channel, s, message, user, dm.id) : null;
+  if (!rule) {
+    if (flag(s, 'dm_vote')) await startDmVote(ctx, channel, message, user, dm.id);
+    return;
+  }
   const who = iso(fullName(user));
   if (auditOn(s)) {
     await logs.post(ctx, channel, 'security', t(channel.lang, 'ch.dm_log_audit', { user: who, rule: t(channel.lang, `ch.dm_rule_${rule}`) }));
@@ -682,6 +689,110 @@ export async function dmMessage(ctx, message) {
   } else await deleteMessage(ctx, dm.id, message.message_id, `dm-${rule}`);
   await logs.post(ctx, channel, 'security', t(channel.lang, 'ch.dm_log', { user: who, rule: t(channel.lang, `ch.dm_rule_${rule}`) }));
   if (rule === 'scam') await alert(ctx, channel, 'security', (l) => t(l, 'ch.al_dm_scam', { user: who, id: String(user.id) }));
+}
+
+/* ---------- the admins' vote on publishing a direct message (setting dm_vote) ---------- */
+
+const DV_MAX_VOTERS = 10;
+const DV_MAX_OPEN_PER_SENDER = 3;
+
+/* The channel's human admins Aegis can write to (they started it in private), and how many admins there are. */
+export async function dmVoters(chId) {
+  const rows = (await admins.listRows(chId)).filter((r) => !Number(r.is_bot) && (r.status === 'creator' || r.status === 'administrator'));
+  const voters = [];
+  for (const r of rows) {
+    if (voters.length >= DV_MAX_VOTERS) break;
+    const u = await users.get(Number(r.user_id));
+    if (u && Number(u.started) && !Number(u.blocked)) voters.push(u);
+  }
+  return { voters, total: rows.length };
+}
+
+function dvText(lang, chat, v, who, choice = '') {
+  const vars = { title: iso(chat.title || '', 48), user: who, time: dur(lang, Math.max(60, Number(v.ends_at) - nowSec())), yes: num(lang, Number(v.yes)), no: num(lang, Number(v.no)) };
+  return choice ? t(lang, 'ch.dv_ask_mine', { ...vars, choice: t(lang, `ch.dv_choice_${choice}`) }) : t(lang, 'ch.dv_ask', vars);
+}
+const dvRows = (lang, id) => [[btn(t(lang, 'ch.dv_btn_yes'), `dv:${id}:y`), btn(t(lang, 'ch.dv_btn_no'), `dv:${id}:n`)]];
+
+/* A direct message the filters let through: a copy and a vote message to each admin who can get one. */
+async function startDmVote(ctx, channel, message, user, dmId) {
+  if (message.suggested_post_info || !canPublish(contentOf(message).kind)) return;
+  const chId = channel.chat_id;
+  if ((await channels.dmVotes.openBy(chId, user.id)) >= DV_MAX_OPEN_PER_SENDER) return;
+  const id = await channels.dmVotes.open(chId, dmId, message.message_id, user.id);
+  if (!id) return;
+  await users.remember(user);
+  const who = iso(fullName(user));
+  const { voters } = await dmVoters(chId);
+  await audit.log(0, 'channel.dm_vote', { chatId: chId, target: String(user.id), details: { voters: voters.length } });
+  if (!voters.length) {
+    await logs.post(ctx, channel, 'admin', t(channel.lang, 'ch.dv_log_nobody', { user: who }));
+    return;
+  }
+  const v = await channels.dmVotes.get(id);
+  const msgs = [];
+  for (const u of voters) {
+    const copy = await tryCall(ctx, 'copyMessage', { chat_id: Number(u.user_id), from_chat_id: dmId, message_id: message.message_id }, 'dm-vote-copy');
+    const m = await send(ctx, Number(u.user_id), dvText(u.lang, channel, v, who), dvRows(u.lang, id), 'dm-vote',
+      copy ? { reply_parameters: { message_id: copy.message_id, allow_sending_without_reply: true } } : {});
+    if (m) msgs.push([Number(u.user_id), m.message_id]);
+  }
+  await channels.dmVotes.setMsgs(id, msgs);
+}
+
+/* dv:<vote>:y|n — an admin of the channel votes (or changes their vote) until the 24 hours are over. */
+export async function dmVoteButton(ctx, cq, parts) {
+  const from = cq.from;
+  const u = await users.get(from.id);
+  const lang = u && Number(u.lang_set) ? u.lang : pickLang(from.language_code);
+  const id = toInt(parts[1]);
+  const choice = parts[2];
+  if (!id || (choice !== 'y' && choice !== 'n')) return answer(ctx);
+  const v = await channels.dmVotes.get(id);
+  if (!v || v.status !== 'open') return answer(ctx, t(lang, 'ch.dv_closed'), true);
+  if (Number(v.ends_at) <= nowSec()) {
+    await resolveDmVote(ctx, v);
+    return answer(ctx, t(lang, 'ch.dv_closed'), true);
+  }
+  if (!(await isAdmin(Number(v.channel_id), from.id))) return answer(ctx, t(lang, 'ch.dv_not_admin'), true);
+  const tally = await channels.dmVotes.cast(id, from.id, choice);
+  const channel = await chats.get(Number(v.channel_id));
+  if (channel && cq.message) {
+    const who = iso(await users.displayName(Number(v.from_id)));
+    await edit(ctx, { chat_id: cq.message.chat.id, message_id: cq.message.message_id }, dvText(lang, channel, { ...v, ...tally }, who, choice), dvRows(lang, id), 'dm-vote');
+  }
+  return answer(ctx, t(lang, 'ch.dv_voted', { choice: t(lang, `ch.dv_choice_${choice}`), yes: num(lang, tally.yes), no: num(lang, tally.no) }));
+}
+
+/* The 24 hours are over: published (forward or copy) when ✅ outnumber ❌, else nothing; the admins' messages show the result. */
+export async function resolveDmVote(ctx, v) {
+  const yes = Number(v.yes);
+  const no = Number(v.no);
+  let status = yes > no ? 'published' : 'rejected';
+  if (!(await channels.dmVotes.close(v.id, status))) return;
+  const channel = await chats.get(Number(v.channel_id));
+  if (!channel) return;
+  const s = await settings.all(ctx, channel.chat_id);
+  let reason = '';
+  if (status === 'published') {
+    try {
+      await call(ctx, s.dm_vote_mode === 'c' ? 'copyMessage' : 'forwardMessage', { chat_id: channel.chat_id, from_chat_id: Number(v.dm_chat_id),
+        message_id: Number(v.message_id), disable_notification: flag(s, 'ch_silent'), protect_content: flag(s, 'ch_protect') }, 'dm-vote-publish');
+    } catch (err) {
+      status = 'failed';
+      reason = short(describeError(err), 200);
+      await channels.dmVotes.setStatus(v.id, 'failed');
+    }
+  }
+  for (const [chatId, msgId] of parseJson(v.msgs, []) || []) {
+    const u = await users.get(Number(chatId));
+    const lang = u ? u.lang : channel.lang;
+    await edit(ctx, { chat_id: Number(chatId), message_id: Number(msgId) }, t(lang, `ch.dv_${status}`, { title: iso(channel.title || '', 48), yes: num(lang, yes),
+      no: num(lang, no), reason: esc(reason) }), null, 'dm-vote-end');
+  }
+  const who = iso(await users.displayName(Number(v.from_id)));
+  await logs.post(ctx, channel, 'admin', t(channel.lang, `ch.dv_log_${status}`, { user: who, yes: num(channel.lang, yes), no: num(channel.lang, no), reason: esc(reason) }));
+  await audit.log(0, 'channel.dm_vote_end', { chatId: channel.chat_id, target: String(v.from_id), details: { status, yes, no } });
 }
 
 /* ---------- timed work ---------- */
@@ -730,4 +841,6 @@ export async function sweep(ctx) {
     await publishItem(ctx, chat, item, Number(item.decided_by) || Number(item.author_id));
   }
   for (const job of await backup.runnable(now, 1)) await backupStep(ctx, job);
+  for (const v of await channels.dmVotes.due(now, 5)) await resolveDmVote(ctx, v);
+  if (await kv.claim('dm_votes_prune', now, 3600)) await channels.dmVotes.prune(now);
 }

@@ -803,6 +803,41 @@ export const dmChats = table('aegis_dm_chats', {
   byChannel: index('idx_aegis_dm_chats_channel').on(t.channelId),
 }));
 
+/*
+ * A direct message to a channel put to the vote of the channel's admins (setting dm_vote): if more of
+ * them vote to publish than not before ends_at (24 h), Aegis forwards (or copies) it to the channel.
+ * status: open · published · rejected (no votes, a tie or more against) · failed (could not post).
+ * msgs: the vote messages sent to the admins, [[chat id, message id], …], edited with the result.
+ */
+export const dmVotes = table('aegis_dm_votes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  channelId: integer('channel_id').notNull(),
+  dmChatId: integer('dm_chat_id').notNull(),
+  messageId: integer('message_id').notNull(),
+  fromId: integer('from_id').notNull().default(0),
+  at: integer('at').notNull(),
+  endsAt: integer('ends_at').notNull(),
+  status: text('status').notNull().default('open'),
+  yes: integer('yes').notNull().default(0),
+  no: integer('no').notNull().default(0),
+  msgs: text('msgs').notNull().default('[]'),
+}, (t) => ({
+  due: index('idx_aegis_dm_votes_due').on(t.endsAt).where(sql`status = 'open'`),
+  byChannel: index('idx_aegis_dm_votes_channel').on(t.channelId, t.status),
+  byMessage: uniqueIndex('idx_aegis_dm_votes_message').on(t.dmChatId, t.messageId),
+}));
+
+/* One admin's vote on a direct message (they may change it until the vote ends). choice: y · n. */
+export const dmBallots = table('aegis_dm_ballots', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  voteId: integer('vote_id').notNull(),
+  userId: integer('user_id').notNull(),
+  choice: text('choice').notNull(),
+  at: integer('at').notNull(),
+}, (t) => ({
+  byVoteUser: uniqueIndex('idx_aegis_dm_ballots_vote_user').on(t.voteId, t.userId),
+}));
+
 /* ---------- Phase 8: reports, stats and social features ---------- */
 
 /* A member's activity in a group: messages, points (levels come from points), thanks, daily streak. */

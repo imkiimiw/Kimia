@@ -19,5 +19,10 @@
   "config_no_access": "🔒 {name}，你在此聊天中对 Aegis 的权限被设为「无权限」。请联系聊天所有者。",
   "anon_admin": "🕶 你正在匿名发言，Aegis 无法识别你的身份。请暂时关闭「保持匿名」，或在 Aegis 私聊中发送「پیکربندی」/ config 查看你的所有聊天。",
   "right_line": "{mark} {name}",
-  "right_item": "• {name}"
+  "right_item": "• {name}",
+  "help_title": "🛡 <b>Aegis 在本群</b>",
+  "help_members": "<b>所有人</b>\n/rules — 群规\n/report — 回复一条消息，向管理员举报\n/admins — 管理员名单\n/mywarns — 你的警告\n/me · /top — 你的积分和排行榜\n/ask — 向管理员提问\n/fun — 游戏娱乐 · /fal — 占卜 · /font — 花式字体\n<i>其中一些功能可能已被管理员关闭。</i>",
+  "help_admins": "<b>管理员</b>（回复消息，或加 @用户名 / ID）\n/warn · /mute · /restrict · /kick · /ban，以及 /unwarn · /unmute · /unrestrict · /unban\n/lockdown · /readonly — 紧急锁定\n“面板”或 /config — 在私聊中打开 Aegis 对本群的全部设置",
+  "btn_help_private": "📖 完整帮助",
+  "panel_member": "🛡 {name}，Aegis 的面板只供本群管理员使用。发送“帮助” / help 查看你在这里能做什么。"
 }

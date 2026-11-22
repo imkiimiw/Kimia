@@ -114,5 +114,7 @@
   "chat_backup": "(Aegis team) downloaded the configuration backup",
   "chat_message": "(Aegis team) posted a message",
   "chat_refused": "Aegis left: new chats are closed",
-  "fun_echo": "made Aegis say a message (/echo)"
+  "fun_echo": "made Aegis say a message (/echo)",
+  "channel_dm_vote": "put a direct message from {target} to the admins’ vote",
+  "channel_dm_vote_end": "closed the vote on a direct message from {target}"
 }

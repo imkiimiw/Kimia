@@ -301,6 +301,12 @@ Mode, log channel, admins, access levels, language, change log).
   comments only from subscribers (with a join button).
 - **✉️ Direct messages** — in the channel's direct messages: blocked senders, links, scams and
   dangerous files, known fakes and floods are removed; suggested posts with links are declined.
+  **📮 Admins vote on publishing** (off by default): every other direct message is copied to the
+  channel's admins in private (those who started Aegis, up to 10) with ✅ Publish / ❌ Don't publish;
+  an admin can change their vote. After 24 hours it is posted to the channel if ✅ outnumber ❌ — as a
+  forward (shows the sender, as their Telegram privacy allows) or a copy posted as the channel — and
+  with no votes, a tie or more ❌ nothing happens. The admins' messages then show the result, which also
+  goes to the log channel. At most three open votes per sender.
 - **✨ Extras** — a footer and link buttons added to every new post, posts that delete themselves
   after 1 h – 1 day, silent and protected publishing for posts sent through Aegis.
 - **💾 Backups** — the channel's Aegis settings and lists as a JSON file, restored after a check
@@ -513,8 +519,12 @@ ask Telegram for the needed admin rights, and Aegis sets them as its default adm
 - When Aegis's rights change, a short notice says what's missing (or that all is fine).
 
 **«پیکربندی» / config**
-- In a group: an admin gets a button to that group's private panel (ordinary members are never
-  answered or blocked; anonymous admins are told to use the private chat).
+- In a group: an admin gets a button to that group's private panel; «پنل» / panel does the same.
+  An ordinary member gets a short answer that the panel is for admins (at most one every 20 s in a
+  chat); anonymous admins are told to use the private chat.
+- «راهنما» / help (or `/start`) in a group: what everyone can do there (rules, report, admins, warnings,
+  points, questions, fun) and, for admins, the moderation commands and a panel button; «📖 Full help»
+  opens the help in private. At most one every 20 s in a chat.
 - In private: the list of groups and channels where you're an admin with access.
 - Opening a panel goes through the forced-join check (the owner is exempt); a link opened before
   choosing a language or joining is kept and opens afterwards.
@@ -610,14 +620,14 @@ npm run test:cloud            # smoke test on the real platform with fake users 
 
 ## Database and migrations
 
-69 tables, all prefixed `aegis_` (core: `users`, `chats`, `chat_admins`, `access`, `promotions`,
+71 tables, all prefixed `aegis_` (core: `users`, `chats`, `chat_admins`, `access`, `promotions`,
 `join_channels`, `kv`, `states`, `updates`, `audit`, `errors`, `broadcasts`; then each phase's own,
 e.g. Phase 6: `msg_log`, `schedules`, `reports`, `member_flags`, `topics`, `anon_cmds`; Phase 7:
 `join_requests`, `invite_links`, `channel_stats`, `posts`, `post_versions`, `post_queue`, `crises`,
 `backup_jobs`, `dm_chats`; Phase 8: `member_stats`, `stats_day`, `stats_hour`, `badges`, `badge_defs`,
 `contests`, `contest_entries`, `polls`, `poll_votes`, `questions`, `qa_blocks`, `appeals`, `reviews`; Phase 9:
 `fun_use`, `fun_games`, `birthdays`, `fun_daily`, `media_jobs`, `sticker_packs`; Phase 10: `staff`,
-`audit_seals`; after the release: `dreams`, the private dream journal) — see `tgcloud/schema.js`.
+`audit_seals`; after the release: `dreams`, the private dream journal; `dm_votes` and `dm_ballots`, the admins' vote on direct messages) — see `tgcloud/schema.js`.
 
 - **Schema** changes: edit `tgcloud/schema.js`, then `npm run deploy` (`tgcloud migrate --safe`
   adds tables/columns/indexes; drops only via `.deprecated()`; type changes are manual).

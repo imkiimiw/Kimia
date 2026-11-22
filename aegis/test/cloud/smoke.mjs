@@ -59,7 +59,7 @@ fs.copyFileSync(DEV_SRC, DEV_DST);
 try {
   const before = dev('read');
   const tables = before.tables.map((t) => t.name);
-  check('69 aegis_ tables exist', tables.length === 69, tables.join(', '));
+  check('71 aegis_ tables exist', tables.length === 71, tables.join(', '));
   check('indexes exist', before.indexes.length >= 111, `${before.indexes.length} idx_aegis_*`);
   for (const t of ['aegis_staff', 'aegis_audit_seals']) check(`Phase 10 table ${t}`, tables.includes(t));
   for (const t of ['aegis_fun_use', 'aegis_fun_games', 'aegis_birthdays', 'aegis_fun_daily', 'aegis_media_jobs', 'aegis_sticker_packs']) check(`Phase 9 table ${t}`, tables.includes(t));
@@ -84,12 +84,14 @@ try {
     && p8.appeal.join() === 'true,0,true,false,true,false', JSON.stringify(p8));
   check('levels, thanks, the health score and command words (Persian) in the isolate', p8.pure.join() === '2,true,E,me,anon,', JSON.stringify(p8.pure));
   for (const t of ['aegis_join_requests', 'aegis_invite_links', 'aegis_channel_stats', 'aegis_posts', 'aegis_post_versions', 'aegis_post_queue', 'aegis_crises',
-    'aegis_backup_jobs', 'aegis_dm_chats']) check(`Phase 7 table ${t}`, tables.includes(t));
+    'aegis_backup_jobs', 'aegis_dm_chats', 'aegis_dm_votes', 'aegis_dm_ballots']) check(`Phase 7 table ${t}`, tables.includes(t));
   const p7 = dev('p7');
   check('channels on the real platform: requests decided once, joins/leaves per day, link counts, post versions, queue claimed once, one crisis at a time, backup file',
     p7.request.join() === 'true,false,approved' && p7.flow.join() === '2,1' && p7.members === 42 && p7.link.join() === '1,Smoke' && p7.post.join() === '2,1,two'
     && p7.queue.join() === 'true,true,false' && p7.crisis.join() === 'true,true,true' && p7.backup === 'backup', JSON.stringify(p7));
   check('post content, footers, UTF-8 decoding and scheduled times in the isolate', p7.pure.join() === 'b,x\n\nf,سلام,true', JSON.stringify(p7.pure));
+  check('the admins\' vote on a direct message in the real database: one vote per message, a changed vote counted once, closed once',
+    JSON.stringify(p7.dmVote) === JSON.stringify([true, 0, 2, 0, 2, 0, true, false, 0]), JSON.stringify(p7.dmVote));
   for (const t of ['aegis_msg_log', 'aegis_schedules', 'aegis_reports', 'aegis_member_flags', 'aegis_topics', 'aegis_anon_cmds']) check(`Phase 6 table ${t}`, tables.includes(t));
   const p6 = dev('p6');
   check('advanced settings on the real platform: message log and self-destruct, schedules claimed once, member flags, reports handled once, topics, anonymous commands',

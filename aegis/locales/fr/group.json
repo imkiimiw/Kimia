@@ -19,5 +19,10 @@
   "config_no_access": "🔒 {name}, votre accès à Aegis ici est réglé sur « Aucun accès ». Demandez au propriétaire.",
   "anon_admin": "🕶 Vous écrivez anonymement : Aegis ne peut pas savoir qui vous êtes. Désactivez un instant « Rester anonyme », ou envoyez « پیکربندی » / config en privé à Aegis pour voir toutes vos discussions.",
   "right_line": "{mark} {name}",
-  "right_item": "• {name}"
+  "right_item": "• {name}",
+  "help_title": "🛡 <b>Aegis dans ce groupe</b>",
+  "help_members": "<b>Pour tous</b>\n/rules — les règles du groupe\n/report — signaler un message aux admins, en y répondant\n/admins — les administrateurs\n/mywarns — vos avertissements\n/me · /top — vos points et le classement\n/ask — une question aux admins\n/fun — jeux et divertissement · /fal — voyance · /font — polices\n<i>Les admins ont peut-être désactivé certaines de ces fonctions.</i>",
+  "help_admins": "<b>Admins</b> (en réponse, ou avec @pseudo ou un id)\n/warn · /mute · /restrict · /kick · /ban, et /unwarn · /unmute · /unrestrict · /unban\n/lockdown · /readonly — verrouillages d’urgence\n« panneau » ou /config — tous les réglages d’Aegis pour ce groupe, en privé",
+  "btn_help_private": "📖 Aide complète",
+  "panel_member": "🛡 {name}, le panneau d’Aegis est réservé aux admins de ce groupe. Envoyez « aide » / help pour voir ce que vous pouvez faire ici."
 }

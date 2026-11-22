@@ -114,5 +114,7 @@
   "chat_backup": "(تیم Aegis) پشتیبان پیکربندی را گرفت",
   "chat_message": "(تیم Aegis) پیامی گذاشت",
   "chat_refused": "Aegis خارج شد: پذیرش چت جدید بسته است",
-  "fun_echo": "Aegis را وادار کرد پیامی بفرستد (/echo)"
+  "fun_echo": "Aegis را وادار کرد پیامی بفرستد (/echo)",
+  "channel_dm_vote": "دایرکت {target} را به رأی مدیران گذاشت",
+  "channel_dm_vote_end": "رأی‌گیری دایرکت {target} را بست"
 }

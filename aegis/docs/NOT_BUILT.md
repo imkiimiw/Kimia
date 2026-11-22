@@ -218,6 +218,14 @@ an existing feature:
 | Riddle and film answers **in every form** | **Partial** | Answers are compared without case, spaces and punctuation, against the names Aegis knows in five languages; another spelling or a translated film title it doesn't know doesn't count. | More aliases. |
 | The dream dictionary **for every symbol** | **Partial** | 92 symbols; for a dream with none of them Aegis says so and suggests main words. Meanings are symbolic, not predictions, and say so. | More symbols. |
 
+### After the release — the admins' vote on direct messages
+
+| Feature | State | Why | What it would need |
+|---|---|---|---|
+| Publishing **exactly** 24 hours after the message | **Partial** | No scheduler: the vote is counted on Aegis's first activity after the 24 hours (usually within a minute or two on a busy bot, later on a quiet one). | A platform scheduler. |
+| A vote message for **every** admin | **Partial** | A bot can only write to people who started it, and at most 10 admins get a vote message (to keep one update within its limits). The panel shows how many admins can vote. | — (Telegram). |
+| A forward that **always** shows the sender | **Partial** | Telegram shows the original sender of a forward only as their privacy settings allow; «copy» posts the message as the channel instead. | — (Telegram). |
+
 ## Phase 10 — Super Admin panel, the bot's team, release
 
 | Feature | State | Why | What it would need |

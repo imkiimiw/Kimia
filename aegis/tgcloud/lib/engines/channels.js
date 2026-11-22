@@ -116,6 +116,51 @@ export async function channelOfDm(dmChatId) {
   return r ? Number(r.channel_id) : 0;
 }
 
+/* ---------- the admins' vote on direct messages (setting dm_vote) ---------- */
+
+export const DM_VOTE_SEC = 24 * 3600;
+export const dmVotes = {
+  /* a vote on one message; 0 when that message already has one */
+  async open(channelId, dmChatId, messageId, fromId, now = nowSec()) {
+    const r = await db.run(sql`INSERT INTO aegis_dm_votes (channel_id, dm_chat_id, message_id, from_id, at, ends_at)
+      VALUES (${channelId}, ${dmChatId}, ${messageId}, ${fromId}, ${now}, ${now + DM_VOTE_SEC}) ON CONFLICT(dm_chat_id, message_id) DO NOTHING RETURNING id`);
+    return r.rows && r.rows[0] ? Number(r.rows[0].id) : 0;
+  },
+  setMsgs: (id, msgs) => db.run(sql`UPDATE aegis_dm_votes SET msgs = ${JSON.stringify(msgs)} WHERE id = ${id}`),
+  get: (id) => db.get(sql`SELECT * FROM aegis_dm_votes WHERE id = ${id}`),
+  /* the sender's votes still open in this channel (a flood of messages does not flood the admins) */
+  openBy: async (channelId, fromId) => Number((await db.get(sql`SELECT count(*) AS n FROM aegis_dm_votes
+    WHERE channel_id = ${channelId} AND status = 'open' AND from_id = ${fromId}`)).n),
+  openIn: async (channelId) => Number((await db.get(sql`SELECT count(*) AS n FROM aegis_dm_votes WHERE channel_id = ${channelId} AND status = 'open'`)).n),
+  /* an admin votes (or changes their vote); gives the new count */
+  async cast(id, userId, choice, now = nowSec()) {
+    await db.run(sql`INSERT INTO aegis_dm_ballots (vote_id, user_id, choice, at) VALUES (${id}, ${userId}, ${choice}, ${now})
+      ON CONFLICT(vote_id, user_id) DO UPDATE SET choice = excluded.choice, at = excluded.at`);
+    const rows = await db.all(sql`SELECT choice, count(*) AS n FROM aegis_dm_ballots WHERE vote_id = ${id} GROUP BY choice LIMIT 2`);
+    const n = (c) => Number((rows.find((r) => r.choice === c) || { n: 0 }).n);
+    const yes = n('y');
+    const no = n('n');
+    await db.run(sql`UPDATE aegis_dm_votes SET yes = ${yes}, "no" = ${no} WHERE id = ${id} AND status = 'open'`);
+    return { yes, no };
+  },
+  choiceOf: async (id, userId) => ((await db.get(sql`SELECT choice FROM aegis_dm_ballots WHERE vote_id = ${id} AND user_id = ${userId}`)) || {}).choice || '',
+  due: (now, limit = 5) => db.all(sql`SELECT * FROM aegis_dm_votes WHERE status = 'open' AND ends_at <= ${now} ORDER BY ends_at LIMIT ${limit}`),
+  /* one caller closes a vote: gives false when someone else already did */
+  async close(id, status) {
+    const r = await db.run(sql`UPDATE aegis_dm_votes SET status = ${status} WHERE id = ${id} AND status = 'open'`);
+    return r.rowsAffected > 0;
+  },
+  setStatus: (id, status) => db.run(sql`UPDATE aegis_dm_votes SET status = ${status} WHERE id = ${id}`),
+  /* finished votes and their ballots are kept for 30 days */
+  async prune(now) {
+    const old = await db.all(sql`SELECT id FROM aegis_dm_votes WHERE status != 'open' AND ends_at < ${now - 30 * 86400} LIMIT 50`);
+    for (const r of old) {
+      await db.run(sql`DELETE FROM aegis_dm_ballots WHERE vote_id = ${r.id}`);
+      await db.run(sql`DELETE FROM aegis_dm_votes WHERE id = ${r.id}`);
+    }
+  },
+};
+
 export async function migrate(oldId, newId) {
   for (const t of ['aegis_join_requests', 'aegis_channel_stats']) await db.run(sql`UPDATE ${sql.raw(t)} SET chat_id = ${newId} WHERE chat_id = ${oldId}`);
   await db.run(sql`UPDATE aegis_chats SET linked_id = ${newId} WHERE linked_id = ${oldId}`);

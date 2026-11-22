@@ -114,5 +114,7 @@
   "chat_backup": "(équipe Aegis) a téléchargé la sauvegarde de configuration",
   "chat_message": "(équipe Aegis) a publié un message",
   "chat_refused": "Aegis est parti : nouvelles discussions fermées",
-  "fun_echo": "a fait envoyer un message à Aegis (/echo)"
+  "fun_echo": "a fait envoyer un message à Aegis (/echo)",
+  "channel_dm_vote": "a mis au vote des admins un message privé de {target}",
+  "channel_dm_vote_end": "a clos le vote sur un message privé de {target}"
 }
