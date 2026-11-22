@@ -155,7 +155,12 @@ class FakeTelegram:
             if int(payload["chat_id"]) in self.not_admin:
                 return {"status": "member"}
             return {"status": "administrator", "can_post_messages": True}
-        if method in ("answerCallbackQuery", "editMessageReplyMarkup", "editMessageText"):
+        if method in (
+            "answerCallbackQuery",
+            "editMessageReplyMarkup",
+            "editMessageText",
+            "editMessageCaption",
+        ):
             return True
         raise AssertionError(f"unexpected method {method}")
 
@@ -384,6 +389,7 @@ def make_config(sources: list[dict[str, Any]] | None = None, **pipeline: Any) ->
     editorial = real.editorial.model_dump()
     # the harness publishes without a human (auto) unless a test asks for "semi"/"manual"
     editorial["publish_modes"]["default"] = pipeline.pop("mode", "auto")
+    rules = {"rules": pipeline.pop("rules", [])}
     for section, values in pipeline.items():
         if section == "editorial":
             for key, value in values.items():
@@ -396,6 +402,7 @@ def make_config(sources: list[dict[str, Any]] | None = None, **pipeline: Any) ->
         filters=real.filters,
         pipeline=type(real.pipeline).model_validate(pipe),
         editorial=type(real.editorial).model_validate(editorial),
+        rules=type(real.rules).model_validate(rules),
     )
 
 

@@ -20,11 +20,13 @@ from wanger_news.db.tables import (
     Article,
     ArticleFingerprint,
     Claim,
+    Correction,
     Evidence,
     Lock,
     PipelineRun,
     ProcessingJob,
     PublishedPost,
+    ReliabilityHistory,
     ReviewRequest,
     Setting,
     Source,
@@ -208,6 +210,13 @@ class ArticleRepo:
 
     async def get(self, article_id: int) -> Article | None:
         return await self.s.get(Article, article_id)
+
+    async def by_external_id(self, source_id: str, external_id: str) -> Article | None:
+        return await self.s.scalar(
+            sa.select(Article).where(
+                Article.source_id == source_id, Article.external_id == external_id
+            )
+        )
 
     async def known_external_ids(self, source_id: str, external_ids: Sequence[str]) -> set[str]:
         if not external_ids:
@@ -1100,6 +1109,236 @@ class TrendRepo:
         return list((await self.s.scalars(stmt)).all())
 
 
+class CorrectionRepo:
+    def __init__(self, session: AsyncSession) -> None:
+        self.s = session
+
+    async def add(self, correction: Correction) -> Correction:
+        self.s.add(correction)
+        await self.s.flush()
+        return correction
+
+    async def get(self, correction_id: int) -> Correction | None:
+        return await self.s.get(Correction, correction_id)
+
+    async def by_status(self, status: str, limit: int) -> list[Correction]:
+        stmt = (
+            sa.select(Correction)
+            .where(Correction.status == status)
+            .order_by(Correction.id.asc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+    async def for_story(self, cluster_id: int) -> list[Correction]:
+        stmt = sa.select(Correction).where(Correction.cluster_id == cluster_id)
+        return list((await self.s.scalars(stmt)).all())
+
+    async def since(self, since: datetime) -> list[Correction]:
+        stmt = sa.select(Correction).where(Correction.created_at >= since)
+        return list((await self.s.scalars(stmt)).all())
+
+
+class ReliabilityRepo:
+    def __init__(self, session: AsyncSession) -> None:
+        self.s = session
+
+    async def add(self, row: ReliabilityHistory) -> ReliabilityHistory:
+        self.s.add(row)
+        await self.s.flush()
+        return row
+
+    async def get(self, row_id: int) -> ReliabilityHistory | None:
+        return await self.s.get(ReliabilityHistory, row_id)
+
+    async def by_status(self, status: str, limit: int = 100) -> list[ReliabilityHistory]:
+        stmt = (
+            sa.select(ReliabilityHistory)
+            .where(ReliabilityHistory.status == status)
+            .order_by(ReliabilityHistory.id.asc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+    async def latest(self) -> ReliabilityHistory | None:
+        return await self.s.scalar(
+            sa.select(ReliabilityHistory).order_by(ReliabilityHistory.created_at.desc()).limit(1)
+        )
+
+    async def history(self, source_id: str, limit: int = 20) -> list[ReliabilityHistory]:
+        stmt = (
+            sa.select(ReliabilityHistory)
+            .where(ReliabilityHistory.source_id == source_id)
+            .order_by(ReliabilityHistory.created_at.desc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+
+class AnalyticsRepo:
+    """Aggregates for analytics, costs and reliability learning (read only)."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.s = session
+
+    async def articles_by(self, column: str, since: datetime) -> dict[str, int]:
+        col = getattr(Article, column)
+        stmt = sa.select(col, sa.func.count()).where(Article.fetched_at >= since).group_by(col)
+        return {str(k): int(n) for k, n in (await self.s.execute(stmt)).all() if k is not None}
+
+    async def posts_by_kind(self, since: datetime) -> dict[str, int]:
+        stmt = (
+            sa.select(PublishedPost.kind, sa.func.count())
+            .where(PublishedPost.status == PostStatus.SENT.value, PublishedPost.sent_at >= since)
+            .group_by(PublishedPost.kind)
+        )
+        return {str(k): int(n) for k, n in (await self.s.execute(stmt)).all()}
+
+    async def review_outcomes(self, since: datetime) -> dict[str, int]:
+        stmt = (
+            sa.select(ReviewRequest.outcome, sa.func.count(sa.distinct(ReviewRequest.article_id)))
+            .where(
+                ReviewRequest.kind == "card",
+                ReviewRequest.status == "closed",
+                ReviewRequest.closed_at >= since,
+            )
+            .group_by(ReviewRequest.outcome)
+        )
+        return {str(k): int(n) for k, n in (await self.s.execute(stmt)).all() if k}
+
+    async def minutes_to_publish(self, since: datetime, limit: int = 2000) -> list[float]:
+        stmt = (
+            sa.select(Article.fetched_at, PublishedPost.sent_at)
+            .join(Article, Article.id == PublishedPost.article_id)
+            .where(
+                PublishedPost.status == PostStatus.SENT.value,
+                PublishedPost.sent_at >= since,
+                PublishedPost.kind.in_(["story", "update"]),
+            )
+            .limit(limit)
+        )
+        return [
+            (sent - fetched).total_seconds() / 60
+            for fetched, sent in (await self.s.execute(stmt)).all()
+            if fetched is not None and sent is not None
+        ]
+
+    async def ai_by(self, column: str, since: datetime) -> dict[str, dict[str, float]]:
+        col = getattr(AIRun, column)
+        stmt = (
+            sa.select(
+                col,
+                sa.func.count(),
+                sa.func.coalesce(sa.func.sum(AIRun.input_tokens), 0),
+                sa.func.coalesce(sa.func.sum(AIRun.output_tokens), 0),
+                sa.func.coalesce(sa.func.sum(AIRun.cost_usd), 0.0),
+                sa.func.sum(sa.case((AIRun.status != "ok", 1), else_=0)),
+            )
+            .where(AIRun.started_at >= since)
+            .group_by(col)
+        )
+        return {
+            str(k): {
+                "calls": int(n),
+                "input_tokens": int(i),
+                "output_tokens": int(o),
+                "cost_usd": float(c),
+                "errors": int(e or 0),
+            }
+            for k, n, i, o, c, e in (await self.s.execute(stmt)).all()
+        }
+
+    async def guard_results(self, since: datetime) -> dict[str, int]:
+        stmt = (
+            sa.select(Summary.valid, sa.func.count())
+            .where(Summary.created_at >= since, Summary.origin != "human")
+            .group_by(Summary.valid)
+        )
+        return {
+            ("passed" if v else "failed"): int(n) for v, n in (await self.s.execute(stmt)).all()
+        }
+
+    async def story_counts(self, since: datetime) -> dict[str, int]:
+        total = await self.s.scalar(
+            sa.select(sa.func.count())
+            .select_from(StoryCluster)
+            .where(StoryCluster.created_at >= since)
+        )
+        multi = await self.s.scalar(
+            sa.select(sa.func.count())
+            .select_from(StoryCluster)
+            .where(StoryCluster.created_at >= since, StoryCluster.independent_sources >= 2)
+        )
+        return {"stories": int(total or 0), "multi_source": int(multi or 0)}
+
+    async def corrections_by_status(self, since: datetime) -> dict[str, int]:
+        stmt = (
+            sa.select(Correction.status, sa.func.count())
+            .where(Correction.created_at >= since)
+            .group_by(Correction.status)
+        )
+        return {str(k): int(n) for k, n in (await self.s.execute(stmt)).all()}
+
+    # ---------------------------------------------------------------- per source (learning)
+    async def source_decisions(self, since: datetime) -> dict[str, dict[str, int]]:
+        stmt = (
+            sa.select(
+                Article.source_id, ReviewRequest.outcome, sa.func.count(sa.distinct(Article.id))
+            )
+            .join(ReviewRequest, ReviewRequest.article_id == Article.id)
+            .where(
+                ReviewRequest.kind == "card",
+                ReviewRequest.status == "closed",
+                ReviewRequest.closed_at >= since,
+            )
+            .group_by(Article.source_id, ReviewRequest.outcome)
+        )
+        out: dict[str, dict[str, int]] = {}
+        for source, outcome, n in (await self.s.execute(stmt)).all():
+            out.setdefault(str(source), {})[str(outcome)] = int(n)
+        return out
+
+    async def source_guard(self, since: datetime) -> dict[str, dict[str, int]]:
+        stmt = (
+            sa.select(Article.source_id, Summary.valid, sa.func.count())
+            .join(Summary, Summary.article_id == Article.id)
+            .where(Summary.created_at >= since, Summary.origin != "human")
+            .group_by(Article.source_id, Summary.valid)
+        )
+        out: dict[str, dict[str, int]] = {}
+        for source, valid, n in (await self.s.execute(stmt)).all():
+            out.setdefault(str(source), {})["passed" if valid else "failed"] = int(n)
+        return out
+
+    async def claim_rows(self, since: datetime, limit: int = 20000) -> list[tuple[str, list[int]]]:
+        """Claims of stories that had at least two independent origins — only there could a
+        claim be confirmed by someone else (an exclusive report is not a weakness)."""
+        stmt = (
+            sa.select(Claim.status, Claim.source_article_ids)
+            .join(StoryCluster, StoryCluster.id == Claim.cluster_id)
+            .where(Claim.created_at >= since, StoryCluster.independent_sources >= 2)
+            .limit(limit)
+        )
+        return [(str(st), list(ids or [])) for st, ids in (await self.s.execute(stmt)).all()]
+
+    async def article_sources(self, ids: Iterable[int]) -> dict[int, str]:
+        wanted = sorted(set(ids))
+        if not wanted:
+            return {}
+        stmt = sa.select(Article.id, Article.source_id).where(Article.id.in_(wanted))
+        return {int(i): str(src) for i, src in (await self.s.execute(stmt)).all()}
+
+    async def corrected_sources(self, since: datetime) -> dict[str, int]:
+        """Published corrections per source of the corrected story's lead report."""
+        stmt = (
+            sa.select(Article.source_id, sa.func.count())
+            .join(Correction, Correction.article_id == Article.id)
+            .where(Correction.status == "published", Correction.created_at >= since)
+            .group_by(Article.source_id)
+        )
+        return {str(k): int(n) for k, n in (await self.s.execute(stmt)).all()}
+
+
 class Repositories:
     """Everything one unit of work needs, sharing one session."""
 
@@ -1121,6 +1360,9 @@ class Repositories:
         self.reviews = ReviewRepo(session)
         self.stories = StoryRepo(session)
         self.trends = TrendRepo(session)
+        self.corrections = CorrectionRepo(session)
+        self.reliability = ReliabilityRepo(session)
+        self.analytics = AnalyticsRepo(session)
 
     async def commit(self) -> None:
         await self.session.commit()

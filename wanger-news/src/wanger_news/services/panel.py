@@ -160,6 +160,24 @@ class PanelService:
             elif parts[1:2] == ["p"] and len(parts) > 2 and parts[2].isdigit():
                 page = int(parts[2])
             return await self._sources(repos, page), note
+        if head == "stats" and self._commands.analytics is not None:
+            days = int(parts[1]) if parts[1:2] and parts[1].isdigit() else 7
+            report = await self._commands.analytics.report(repos, ctx.now(), days=days)
+            keyboard: Keyboard = [
+                [button(f"{fa(d)} روز", f"pn:stats:{d}") for d in (1, 7, 30)],
+                [button("🔙 بازگشت", "pn:home")],
+            ]
+            return Screen(self._commands.analytics.render(report), keyboard), ""
+        if head == "rel" and self._commands.reliability is not None:
+            if parts[1:2] in (["a"], ["d"]) and len(parts) > 2 and parts[2].isdigit():
+                note = await self._commands.reliability.decide(
+                    repos, ctx, int(parts[2]), parts[1] == "a", query.from_user.id
+                )
+            return await self._reliability(repos), note
+        if head == "rules":
+            if parts[1:2] == ["t"] and len(parts) > 2:
+                note = await self._toggle_rule(repos, ctx, parts[2])
+            return await self._rules(repos), note
         if head == "mode":
             if parts[1:2] == ["d"]:
                 note = await self._cycle_mode(repos, ctx, None)
@@ -191,6 +209,8 @@ class PanelService:
             [button("📊 وضعیت", "pn:status"), button("📡 کانال‌ها", "pn:ch")],
             [button("📰 منابع خبری", "pn:src"), button("⚙️ حالت انتشار", "pn:mode")],
             [button("🧐 منتظر بررسی", "pn:pend"), button("📈 روندها", "pn:trends")],
+            [button("📜 قوانین", "pn:rules"), button("💰 آمار و هزینه", "pn:stats")],
+            [button("🎯 اعتبار منابع", "pn:rel")],
             [
                 button("🗞 خلاصهٔ روز", "pn:brief"),
                 button("▶️ ادامهٔ انتشار" if paused else "⏸ توقف انتشار", "pn:pause"),
@@ -300,6 +320,65 @@ class PanelService:
         keyboard.append([button("🔙 بازگشت", "pn:home")])
         lines.append("«·» یعنی این دسته از پیش‌فرض پیروی می‌کند.")
         return Screen("\n".join(lines), keyboard)
+
+    async def _rules(self, repos: Repositories) -> Screen:
+        ov = await Overrides.read(repos)
+        lines = [
+            bold("📜 قوانین ویرایشی"),
+            "از config/rules.yaml؛ قانون فقط سخت‌گیرتر می‌کند (بررسی انسانی، نگه داشتن، رد کردن،",
+            "ترتیب صف) و هیچ‌وقت از بررسی‌های ایمنی رد نمی‌شود.",
+        ]
+        keyboard: Keyboard = []
+        for rule in self._base.rules.rules:
+            on = ov.rules.get(rule.id, rule.enabled)
+            lines.append(f"{'✅' if on else '⚪️'} <b>{esc(rule.id)}</b>: {esc(rule.description)}")
+            keyboard.append([button(f"{'✅' if on else '⚪️'} {rule.id}", f"pn:rules:t:{rule.id}")])
+        if not self._base.rules.rules:
+            lines.append("هیچ قانونی تعریف نشده.")
+        lines.append(LATER)
+        keyboard.append([button("🔙 بازگشت", "pn:home")])
+        return Screen("\n".join(lines), keyboard)
+
+    async def _reliability(self, repos: Repositories) -> Screen:
+        rows = await repos.reliability.by_status("suggested")
+        lines = [
+            bold("🎯 اعتبار منابع"),
+            "پیشنهادها هر هفته از تصمیم‌های شما، بررسی ضدتوهم، تأیید ادعاها با منابع مستقل و",
+            "اصلاحیه‌ها ساخته می‌شوند؛ هیچ‌کدام بدون تأیید شما اعمال نمی‌شود.",
+            "",
+        ]
+        keyboard: Keyboard = []
+        for row in rows[:8]:
+            source = self._base.source(row.source_id)
+            name = source.name if source else row.source_id
+            lines.append(
+                f"• <b>{esc(name)}</b>: {fa(row.old_score)} → {fa(row.new_score)}\n"
+                f"  {esc(row.explanation)}"
+            )
+            keyboard.append(
+                [
+                    button(f"✅ {name[:20]} → {row.new_score}", f"pn:rel:a:{row.id}"),
+                    button("❌ رد", f"pn:rel:d:{row.id}"),
+                ]
+            )
+        if not rows:
+            lines.append("الان پیشنهادی نیست.")
+        lines.append(LATER)
+        keyboard.append([button("🔙 بازگشت", "pn:home")])
+        return Screen("\n".join(lines), keyboard)
+
+    async def _toggle_rule(self, repos: Repositories, ctx: RunContext, rule_id: str) -> str:
+        rule = next((r for r in self._base.rules.rules if r.id == rule_id), None)
+        if rule is None:
+            return "قانون نامعلوم."
+        ov = await Overrides.read(repos)
+        now_on = ov.rules.get(rule_id, rule.enabled)
+        if (not now_on) == rule.enabled:
+            ov.rules.pop(rule_id, None)
+        else:
+            ov.rules[rule_id] = not now_on
+        await ov.save(repos, ctx.now())
+        return f"✅ قانون {esc(rule_id)} {'روشن' if not now_on else 'خاموش'} شد. {LATER}"
 
     # ---------------------------------------------------------------- actions
     async def _prompt(

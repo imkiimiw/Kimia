@@ -237,7 +237,7 @@ def test_repository_prompts_load_with_versions() -> None:
     } <= set(lib.versions)
     assert lib.get("summarize", "fa").version == "summarize_fa_v2"  # the newest version wins
     assert lib.get("verify", "fa").version == "verify_v2"  # "any" language serves every language
-    assert lib.get("update", "fa").version == "update_fa_v1"
+    assert lib.get("update", "fa").version == "update_fa_v2"
     with pytest.raises(PromptError):
         lib.get("summarize", "tr")
 

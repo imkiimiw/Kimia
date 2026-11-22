@@ -113,18 +113,19 @@ class Update(_Model):
     update_id: int
     message: Message | None = None
     channel_post: Message | None = None
+    edited_channel_post: Message | None = None  # Phase 5: an edit in the source channel
     callback_query: CallbackQuery | None = None
 
     @property
     def kind(self) -> str:
-        for name in ("message", "channel_post", "callback_query"):
+        for name in ("message", "channel_post", "edited_channel_post", "callback_query"):
             if getattr(self, name) is not None:
                 return name
         return "other"
 
     @property
     def chat_id(self) -> int | None:
-        msg = self.message or self.channel_post
+        msg = self.message or self.channel_post or self.edited_channel_post
         if msg is None and self.callback_query is not None:
             msg = self.callback_query.message
         return msg.chat.id if msg is not None else None

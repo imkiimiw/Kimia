@@ -44,7 +44,7 @@ from wanger_news.db.tables import AIRun, Article, Claim, Evidence, StoryCluster,
 from wanger_news.domain import guard as guard_layer1
 from wanger_news.domain.breaking import decide as decide_breaking
 from wanger_news.domain.claims import CONFLICTING, claim_confidence, claim_status
-from wanger_news.domain.editorial import route
+from wanger_news.domain.editorial import apply_rules, route
 from wanger_news.domain.enums import (
     AIRunStatus,
     ArticleStatus,
@@ -57,6 +57,8 @@ from wanger_news.domain.enums import (
 )
 from wanger_news.domain.guard import GuardReport
 from wanger_news.domain.independence import Origin, origins
+from wanger_news.domain.rules import Facts
+from wanger_news.domain.rules import evaluate as evaluate_rules
 from wanger_news.domain.scoring import confidence, importance
 from wanger_news.domain.summary import SummaryDraft
 from wanger_news.services.context import RunContext
@@ -78,6 +80,7 @@ class AIReport:
     corroborated: int = 0
     detached: int = 0
     waiting: int = 0
+    corrections: int = 0  # Phase 5: proposals waiting for a human
     routed: dict[str, int] = field(default_factory=dict)
     expired: int = 0
     skipped: str | None = None
@@ -141,8 +144,10 @@ class AIStage:
         provider: AIProvider | None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         stories: StoryService | None = None,
+        corrections: Any = None,  # CorrectionService (Phase 5)
     ) -> None:
         self._cfg = config
+        self._corrections = corrections
         self._ai = config.pipeline.ai
         self._story = config.pipeline.story
         self._provider = provider
@@ -510,8 +515,11 @@ class AIStage:
                     **(item.previous or {}),
                     "_same_event": answer.same_event,
                     "_has_new": answer.has_new_information,
+                    "_corrections": [c.model_dump() for c in getattr(answer, "corrections", [])],
                 }
-            fields = answer.model_dump(exclude={"id", "same_event", "has_new_information"})
+            fields = answer.model_dump(
+                exclude={"id", "same_event", "has_new_information", "corrections"}
+            )
             item.draft = SummaryDraft.model_validate(fields).cleaned()
             item.model = result.usage.model
 
@@ -524,6 +532,13 @@ class AIStage:
         """Different event → own story · nothing new → corroboration · else: an update text."""
         flags = item.previous or {}
         reports = [item.article, *item.members]
+        proposals = flags.get("_corrections") or []
+        wanted = flags.get("_same_event", True) and proposals and item.story is not None
+        if wanted and self._corrections is not None and item.story is not None:
+            names = {f"s{a.id}": self._stories.report_of(a).source_name for a in reports}
+            report.corrections += await self._corrections.propose(
+                repos, ctx, item.story, proposals, item.sources, names
+            )
         if not flags.get("_same_event", True):
             for article in reports:
                 await self._stories.detach(repos, ctx, article, "AI: a different event")
@@ -755,7 +770,29 @@ class AIStage:
         await self._store_claims(repos, item, summary, groups)
         self._mark_breaking(item, imp.value, conf.value, now)
 
-        mode = modes.for_category(category)
+        ruled = evaluate_rules(
+            self._cfg.rules.rules,
+            Facts(
+                category=category,
+                source=article.source_id,
+                source_type=str(source.source_type) if source else None,
+                language=article.language,
+                sensitive_topics=tuple(cls.get("sensitive_topics") or []),
+                breaking=article.breaking,
+                contradiction=bool(draft.contradictions),
+                kind=item.kind,
+                confidence=conf.value,
+                importance=imp.value,
+                priority=article.priority,
+                independent_sources=independent,
+                text=f"{article.title_original}\n{article.description_original or ''}",
+            ),
+        )
+        if ruled.hits:
+            article.classification = {**cls, "rules": ruled.hits}
+        if ruled.priority is not None:
+            article.priority = ruled.priority
+        mode = ruled.mode or modes.for_category(category)
         decided = route(
             mode=mode,
             sensitive_topics=list(cls.get("sensitive_topics") or []),
@@ -766,6 +803,7 @@ class AIStage:
             auto=self._cfg.editorial.auto_publish,
             conflicting=bool(draft.contradictions) and self._story.review_conflicts,
         )
+        decided = apply_rules(decided, ruled)
         article.publish_mode = mode.value
         article.review_reason = (
             decided.reason if decided.status is not ArticleStatus.QUEUED else None

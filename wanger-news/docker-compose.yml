@@ -39,8 +39,26 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  # Admin dashboard API (Phase 5): `docker compose --profile api up -d app`.
+  # Needs WANGER_NEWS_API_TOKEN in .env; every request: Authorization: Bearer <token>.
+  app:
+    build:
+      context: .
+      args:
+        EXTRAS: "[api]"
+    command: ["api", "--port", "8080"]
+    env_file: .env
+    environment:
+      WANGER_NEWS_DATABASE_URL: postgresql://wanger:${POSTGRES_PASSWORD}@postgres:5432/wanger_news
+    ports: ["127.0.0.1:8080:8080"]  # put a reverse proxy with TLS in front before exposing it
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    profiles: ["api"]
+    restart: unless-stopped
+
   # --- later phases (not built yet) ---------------------------------------------------------
-  # app:        FastAPI admin/dashboard API + Telegram webhook endpoint (Phase 5)
+  # app also: the Telegram webhook endpoint instead of getUpdates (instant replies)
   # scheduler:  time-based jobs (daily brief, trend windows) once the worker is split (Phase 4)
   # redis:      job queue / rate-limit buckets when more than one worker runs (Phase 4+)
   #   image: redis:7-alpine

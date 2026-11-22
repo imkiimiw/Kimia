@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wanger-news"
-version = "0.4.0"
+version = "0.5.0"
 description = "Wanger News: news intelligence & publishing platform (Telegram first)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,7 +23,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+api = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+]
 dev = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
     "pytest>=8",
     "pytest-asyncio>=0.24",
     "ruff>=0.6",

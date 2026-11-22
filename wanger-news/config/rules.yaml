@@ -1,0 +1,34 @@
+# Editorial rules engine (Phase 5, spec §11). Change behaviour here without changing code.
+#
+# Every rule: `if` (all conditions must hold; a list means "any of") → `then`.
+# Conditions: category, source, source_type, language, sensitive, sensitive_topic, breaking,
+#   contradiction, kind (story|update), confidence_lt / confidence_gte, importance_gt /
+#   importance_lte, priority_gte / priority_lt, independent_sources_lt / independent_sources_gte,
+#   keyword_any (original title/teaser), duplicate_similarity_gt (story clustering only).
+# Actions: require_human_review · hold (manual: an admin picks it) · skip (never published) ·
+#   {priority: high|normal|low|0-100} · {mode: auto|semi|manual} · merge / new_story (clustering).
+#
+# A rule can only make things stricter or change the order: whatever the rules say, a failed
+# guard, a sensitive topic, contradicting sources or confidence < 50 still go to a human.
+# The owner can switch each rule on/off in the bot: /panel → 📜 قوانین.
+
+rules:
+  - id: war-needs-high-confidence
+    description: خبر جنگ با اطمینان کمتر از ۸۰ همیشه به بررسی انسانی می‌رود
+    if: { sensitive_topic: war, confidence_lt: 80 }
+    then: require_human_review
+
+  - id: very-important-first
+    description: خبر خیلی مهم (اهمیت بالای ۹۰) اول صف
+    if: { importance_gt: 90 }
+    then: { priority: high }
+
+  - id: merge-near-identical
+    description: گزارش‌هایی که معنایشان تقریباً یکی است، یک رویداد حساب می‌شوند
+    if: { duplicate_similarity_gt: 0.92 }
+    then: merge
+
+  - id: single-source-medical-claim
+    description: ادعای پزشکی مهم از فقط یک منبع منتشر نمی‌شود تا ادمین انتخابش کند
+    if: { sensitive_topic: medical_claim, independent_sources_lt: 2 }
+    then: hold

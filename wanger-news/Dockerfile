@@ -11,7 +11,8 @@ RUN useradd --create-home --uid 10001 app
 
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install .
+ARG EXTRAS=""
+RUN pip install ".${EXTRAS}"
 
 COPY alembic.ini ./
 COPY migrations ./migrations

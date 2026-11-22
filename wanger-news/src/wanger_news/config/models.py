@@ -443,6 +443,26 @@ class DailyBriefConfig(StrictModel):
     destination: Literal["channel", "admins"] = "channel"
 
 
+class CostsConfig(StrictModel):
+    """Phase 5: cost tracking. The free tier costs nothing; the estimate (ai.price_*) shows what
+    the same use would cost on a paid plan. Budget 0 = no alert."""
+
+    monthly_budget_usd: float = Field(default=0, ge=0)
+    alert_at_fraction: float = Field(default=0.8, gt=0, le=1)
+
+
+class ReliabilityConfig(StrictModel):
+    """Phase 5: source reliability learning — SUGGESTIONS only; the owner applies them."""
+
+    enabled: bool = True
+    every_days: float = Field(default=7, gt=0)
+    window_days: float = Field(default=30, gt=0)
+    min_samples: int = Field(default=5, ge=1)  # per signal, below this the signal is ignored
+    min_change: int = Field(default=3, ge=1)  # smaller changes are not worth a suggestion
+    max_step: int = Field(default=10, ge=1, le=50)  # per suggestion
+    target_approval: float = Field(default=0.75, ge=0, le=1)
+
+
 class ScoringConfig(StrictModel):
     """Explainable importance and confidence (spec §8). Weights are relative."""
 
@@ -504,6 +524,8 @@ class PipelineConfig(StrictModel):
     related: RelatedConfig = RelatedConfig()
     timeline: TimelineConfig = TimelineConfig()
     daily_brief: DailyBriefConfig = DailyBriefConfig()
+    costs: CostsConfig = CostsConfig()
+    reliability: ReliabilityConfig = ReliabilityConfig()
 
 
 # --------------------------------------------------------------------------------------------
@@ -539,12 +561,100 @@ class EditorialFile(StrictModel):
     review: ReviewConfig = ReviewConfig()
 
 
+# --------------------------------------------------------------------------------------------
+# rules.yaml (Phase 5: editorial rules engine, spec §11)
+# --------------------------------------------------------------------------------------------
+
+RULE_ACTIONS = ("require_human_review", "hold", "skip", "merge", "new_story")
+PRIORITY_WORDS = {"high": 100, "normal": 50, "low": 20}
+
+
+class RuleCondition(StrictModel):
+    """Every condition given must hold (AND). Lists mean "any of"."""
+
+    category: str | list[str] | None = None
+    source: str | list[str] | None = None
+    source_type: SourceType | list[SourceType] | None = None
+    language: str | list[str] | None = None
+    sensitive: bool | None = None
+    sensitive_topic: str | list[str] | None = None
+    breaking: bool | None = None
+    contradiction: bool | None = None
+    kind: Literal["story", "update"] | None = None
+    confidence_lt: int | None = None
+    confidence_gte: int | None = None
+    importance_gt: int | None = None
+    importance_lte: int | None = None
+    priority_gte: int | None = None
+    priority_lt: int | None = None
+    independent_sources_lt: int | None = None
+    independent_sources_gte: int | None = None
+    keyword_any: list[str] | None = None  # in the original title/teaser (case-insensitive)
+    duplicate_similarity_gt: float | None = Field(default=None, gt=0, le=1)  # cluster stage
+
+    @model_validator(mode="after")
+    def _not_empty(self) -> RuleCondition:
+        if not self.model_dump(exclude_none=True):
+            raise ValueError("a rule needs at least one condition")
+        return self
+
+
+class RuleSet(StrictModel):
+    """What a rule does. A rule only makes things stricter or changes order: it never lets an
+    item skip the guard, a sensitive-topic review or the "confidence ≥ 50" floor."""
+
+    priority: int | Literal["high", "normal", "low"] | None = None
+    mode: PublishMode | None = None
+
+    @property
+    def priority_value(self) -> int | None:
+        if self.priority is None:
+            return None
+        if isinstance(self.priority, str):
+            return PRIORITY_WORDS[self.priority]
+        return max(0, min(100, self.priority))
+
+
+class Rule(StrictModel):
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{1,40}$")
+    description: str = ""
+    enabled: bool = True
+    when: RuleCondition = Field(alias="if")
+    then: Literal["require_human_review", "hold", "skip", "merge", "new_story"] | RuleSet
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    @model_validator(mode="after")
+    def _stage_fits(self) -> Rule:
+        cluster_only = self.when.duplicate_similarity_gt is not None
+        cluster_action = self.then in ("merge", "new_story")
+        if cluster_only != cluster_action:
+            raise ValueError(
+                f"rule {self.id}: duplicate_similarity_gt goes with merge/new_story (cluster stage)"
+            )
+        return self
+
+
+class RulesFile(StrictModel):
+    version: int = 1
+    rules: list[Rule] = []
+
+    @field_validator("rules")
+    @classmethod
+    def _unique(cls, rules: list[Rule]) -> list[Rule]:
+        ids = [r.id for r in rules]
+        if len(ids) != len(set(ids)):
+            raise ValueError("duplicate rule id")
+        return rules
+
+
 class AppConfig(StrictModel):
     sources: SourcesFile
     categories: CategoriesFile
     filters: FiltersFile
     pipeline: PipelineConfig
     editorial: EditorialFile = EditorialFile()
+    rules: RulesFile = RulesFile()
 
     @model_validator(mode="after")
     def _cross_check(self) -> AppConfig:
@@ -559,6 +669,20 @@ class AppConfig(StrictModel):
         unknown_modes = set(self.editorial.publish_modes.categories) - known
         if unknown_modes:
             raise ValueError(f"editorial: unknown categories {sorted(unknown_modes)}")
+        topics = {t.id for t in self.categories.sensitive_topics}
+        sources = {s.id for s in self.sources.sources}
+        for rule in self.rules.rules:
+            for field_name, valid in (
+                ("category", known),
+                ("sensitive_topic", topics),
+                ("source", sources),
+            ):
+                value = getattr(rule.when, field_name)
+                given = {value} if isinstance(value, str) else set(value or [])
+                if given - valid:
+                    raise ValueError(
+                        f"rule {rule.id}: unknown {field_name} {sorted(given - valid)}"
+                    )
         return self
 
     def source(self, source_id: str) -> SourceConfig | None:

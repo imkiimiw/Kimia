@@ -33,7 +33,7 @@ from wanger_news.services.review import ReviewService
 log = logging.getLogger("wanger_news.inbox")
 
 OFFSET_KEY = "telegram.offset"
-ALLOWED_UPDATES = ["message", "channel_post", "callback_query"]
+ALLOWED_UPDATES = ["message", "channel_post", "edited_channel_post", "callback_query"]
 PAGE_SIZE = 100
 EXTERNAL_SOURCE_ID = "target-channel"
 
@@ -45,7 +45,9 @@ class InboxService:
         dedup: DedupService,
         commands: CommandService,
         review: ReviewService,
+        publisher: Any = None,  # PublishService, for edits of published source posts
     ) -> None:
+        self._publisher = publisher
         self._cfg = config
         self._dedup = dedup
         self._commands = commands
@@ -150,8 +152,12 @@ class InboxService:
     async def _handle(self, repos: Repositories, ctx: RunContext, update: Update) -> str:
         if update.callback_query is not None:
             panel = self._commands.panel
-            if panel is not None and (update.callback_query.data or "").startswith("pn:"):
+            data = update.callback_query.data or ""
+            if panel is not None and data.startswith("pn:"):
                 return str(await panel.on_callback(repos, ctx, update.callback_query))
+            corrections = self._commands.corrections
+            if corrections is not None and data.startswith("cr:"):
+                return str(await corrections.on_callback(repos, ctx, update.callback_query))
             return await self._review.on_callback(repos, ctx, update.callback_query)
         if update.message is not None:
             message = update.message
@@ -167,7 +173,43 @@ class InboxService:
             return await self._commands.handle(repos, ctx, message)
         if update.channel_post is not None:
             return await self._channel_post(repos, ctx, [update.channel_post])
+        if update.edited_channel_post is not None:
+            return await self._edited_post(repos, ctx, update.edited_channel_post)
         return "ignored:kind"
+
+    # ---------------------------------------------------------------- edits (Phase 5)
+    async def _edited_post(self, repos: Repositories, ctx: RunContext, message: Message) -> str:
+        """An admin edited a source-channel post: keep the stored text current and, when the
+        post is already out, edit the bot's copy in the target channel the same way."""
+        chat = message.chat
+        if self._is_target(ctx, chat.id, chat.username):
+            return "ignored:target_edit"
+        source = self._source_for(chat.id, chat.username)
+        if source is None:
+            return "ignored:unknown_channel"
+        article = await repos.articles.by_external_id(
+            source.id, f"tg:{chat.id}:{message.message_id}"
+        )
+        if article is None:
+            return "ignored:edit_of_unknown_post"
+        tg = dict(article.telegram or {})
+        items = [dict(i) for i in tg.get("items") or []]
+        for item in items:
+            if item.get("message_id") == message.message_id:
+                item["text"] = message.body
+                item["entities"] = [e.model_dump(exclude_none=True) for e in message.body_entities]
+                item["author_signature"] = message.author_signature or item.get("author_signature")
+        article.telegram = {**tg, "items": items}
+        article.description_original = message.body or article.description_original
+        await repos.commit()
+        if article.status != ArticleStatus.PUBLISHED.value or ctx.target is None:
+            return "edit:stored"
+        if self._publisher is None:
+            return "edit:stored"
+        post = await repos.posts.last_sent(article.id, ctx.target.role)
+        if post is None or not post.message_ids:
+            return "edit:not_in_this_channel"
+        return str(await self._publisher.edit_relayed(repos, ctx, article, post))
 
     # ---------------------------------------------------------------- channel posts
     def _source_for(self, chat_id: int, username: str | None) -> SourceConfig | None:

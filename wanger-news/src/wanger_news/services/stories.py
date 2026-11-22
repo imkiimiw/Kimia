@@ -37,6 +37,8 @@ from wanger_news.domain.enums import (
     Transport,
 )
 from wanger_news.domain.independence import Report, origins
+from wanger_news.domain.rules import Facts
+from wanger_news.domain.rules import evaluate as evaluate_rules
 from wanger_news.domain.similarity import (
     add_to_centroid,
     extract_entity_names,
@@ -138,6 +140,7 @@ class StoryService:
             vector = vectors.get(article.id)
             article.embedding = vector
             best: tuple[StoryCluster, dict[str, Any]] | None = None
+            closest: tuple[StoryCluster, dict[str, Any]] | None = None  # for the rules
             if vector is not None and self._story.enabled:
                 for story in stories:
                     if story.centroid is None:
@@ -153,6 +156,9 @@ class StoryService:
                     )
                     if found.same_event and (best is None or found.score > best[1]["score"]):
                         best = (story, found.as_dict())
+                    if found.time > 0 and (closest is None or found.cosine > closest[1]["cosine"]):
+                        closest = (story, found.as_dict())
+                best = self._apply_cluster_rules(article, best, closest)
             if best is None:
                 story = await self._new_story(repos, ctx, article)
                 stories.insert(0, story)
@@ -319,6 +325,31 @@ class StoryService:
         )
         await self._refresh(repos, story, article)
         return role.value
+
+    def _apply_cluster_rules(
+        self,
+        article: Article,
+        best: tuple[StoryCluster, dict[str, Any]] | None,
+        closest: tuple[StoryCluster, dict[str, Any]] | None,
+    ) -> tuple[StoryCluster, dict[str, Any]] | None:
+        """``merge`` / ``new_story`` rules (rules.yaml, ``duplicate_similarity_gt``)."""
+        rules = [r for r in self._cfg.rules.rules if r.then in ("merge", "new_story")]
+        if not rules or closest is None:
+            return best
+        ruled = evaluate_rules(
+            rules,
+            Facts(
+                category=article.category,
+                source=article.source_id,
+                language=article.language,
+                duplicate_similarity=float(closest[1]["cosine"]),
+            ),
+        )
+        if best is None and ruled.merge:
+            return closest[0], {**closest[1], "rule": ruled.merge[0]}
+        if best is not None and ruled.new_story:
+            return None
+        return best
 
     def _independent(self, article: Article, members: list[Article]) -> bool:
         """Is this report an origin of its own, compared with the story's feed reports?"""
