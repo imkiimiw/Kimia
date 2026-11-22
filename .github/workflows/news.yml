@@ -103,7 +103,9 @@ jobs:
       # name overrides them, and the bot's /panel overrides both (stored in the database).
       WANGER_NEWS_TEST_CHANNEL: ${{ vars.WANGER_NEWS_TEST_CHANNEL || '@testtt2334q' }}
       WANGER_NEWS_MAIN_CHANNEL: ${{ vars.WANGER_NEWS_MAIN_CHANNEL || '@maghsad98' }}
-      WANGER_NEWS_SOURCE_CHANNEL: ${{ vars.WANGER_NEWS_SOURCE_CHANNEL || '@manbaeeeee' }}
+      # The source channel is fixed to the owner's @manbaeeeee (a repository variable once
+      # pointed it at the main channel by mistake). Change it in the bot: /panel → channels.
+      WANGER_NEWS_SOURCE_CHANNEL: "@manbaeeeee"
       WANGER_NEWS_ADMIN_IDS: ${{ vars.WANGER_NEWS_ADMIN_IDS }}
       WANGER_NEWS_PUBLISH_TARGET: ${{ vars.WANGER_NEWS_PUBLISH_TARGET || 'test' }}
       COMMAND: ${{ github.event_name == 'schedule' && 'run-once' || inputs.command }}
