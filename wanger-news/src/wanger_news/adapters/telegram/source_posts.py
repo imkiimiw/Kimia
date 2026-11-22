@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from wanger_news.adapters.telegram.types import Message, entity_text
 from wanger_news.config.models import DedupConfig, SourceConfig
@@ -31,6 +32,20 @@ def post_links(message: Message, policy: UrlPolicy) -> list[str]:
         if canonical and canonical not in links:
             links.append(canonical)
     return links
+
+
+def _item(message: Message) -> dict[str, Any]:
+    """What re-sending one message needs (kind, file_id, text, entities, signer)."""
+    media = message.media()
+    kind, ref = media[0] if media else ("text", None)
+    return {
+        "message_id": message.message_id,
+        "kind": kind,
+        "file_id": ref.file_id if ref is not None else None,
+        "text": message.body,
+        "entities": [e.model_dump(exclude_none=True) for e in message.body_entities],
+        "author_signature": message.author_signature,
+    }
 
 
 def public_link(username: str | None, message_id: int) -> str | None:
@@ -87,6 +102,7 @@ def posts_to_draft(
             file_unique_ids=file_ids,
             forward_origin=origin,
             links=links,
+            items=[_item(m) for m in messages],
         ),
         content_hash=prints.content_hash,
         simhash=prints.simhash,

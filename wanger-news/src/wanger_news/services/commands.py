@@ -68,6 +68,7 @@ class CommandService:
         self._review = review
         self._trends = trends
         self._brief = brief
+        self.panel: Any = None  # PanelService, set by the pipeline (it needs this service too)
 
     async def handle(self, repos: Repositories, ctx: RunContext, message: Message) -> str:
         sender = message.from_user.id if message.from_user else None
@@ -77,6 +78,12 @@ class CommandService:
         if parsed is None:
             return "ignored:not_command"
         name, args = parsed
+        owner = sender == ctx.owner_id
+        if self.panel is not None and owner and name in ("panel", "start"):
+            return str(await self.panel.open(repos, ctx, message.chat.id))
+        if name in ("panel", "channel") and not owner:
+            await self._reply(ctx, message.chat.id, "این بخش فقط برای مالک ربات است.")
+            return f"command:{name}:not_owner"
         simple = {
             "start": self._help,
             "help": self._help,
@@ -104,6 +111,8 @@ class CommandService:
             text = await self._settings(repos, ctx, args)
         elif name == "timeline":
             text = await self._timeline(repos, ctx, args)
+        elif name == "channel" and self.panel is not None:
+            text = str(await self.panel.channel_command(repos, ctx, args))
         elif name in LATER_PHASE:
             text = (
                 f"⏳ /{esc(name)} در فاز {to_persian_digits(str(LATER_PHASE[name]))} اضافه می‌شود."
@@ -134,6 +143,8 @@ class CommandService:
                 bold(f"Wanger News — فاز {to_persian_digits(str(PHASE))}"),
                 "پاسخ دستورها در اجرای بعدی (هر چند دقیقه) می‌رسد.",
                 "",
+                "/panel — پنل مدیریت با دکمه (فقط مالک): کانال‌ها، منابع، حالت انتشار و …",
+                "/channel — کانال‌های تست/اصلی/منبع (فقط مالک)",
                 "/status — وضعیت سیستم و صف",
                 "/sources — منابع و سلامت آن‌ها",
                 "/categories — دسته‌بندی‌ها",
@@ -411,3 +422,16 @@ class CommandService:
             f"گزارش‌ها: {to_persian_digits(str(story.member_count))}"
         )
         return render_story_timeline(title, rows) + summary_line
+
+    # ---------------------------------------------------------------- for the panel
+    async def status_text(self, repos: Repositories, ctx: RunContext) -> str:
+        return await self._status(repos, ctx)
+
+    async def pending_text(self, repos: Repositories, ctx: RunContext) -> str:
+        return await self._pending(repos, ctx)
+
+    async def trends_text(self, repos: Repositories, ctx: RunContext) -> str:
+        return await self._trends_now(repos, ctx)
+
+    async def brief_text(self, repos: Repositories, ctx: RunContext) -> str:
+        return await self._brief_preview(repos, ctx)

@@ -106,6 +106,10 @@ class FakeTelegram:
     failures: dict[str, list[Exception]] = field(default_factory=dict)
     next_id: int = 1000
     confirmed_below: int = 0
+    #: getChat answers by "@name" / id; unknown public names are channels the bot can see
+    chats: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: chat ids where the bot is NOT an admin
+    not_admin: set[int] = field(default_factory=set)
 
     async def call(
         self, method: str, payload: dict[str, Any] | None = None, *, idempotent: bool = False
@@ -124,7 +128,9 @@ class FakeTelegram:
         if method in ("sendMessage", "sendPhoto", "copyMessage"):
             self.next_id += 1
             return {"message_id": self.next_id}
-        if method == "copyMessages":
+        if method in ("copyMessages", "sendMediaGroup"):
+            if method == "sendMediaGroup":
+                payload = {**payload, "message_ids": payload["media"]}
             out = []
             for _ in payload["message_ids"]:
                 self.next_id += 1
@@ -132,6 +138,23 @@ class FakeTelegram:
             return out
         if method == "getMe":
             return {"id": 42, "username": "wanger_news_bot"}
+        if method == "getChat":
+            key = str(payload["chat_id"]).lower()
+            if key in self.chats:
+                return self.chats[key]
+            if key.startswith("@"):
+                name = key[1:]
+                return {
+                    "id": -100_000_000 - sum(map(ord, name)),
+                    "type": "channel",
+                    "title": name.title(),
+                    "username": name,
+                }
+            raise not_sent(400, "Bad Request: chat not found")
+        if method == "getChatMember":
+            if int(payload["chat_id"]) in self.not_admin:
+                return {"status": "member"}
+            return {"status": "administrator", "can_post_messages": True}
         if method in ("answerCallbackQuery", "editMessageReplyMarkup", "editMessageText"):
             return True
         raise AssertionError(f"unexpected method {method}")
@@ -150,7 +173,7 @@ class FakeTelegram:
         return [
             (m, p)
             for m, p in self.calls
-            if m in ("sendMessage", "sendPhoto", "copyMessage", "copyMessages")
+            if m in ("sendMessage", "sendPhoto", "copyMessage", "copyMessages", "sendMediaGroup")
             and self._is_channel(p.get("chat_id"))
         ]
 
@@ -202,6 +225,7 @@ class Updates:
         entities: list[dict[str, Any]] | None = None,
         media_group_id: str | None = None,
         forward_from: tuple[int, int] | None = None,
+        author: str | None = None,
     ) -> dict[str, Any]:
         self.next_message += 1
         message: dict[str, Any] = {
@@ -234,6 +258,8 @@ class Updates:
                     message["caption_entities"] = entities
         if media_group_id:
             message["media_group_id"] = media_group_id
+        if author:
+            message["author_signature"] = author
         if forward_from:
             message["forward_origin"] = {
                 "type": "channel",
@@ -428,8 +454,28 @@ class Harness:
         )
 
     async def run(self, **opts: Any) -> RunSummary:
+        """Like production (runtime.build): the bot panel's settings apply from the run start."""
+        from wanger_news.services import overrides
+
         telegram = opts.pop("telegram", True)
-        return await self.pipeline(telegram=telegram).run_once(RunOptions(**opts))
+        panel = await overrides.load(self.engine)
+        base, saved = self.config, (self.channels, self.observed)
+        self.config = overrides.apply(base, panel)
+        if panel.test or panel.main:
+            test, main = overrides.channels(
+                self.channels.get("test") or (self.target.chat if self.target else None),
+                self.channels.get("main"),
+                panel,
+            )
+            self.channels = {"test": test, "main": main}
+            self.observed = [c for c in (test, main) if c is not None]
+        try:
+            pipeline = self.pipeline(telegram=telegram)
+            pipeline.panel._base = base
+            return await pipeline.run_once(RunOptions(**opts))
+        finally:
+            self.config = base
+            self.channels, self.observed = saved
 
     async def repos(self) -> AsyncIterator[Repositories]:  # pragma: no cover - helper
         async with AsyncSession(self.engine, expire_on_commit=False) as session:

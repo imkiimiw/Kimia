@@ -1,4 +1,6 @@
-"""The source channel: posts are copied to the target channel unless already published.
+"""The source channel: posts reach the target channel unless already published — re-sent
+without the source's Telegram IDs and signed for the target (owner's "rebrand" rule), or copied
+unchanged in ``copy`` mode.
 
 Also: getUpdates offset handling, albums, posts made by hand in the target channel, unknown
 channels, and the owner-only commands.
@@ -26,7 +28,20 @@ LONG_TEXT = (
 
 
 def copies(h: Harness) -> list[tuple[str, dict]]:  # type: ignore[type-arg]
-    return [(m, p) for m, p in h.telegram.calls if m in ("copyMessage", "copyMessages")]
+    """Source-channel posts that reached a channel (feed posts are HTML sendMessage/sendPhoto;
+    a re-sent source post is a sendMessage with entities, or a copy / media group)."""
+    return [
+        (m, p)
+        for m, p in h.telegram.channel_posts()
+        if m in ("copyMessage", "copyMessages", "sendMediaGroup")
+        or (m == "sendMessage" and "parse_mode" not in p)
+    ]
+
+
+def copy_mode(h: Harness) -> None:
+    from .conftest import make_config
+
+    h.config = make_config(telegram={"source_posts": {"mode": "copy"}})
 
 
 async def run_inbox(h: Harness) -> None:
@@ -35,7 +50,43 @@ async def run_inbox(h: Harness) -> None:
     await h.run()
 
 
-async def test_new_source_post_is_copied_to_the_test_channel(harness: Harness) -> None:
+async def test_new_source_post_is_resent_without_ids_and_signed(harness: Harness) -> None:
+    up = Updates()
+    text = LONG_TEXT + "\n\n🆔 @wanger_source"
+    mention = {"type": "mention", "offset": len(LONG_TEXT) + 5, "length": 14}
+    bold = {"type": "bold", "offset": 0, "length": 8}
+    harness.telegram.updates = [up.channel_post(text, entities=[bold, mention], author="علی رضایی")]
+    await run_inbox(harness)
+    [(method, payload)] = copies(harness)
+    assert method == "sendMessage" and payload["chat_id"] == "@wanger_test"
+    assert payload["text"] == LONG_TEXT + "\n\n✍️ #علی_رضایی\n🆔 @wanger_test"
+    assert "parse_mode" not in payload  # formatting travels as entities
+    assert payload["entities"][0] == bold
+    assert [e["type"] for e in payload["entities"][1:]] == ["hashtag", "mention"]
+    [article] = [a for a in await harness.articles() if a.source_id == "source-channel"]
+    assert article.status == ArticleStatus.PUBLISHED
+    assert article.priority == 80  # human-curated posts go first
+
+
+async def test_a_photo_keeps_its_file_and_gets_a_new_caption(harness: Harness) -> None:
+    up = Updates()
+    harness.telegram.updates = [up.channel_post(photo="p1", caption="عکس روز\nt.me/wanger_source")]
+    await run_inbox(harness)
+    [(method, payload)] = copies(harness)
+    assert method == "copyMessage" and payload["message_id"] == up.next_message
+    assert payload["caption"] == "عکس روز\n\n🆔 @wanger_test"  # no signer: no hashtag
+
+
+async def test_a_post_that_was_only_an_id_is_not_sent(harness: Harness) -> None:
+    harness.telegram.updates = [Updates().channel_post("@wanger_source")]
+    await run_inbox(harness)
+    assert copies(harness) == []
+    [article] = [a for a in await harness.articles() if a.source_id == "source-channel"]
+    assert article.status == ArticleStatus.FILTERED
+
+
+async def test_copy_mode_copies_the_post_unchanged(harness: Harness) -> None:
+    copy_mode(harness)
     up = Updates()
     harness.telegram.updates = [up.channel_post(LONG_TEXT)]
     await run_inbox(harness)
@@ -46,9 +97,6 @@ async def test_new_source_post_is_copied_to_the_test_channel(harness: Harness) -
         "from_chat_id": SOURCE_CHANNEL_ID,
         "message_id": up.next_message,
     }
-    [article] = [a for a in await harness.articles() if a.source_id == "source-channel"]
-    assert article.status == ArticleStatus.PUBLISHED
-    assert article.priority == 80  # human-curated posts go first
 
 
 async def test_reposting_the_same_text_is_skipped_and_reported(harness: Harness) -> None:
@@ -171,8 +219,10 @@ async def test_album_is_copied_once_after_it_settles(harness: Harness) -> None:
     harness.clock.advance(seconds=30)
     await run_inbox(harness)
     [(method, payload)] = copies(harness)
-    assert method == "copyMessages"
-    assert payload["message_ids"] == sorted(u["channel_post"]["message_id"] for u in album)
+    assert method == "sendMediaGroup"
+    assert [m["media"] for m in payload["media"]] == [f"big-album-{i}" for i in range(3)]
+    assert payload["media"][0]["caption"] == "آلبوم\n\n🆔 @wanger_test"
+    assert "caption" not in payload["media"][1]
     harness.clock.advance(minutes=10)
     await run_inbox(harness)
     assert len(copies(harness)) == 1

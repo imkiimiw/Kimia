@@ -235,7 +235,19 @@ async def _doctor(settings: Settings, _args: argparse.Namespace) -> int:
     from wanger_news.services.doctor import run_doctor
 
     config = _load(settings)
-    problems = await run_doctor(settings, config, _out)
+    channels = None
+    if settings.database_url is not None:  # what the owner set in the bot panel counts
+        from wanger_news.db.engine import create_engine
+        from wanger_news.services import overrides
+
+        engine = create_engine(settings.database_url.get_secret_value())
+        try:
+            panel = await overrides.load(engine)
+        finally:
+            await engine.dispose()
+        config = overrides.apply(config, panel)
+        channels = overrides.channels(settings.test_channel_ref, settings.main_channel_ref, panel)
+    problems = await run_doctor(settings, config, _out, channels=channels)
     if settings.database_url is not None:
         problem = await _revision_problem(settings)
         _out(f"✖ {problem}" if problem else "✔ database is at the latest migration")

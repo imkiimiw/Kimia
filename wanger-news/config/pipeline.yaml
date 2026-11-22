@@ -81,6 +81,14 @@ telegram:
   notify_owner_on_duplicate: true  # tell the owner when a source-channel post was a repeat
   observe_target_channels: true    # posts made by hand in the target channels count as published
   max_owner_notices_per_run: 5
+  # Source-channel posts (owner's decision): re-sent WITHOUT the source's Telegram IDs
+  # (@mentions, t.me links), signed with the target channel's @username and the poster's name
+  # as a hashtag. The poster's name comes from the channel's "Sign messages" setting.
+  # mode: copy = copied unchanged (the Phase 1 behaviour).
+  source_posts:
+    mode: rebrand
+    channel_id_line: "🆔 @{username}"
+    author_line: "✍️ #{hashtag}"
 
 locks:
   pipeline_ttl_minutes: 15

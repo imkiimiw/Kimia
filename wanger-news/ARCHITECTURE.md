@@ -522,3 +522,32 @@ alert is claimed with the key `brief:<date>:chat:<chat>` / `trend:<id>:chat:<cha
 reconciliation are the same code as for articles — not a second mechanism to get wrong.
 Downgrading 0004 deletes those rows.
 
+### Owner decisions after Phase 4 (2026-11-22)
+
+**ADR-044 — source-channel posts are re-sent under the target's name.** The owner chose: not a
+plain copy — remove the source's Telegram IDs, add the target channel's @username and the
+poster's name as a hashtag. `domain/rebrand.py` removes @mentions, t.me / telegram.me links (as
+text or as links), links to user accounts, and lines that held only an ID or pointed to one
+(«🆔 @x», «عضو شوید: t.me/…»); every other entity (bold, website links) is kept with its UTF-16
+offsets recomputed. Then «✍️ #poster» (the channel's *Sign messages* signature; none → no
+hashtag) and «🆔 @target». Text → `sendMessage` with entities (no HTML parsing of human text);
+one photo/video/document → `copyMessage` with the new caption (the file is not re-uploaded); an
+album → `sendMediaGroup` with the stored `file_id`s. Stickers and round videos have no caption
+and are copied. A post that was nothing but IDs is not sent (`filtered`). If the signature would
+break the caption/message limit it is left out; posts stored before this change (no `items`) are
+copied. `telegram.source_posts.mode: copy` restores the old behaviour. A target channel is checked
+before the source channels, so a misconfigured channel can never feed its own posts back.
+
+**ADR-045 — the owner's panel lives in the bot; its settings in the database.** `/panel` (or
+`/start` from the owner) opens one message with inline buttons, edited in place (owner only):
+status, channels, RSS sources, publish modes, pause, pending, trends, brief. Choosing a channel is
+a reply to the bot's prompt (or `/channel …`); the bot checks with `getChat` / `getChatMember`
+that it is a channel and the bot is an admin (with the right to post, for test/main), and refuses
+a target as a source. Changes are stored in `settings` (`panel.channels`, `panel.sources`) and
+applied at the start of the next run over the environment and the config files
+(`services/overrides.py`, in `runtime.build` and `doctor`). Only RSS sources that are active or
+"Candidate" may be switched; sources off for legal or technical reasons stay off. Without a
+server every tap is handled on the next run (minutes) — said on the panel itself; a webhook
+(option B) would make it instant. The owner's three channels are defaults in the workflow, so no
+GitHub variables are needed.
+

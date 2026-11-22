@@ -76,7 +76,15 @@ async def _ai_check(settings: Settings, config: AppConfig, out: Callable[[str], 
     return problems
 
 
-async def run_doctor(settings: Settings, config: AppConfig, out: Callable[[str], None]) -> int:
+async def run_doctor(
+    settings: Settings,
+    config: AppConfig,
+    out: Callable[[str], None],
+    *,
+    channels: tuple[ChatRef | None, ChatRef | None] | None = None,
+) -> int:
+    """``channels``: (test, main) as the bot panel set them, over the environment."""
+    test, main = channels or (settings.test_channel_ref, settings.main_channel_ref)
     problems = await _ai_check(settings, config, out)
     out(f"config: {len(config.active_sources)} active sources")
     if settings.bot_token is None:
@@ -99,23 +107,14 @@ async def run_doctor(settings: Settings, config: AppConfig, out: Callable[[str],
             problems += 1
         else:
             out("✔ no webhook (getUpdates mode)")
-        if settings.test_channel_ref is None:
-            out("✖ WANGER_NEWS_TEST_CHANNEL is not set: nothing will be posted")
+        if test is None:
+            out("✖ no test channel (WANGER_NEWS_TEST_CHANNEL or the bot panel): nothing is posted")
             problems += 1
         else:
-            problems += await _chat_check(
-                bot, int(me["id"]), "test channel", settings.test_channel_ref, True, out
-            )
+            problems += await _chat_check(bot, int(me["id"]), "test channel", test, True, out)
         out(f"• publish target: {settings.publish_target} (/settings target can override)")
-        if settings.main_channel_ref is not None:
-            problems += await _chat_check(
-                bot,
-                int(me["id"]),
-                "main channel",
-                settings.main_channel_ref,
-                True,
-                out,
-            )
+        if main is not None:
+            problems += await _chat_check(bot, int(me["id"]), "main channel", main, True, out)
         for source in config.sources.sources:
             if source.transport is not Transport.TELEGRAM_CHANNEL:
                 continue

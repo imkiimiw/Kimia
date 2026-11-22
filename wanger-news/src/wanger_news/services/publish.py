@@ -30,7 +30,8 @@ from wanger_news.domain.enums import (
     Stage,
     Transport,
 )
-from wanger_news.formatting.telegram_html import esc, split_html
+from wanger_news.domain.rebrand import Styled, rebrand, strip_ids
+from wanger_news.formatting.telegram_html import esc, split_html, utf16_len
 from wanger_news.formatting.templates_fa import RenderedPost
 from wanger_news.services.context import RunContext, Target
 from wanger_news.services.posts import PostBuilder
@@ -81,6 +82,22 @@ class PublishReport:
     errors: list[str] = field(default_factory=list)
 
 
+#: message kinds whose caption copyMessage can replace
+CAPTIONED = ("photo", "video", "animation", "document", "audio", "voice")
+#: kinds sendMediaGroup accepts
+ALBUM_KINDS = ("photo", "video", "document", "audio")
+
+
+@dataclass(frozen=True, slots=True)
+class Relay:
+    """How a source-channel post goes out: ``text`` / ``caption`` / ``album`` (re-sent without
+    the source's IDs), ``copy`` (unchanged) or ``empty`` (nothing left but IDs: not sent)."""
+
+    kind: str
+    styled: Styled | None = None
+    caption_index: int = 0
+
+
 @dataclass(frozen=True, slots=True)
 class Delivery:
     method: str
@@ -124,6 +141,13 @@ class PublishService:
                 article.transport == Transport.TELEGRAM_CHANNEL.value
                 or article.approved_by is not None
             )
+            relay = self.relay(article, ctx.target)
+            if relay.kind == "empty":
+                await repos.articles.set_status(
+                    article, ArticleStatus.FILTERED, now, "nothing left after removing the IDs"
+                )
+                await repos.commit()
+                continue
             if not human and article.effective_at < now - max_age:
                 await repos.articles.set_status(
                     article, ArticleStatus.EXPIRED, now, "too old to publish"
@@ -167,9 +191,11 @@ class PublishService:
         )
         if article.transport == Transport.TELEGRAM_CHANNEL.value:
             tg = article.telegram or {}
+            relay = self.relay(article, ctx.target)
+            body = relay.styled.text if relay.styled is not None else article.title_original
             ctx.out(
-                f"{header} → copy {tg.get('message_ids')} from {tg.get('chat_id')} "
-                f"to {ctx.target.chat if ctx.target else '-'}\n{article.title_original}\n"
+                f"{header} → {relay.kind} {tg.get('message_ids')} from {tg.get('chat_id')} "
+                f"to {ctx.target.chat if ctx.target else '-'}\n{body}\n"
             )
             return
         assert rendered is not None
@@ -533,9 +559,62 @@ class PublishService:
             ids.append(int(result["message_id"]))
         return Delivery("sendMessage", ids, text)
 
+    # ---------------------------------------------------------------- source-channel posts
+    def relay(self, article: Article, target: Target | None) -> Relay:
+        """The owner's "rebrand" rule for a source-channel post (``domain/rebrand.py``)."""
+        cfg = self._cfg.pipeline.telegram.source_posts
+        tg = article.telegram or {}
+        items: list[dict[str, Any]] = list(tg.get("items") or [])
+        if article.transport != Transport.TELEGRAM_CHANNEL.value:
+            return Relay("copy")
+        if cfg.mode != "rebrand" or not items or target is None:
+            return Relay("copy")
+        author = next(
+            (str(i["author_signature"]) for i in items if i.get("author_signature")), None
+        )
+
+        def styled(item: dict[str, Any], limit: int) -> Styled | None:
+            text, entities = str(item.get("text") or ""), list(item.get("entities") or [])
+            full = rebrand(
+                text,
+                entities,
+                channel_username=target.chat.username,
+                author=author,
+                channel_id_line=cfg.channel_id_line,
+                author_line=cfg.author_line,
+            )
+            if utf16_len(full.text) <= limit:
+                return full
+            bare = strip_ids(text, entities)  # no room for the signature
+            return bare if utf16_len(bare.text) <= limit else None
+
+        publish = self._cfg.pipeline.publish
+        if len(items) == 1:
+            item = items[0]
+            if item.get("kind") == "text":
+                if not strip_ids(
+                    str(item.get("text") or ""), list(item.get("entities") or [])
+                ).text:
+                    return Relay("empty")
+                text = styled(item, publish.message_limit)
+                return Relay("text", text) if text is not None else Relay("copy")
+            if item.get("kind") in CAPTIONED:
+                caption = styled(item, publish.caption_limit)
+                return Relay("caption", caption) if caption is not None else Relay("copy")
+            return Relay("copy")  # stickers, round videos: no caption to change
+        if all(i.get("kind") in ALBUM_KINDS and i.get("file_id") for i in items):
+            index = next((n for n, i in enumerate(items) if i.get("text")), 0)
+            caption = styled(items[index], publish.caption_limit)
+            if caption is not None:
+                return Relay("album", caption, index)
+        return Relay("copy")
+
     async def _copy(self, ctx: RunContext, target: Target, article: Article) -> Delivery:
         assert ctx.bot is not None
         tg = article.telegram or {}
+        relay = self.relay(article, target)
+        if relay.kind != "copy" and relay.styled is not None:
+            return await self._resend(ctx, target, tg, relay)
         message_ids = [int(m) for m in tg.get("message_ids", [])]
         if len(message_ids) == 1:
             result = await ctx.bot.call(
@@ -556,6 +635,46 @@ class PublishService:
             },
         )
         return Delivery("copyMessages", [int(r["message_id"]) for r in result], None)
+
+    async def _resend(
+        self, ctx: RunContext, target: Target, tg: dict[str, Any], relay: Relay
+    ) -> Delivery:
+        """A source-channel post re-sent without the source's IDs, signed for the target."""
+        assert ctx.bot is not None
+        assert relay.styled is not None
+        styled, items = relay.styled, list(tg.get("items") or [])
+        if relay.kind == "text":
+            result = await ctx.bot.call(
+                "sendMessage",
+                {
+                    "chat_id": target.chat.api_value,
+                    "text": styled.text,
+                    "entities": styled.entities,
+                },
+            )
+            return Delivery("sendMessage", [int(result["message_id"])], styled.text)
+        if relay.kind == "caption":
+            result = await ctx.bot.call(
+                "copyMessage",
+                {
+                    "chat_id": target.chat.api_value,
+                    "from_chat_id": tg["chat_id"],
+                    "message_id": int(items[0]["message_id"]),
+                    "caption": styled.text,
+                    "caption_entities": styled.entities,
+                },
+            )
+            return Delivery("copyMessage", [int(result["message_id"])], styled.text)
+        media = []
+        for n, item in enumerate(items):
+            entry: dict[str, Any] = {"type": item["kind"], "media": item["file_id"]}
+            if n == relay.caption_index:
+                entry.update(caption=styled.text, caption_entities=styled.entities)
+            media.append(entry)
+        result = await ctx.bot.call(
+            "sendMediaGroup", {"chat_id": target.chat.api_value, "media": media}
+        )
+        return Delivery("sendMediaGroup", [int(r["message_id"]) for r in result], styled.text)
 
 
 def _reply(message_id: int | None) -> dict[str, Any]:

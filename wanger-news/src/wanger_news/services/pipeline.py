@@ -39,6 +39,7 @@ from wanger_news.services.context import RunContext, Target
 from wanger_news.services.dedup import DedupService
 from wanger_news.services.inbox import InboxService
 from wanger_news.services.ingest import HealthSnapshot, IngestService
+from wanger_news.services.panel import PanelService
 from wanger_news.services.processing import ProcessingService
 from wanger_news.services.publish import PublishService
 from wanger_news.services.review import ReviewService
@@ -95,6 +96,7 @@ class Deps:
     #: configured channels by role; when given, the target is chosen per run (/settings target)
     channels: dict[str, ChatRef | None] = field(default_factory=dict)
     default_target: str = "test"
+    base_config: AppConfig | None = None  # the config files before the panel's switches
     out: Callable[[str], None] = print
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
 
@@ -113,6 +115,8 @@ class Pipeline:
         self.trends = TrendService(cfg, self.publisher)
         self.brief = BriefService(cfg, self.publisher)
         self.commands = CommandService(cfg, self.review, trends=self.trends, brief=self.brief)
+        self.panel = PanelService(cfg, deps.base_config or cfg, self.commands)
+        self.commands.panel = self.panel
         self.inbox = InboxService(cfg, self.dedup, self.commands, self.review)
 
     @asynccontextmanager

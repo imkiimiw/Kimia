@@ -328,8 +328,8 @@ async def test_a_source_channel_post_about_a_published_story_is_still_copied(
         )
     ]
     await harness.run()
-    copies = [m for m, _ in posts(harness) if m == "copyMessage"]
-    assert len(copies) == 1
+    relayed = [p for m, p in posts(harness) if m == "sendMessage" and "parse_mode" not in p]
+    assert len(relayed) == 1 and relayed[0]["text"].endswith("🆔 @wanger_test")
     human = next(a for a in await harness.articles() if a.source_id == "source-channel")
     assert human.cluster_role == "human" and len(await stories(harness)) == 1
 

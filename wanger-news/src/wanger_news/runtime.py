@@ -16,7 +16,9 @@ from wanger_news.ai.prompts import PromptLibrary
 from wanger_news.config.models import AppConfig
 from wanger_news.db.engine import MEMORY_URL, create_all, create_engine
 from wanger_news.ports import SystemClock
+from wanger_news.services import overrides
 from wanger_news.services.inbox import chat_refs
+from wanger_news.services.overrides import Overrides
 from wanger_news.services.pipeline import Deps
 from wanger_news.services.targets import resolve_target
 from wanger_news.settings import Settings
@@ -59,7 +61,9 @@ async def build(
     else:
         engine = create_engine(settings.database_url.get_secret_value())
 
-    test, main = settings.test_channel_ref, settings.main_channel_ref
+    panel = await overrides.load(engine) if settings.database_url is not None else Overrides()
+    base_config, config = config, overrides.apply(config, panel)  # the owner's panel switches
+    test, main = overrides.channels(settings.test_channel_ref, settings.main_channel_ref, panel)
     target = resolve_target(test, main)  # validates the pair early (test ≠ main)
     http = config.pipeline.http
     async with (
@@ -101,6 +105,7 @@ async def build(
                 owner_id=settings.owner_id,
                 admin_ids=settings.admin_id_set,
                 out=out,
+                base_config=base_config,
             )
         finally:
             await engine.dispose()

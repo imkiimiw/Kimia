@@ -55,6 +55,15 @@ class SourceConfig(StrictModel):
     owner_group: str | None = None
     notes: str | None = None
 
+    @property
+    def switchable(self) -> bool:
+        """May the owner switch this RSS source on/off in the bot? Active ones and inactive
+        "Candidate" ones (waiting for the owner's choice) — never one that is off for a legal or
+        technical reason (paywall, licence, broken feed)."""
+        if self.transport is not Transport.RSS or not self.rss_url:
+            return False
+        return self.active or (self.inactive_reason or "").startswith("Candidate")
+
     @model_validator(mode="before")
     @classmethod
     def _deactivate_unconfigured_telegram(cls, data: Any) -> Any:
@@ -254,6 +263,16 @@ class PublishConfig(StrictModel):
     caption_limit: int = Field(default=1024, ge=100, le=1024)
 
 
+class SourcePostsConfig(StrictModel):
+    """How source-channel posts reach the target channel (owner's decision, 2026-11-22):
+    ``rebrand`` = re-sent without the source's Telegram IDs (@mentions, t.me links), with the
+    target channel's @username and the poster's name as a hashtag; ``copy`` = copied unchanged."""
+
+    mode: Literal["rebrand", "copy"] = "rebrand"
+    channel_id_line: str = "🆔 @{username}"  # the target channel's @username ("" = none)
+    author_line: str = "✍️ #{hashtag}"  # the poster's signature as a hashtag ("" = none)
+
+
 class TelegramConfig(StrictModel):
     request_timeout_seconds: float = Field(default=20, gt=0)
     rate_limit_max_wait_seconds: float = Field(default=30, ge=0)
@@ -263,6 +282,7 @@ class TelegramConfig(StrictModel):
     notify_owner_on_duplicate: bool = True
     observe_target_channels: bool = True
     max_owner_notices_per_run: int = Field(default=5, ge=0)
+    source_posts: SourcePostsConfig = SourcePostsConfig()
 
 
 class LocksConfig(StrictModel):

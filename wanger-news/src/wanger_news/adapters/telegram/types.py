@@ -28,6 +28,9 @@ class MessageEntity(_Model):
     offset: int
     length: int
     url: str | None = None
+    language: str | None = None  # pre
+    custom_emoji_id: str | None = None
+    user: User | None = None  # text_mention
 
 
 class FileRef(_Model):
@@ -76,6 +79,7 @@ class Message(_Model):
     sticker: FileRef | None = None
     media_group_id: str | None = None
     forward_origin: MessageOrigin | None = None
+    author_signature: str | None = None  # a channel post's signer ("Sign messages" on)
     has_protected_content: bool = False
     reply_to_message: Message | None = None
 

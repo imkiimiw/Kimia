@@ -62,6 +62,13 @@ python -m wanger_news migrate | db-check | doctor | validate-config   # doctor c
 - Target: test channel by default; main only from phase 2 and only when the owner switches
   (`/settings target main` or `WANGER_NEWS_PUBLISH_TARGET`). `services/targets.py` enforces it.
 - Source-channel posts are human-curated: no gate/AI/review, only dedup ("was it published before?").
+  Owner's rule (2026-11-22): they are RE-SENT, not copied — the source's Telegram IDs removed,
+  the target's @username and `#poster` added (`domain/rebrand.py`, `PublishService.relay`).
+  A target channel is never treated as a source (posts would loop).
+- The owner's `/panel` (`services/panel.py`) changes channels, RSS on/off, modes, pause. Its
+  settings live in `settings` (`services/overrides.py`) and are applied at the start of every run
+  over env/config (`runtime.build`); the harness does the same. Locked sources (not
+  `SourceConfig.switchable`) can never be switched on from the bot.
 - Phase 2 AI rules: a feed item is NEVER published without a validated or human-approved Persian
   summary. All AI goes through the `AIProvider` port; prompts are versioned files in `prompts/`
   (a changed prompt = a new version file); article text is data between random-boundary markers;

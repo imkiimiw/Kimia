@@ -149,10 +149,17 @@ class InboxService:
 
     async def _handle(self, repos: Repositories, ctx: RunContext, update: Update) -> str:
         if update.callback_query is not None:
+            panel = self._commands.panel
+            if panel is not None and (update.callback_query.data or "").startswith("pn:"):
+                return str(await panel.on_callback(repos, ctx, update.callback_query))
             return await self._review.on_callback(repos, ctx, update.callback_query)
         if update.message is not None:
             message = update.message
             sender = message.from_user.id if message.from_user else None
+            if message.chat.type == "private" and self._commands.panel is not None:
+                answered = await self._commands.panel.on_reply(repos, ctx, message)
+                if answered is not None:
+                    return str(answered)
             if message.chat.type == "private" and sender in ctx.admin_ids:
                 edited = await self._review.on_edit_reply(repos, ctx, message)
                 if edited is not None:
@@ -176,13 +183,13 @@ class InboxService:
         self, repos: Repositories, ctx: RunContext, messages: list[Message]
     ) -> str:
         chat = messages[0].chat
-        source = self._source_for(chat.id, chat.username)
-        if source is not None:
-            return await self._source_post(repos, ctx, source, messages)
-        if self._is_target(ctx, chat.id, chat.username):
+        if self._is_target(ctx, chat.id, chat.username):  # never a source: posts would loop
             if not self._cfg.pipeline.telegram.observe_target_channels:
                 return "ignored:target_channel"
             return await self._observe_target_post(repos, ctx, messages)
+        source = self._source_for(chat.id, chat.username)
+        if source is not None:
+            return await self._source_post(repos, ctx, source, messages)
         await self._unknown_channel(repos, ctx, chat.id, chat.title, chat.username)
         return "ignored:unknown_channel"
 

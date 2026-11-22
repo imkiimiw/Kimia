@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -31,6 +32,9 @@ class TelegramRef(BaseModel):
     file_unique_ids: list[str] = []
     forward_origin: str | None = None  # "chat:<id>:<message_id>" / "user:<id>" / "hidden:<name>"
     links: list[str] = []  # canonical URLs found in the post
+    # what is needed to re-send the post (owner's "rebrand" mode): per message its kind,
+    # file_id, text/caption, entities and the signer's name
+    items: list[dict[str, Any]] = []
 
 
 class ArticleDraft(BaseModel):
