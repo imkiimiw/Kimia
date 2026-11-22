@@ -114,7 +114,7 @@ import * as start from './ui/start.js';
 const OWNER_HEADS = new Set(['op', 'os', 'oj', 'ob', 'bc', 'ox', 'sy']);
 const PANEL_HEADS = new Set(['cl', 'g']);
 const OWNER_INPUTS = new Set(['join_add', 'bc_content', 'bc_buttons']);
-const GROUP_HEADS = new Set(['pu', 'bt', 'cp', 'rk', 'ld', 'fj', 'rp', 'an', 'pq', 'ct', 'qa', 'apl', 'apc', 'rv', 'fn', 'md', 'nop', 'dv']);
+const GROUP_HEADS = new Set(['pu', 'bt', 'cp', 'rk', 'ld', 'fj', 'rp', 'an', 'pq', 'ct', 'qa', 'apl', 'apc', 'rv', 'fn', 'md', 'nop', 'dv', 'qp']);
 const DASH_HEADS = new Set(['db', 'xp']);
 const PANELS = [panelMod, panelLocks, panelFed, panelAdv, panelTopics, panelChannel, panelPosts, dashboard, panelSocial, panelQa, qa];
 const isUserInput = (kind) => kind === 'adm_pick' || PANELS.some((p) => p.INPUTS.has(kind));
@@ -431,6 +431,7 @@ async function handleCallback(ctx, cq) {
     if (advanced.HEADS.has(head0)) return advanced.callback(ctx, cq, parts, { roleOf: moderation.roleOf, security: security.command, moderation: moderation.handle });
     if (head0 === 'pq') return channel.queueCallback(ctx, cq, parts);
     if (head0 === 'dv') return channel.dmVoteButton(ctx, cq, parts);
+    if (head0 === 'qp') return group.quickPanel(ctx, cq, parts);
     if (head0 === 'ct') return social.callback(ctx, cq, parts);
     if (head0 === 'fn') return fun.callback(ctx, cq, parts);
     if (head0 === 'md') return media.callback(ctx, cq, parts);

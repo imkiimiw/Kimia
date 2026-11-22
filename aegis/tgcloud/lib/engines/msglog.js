@@ -12,6 +12,12 @@ export async function add(chatId, msgId, userId, kind, delAt = 0) {
   await db.run(sql`INSERT INTO aegis_msg_log (chat_id, msg_id, user_id, kind, at, del_at) VALUES (${chatId}, ${msgId}, ${userId || 0}, ${kind}, ${nowSec()}, ${delAt})`);
 }
 
+/* One of Aegis's own messages that deletes itself: (re)sets when (the quick panel is pushed back on each use). */
+export async function extend(chatId, msgId, delAt) {
+  const r = await db.run(sql`UPDATE aegis_msg_log SET del_at = ${delAt} WHERE chat_id = ${chatId} AND msg_id = ${msgId} AND kind = 'aegis'`);
+  if (!r.rowsAffected) await add(chatId, msgId, 0, 'aegis', delAt);
+}
+
 /* Messages to clean in a chat since `since` (kinds: null = all but Aegis's own notices). */
 export async function since(chatId, sinceSec, kinds, limit = 500) {
   const rows = await db.all(sql`SELECT id, msg_id, kind FROM aegis_msg_log WHERE chat_id = ${chatId} AND at >= ${sinceSec} ORDER BY at LIMIT ${limit}`);

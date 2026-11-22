@@ -223,6 +223,16 @@ existing feature were not built twice (see NOT_BUILT.md for the full list and re
 | How it is published | «Publish as»: a forward (the default — Telegram shows the sender as their privacy settings allow) or a copy posted as the channel. The channel's «silent» and «protected» publishing settings apply. If Telegram refuses (e.g. Aegis can't post), the admins and the log channel see why. |
 | Storage | Two new tables, `aegis_dm_votes` (one per message) and `aegis_dm_ballots` (one per admin and vote); finished votes are deleted after 30 days. |
 
+### After the release — the quick panel in groups (the owner's request)
+
+| Topic | Decision |
+|---|---|
+| Why not the full panel in the group | Everything a bot posts in a group is visible to every member: the full panel would show the locks that are off, flood limits, the lists with names and ids, access levels and the change log, and its text prompts would have to be typed in the group. So the full panel stays private, and the group gets a quick panel of low-risk switches. |
+| What it has | Fun, media tools, welcome, removing join/leave messages (both switches together), the link lock, the night lock (with its saved hours), the emergency lock (supergroups only), points, questions to admins, reports. |
+| Who can use it | «⚡ Quick panel (here)» opens it for the admin who presses (Settings access or more); after that only that admin can press, re-checked live with Telegram on every press; the emergency lock also needs the right to restrict members. |
+| How changes are made | Through the same functions as the private panel (settings, the locks engine, the night-lock planner, the emergency lock with its announcement and «end now» button), so the change log, audit and log channel are the same. |
+| Clean-up | It deletes itself 5 minutes after the last press (the self-destructing message log, pushed back on each use), or at once with ✖️ Close. |
+
 ## Phase 10
 
 | Topic | Decision |

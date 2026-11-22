@@ -229,6 +229,8 @@ test('every locale key the code names exists (literal keys and the dynamic famil
     /* the admins' vote on direct messages to a channel */
     'chp.k_': ['dm_vote', 'dm_vote_mode'], 'chp.v_dm_vote_mode_': ['f', 'c'], 'ch.dv_': ['published', 'rejected', 'failed'],
     'ch.dv_log_': ['published', 'rejected', 'failed', 'nobody'], 'ch.dv_choice_': ['y', 'n'],
+    /* the quick panel in groups */
+    'group.qp_k_': ['f', 'm', 'w', 'j', 'k', 'n', 'e', 'p', 'q', 'r'],
     'gamelist.cs_t_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_s_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_n_': [...fun.puzzles.CASES.keys()],
     'gamelist.cs_q_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_c_': [...fun.puzzles.CASES.keys()], 'gamelist.cs_a_': [...fun.puzzles.CASES.keys()],
     'gamelist.wa_n_': fun.puzzles.PEOPLE, 'gamelist.wa_c_': fun.puzzles.PEOPLE, 'gamelist.tp_n_': fun.puzzles.PLACES.map(([k]) => k),

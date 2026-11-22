@@ -519,7 +519,13 @@ ask Telegram for the needed admin rights, and Aegis sets them as its default adm
 - When Aegis's rights change, a short notice says what's missing (or that all is fine).
 
 **«پیکربندی» / config**
-- In a group: an admin gets a button to that group's private panel; «پنل» / panel does the same.
+- In a group: an admin gets a button to that group's private panel and «⚡ Quick panel (here)»; «پنل» /
+  panel does the same. The **quick panel** turns the reply into ten switches — fun, media tools, welcome,
+  removing join/leave messages, the link lock, the night lock, the emergency lock (supergroups), points,
+  questions to admins, reports — with ✅/❌. Only the admin who opened it can press (re-checked live,
+  Settings access; the emergency lock also needs the right to restrict); each change goes through the
+  same code and logs as the private panel; it deletes itself after 5 idle minutes or with ✖️ Close.
+  Nothing sensitive (lists, ids, thresholds) is shown in the group.
   An ordinary member gets a short answer that the panel is for admins (at most one every 20 s in a
   chat); anonymous admins are told to use the private chat.
 - «راهنما» / help (or `/start`) in a group: what everyone can do there (rules, report, admins, warnings,

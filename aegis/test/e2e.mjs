@@ -865,6 +865,56 @@ await scenario('groups answer «راهنما» / help and «پنل» / panel: th
   assert.match(toChat(pm, P.carol.id).pop().params.text, /^❓ <b>Help<\/b>/);
 });
 
+await scenario('⚡ the quick panel in a group: opened by an admin with Settings access, only the opener can switch, settings/locks/emergency lock change through the usual paths, closes itself after 5 idle minutes', async () => {
+  tick(30);
+  const asked = sent(await gmsg(alphaChat, P.carol, 'پنل'))[0];
+  const amid = asked.result.result.message_id;
+  assert.deepEqual(asked.params.reply_markup.inline_keyboard.map((r) => r.map((b) => b.url || b.callback_data)), [[`https://t.me/aegis_test_bot?start=c_${ALPHA}`], ['qp:0:o']]);
+  assert.equal((await gpress(P.frank, ALPHA, 'qp:0:o', amid)).toast, 'You need Settings access to Aegis in this chat.');
+  const open = await gpress(P.carol, ALPHA, 'qp:0:o', amid);
+  const ed = edits(open.calls)[0];
+  assert.match(ed.params.text, /^⚡ <b>Quick panel — ⁨Alpha⁩<\/b>\nOpened by ⁨Carol⁩: only they can use these switches\./);
+  const qp = (code) => `qp:${P.carol.id}:t:${code}`;
+  const labels = () => kb(mock.get(ALPHA, amid)).map((b) => b.text);
+  assert.deepEqual(kb(mock.get(ALPHA, amid)).map((b) => b.callback_data || 'url'),
+    [qp('f'), qp('m'), qp('w'), qp('j'), qp('k'), qp('n'), qp('e'), qp('p'), qp('q'), qp('r'), 'url', `qp:${P.carol.id}:x`]);
+  assert.ok(labels().includes('✅ 🎮 Fun') && labels().includes('❌ 🔗 Link lock') && labels().includes('❌ 🚨 Emergency lock'), labels().join(' | '));
+  /* only the opener */
+  assert.equal((await gpress(P.dave, ALPHA, qp('f'), amid)).toast, 'Only ⁨Carol⁩, who opened this panel, can use it. Send «پنل» / panel to open your own.');
+  /* a setting, a lock, the emergency lock (and back) */
+  assert.equal((await gpress(P.carol, ALPHA, qp('f'), amid)).toast, '🎮 Fun: OFF');
+  assert.equal(row("SELECT value FROM aegis_chat_settings WHERE chat_id = ? AND key = 'fun_on'", ALPHA).value, '0');
+  assert.ok(labels().includes('❌ 🎮 Fun'));
+  assert.ok(row("SELECT id FROM aegis_audit WHERE chat_id = ? AND action = 'settings.set' AND target = 'fun_on' AND actor_id = ?", ALPHA, P.carol.id), 'logged like a panel change');
+  assert.equal((await gpress(P.carol, ALPHA, qp('j'), amid)).toast, '🧹 Remove join/leave messages: ON');
+  assert.deepEqual(['del_join', 'del_leave'].map((k) => row('SELECT value FROM aegis_chat_settings WHERE chat_id = ? AND key = ?', ALPHA, k).value), ['1', '1']);
+  assert.equal((await gpress(P.carol, ALPHA, qp('k'), amid)).toast, '🔗 Link lock: ON');
+  assert.equal(row("SELECT enabled FROM aegis_locks WHERE chat_id = ? AND code = 'link'", ALPHA).enabled, 1);
+  const em = await gpress(P.carol, ALPHA, qp('e'), amid);
+  assert.equal(em.toast, '🚨 Emergency lock: ON');
+  assert.equal(sent(em.calls, 'setChatPermissions')[0].params.permissions.can_send_messages, false);
+  assert.ok(toChat(em.calls, ALPHA).some((x) => x.params.reply_markup && /ld:\d+:end/.test(JSON.stringify(x.params.reply_markup))), 'announced with «end now»');
+  const off = await gpress(P.carol, ALPHA, qp('e'), amid);
+  assert.equal(off.toast, '🚨 Emergency lock: OFF');
+  assert.equal(sent(off.calls, 'setChatPermissions')[0].params.permissions.can_send_messages, true, 'permissions back');
+  /* 5 idle minutes: it deletes itself */
+  const del = row("SELECT del_at FROM aegis_msg_log WHERE chat_id = ? AND msg_id = ? AND kind = 'aegis'", ALPHA, amid);
+  const nowHere = Math.floor(clock / 1000);
+  assert.ok(Number(del.del_at) > nowHere + 290 && Number(del.del_at) <= nowHere + 300, String(del.del_at - nowHere));
+  tick(301);
+  const later = await gmsg(alphaChat, P.frank, 'hi');
+  assert.ok(sent(later, 'deleteMessages').some((x) => x.params.chat_id === ALPHA && x.params.message_ids.includes(amid)), 'deleted after 5 idle minutes');
+  /* a new one, closed with ✖️ */
+  tick(30);
+  const again = sent(await gmsg(alphaChat, P.carol, 'panel'))[0].result.result.message_id;
+  await gpress(P.carol, ALPHA, 'qp:0:o', again);
+  const closed = await gpress(P.carol, ALPHA, `qp:${P.carol.id}:x`, again);
+  assert.ok(sent(closed.calls, 'deleteMessage').some((x) => x.params.message_id === again));
+  /* back as it was */
+  for (const k of ['fun_on', 'del_join', 'del_leave']) rawDatabase().prepare('DELETE FROM aegis_chat_settings WHERE chat_id = ? AND key = ?').run(ALPHA, k);
+  rawDatabase().prepare("DELETE FROM aegis_locks WHERE chat_id = ? AND code = 'link'").run(ALPHA);
+});
+
 await scenario('phase 2 — «پیکربندی» in private: the chats where the user is an allowed admin', async () => {
   const c = await dm(P.carol, 'پیکربندی');
   const m = sent(c)[0];

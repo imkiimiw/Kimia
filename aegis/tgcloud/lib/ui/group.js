@@ -16,15 +16,21 @@
  */
 import { ADMIN_CACHE_SEC, REMINDER_EVENT_GAP_SEC, REMINDER_INTERVAL_SEC } from '../config.js';
 import * as audit from '../core/audit.js';
-import { btn, me, send, tryCall, urlBtn } from '../core/tg.js';
-import { fullName, iso, nowSec, parseJson } from '../core/util.js';
+import { answer, btn, edit, markup, me, send, tryCall, urlBtn } from '../core/tg.js';
+import { fullName, iso, nowSec, parseJson, toInt } from '../core/util.js';
 import * as admins from '../engines/admins.js';
 import * as chats from '../engines/chats.js';
+import * as guards from '../engines/guards.js';
+import * as locks from '../engines/locks.js';
+import * as msglog from '../engines/msglog.js';
+import * as settings from '../engines/settings.js';
 import { globals, staff } from '../engines/system.js';
 import * as kv from '../core/kv.js';
 import { deepLinkRights, REQUIRED } from '../engines/rights.js';
 import * as users from '../engines/users.js';
-import { t } from '../i18n/index.js';
+import { pickLang, t } from '../i18n/index.js';
+import { plan } from './advanced.js';
+import { announceLock, lockChat, unlockChat } from './security.js';
 import * as channel from './channel.js';
 
 export const panelLink = (bot, chatId) => `https://t.me/${bot}?start=c_${chatId}`;
@@ -188,8 +194,100 @@ export async function configInGroup(ctx, message) {
     return;
   }
   const bot = (await me(ctx)).username;
-  await send(ctx, tgChat.id, t(chat.lang, 'group.config_reply', { name: iso(fullName(from)) }), [[urlBtn(t(chat.lang, 'group.btn_panel'), panelLink(bot, tgChat.id))]],
-    'config-link', reply);
+  await send(ctx, tgChat.id, t(chat.lang, 'group.config_reply', { name: iso(fullName(from)) }),
+    [[urlBtn(t(chat.lang, 'group.btn_panel'), panelLink(bot, tgChat.id))], [btn(t(chat.lang, 'group.btn_quick'), 'qp:0:o')]], 'config-link', reply);
+}
+
+/* ---------- the quick panel: a few low-risk switches right in the group ---------- */
+
+/*
+ * qp:0:o opens it for whoever presses (an admin with Settings access); then qp:<opener>:t:<code> switches one item and
+ * qp:<opener>:x closes it. Only the opener can use it, re-checked live on every press; it deletes itself after 5 minutes
+ * without use. Nothing sensitive is shown (no lists, ids or thresholds): the full panel stays private.
+ */
+const QP_IDLE_SEC = 300;
+const QP_FLAGS = { f: ['fun_on'], m: ['media_on'], w: ['welcome_on'], j: ['del_join', 'del_leave'], n: ['night_on'], p: ['pts_on'], q: ['qa_on'], r: ['reports'] };
+const qpCodes = (chat) => ['f', 'm', 'w', 'j', 'k', 'n', ...(chat.type === 'supergroup' ? ['e'] : []), 'p', 'q', 'r'];
+
+async function qpState(ctx, chat) {
+  const s = await settings.all(ctx, chat.chat_id);
+  const on = {};
+  for (const [code, keys] of Object.entries(QP_FLAGS)) on[code] = keys.every((k) => s[k] === '1');
+  on.k = Number((await locks.config(chat.chat_id, 'link')).on) === 1;
+  on.e = !!(await guards.lockdown(chat.chat_id, 'emergency'));
+  return on;
+}
+
+async function qpRows(ctx, chat, opener) {
+  const lang = chat.lang;
+  const on = await qpState(ctx, chat);
+  const items = qpCodes(chat).map((code) => btn(`${on[code] ? '✅' : '❌'} ${t(lang, `group.qp_k_${code}`)}`, `qp:${opener}:t:${code}`));
+  const rows = [];
+  for (let i = 0; i < items.length; i += 2) rows.push(items.slice(i, i + 2));
+  rows.push([urlBtn(t(lang, 'group.btn_panel'), panelLink((await me(ctx)).username, chat.chat_id)), btn(t(lang, 'group.btn_close'), `qp:${opener}:x`)]);
+  return rows;
+}
+
+/* Switches one item; gives the toast (or an error toast, with ok false). */
+async function qpToggle(ctx, chat, code, from, acc, lang) {
+  const c = chat.chat_id;
+  const on = await qpState(ctx, chat);
+  const next = !on[code];
+  if (QP_FLAGS[code]) {
+    for (const key of QP_FLAGS[code]) await settings.set(ctx, c, key, next ? '1' : '0', from.id);
+    if (code === 'n') await plan(ctx, chat);
+  } else if (code === 'k') {
+    await locks.update(c, 'link', { on: next ? 1 : 0 }, from.id);
+  } else if (code === 'e') {
+    const canRestrict = acc.member.status === 'creator' || acc.member.can_restrict_members === true;
+    if (!canRestrict) return { ok: false, text: t(lang, 'group.qp_need_restrict') };
+    if (next) {
+      const r = await lockChat(ctx, chat, 'emergency', { byId: from.id });
+      if (!r.ok) return { ok: false, text: t(lang, 'group.qp_error', { error: iso(r.error, 120) }) };
+      if (!r.already) await announceLock(ctx, chat, 'emergency', 0, null, from);
+    } else {
+      const ld = await guards.lockdown(c, 'emergency');
+      if (ld) await unlockChat(ctx, chat, ld, from.id);
+    }
+  } else return { ok: false, text: '' };
+  return { ok: true, text: t(lang, 'group.qp_state', { name: t(lang, `group.qp_k_${code}`), state: t(lang, next ? 'common.on' : 'common.off') }) };
+}
+
+export async function quickPanel(ctx, cq, parts) {
+  const msg = cq.message;
+  const from = cq.from;
+  if (!msg || (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup')) return answer(ctx);
+  const chat = await chats.get(msg.chat.id);
+  const u = await users.get(from.id);
+  const mine = u && Number(u.lang_set) ? u.lang : (chat ? chat.lang : pickLang(from.language_code));
+  if (!chat || !Number(chat.registered)) return answer(ctx);
+  const opener = toInt(parts[1]) || 0;
+  const act = parts[2];
+  if (!opener && act !== 'o') return answer(ctx);
+  if (opener && opener !== from.id) return answer(ctx, t(mine, 'group.qp_not_yours', { user: iso(await users.displayName(opener)) }), true);
+  const acc = await admins.liveAccess(ctx, chat.chat_id, from.id);
+  if (!acc.member || !['creator', 'administrator'].includes(acc.member.status) || acc.level < admins.L.settings) {
+    return answer(ctx, t(mine, 'group.qp_no_access'), true);
+  }
+  const place = { chat_id: msg.chat.id, message_id: msg.message_id };
+  if (act === 'x') {
+    await tryCall(ctx, 'deleteMessage', place, 'quick-panel-close');
+    return answer(ctx);
+  }
+  let toast = '';
+  if (act === 't') {
+    const code = parts[3];
+    if (!qpCodes(chat).includes(code)) return answer(ctx);
+    const r = await qpToggle(ctx, chat, code, from, acc, mine);
+    if (!r.ok) return answer(ctx, r.text, true);
+    toast = r.text;
+  }
+  await users.remember(from);
+  const text = t(chat.lang, 'group.qp_title', { title: iso(chat.title || '', 48), user: iso(fullName(from)) });
+  if (act === 'o') await edit(ctx, place, text, await qpRows(ctx, chat, from.id), 'quick-panel');
+  else await tryCall(ctx, 'editMessageReplyMarkup', { ...place, reply_markup: markup(await qpRows(ctx, chat, from.id)) }, 'quick-panel');
+  await msglog.extend(chat.chat_id, msg.message_id, nowSec() + QP_IDLE_SEC);
+  return answer(ctx, toast);
 }
 
 /* «راهنما» / help (or /start) in a group: what members can do here, and for admins the moderation commands and the panel. */
