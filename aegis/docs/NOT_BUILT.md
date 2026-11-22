@@ -226,6 +226,12 @@ an existing feature:
 | A vote message for **every** admin | **Partial** | A bot can only write to people who started it, and at most 10 admins get a vote message (to keep one update within its limits). The panel shows how many admins can vote. | — (Telegram). |
 | A forward that **always** shows the sender | **Partial** | Telegram shows the original sender of a forward only as their privacy settings allow; «copy» posts the message as the channel instead. | — (Telegram). |
 
+### After the release — the round of ten improvements (notes, wizard, shared blacklist, …)
+
+| Feature | State | Why | What it would need |
+|---|---|---|---|
+| The shared blacklist checking the **CAS list** (cas.chat) | **Not built** | `api.cas.chat/check` now answers `401 {"description":"API key required"}` (checked from the platform and from outside, November 2026). Whether a key is free isn't stated, so under the free-only rule it isn't used: the check was removed, the panel has no CAS toggle and its description says the CAS list isn't checked, and the cache table `aegis_cas` was dropped (`.deprecated()`). The shared blacklist works on **Aegis's own records**: a newcomer banned or removed in 2 / 3 / 5 other groups that use Aegis in the last 90 days (undone punishments and this group's own don't count) is reported or punished as set. | A free, keyless CAS API (or a key that is documented as free). |
+
 ## Phase 10 — Super Admin panel, the bot's team, release
 
 | Feature | State | Why | What it would need |

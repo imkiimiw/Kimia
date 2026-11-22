@@ -194,5 +194,13 @@
   "f_qr": "Liens dans les QR codes",
   "f_pdf": "PDF risqués",
   "sig_qr_link": "un lien caché dans un QR code",
-  "sig_pdf_active": "un PDF qui peut exécuter du code"
+  "sig_pdf_active": "un PDF qui peut exécuter du code",
+  "m_shared": "Liste noire partagée",
+  "d_shared": "Quand quelqu’un arrive : a-t-il été banni ou retiré dans d’autres groupes qui utilisent Aegis ces 90 derniers jours ? Alors Aegis agit comme réglé ci-dessous et prévient les admins. Seuls les registres d’Aegis sont utilisés ; la liste CAS n’est pas consultée (son API demande désormais une clé).",
+  "f_rep": "Banni dans d’autres groupes Aegis",
+  "v_rep_n": "dans {n}+ groupes",
+  "sh_rep": "banni ou retiré dans {n} autres groupes qui utilisent Aegis (90 jours)",
+  "sh_alert": "🌐 Liste noire partagée : {user} ({id}) est arrivé — {why}.\nAction : {act}",
+  "sh_report_only": "aucune (seulement signalé)",
+  "sh_audit": "mode audit (seulement enregistré)"
 }

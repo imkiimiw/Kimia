@@ -2179,7 +2179,7 @@ async function moduleOff(code) {
   if (/🟢/.test(olgaScreen().plain.split('\n')[0])) await olga(S(`m:${code}:on`));
 }
 
-await scenario('phase 5 — 🔰 security: eight modules; anti-flood (too many messages, the same message again) — deleted, muted once, notice', async () => {
+await scenario('phase 5 — 🔰 security: nine modules; anti-flood (too many messages, the same message again) — deleted, muted once, notice', async () => {
   tick(600);
   delta = mock.addChat({ id: DELTA, type: 'supergroup', title: 'Delta', username: 'delta_group', botRights: { can_manage_chat: true, can_change_info: true,
     can_delete_messages: true, can_restrict_members: true, can_invite_users: true, can_pin_messages: true, can_promote_members: true } });
@@ -2197,7 +2197,7 @@ await scenario('phase 5 — 🔰 security: eight modules; anti-flood (too many m
   await olga(S());
   const home = olgaScreen().plain;
   assert.match(home, /🔰 Security of \u2068Delta\u2069/);
-  assert.equal((home.match(/⚪\uFE0F/g) || []).length, 8);
+  assert.equal((home.match(/⚪\uFE0F/g) || []).length, 9);
   await moduleOn('flood');
   assert.match(olgaScreen().plain, /• Limit: 5/);
   assert.match(olgaScreen().plain, /• Within: 5 s/);
@@ -2330,6 +2330,56 @@ await scenario('phase 5 — captcha: newcomers muted until they press the right 
   assert.equal(row("SELECT status FROM aegis_captchas WHERE chat_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1", DELTA, P5.ned.id).status, 'expired');
   await moduleOff('captcha');
   tick(30);
+});
+
+await scenario('🌐 the shared blacklist: a newcomer banned in two other Aegis groups is reported, then banned once the punishment is set; clean newcomers pass; no outside service is asked', async () => {
+  for (const code of ['captcha', 'quarantine', 'risk']) await moduleOff(code);
+  const rep = { id: 830100001, is_bot: false, first_name: 'Repeat' };
+  const rep2 = { id: 830100002, is_bot: false, first_name: 'Again' };
+  const clean = { id: 830100003, is_bot: false, first_name: 'Clean' };
+  for (const u of [rep, rep2, clean]) {
+    delta.members.add(u.id);
+    delta.people.set(u.id, u);
+  }
+  let outside = 0;
+  stubFetch(async () => {
+    outside += 1;
+    return { ok: false, status: 404, json: async () => ({}) };
+  });
+  const ins = rawDatabase().prepare("INSERT INTO aegis_punishments (chat_id, user_id, kind, reason, actor_id, source, status, created_at) VALUES (?, ?, ?, 'spam', 0, 'security', ?, ?)");
+  ins.run(-1007770001, rep.id, 'ban', 'active', nowS() - 3600);
+  ins.run(-1007770002, rep.id, 'ban', 'active', nowS() - 7200);
+  ins.run(-1007770001, rep2.id, 'kick', 'active', nowS() - 3600);
+  ins.run(-1007770002, rep2.id, 'ban', 'active', nowS() - 7200);
+  ins.run(-1007770003, rep2.id, 'ban', 'active', nowS() - 91 * 86400);
+  ins.run(-1007770004, clean.id, 'ban', 'undone', nowS() - 3600);
+  ins.run(-1007770005, clean.id, 'ban', 'active', nowS() - 3600);
+  ins.run(DELTA, clean.id, 'ban', 'active', nowS() - 3600);
+  await moduleOn('shared');
+  assert.match(olgaScreen().plain, /Shared blacklist[^]*Banned in other Aegis groups: in 2\+ groups[^]*Punishment: none/);
+  assert.doesNotMatch(olgaScreen().plain, /CAS list:/, 'the CAS toggle is gone');
+  assert.match(olgaScreen().plain, /the CAS list is not checked \(its API now needs a key\)/, 'the panel says so');
+  const texts = (calls) => sent(calls).map((x) => x.params.text || '');
+  /* banned in two other groups: reported (action: none) */
+  const j1 = await joinDelta(rep);
+  assert.ok(texts(j1).some((x) => x.includes(`Shared blacklist: ⁨Repeat⁩ (${rep.id}) joined — banned or removed in 2 other groups that use Aegis (90 days).\nAction: none (only reported)`)), texts(j1).join(' | '));
+  assert.equal(sent(j1, 'banChatMember').length, 0);
+  /* the punishment set to «ban»: a kick and a ban elsewhere (the third is older than 90 days) → banned */
+  for (let k = 0; k < 5; k += 1) await olga(S('m:shared:a'));
+  assert.match(olgaScreen().plain, /Punishment: ban/);
+  const j2 = await joinDelta(rep2);
+  assert.equal(sent(j2, 'banChatMember')[0].params.user_id, rep2.id);
+  assert.ok(texts(j2).some((x) => /banned or removed in 2 other groups that use Aegis \(90 days\)\.\nAction: ban$/.test(x)), texts(j2).join(' | '));
+  assert.ok(row("SELECT id FROM aegis_audit WHERE chat_id = ? AND action = 'security.shared' AND target = ?", DELTA, String(rep2.id)));
+  /* undone bans and bans in this same group do not count: one other group only → passes */
+  const j3 = await joinDelta(clean);
+  assert.equal(sent(j3, 'banChatMember').length, 0);
+  assert.ok(!texts(j3).some((x) => x.includes('Shared blacklist')));
+  assert.equal(outside, 0, 'no outside service was asked');
+  /* back as it was */
+  await moduleOff('shared');
+  rawDatabase().prepare('DELETE FROM aegis_guards WHERE chat_id = ? AND code = ?').run(DELTA, 'shared');
+  stubFetch(null);
 });
 
 await scenario('phase 5 — join requests: the captcha in private decides the request (approve or decline)', async () => {

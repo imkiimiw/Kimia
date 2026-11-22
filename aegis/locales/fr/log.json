@@ -121,5 +121,6 @@
   "notes_clear": "a supprimé la note #{key}",
   "filters_save": "a enregistré le filtre « {key} »",
   "filters_remove": "a supprimé le filtre « {key} »",
-  "chat_preset": "a appliqué une configuration prête"
+  "chat_preset": "a appliqué une configuration prête",
+  "security_shared": "la liste noire partagée a signalé {target}"
 }

@@ -547,6 +547,7 @@ export async function onJoin(ctx, chat, user) {
   if (!guards.anyOn(g)) return false;
   if (await lists.has(c, 'vip', String(user.id)) || await lists.has(c, 'tru', String(user.id))) return false;
   const audited = await auditOn(ctx, c);
+  if (g.shared.on && (await sharedCheck(ctx, chat, user, g, audited))) return true;
   let raid = await guards.lockdown(c, 'raid');
   if (g.raid.on && !raid && await guards.recentJoins(c, g.raid.t) >= g.raid.n) raid = await startRaid(ctx, chat, g, audited);
   const raidAct = raid ? g.raid.act : null;
@@ -575,6 +576,28 @@ export async function onJoin(ctx, chat, user) {
   }
   if (g.quarantine.on || raidAct === 'quarantine') await quarantine(ctx, chat, user.id, g);
   return false;
+}
+
+/* The shared blacklist on join: bans in other Aegis groups (the CAS list needs an API key now, so it is not used — docs/NOT_BUILT.md). Gives true when the newcomer was removed. */
+async function sharedCheck(ctx, chat, user, g, audited) {
+  const lang = chat.lang;
+  const now = nowSec();
+  const why = [];
+  if (g.shared.rep) {
+    const n = await guards.bansElsewhere(user.id, chat.chat_id, now - 90 * 86400);
+    if (n >= g.shared.rep) why.push(t(lang, 'sec.sh_rep', { n }));
+  }
+  if (!why.length) return false;
+  let res = null;
+  if (g.shared.a !== 'none') {
+    await users.remember(user);
+    res = await punish.apply(ctx, chat, { userId: user.id, name: fullName(user), kind: g.shared.a, sec: locks.TIMED_ACTIONS.has(g.shared.a) ? g.shared.d : 0,
+      reason: t(lang, 'sec.reason', { what: t(lang, 'sec.m_shared') }), actorId: 0, source: 'security', meta: { join: true, shared: why.length } });
+  }
+  const act = res && res.ok ? (res.auditOnly ? t(lang, 'sec.sh_audit') : t(lang, `locks.a_${g.shared.a}`)) : t(lang, 'sec.sh_report_only');
+  await alertAdmins(ctx, chat, t(lang, 'sec.sh_alert', { user: iso(fullName(user)), id: String(user.id), why: why.join(' · '), act }));
+  await audit.log(0, 'security.shared', { chatId: chat.chat_id, target: String(user.id), details: { why: why.length, action: g.shared.a } });
+  return !!(res && res.ok && !res.auditOnly && ['ban', 'kick'].includes(res.row.kind) && !audited);
 }
 
 async function startRaid(ctx, chat, g, audited) {

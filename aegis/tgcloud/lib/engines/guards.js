@@ -12,6 +12,7 @@
  *   quarantine  dur (seconds after joining), lvl (text = text only | mute = nothing)
  *   suspicious  inv homo dec file dupm qr pdf (which checks; qr: links in QR codes of photos, pdf: active PDFs), a d del
  *   risk        lv (low | medium | high thresholds), a d del, w (the weights learned from feedback)
+ *   shared      on join: rep (banned or removed in this many other Aegis groups in 90 days), a d
  */
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
@@ -29,13 +30,14 @@ export const MODULES = {
   quarantine: { on: 0, dur: 3600, lvl: 'text' },
   suspicious: { on: 0, inv: 1, homo: 1, dec: 1, file: 1, dupm: 1, qr: 1, pdf: 1, a: 'none', d: 0, del: 1 },
   risk: { on: 0, lv: 'medium', a: 'mute', d: 86400, del: 1, w: {} },
+  shared: { on: 0, rep: 2, a: 'none', d: 0 },
 };
 export const CODES = Object.keys(MODULES);
 const BIT = [0, 1];
 const CHOICES = {
   on: BIT, a: ACTIONS, d: LOCK_DURATIONS, del: BIT, sc: ['all', 'new'], btn: BIT, win: [300, 600, 3600, 86400], xg: BIT,
   dup: [0, 2, 3, 5], act: ['captcha', 'quarantine', 'lock', 'alert'], mode: ['button', 'math'], to: [60, 180, 600], fail: ['kick', 'ban', 'mute'],
-  jr: BIT, lvl: ['text', 'mute'], inv: BIT, homo: BIT, dec: BIT, file: BIT, dupm: BIT, qr: BIT, pdf: BIT, lv: ['low', 'medium', 'high'],
+  jr: BIT, lvl: ['text', 'mute'], rep: [2, 3, 5], inv: BIT, homo: BIT, dec: BIT, file: BIT, dupm: BIT, qr: BIT, pdf: BIT, lv: ['low', 'medium', 'high'],
 };
 const PER_MODULE = {
   flood: { n: [3, 5, 8, 12], t: [3, 5, 10, 30] },
@@ -95,6 +97,15 @@ export async function update(ctx, chatId, code, patch, actorId, { quiet = false 
     await audit.log(actorId, 'guard.set', { chatId, target: code, details });
   }
   return next;
+}
+
+/* ---------- the shared blacklist ---------- */
+
+/* how many other groups banned or removed this user (Aegis's own records) since `since` */
+export async function bansElsewhere(userId, chatId, since) {
+  const r = await db.get(sql`SELECT count(DISTINCT chat_id) AS n FROM aegis_punishments
+    WHERE user_id = ${userId} AND created_at > ${since} AND chat_id != ${chatId} AND kind IN ('ban', 'kick') AND status != 'undone'`);
+  return Number(r.n);
 }
 
 /* ---------- flood counters ---------- */

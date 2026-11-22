@@ -121,5 +121,6 @@
   "notes_clear": "removed the note #{key}",
   "filters_save": "saved the filter «{key}»",
   "filters_remove": "removed the filter «{key}»",
-  "chat_preset": "applied a setup preset"
+  "chat_preset": "applied a setup preset",
+  "security_shared": "the shared blacklist flagged {target}"
 }

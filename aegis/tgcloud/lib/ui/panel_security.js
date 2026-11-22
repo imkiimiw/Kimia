@@ -40,6 +40,7 @@ function show(lang, code, field, v) {
   if (SECONDS.has(field)) return dur(lang, v);
   if (field === 'dup') return v ? num(lang, v) : t(lang, 'common.off');
   if (field === 'n') return num(lang, v);
+  if (field === 'rep') return v ? t(lang, 'sec.v_rep_n', { n: num(lang, v) }) : t(lang, 'common.off');
   if (field === 'lv') return t(lang, 'sec.lv_value', { level: t(lang, `locks.sens_${v}`), alert: RISK_LEVELS[v][0], act: RISK_LEVELS[v][1] });
   return t(lang, `sec.v_${field}_${v}`);
 }

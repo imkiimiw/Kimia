@@ -115,6 +115,13 @@ export function table(name, columns, extras) {
     t[key] = refs[key];
   }
   if (extras) t.__indexes = Object.values(extras(refs));
+  // `.deprecated('reason')` marks the table for a drop: `migrate` removes it, so no CREATE here.
+  Object.defineProperty(t, 'deprecated', {
+    value: (reason) => {
+      if (!reason) throw new Error(`Table ${name}: .deprecated() needs a reason`);
+      return { __deprecatedTable: true, __name: name, reason };
+    },
+  });
   return t;
 }
 

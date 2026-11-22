@@ -152,7 +152,7 @@ test('every locale key the code names exists (literal keys and the dynamic famil
   const MODULES = ['antilink', 'antiads', 'flood', 'raid', 'captcha', 'quarantine', 'suspicious', 'risk'];
   const more = {
     'sec.m_': MODULES, 'sec.d_': MODULES,
-    'sec.f_': ['a', 'd', 'del', 'sc', 'btn', 'win', 'xg', 'n', 't', 'dup', 'act', 'dur', 'mode', 'to', 'fail', 'jr', 'lvl', 'inv', 'homo', 'dec', 'file', 'dupm', 'lv'],
+    'sec.f_': ['a', 'd', 'del', 'sc', 'btn', 'win', 'xg', 'n', 't', 'dup', 'act', 'dur', 'mode', 'to', 'fail', 'jr', 'lvl', 'inv', 'homo', 'dec', 'file', 'dupm', 'lv', 'rep'],
     'sec.v_': ['sc_all', 'sc_new', 'act_captcha', 'act_quarantine', 'act_lock', 'act_alert', 'mode_button', 'mode_math', 'fail_kick', 'fail_ban', 'fail_mute',
       'lvl_text', 'lvl_mute'],
     'sec.sig_': Object.keys(WEIGHTS),

@@ -241,6 +241,21 @@ export default async function (input) {
       counts: await locks.countOn(FAKE_CHAT),
     };
   }
+  if (action === 'shared') {
+    /* the shared blacklist: the cross-group count on the real database (other groups only, active bans and kicks, 90 days) */
+    const now = Math.floor(Date.now() / 1000);
+    const add = (chatId, kind, status, at) => db.run(sql`INSERT INTO aegis_punishments (chat_id, user_id, kind, reason, actor_id, source, status, created_at)
+      VALUES (${chatId}, ${LO}, ${kind}, 'smoke', 0, 'security', ${status}, ${at})`);
+    const before = await guards.bansElsewhere(LO, FAKE_CHAT, now - 90 * 86400);
+    await add(-1009990001, 'ban', 'active', now - 60);
+    await add(-1009990002, 'kick', 'active', now - 60);
+    await add(-1009990003, 'ban', 'undone', now - 60);
+    await add(-1009990004, 'ban', 'active', now - 100 * 86400);
+    await add(FAKE_CHAT, 'ban', 'active', now - 60);
+    const after = await guards.bansElsewhere(LO, FAKE_CHAT, now - 90 * 86400);
+    await db.run(sql`DELETE FROM aegis_punishments WHERE user_id = ${LO} AND reason = 'smoke'`);
+    return { before, after };
+  }
   if (action === 'p5') {
     /* Phase 5: the security SQL (upsert with RETURNING, conditional updates) and signals in the isolate. */
     const ctx = {};

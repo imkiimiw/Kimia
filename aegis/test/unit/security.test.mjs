@@ -99,13 +99,16 @@ test('captchas: the answer is among the options; sums are small and right', () =
   }
 });
 
-test('module settings: eight modules, defaults off, invalid values fall back, learned weights kept within bounds', () => {
-  assert.deepEqual(guards.CODES, ['antilink', 'antiads', 'flood', 'raid', 'captcha', 'quarantine', 'suspicious', 'risk']);
+test('module settings: nine modules, defaults off, invalid values fall back, learned weights kept within bounds', () => {
+  assert.deepEqual(guards.CODES, ['antilink', 'antiads', 'flood', 'raid', 'captcha', 'quarantine', 'suspicious', 'risk', 'shared']);
   for (const c of guards.CODES) assert.equal(guards.normalize(c, null).on, 0, c);
   const f = guards.normalize('flood', { on: 1, n: 7, t: 5, dup: 9, a: 'ban', d: 86400 });
   assert.deepEqual([f.on, f.n, f.t, f.dup, f.a, f.d], [1, 5, 5, 3, 'ban', 86400]);
   assert.deepEqual(guards.choices('raid', 'n'), [5, 10, 20, 50]);
   assert.deepEqual(guards.choices('flood', 'n'), [3, 5, 8, 12]);
+  assert.deepEqual(guards.choices('shared', 'rep'), [2, 3, 5]);
+  assert.deepEqual(guards.normalize('shared', { on: 1, rep: 4, cas: 0 }), { on: 1, rep: 2, a: 'none', d: 0 }, 'an invalid count falls back; the old CAS field is dropped');
+  assert.deepEqual(guards.normalize('shared', { on: 1, rep: 0 }), { on: 1, rep: 2, a: 'none', d: 0 }, '0 is no longer a choice');
   assert.deepEqual(guards.normalize('risk', { w: { xgroup: 0.5, flood: 9, bad: 'x' } }).w, { xgroup: 0.5 });
 });
 

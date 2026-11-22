@@ -194,5 +194,13 @@
   "f_qr": "二维码中的链接",
   "f_pdf": "危险 PDF",
   "sig_qr_link": "藏在二维码里的链接",
-  "sig_pdf_active": "能运行代码的 PDF"
+  "sig_pdf_active": "能运行代码的 PDF",
+  "m_shared": "共享黑名单",
+  "d_shared": "有人进群时：他在过去 90 天内是否被其他使用 Aegis 的群封禁或移除过？如果是，Aegis 会按下面的设置处理并通知管理员。只使用 Aegis 自己的记录；不查询 CAS 名单（其 API 现在需要密钥）。",
+  "f_rep": "在其他 Aegis 群被封",
+  "v_rep_n": "{n} 个群以上",
+  "sh_rep": "在 {n} 个其他使用 Aegis 的群中被封禁或移除（90 天）",
+  "sh_alert": "🌐 共享黑名单：{user}（{id}）进群——{why}。\n处理：{act}",
+  "sh_report_only": "无（仅通知）",
+  "sh_audit": "审计模式（仅记录）"
 }

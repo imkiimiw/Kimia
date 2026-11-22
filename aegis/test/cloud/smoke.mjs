@@ -101,9 +101,11 @@ try {
     && p6.member.join() === 'rules,report,true', JSON.stringify([p6.times, p6.next, p6.local, p6.member]));
   for (const t of ['aegis_guards', 'aegis_flood', 'aegis_captchas', 'aegis_lockdowns', 'aegis_risk_events', 'aegis_media_seen', 'aegis_msg_hashes', 'aegis_feds',
     'aegis_fed_chats', 'aegis_fed_admins', 'aegis_fed_bans']) check(`Phase 5 table ${t}`, tables.includes(t));
+  const cs = dev('shared');
+  check('the shared blacklist on the real platform: other groups only, active bans and kicks, 90 days', cs.before === 0 && cs.after === 2, JSON.stringify(cs));
   const p5 = dev('p5');
   check('security on the real platform: flood counters, punish once, media/ad memory, captcha and lockdown expiry, risk feedback, signals in the isolate',
-    p5.modules === 8 && !p5.anyOn && p5.flood.join() === '1,2,2,2' && p5.claimed && !p5.again && p5.seen.join() === '0,1' && p5.ad === 0 && p5.captcha && p5.lockdown
+    p5.modules === 9 && !p5.anyOn && p5.flood.join() === '1,2,2,2' && p5.claimed && !p5.again && p5.seen.join() === '0,1' && p5.ad === 0 && p5.captcha && p5.lockdown
     && p5.feedback && p5.signals.join() === 'spam.com,true,1,75' && p5.fedNone, JSON.stringify(p5));
   for (const t of ['aegis_locks', 'aegis_members', 'aegis_lock_hits']) check(`Phase 4 table ${t}`, tables.includes(t));
   const p4 = dev('p4');

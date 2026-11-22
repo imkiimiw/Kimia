@@ -194,5 +194,13 @@
   "f_qr": "Links in QR codes",
   "f_pdf": "Risky PDFs",
   "sig_qr_link": "a link hidden in a QR code",
-  "sig_pdf_active": "a PDF that can run code"
+  "sig_pdf_active": "a PDF that can run code",
+  "m_shared": "Shared blacklist",
+  "d_shared": "When someone joins: were they banned or removed in other groups that use Aegis in the last 90 days? Then Aegis acts as set below and tells the admins. Only Aegis's own records are used; the CAS list is not checked (its API now needs a key).",
+  "f_rep": "Banned in other Aegis groups",
+  "v_rep_n": "in {n}+ groups",
+  "sh_rep": "banned or removed in {n} other groups that use Aegis (90 days)",
+  "sh_alert": "🌐 Shared blacklist: {user} ({id}) joined — {why}.\nAction: {act}",
+  "sh_report_only": "none (only reported)",
+  "sh_audit": "Audit Mode (only recorded)"
 }

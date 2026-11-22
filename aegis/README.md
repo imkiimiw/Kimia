@@ -633,7 +633,8 @@ e.g. Phase 6: `msg_log`, `schedules`, `reports`, `member_flags`, `topics`, `anon
 `backup_jobs`, `dm_chats`; Phase 8: `member_stats`, `stats_day`, `stats_hour`, `badges`, `badge_defs`,
 `contests`, `contest_entries`, `polls`, `poll_votes`, `questions`, `qa_blocks`, `appeals`, `reviews`; Phase 9:
 `fun_use`, `fun_games`, `birthdays`, `fun_daily`, `media_jobs`, `sticker_packs`; Phase 10: `staff`,
-`audit_seals`; after the release: `dreams`, the private dream journal; `dm_votes` and `dm_ballots`, the admins' vote on direct messages) — see `tgcloud/schema.js`.
+`audit_seals`; after the release: `dreams`, the private dream journal; `dm_votes` and `dm_ballots`, the admins' vote on direct messages; `notes` and `filters`, a group's saved notes and auto-replies) — see `tgcloud/schema.js`.
+`aegis_cas` (a cache for the CAS list) is marked `.deprecated()`: the CAS API now needs a key, so the check was removed.
 
 - **Schema** changes: edit `tgcloud/schema.js`, then `npm run deploy` (`tgcloud migrate --safe`
   adds tables/columns/indexes; drops only via `.deprecated()`; type changes are manual).

@@ -351,6 +351,8 @@ export const punishments = table('aegis_punishments', {
 }, (t) => ({
   byUser: index('idx_aegis_punishments_user').on(t.chatId, t.userId, t.kind, t.status),
   byChat: index('idx_aegis_punishments_chat').on(t.chatId, t.createdAt),
+  /* the shared blacklist: a newcomer's bans in other groups */
+  byUserAll: index('idx_aegis_punishments_user_all').on(t.userId, t.createdAt),
 }));
 
 /* Destructive admin actions seen in chats (bans, removals, demotions) — anti-betrayal's window. */
@@ -866,6 +868,13 @@ export const filters = table('aegis_filters', {
 }, (t) => ({
   byChatTrigger: uniqueIndex('idx_aegis_filters_chat_trigger').on(t.chatId, t.trigger),
 }));
+
+/* Was the CAS anti-spam list's cache; the CAS API now needs a key, so the check is gone (docs/NOT_BUILT.md). */
+export const casCache = table('aegis_cas', {
+  userId: integer('user_id').primaryKey(),
+  banned: integer('banned').notNull().default(0),
+  at: integer('at').notNull(),
+}).deprecated('the CAS API now needs an API key; the shared blacklist uses Aegis records only');
 
 /* ---------- Phase 8: reports, stats and social features ---------- */
 
