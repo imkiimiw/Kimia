@@ -13,7 +13,7 @@ from wanger_news.config.models import AppConfig
 from wanger_news.domain.chatref import ChatRef
 from wanger_news.domain.enums import Transport
 from wanger_news.runtime import telegram_client
-from wanger_news.settings import Settings
+from wanger_news.settings import Settings, token_problems
 
 
 async def _chat_check(
@@ -98,6 +98,16 @@ async def run_doctor(
             hook = await bot.call("getWebhookInfo", idempotent=True)
         except TelegramError as exc:
             out(f"✖ Bot API: {exc.description}")
+            raw = settings.bot_token.get_secret_value()
+            hints = token_problems(raw)
+            if hints:
+                out("  WANGER_NEWS_BOT_TOKEN is not a bot token: " + "; ".join(hints))
+                out("  Put ONLY the token from @BotFather, like 123456789:AAH…, in the secret.")
+            elif exc.code in (401, 404):
+                out(
+                    "  The token has the right shape but Telegram does not know it: it was "
+                    "revoked or mistyped. Copy it again from @BotFather (/mybots → API Token)."
+                )
             return problems + 1
         if hook.get("url"):
             out(
@@ -115,11 +125,26 @@ async def run_doctor(
         out(f"• publish target: {settings.publish_target} (/settings target can override)")
         if main is not None:
             problems += await _chat_check(bot, int(me["id"]), "main channel", main, True, out)
+        targets = {
+            str(c.api_value).lower(): label
+            for c, label in ((test, "test"), (main, "main"))
+            if c is not None
+        }
         for source in config.sources.sources:
             if source.transport is not Transport.TELEGRAM_CHANNEL:
                 continue
             if not source.active or source.telegram is None:
                 out(f"• source {source.id}: inactive ({source.inactive_reason})")
+                continue
+            clash = targets.get(str(source.telegram.chat_ref.api_value).lower())
+            if clash:
+                out(
+                    f"✖ source {source.id} is the same channel as the {clash} channel "
+                    f"({source.telegram.chat}): posts there are treated as published, never as "
+                    "source posts. Set the source channel to a different channel "
+                    "(WANGER_NEWS_SOURCE_CHANNEL or /panel)."
+                )
+                problems += 1
                 continue
             problems += await _chat_check(
                 bot, int(me["id"]), f"source {source.id}", source.telegram.chat_ref, False, out

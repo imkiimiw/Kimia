@@ -13,6 +13,44 @@ from wanger_news.domain.chatref import ChatRef
 
 DEFAULT_OWNER_ID = 5557901897
 _BOT_PREFIX = re.compile(r"^bot\d+:", re.IGNORECASE)
+#: the shape of a Bot API token: digits, one colon, ~35 URL-safe characters
+TOKEN_SHAPE = re.compile(r"\d{5,}:[A-Za-z0-9_-]{30,}")
+
+
+def token_problems(raw: str) -> list[str]:
+    """Why a value is not a bot token — described without revealing it."""
+    if TOKEN_SHAPE.fullmatch(raw):
+        return []
+    hints = []
+    if any(ch.isspace() for ch in raw):
+        hints.append("it contains spaces or line breaks")
+    if "http" in raw.lower() or "/" in raw:
+        hints.append("it looks like a link, not a token")
+    colons = raw.count(":")
+    if colons != 1:
+        hints.append(f"a token has exactly one ':' (this value has {colons})")
+    elif not raw.split(":", 1)[0].isdigit():
+        hints.append("the part before ':' must be digits only")
+    if len(raw) < 40:
+        hints.append(f"it is too short ({len(raw)} characters; a token has about 46)")
+    return hints or ["it has characters a token never has"]
+
+
+def describe_db_error(exc: BaseException) -> str:
+    """A database connection error in one line, without the URL or the password."""
+    text = str(exc)
+    if "password authentication failed" in text:
+        return (
+            "the database rejected the password — copy the connection string again "
+            "(Neon: Connect → show password → Copy) into WANGER_NEWS_DATABASE_URL"
+        )
+    if "could not translate host name" in text or "Name or service not known" in text:
+        return "the database host name is wrong — check WANGER_NEWS_DATABASE_URL"
+    if "does not exist" in text and "database" in text:
+        return "the database name in WANGER_NEWS_DATABASE_URL does not exist"
+    if "timeout" in text.lower():
+        return "the database did not answer in time (is the project suspended or deleted?)"
+    return f"cannot connect to the database ({type(exc).__name__})"
 
 
 class Settings(BaseSettings):
@@ -45,11 +83,27 @@ class Settings(BaseSettings):
     @field_validator("bot_token", mode="after")
     @classmethod
     def _bare_token(cls, value: SecretStr | None) -> SecretStr | None:
-        # tolerate a token pasted as "bot123:ABC" (the form it takes inside API URLs)
+        # tolerate a token pasted as "bot123:ABC" (the form it takes inside API URLs), or
+        # inside a longer paste (BotFather's whole message, an API URL): one token → that token
         if value is not None:
             raw = value.get_secret_value()
             if _BOT_PREFIX.match(raw):
-                return SecretStr(raw[3:])
+                raw = raw[3:]
+            if not TOKEN_SHAPE.fullmatch(raw):
+                found = set(TOKEN_SHAPE.findall(raw))
+                if len(found) == 1:
+                    raw = found.pop()
+            return SecretStr(raw)
+        return value
+
+    @field_validator("database_url", mode="after")
+    @classmethod
+    def _bare_url(cls, value: SecretStr | None) -> SecretStr | None:
+        # tolerate Neon's "psql 'postgresql://…'" snippet pasted whole
+        if value is not None:
+            raw = value.get_secret_value()
+            if raw.startswith("psql "):
+                return SecretStr(raw[5:].strip().strip("\"'"))
         return value
 
     @property
