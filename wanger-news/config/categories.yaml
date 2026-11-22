@@ -1,0 +1,183 @@
+# Rule-based classification (Phase 1). No AI: keyword matches, explainable and editable.
+#
+# Matching is on normalized text (Arabic/Persian letters unified, digits unified, ZWNJ = space,
+# case-insensitive) and on whole words. A trailing `*` matches word endings: `elect*` matches
+# "election", "elected". Score = title_weight × matches in the title + body_weight × matches in the
+# body (config/pipeline.yaml → classification). The highest score wins; below min_category_score
+# the source's own category is used.
+version: 1
+default_priority: 50
+
+categories:
+  - id: world
+    name_fa: جهان
+    name_en: World
+    hashtag: جهان
+    keywords:
+      en: [united nations, foreign minister, diplomat*, summit, refugee*, embassy, border, treaty]
+      fa: [سازمان ملل, وزیر خارجه, دیپلمات, نشست سران, پناهجو, سفارت, مرز, پیمان]
+  - id: iran
+    name_fa: ایران
+    name_en: Iran
+    hashtag: ایران
+    base_priority: 60
+    keywords:
+      en: [iran, iranian, tehran, isfahan, mashhad, tabriz, shiraz, irgc, rial]
+      fa: [ایران, ایرانی, تهران, اصفهان, مشهد, تبریز, شیراز, سپاه, ریال, تومان]
+  - id: politics
+    name_fa: سیاست
+    name_en: Politics
+    hashtag: سیاست
+    keywords:
+      en: [parliament, senate, congress, lawmaker*, minister, government, opposition, political party, vote*, legislation, cabinet]
+      fa: [مجلس, سنا, کنگره, نماینده, وزیر, دولت, اپوزیسیون, حزب, رای, لایحه, کابینه]
+  - id: economy
+    name_fa: اقتصاد
+    name_en: Economy
+    hashtag: اقتصاد
+    keywords:
+      en: [economy, economic, inflation, gdp, recession, central bank, interest rate*, oil price*, tariff*, unemployment, currency, stock market]
+      fa: [اقتصاد, اقتصادی, تورم, رکود, بانک مرکزی, نرخ بهره, قیمت نفت, تعرفه, بیکاری, ارز, بورس]
+  - id: business
+    name_fa: کسب‌وکار
+    name_en: Business
+    hashtag: کسب_و_کار
+    keywords:
+      en: [company, companies, ceo, merger, acquisition, shares, earnings, startup*, investor*, revenue, profit*]
+      fa: [شرکت, مدیرعامل, ادغام, سهام, سود, استارتاپ, سرمایه گذار, درآمد]
+  - id: technology
+    name_fa: فناوری
+    name_en: Technology
+    hashtag: فناوری
+    keywords:
+      en: [technology, tech, software, smartphone*, iphone, android, chip*, semiconductor*, internet, app, apps, cyber*, google, apple, microsoft, meta, amazon]
+      fa: [فناوری, تکنولوژی, نرم افزار, گوشی, تلفن همراه, تراشه, اینترنت, اپلیکیشن, سایبری]
+  - id: ai
+    name_fa: هوش مصنوعی
+    name_en: AI
+    hashtag: هوش_مصنوعی
+    keywords:
+      en: [artificial intelligence, ai, chatbot*, machine learning, openai, chatgpt, gemini, anthropic, claude, llm, llms, deepmind, neural network*]
+      fa: [هوش مصنوعی, چت بات, یادگیری ماشین, شبکه عصبی]
+  - id: science
+    name_fa: علم
+    name_en: Science
+    hashtag: علم
+    keywords:
+      en: [scientist*, research*, study, physics, astronom*, nasa, space, planet*, telescope, species, fossil*, genome]
+      fa: [دانشمند, پژوهش, تحقیق, فیزیک, نجوم, فضا, سیاره, تلسکوپ, گونه, فسیل]
+  - id: health
+    name_fa: سلامت
+    name_en: Health
+    hashtag: سلامت
+    keywords:
+      en: [health, hospital*, disease*, virus, vaccine*, outbreak, cancer, world health organization, patient*, medical, medicine, drug*, pandemic, epidemic]
+      fa: [سلامت, بیمارستان, بیماری, ویروس, واکسن, شیوع, سرطان, بیمار, پزشکی, دارو, همه گیری]
+  - id: security
+    name_fa: امنیت
+    name_en: Security
+    hashtag: امنیت
+    keywords:
+      en: [military, army, troops, missile*, drone*, attack*, strike*, terror*, bomb*, airstrike*, ceasefire, nuclear, weapon*, defence, defense]
+      fa: [نظامی, ارتش, نیرو, موشک, پهپاد, حمله, تروریست, بمب, آتش بس, هسته ای, سلاح, دفاع]
+  - id: environment
+    name_fa: محیط زیست
+    name_en: Environment
+    hashtag: محیط_زیست
+    keywords:
+      en: [environment*, pollution, wildlife, deforestation, biodiversity, plastic, conservation]
+      fa: [محیط زیست, آلودگی, حیات وحش, جنگل زدایی, تنوع زیستی, پلاستیک]
+  - id: climate
+    name_fa: اقلیم
+    name_en: Climate
+    hashtag: اقلیم
+    keywords:
+      en: [climate, global warming, emission*, carbon, heatwave, drought, cop29, cop30, cop31, renewable*]
+      fa: [اقلیم, تغییرات اقلیمی, گرمایش زمین, انتشار کربن, کربن, موج گرما, خشکسالی, انرژی تجدیدپذیر]
+  - id: sports
+    name_fa: ورزش
+    name_en: Sports
+    hashtag: ورزش
+    base_priority: 40
+    keywords:
+      en: [football, soccer, world cup, olympic*, fifa, league, tournament, championship, tennis, basketball, athlete*]
+      fa: [فوتبال, جام جهانی, المپیک, فیفا, لیگ, مسابقه, قهرمانی, تنیس, بسکتبال, ورزشکار]
+  - id: culture
+    name_fa: فرهنگ
+    name_en: Culture
+    hashtag: فرهنگ
+    base_priority: 40
+    keywords:
+      en: [culture, museum*, book*, literature, art, artist*, heritage, festival, unesco]
+      fa: [فرهنگ, موزه, کتاب, ادبیات, هنر, هنرمند, میراث, جشنواره, یونسکو]
+  - id: entertainment
+    name_fa: سرگرمی
+    name_en: Entertainment
+    hashtag: سرگرمی
+    base_priority: 20
+    keywords:
+      en: [film*, movie*, celebrity, hollywood, music, album, singer, actor*, actress*, netflix, oscar*, tv show*]
+      fa: [فیلم, سینما, سلبریتی, هالیوود, موسیقی, آلبوم, خواننده, بازیگر, نتفلیکس, اسکار]
+
+# Priority tiers (spec §6): 100 urgent international crisis, 80 important political/economic,
+# 50 normal (default_priority), 20 low. The highest matching rule wins; with no match the
+# category's base_priority (if any) or default_priority is used.
+priority_rules:
+  - priority: 100
+    label: international_crisis
+    keywords:
+      en: [earthquake, tsunami, declares war, declaration of war, nuclear test, nuclear attack, coup, mass casualt*, state of emergency, invasion, invades]
+      fa: [زلزله, زمین لرزه, سونامی, اعلام جنگ, آزمایش هسته ای, حمله هسته ای, کودتا, تلفات گسترده, وضعیت اضطراری, تهاجم]
+  - priority: 80
+    label: major_politics_economy
+    keywords:
+      en: [election*, sanction*, central bank, interest rate*, ceasefire, peace talks, prime minister, president, resign*, impeach*, oil price*, opec, recession]
+      fa: [انتخابات, تحریم, بانک مرکزی, نرخ بهره, آتش بس, مذاکرات صلح, نخست وزیر, رئیس جمهور, استعفا, استیضاح, قیمت نفت, اوپک, رکود]
+  - priority: 20
+    label: low_interest
+    keywords:
+      en: [horoscope, recipe*, quiz, crossword, gossip, red carpet, puzzle*]
+      fa: [فال, طالع بینی, دستور پخت, سرگرمی, جدول کلمات]
+
+# Topics that ALWAYS go to human review (spec §11), however confident the system is.
+# Over-matching is the safe direction here: a false positive only waits for a human.
+sensitive_topics:
+  - id: war
+    name_fa: جنگ
+    keywords:
+      en: [war, wars, warfare, airstrike*, air strike*, strike*, missile*, rocket*, drone attack*,
+           invasion, invades, bombard*, shelling, offensive, frontline, troops, army, armed forces,
+           military operation*, ground operation*, ceasefire, genocide, idf, hamas, hezbollah,
+           houthi*, militia*, insurgen*]
+      fa: [جنگ, حمله هوایی, حمله موشکی, موشک, پهپاد, تهاجم, بمباران, گلوله باران, خط مقدم, ارتش,
+           نیروهای نظامی, عملیات نظامی, عملیات زمینی, آتش بس, نسل کشی, حماس, حزب الله, حوثی]
+  - id: celebrity_death
+    name_fa: مرگ افراد مشهور
+    keywords:
+      en: [dies, died, dead at, death of, passed away, obituary, killed]
+      fa: [درگذشت, فوت, جان باخت, کشته شد, مرگ]
+  - id: coup
+    name_fa: کودتا
+    keywords:
+      en: [coup, junta, overthrow*, putsch]
+      fa: [کودتا, براندازی, سرنگونی]
+  - id: election
+    name_fa: انتخابات
+    keywords:
+      en: [election*, ballot*, polling station*, referendum, vote count*, electoral]
+      fa: [انتخابات, رای گیری, همه پرسی, صندوق رای, شمارش آرا]
+  - id: security_crisis
+    name_fa: بحران امنیتی
+    keywords:
+      en: [terror*, hostage*, explosion, bombing, shooting, gunmen, assassinat*, massacre]
+      fa: [تروریست, گروگان, انفجار, بمب گذاری, تیراندازی, ترور, کشتار]
+  - id: medical_claim
+    name_fa: ادعای پزشکی مهم
+    keywords:
+      en: [cure*, breakthrough treatment, miracle, outbreak, pandemic, new variant, vaccine safety]
+      fa: [درمان قطعی, معجزه, شیوع, همه گیری, سویه جدید]
+  - id: head_of_state
+    name_fa: رهبران کشورها
+    keywords:
+      en: [president, prime minister, supreme leader, king, queen, chancellor, head of state, kremlin, white house, khamenei, putin, trump, xi jinping, netanyahu, erdogan, pezeshkian]
+      fa: [رئیس جمهور, نخست وزیر, رهبر, پادشاه, ملکه, صدراعظم, کرملین, کاخ سفید, خامنه ای, پوتین, ترامپ, شی جین پینگ, نتانیاهو, اردوغان, پزشکیان]

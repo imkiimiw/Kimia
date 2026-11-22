@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel rdf:about="https://gamma.example/rss">
+    <title>Gamma RDF</title>
+    <link>https://gamma.example/</link>
+    <description>RSS 1.0 feed</description>
+  </channel>
+  <item rdf:about="https://gamma.example/a/1">
+    <title>Researchers map the genome of an ancient wheat species</title>
+    <link>https://gamma.example/a/1</link>
+    <description>Scientists published the full genome of an ancient wheat species, a study that may help breed hardier crops.</description>
+    <dc:date>2026-11-18T09:00:00Z</dc:date>
+  </item>
+</rdf:RDF>

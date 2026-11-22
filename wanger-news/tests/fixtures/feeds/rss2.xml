@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>Alpha News - World</title>
+    <link>https://www.alpha.example/world</link>
+    <language>en-gb</language>
+    <item>
+      <title>Central bank raises interest rates to fight record inflation</title>
+      <description><![CDATA[<p>The central bank raised its main interest rate by half a point on Tuesday, citing record inflation and a weakening currency.</p><script>alert(1)</script>]]></description>
+      <link>https://www.alpha.example/news/economy-123?utm_source=rss&amp;utm_medium=feed&amp;at_campaign=x</link>
+      <guid isPermaLink="false">alpha-123</guid>
+      <pubDate>Wed, 18 Nov 2026 10:00:00 GMT</pubDate>
+      <media:content url="https://img.alpha.example/economy.jpg" medium="image" width="1024" height="576"/>
+    </item>
+    <item>
+      <title>New telescope images reveal a planet forming around a young star</title>
+      <description>Astronomers say the images, taken by a new space telescope, show a planet forming inside a disc of gas and dust.</description>
+      <link>https://www.alpha.example/news/science-456</link>
+      <guid isPermaLink="false">alpha-456</guid>
+      <pubDate>Wed, 18 Nov 2026 11:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>An old story that should never be published again</title>
+      <description>This item is more than a week old and must be stored as stale.</description>
+      <link>https://www.alpha.example/news/old-1</link>
+      <guid isPermaLink="false">alpha-old-1</guid>
+      <pubDate>Tue, 10 Nov 2026 08:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Horoscope: what the stars say about your week ahead</title>
+      <description>Your weekly horoscope with predictions for every sign.</description>
+      <link>https://www.alpha.example/lifestyle/horoscope</link>
+      <guid isPermaLink="false">alpha-horoscope</guid>
+      <pubDate>Wed, 18 Nov 2026 09:30:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Troops advance as ceasefire collapses in the border region</title>
+      <description>Fighting resumed overnight after a ceasefire collapsed, officials said, with troops advancing on two fronts.</description>
+      <link>https://www.alpha.example/news/conflict-789</link>
+      <guid isPermaLink="false">alpha-789</guid>
+      <pubDate>Wed, 18 Nov 2026 11:30:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

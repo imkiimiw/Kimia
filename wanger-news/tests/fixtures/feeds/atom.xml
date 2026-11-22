@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Beta Wire</title>
+  <id>urn:beta:wire</id>
+  <updated>2026-11-18T11:45:00Z</updated>
+  <entry>
+    <title>Central bank raises interest rates to fight record inflation</title>
+    <id>urn:beta:1</id>
+    <link rel="alternate" href="https://beta.example/2026/11/18/central-bank-rates/"/>
+    <updated>2026-11-18T10:05:00Z</updated>
+    <summary>The central bank raised its main interest rate by half a point on Tuesday, citing record inflation and a weakening currency, analysts said.</summary>
+  </entry>
+  <entry>
+    <title>Startup unveils a smartphone chip that halves energy use</title>
+    <id>urn:beta:2</id>
+    <link rel="alternate" href="https://beta.example/2026/11/18/chip/"/>
+    <updated>2026-11-18T11:15:00Z</updated>
+    <summary type="html">&lt;p&gt;The company says its new &lt;b&gt;semiconductor&lt;/b&gt; design cuts power use by half in smartphones.&lt;/p&gt;</summary>
+  </entry>
+</feed>

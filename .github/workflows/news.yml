@@ -1,0 +1,142 @@
+name: Wanger News
+
+# Wanger News (wanger-news/): option A, fully free.
+# - test: on every push/PR touching wanger-news/ — lint, types, offline tests (+ a PostgreSQL
+#   service for migrations/concurrency), then a live dry run and a migrate + run-once smoke on
+#   the service database (no bot token there, so nothing can be posted).
+# - run:  every 15 minutes (GitHub may start it late; the design does not depend on timing) and
+#   on demand. Does nothing until the WANGER_NEWS_DATABASE_URL secret exists.
+#   Scheduled runs only happen for the copy of this file on the DEFAULT branch, and GitHub
+#   disables schedules of a public repository after 60 days without activity.
+
+on:
+  push:
+    paths: ["wanger-news/**", ".github/workflows/news.yml"]
+  pull_request:
+    paths: ["wanger-news/**", ".github/workflows/news.yml"]
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+    inputs:
+      command:
+        description: What to run
+        type: choice
+        options: [run-once, run-once --dry-run, migrate, doctor, check-sources]
+        default: run-once
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: wanger-news-test-${{ github.ref }}
+      cancel-in-progress: true
+    defaults:
+      run:
+        working-directory: wanger-news
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wanger_news_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s
+          --health-timeout 5s --health-retries 12
+    env:
+      WANGER_NEWS_TEST_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/wanger_news_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: wanger-news/pyproject.toml
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests migrations
+      - run: ruff format --check src tests migrations
+      - run: mypy
+      - name: Tests (offline fixtures and mocks; PostgreSQL for migrations and concurrency)
+        run: pytest -q -rs
+      - name: Smoke — live feeds, dry run on an in-memory database (nothing is sent)
+        env:
+          WANGER_NEWS_TEST_CHANNEL: "@preview_only"
+        run: python -m wanger_news run-once --dry-run --no-telegram --max-posts 3
+      - name: Smoke — migrate and run twice on PostgreSQL (no bot token, so queue only)
+        env:
+          PGPASSWORD: postgres
+          WANGER_NEWS_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wanger_news_smoke
+        run: |
+          psql -h localhost -U postgres -c "create database wanger_news_smoke"
+          python -m wanger_news migrate
+          python -m wanger_news db-check
+          python -m wanger_news run-once --no-telegram
+          python -m wanger_news run-once --no-telegram
+          python -m wanger_news migrate downgrade base
+          python -m wanger_news migrate
+      - name: Docker image builds and docker-compose.yml is valid (option B)
+        run: |
+          docker build -q -t wanger-news:ci .
+          docker run --rm wanger-news:ci validate-config
+          cp .env.example .env && docker compose config -q && rm .env
+
+  run:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: wanger-news-run
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: wanger-news
+    env:
+      WANGER_NEWS_BOT_TOKEN: ${{ secrets.WANGER_NEWS_BOT_TOKEN }}
+      WANGER_NEWS_DATABASE_URL: ${{ secrets.WANGER_NEWS_DATABASE_URL }}
+      WANGER_NEWS_GEMINI_API_KEY: ${{ secrets.WANGER_NEWS_GEMINI_API_KEY }}
+      # The owner's channels (public names, not secrets). A repository variable of the same
+      # name overrides them, and the bot's /panel overrides both (stored in the database).
+      WANGER_NEWS_TEST_CHANNEL: ${{ vars.WANGER_NEWS_TEST_CHANNEL || '@testtt2334q' }}
+      WANGER_NEWS_MAIN_CHANNEL: ${{ vars.WANGER_NEWS_MAIN_CHANNEL || '@maghsad98' }}
+      WANGER_NEWS_SOURCE_CHANNEL: ${{ vars.WANGER_NEWS_SOURCE_CHANNEL || '@manbaeeeee' }}
+      WANGER_NEWS_ADMIN_IDS: ${{ vars.WANGER_NEWS_ADMIN_IDS }}
+      WANGER_NEWS_PUBLISH_TARGET: ${{ vars.WANGER_NEWS_PUBLISH_TARGET || 'test' }}
+      COMMAND: ${{ github.event_name == 'schedule' && 'run-once' || inputs.command }}
+      TRIGGER: ${{ github.event_name == 'schedule' && 'cron' || 'manual' }}
+    steps:
+      - name: Skip until the database secret exists
+        id: gate
+        run: |
+          if [ -z "$WANGER_NEWS_DATABASE_URL" ] && [ "$COMMAND" != "check-sources" ]; then
+            echo "WANGER_NEWS_DATABASE_URL is not set: skipping."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+        working-directory: .
+      - if: steps.gate.outputs.go == 'true'
+        uses: actions/checkout@v4
+      - if: steps.gate.outputs.go == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: wanger-news/pyproject.toml
+      - if: steps.gate.outputs.go == 'true'
+        run: pip install .
+      - if: steps.gate.outputs.go == 'true'
+        name: Run
+        run: |
+          case "$COMMAND" in
+            "run-once")           python -m wanger_news run-once --trigger "$TRIGGER" ;;
+            "run-once --dry-run") python -m wanger_news run-once --dry-run --trigger "$TRIGGER" ;;
+            "migrate")            python -m wanger_news migrate ;;
+            "doctor")             python -m wanger_news doctor ;;
+            "check-sources")      python -m wanger_news check-sources ;;
+            *) echo "unknown command: $COMMAND"; exit 1 ;;
+          esac

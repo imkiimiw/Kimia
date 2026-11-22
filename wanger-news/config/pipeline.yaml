@@ -1,0 +1,254 @@
+# Every threshold and limit of the pipeline. No magic numbers in code: defaults in
+# src/wanger_news/config/models.py match the values below.
+timezone: Asia/Tehran          # display only; the database stores UTC
+
+http:
+  # Generic on purpose. Add a contact URL here if you want publishers to be able to reach you.
+  user_agent: "WangerNewsBot/0.1 (RSS reader)"
+  robots_user_agent: WangerNewsBot
+  timeout_seconds: 15
+  connect_timeout_seconds: 5
+  max_response_bytes: 5000000
+  max_redirects: 5
+  retries: 2                     # extra attempts for timeouts, connection errors, 429 and 5xx
+  backoff_base_seconds: 0.5      # exponential backoff with jitter
+  backoff_max_seconds: 8
+  retry_after_max_seconds: 20    # a longer Retry-After ends the attempt for this run
+  concurrency: 6
+  allowed_ports: [80, 443]
+  respect_robots_txt: true
+  robots_cache_hours: 24
+
+circuit_breaker:
+  failure_threshold: 4           # consecutive failed runs before the source is paused
+  cooldown_minutes: 30           # doubles on every failed half-open try
+  max_cooldown_minutes: 1440
+
+ingest:
+  max_entries_per_feed: 50
+  max_item_age_hours: 12         # older items are stored as `stale` and never published
+  max_future_skew_minutes: 30
+  min_title_chars: 8
+  max_title_chars: 400
+  max_description_chars: 4000
+  max_content_chars: 20000
+
+dedup:
+  # Level 1: normalized URLs. Parameters dropped from every URL (case-insensitive):
+  tracking_params: [fbclid, gclid, dclid, msclkid, yclid, mc_cid, mc_eid, ocid, cmpid, cmp, ito,
+                    smid, s_cid, ref, ref_src, refsrc, src, source, feature, igshid, spm, rss,
+                    xtor, guccounter, __twitter_impression, _ga, _gl, mkt_tok, sh, sr_share]
+  tracking_param_prefixes: [utm_, at_, ns_, pk_, mtm_, hsa_, oly_]
+  strip_host_prefixes: ["www.", "m."]
+  # Level 2, two steps (ARCHITECTURE.md ADR-007, chosen by measurement on 720 real items):
+  # a cheap SimHash prefilter over 2-word shingles, then an exact confirmation on the few
+  # candidates: token-set Jaccard, and the same numbers (a changed figure is an update).
+  near_duplicate_max_hamming: 12
+  near_duplicate_min_jaccard: 0.8
+  near_duplicate_same_numbers: true
+  near_duplicate_window_hours: 72
+  near_duplicate_min_tokens: 8   # shorter texts are only compared exactly
+  near_duplicate_max_candidates: 5000
+  shingle_size: 2
+
+classification:
+  title_weight: 3
+  body_weight: 1
+  min_category_score: 2
+  secondary_hashtag_min_score: 4
+  max_hashtags: 3
+
+gate:
+  min_priority: 50               # only items with priority >= this continue (spec §6 gate)
+
+publish:
+  max_posts_per_run: 6
+  min_interval_seconds: 3        # between two posts in one channel
+  max_publish_age_hours: 12      # a queued item older than this expires instead of being posted
+  description_excerpt_chars: 300 # the feed's own teaser, never full article text
+  use_feed_images: true          # only images published in the feed itself, credited
+  link_preview: false
+  max_attempts: 3
+  message_limit: 4096
+  caption_limit: 1024
+
+telegram:
+  request_timeout_seconds: 20
+  rate_limit_max_wait_seconds: 30  # a longer retry_after stops publishing for this run
+  poll_max_pages: 5                # getUpdates pages (100 updates each) per run
+  album_settle_seconds: 20         # an album is copied once its last part is this old
+  source_post_priority: 80
+  notify_owner_on_duplicate: true  # tell the owner when a source-channel post was a repeat
+  observe_target_channels: true    # posts made by hand in the target channels count as published
+  max_owner_notices_per_run: 5
+  # Source-channel posts (owner's decision): re-sent WITHOUT the source's Telegram IDs
+  # (@mentions, t.me links), signed with the target channel's @username and the poster's name
+  # as a hashtag. The poster's name comes from the channel's "Sign messages" setting.
+  # mode: copy = copied unchanged (the Phase 1 behaviour).
+  source_posts:
+    mode: rebrand
+    channel_id_line: "🆔 @{username}"
+    author_line: "✍️ #{hashtag}"
+
+locks:
+  pipeline_ttl_minutes: 15
+
+retention:
+  articles_days: 30
+  jobs_days: 14
+  updates_days: 7
+  logs_days: 14
+  batch_size: 2000
+
+worker:
+  interval_seconds: 600            # option B (Docker): pause between two runs
+
+# ---------------------------------------------------------------- Phase 2: AI
+ai:
+  enabled: true
+  provider: gemini
+  # gemini-2.5-flash is deprecated (Dec 2026). flash-lite is the cheapest current model and its
+  # default thinking is "minimal"; gemini-3.6-flash is stronger if the quota allows.
+  model: gemini-3.5-flash-lite
+  verify_model: null          # null = same model
+  api_base: https://generativelanguage.googleapis.com/v1beta
+  schema_mode: json_schema    # json_schema | prompt_only (the schema is always in the prompt too)
+  thinking_level: minimal     # null = the model's default
+  temperature: 0.2
+  max_output_tokens: 8192
+  timeout_seconds: 90
+  articles_per_call: 4        # several items per request (free-tier friendly)
+  max_input_chars_per_article: 6000
+  # Budget. Free-tier limits are per Google project (AI Studio → Rate limits); daily quota resets
+  # at midnight Pacific time. Items over budget simply wait for the next run.
+  max_calls_per_run: 6
+  max_calls_per_day: 150
+  dry_run_max_calls: 2
+  requests_per_minute: 8
+  quota_reset_timezone: America/Los_Angeles
+  max_attempts: 3             # per item; then it goes to a human
+  verify: true                # guard layer 2: an AI check of every claim against its evidence
+  rewrite_on_failure: true    # one rewrite without the unsupported claims, then a human
+  fallback_provider: null     # spec §13: a fallback only if configured (none implemented yet)
+  output_language: fa
+  long_summary_min_importance: 70   # 3-6 paragraphs from here, else 1-3
+  price_input_per_million: 0.30     # USD, paid-tier list price, for planning (free tier = 0)
+  price_output_per_million: 2.50
+
+guard:                         # hallucination guard layer 1 (deterministic, spec §9)
+  quote_min_similarity: 0.85
+  evidence_min_similarity: 0.85
+  max_title_chars: 160
+  max_summary_chars: 2500
+  max_key_points: 5
+
+scoring:                       # spec §8 — every score keeps its breakdown
+  importance_weights:
+    rule_priority: 2.0
+    people_affected: 1.0
+    significance: 1.5
+    severity: 1.0
+    geographic_scope: 1.0
+    continuation: 0.5
+    international_impact: 1.0
+    recency: 0.5
+  recency_full_hours: 2
+  recency_zero_hours: 24
+  confidence_weights:
+    reliability: 0.4
+    independent_sources: 0.2
+    primary_source: 0.1
+    quality: 0.1
+    guard: 0.15
+    consistency: 0.05
+  independent_source_scores: {1: 40, 2: 75, 3: 100}   # 3 or more independent origins = 100
+  primary_source_types: [news_agency, government, official_organization]
+  primary_source_score: 100
+  secondary_source_score: 60
+  guard_scores: {passed: 100, after_rewrite: 80, human: 90, failed: 0}
+  single_source_cap: 69        # one source can never be "confirmed" (needs independent sources)
+  guard_failed_cap: 49         # text that failed the hallucination guard is "unconfirmed"
+  conflict_cap: 69             # sources that contradict each other: never "confirmed"
+  likely_min_reliability: 80   # a claim from one primary source this reliable is "likely"
+  label_thresholds: {confirmed: 90, likely: 70, preliminary: 50}
+
+# ---------------------------------------------------------------- Phase 3: stories
+story:
+  enabled: true
+  embedding_model: gemini-embedding-001
+  embedding_dimensions: 768       # smaller vectors, a free-tier database stays small
+  embed_text_chars: 1200          # title + start of the text, in the source language
+  embed_batch_size: 100           # texts per embedding request
+  max_embed_calls_per_run: 3
+  window_hours: 72                # an event can collect reports for three days
+  max_candidates: 500
+  # Same event when cosine >= min_cosine AND (cosine >= strong_cosine OR shared names >= overlap).
+  # Conservative on purpose: wrongly merging two events would hide one of them. The AI summary
+  # can still send a source back out of a story (excluded_sources / same_event=false).
+  # NOT calibrated on real embeddings yet — see PLAN.md (watch /status and the cluster report).
+  min_cosine: 0.84
+  strong_cosine: 0.92
+  min_entity_overlap: 0.2
+  time_full_hours: 6
+  score_weights: {cosine: 0.7, entities: 0.2, time: 0.1}
+  settle_minutes: 15              # wait for more sources before summarising (priority 100: no wait)
+  settle_skip_priority: 100
+  syndication_min_jaccard: 0.6    # texts this similar from different outlets = one origin (a wire copy)
+  max_sources_per_story: 5
+  max_input_chars_per_call: 30000
+  review_conflicts: true          # stories whose sources contradict each other go to a human
+
+# ---------------------------------------------------------------- Phase 4: real time
+# 🔴 Breaking never skips the hallucination guard or a human review: it only adds the marker,
+# puts the item first in every queue and is not held back by the settle time.
+breaking:
+  enabled: true
+  min_priority: 100               # rule priority 100 (international crisis) …
+  min_importance: 85              # … or an importance score this high
+  min_confidence: 50              # never for "unconfirmed" text
+  max_age_minutes: 120            # since the story was first seen
+  max_per_hour: 3                 # more than this per channel are posted without 🔴
+  allow_updates: false            # an update post is not breaking
+
+# Early warning: «⚠️ موضوع در حال رشد». Counts only (no AI). A topic is a story (one event)
+# or a name; it trends when its reports in the window are unusually many for it.
+trends:
+  enabled: true
+  window_minutes: 60
+  baseline_hours: 24
+  min_reports: 5
+  min_sources: 3                  # different outlets (owner groups)
+  max_reports_per_source: 2       # one noisy outlet cannot make a trend
+  min_ratio: 3.0                  # reports in the window / usual reports per window
+  baseline_floor: 1.0
+  min_history_hours: 6            # a new database knows no "usual": no alerts before this
+  cooldown_hours: 6               # one alert per topic in this time
+  max_alerts_per_run: 3
+  kinds: [story, entity]
+  entity_story_overlap: 0.8       # a name mostly reported within one trending story: no 2nd alert
+  notify_admins: true
+  post_to_channel: false          # owner's decision (PLAN.md)
+
+related:
+  enabled: true
+  window_days: 7
+  min_cosine: 0.75                # related, not the same event (that is story.min_cosine)
+  min_entity_overlap: 0.34
+  min_shared_names: 2
+  max_links: 2
+  max_candidates: 300
+
+timeline:
+  enabled: true
+  min_previous_posts: 2           # with one earlier post the reply already shows it
+  max_entries: 4
+
+daily_brief:
+  enabled: true
+  local_time: "21:00"             # pipeline.timezone (Asia/Tehran)
+  max_late_hours: 3               # runs stopped or cron very late: that day's brief is skipped
+  window_hours: 24
+  min_items: 3
+  max_items: 10
+  include_trends: true
+  destination: channel            # or "admins" (a preview in the admins' private chats)
