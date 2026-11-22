@@ -33,6 +33,7 @@ from wanger_news.ports import (
     NullMotherBot,
 )
 from wanger_news.services.ai_stage import AIStage
+from wanger_news.services.analytics import AnalyticsService
 from wanger_news.services.brief import BriefService
 from wanger_news.services.commands import PAUSED_KEY, TARGET_KEY, CommandService
 from wanger_news.services.context import RunContext, Target
@@ -43,6 +44,7 @@ from wanger_news.services.ingest import HealthSnapshot, IngestService
 from wanger_news.services.panel import PanelService
 from wanger_news.services.processing import ProcessingService
 from wanger_news.services.publish import PublishService
+from wanger_news.services.reliability import ReliabilityService
 from wanger_news.services.review import ReviewService
 from wanger_news.services.stories import StoryService
 from wanger_news.services.targets import TargetError, resolve_target
@@ -122,6 +124,10 @@ class Pipeline:
         self.panel = PanelService(cfg, deps.base_config or cfg, self.commands)
         self.commands.panel = self.panel
         self.commands.corrections = self.corrections
+        self.analytics = AnalyticsService(cfg)
+        self.reliability = ReliabilityService(cfg, deps.base_config or cfg)
+        self.commands.analytics = self.analytics
+        self.commands.reliability = self.reliability
         self.inbox = InboxService(cfg, self.dedup, self.commands, self.review, self.publisher)
 
     @asynccontextmanager
@@ -190,6 +196,7 @@ class Pipeline:
                 await self._stage(repos, ctx, "publish", self._publish(repos, ctx))
                 await self._stage(repos, ctx, "trends", self._trends(repos, ctx))
                 await self._stage(repos, ctx, "brief", self._brief(repos, ctx))
+                await self._stage(repos, ctx, "operations", self._operations(repos, ctx))
                 if not opts.dry_run:
                     await self._stage(repos, ctx, "maintenance", self._maintenance(repos, ctx))
             finally:
@@ -359,6 +366,14 @@ class Pipeline:
         report = await self.brief.run(repos, ctx)
         if report.outcome != "not_due":
             ctx.counters[f"brief:{report.outcome}"] = 1
+
+    async def _operations(self, repos: Repositories, ctx: RunContext) -> None:
+        """Phase 5: weekly reliability suggestions, the monthly cost alert."""
+        learned = await self.reliability.run(repos, ctx)
+        if learned.suggested:
+            ctx.count("reliability_suggested", learned.suggested)
+        if await self.analytics.check_budget(repos, ctx):
+            ctx.count("budget_alert")
 
     async def _maintenance(self, repos: Repositories, ctx: RunContext) -> None:
         r = self.d.config.pipeline.retention

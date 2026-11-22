@@ -443,6 +443,26 @@ class DailyBriefConfig(StrictModel):
     destination: Literal["channel", "admins"] = "channel"
 
 
+class CostsConfig(StrictModel):
+    """Phase 5: cost tracking. The free tier costs nothing; the estimate (ai.price_*) shows what
+    the same use would cost on a paid plan. Budget 0 = no alert."""
+
+    monthly_budget_usd: float = Field(default=0, ge=0)
+    alert_at_fraction: float = Field(default=0.8, gt=0, le=1)
+
+
+class ReliabilityConfig(StrictModel):
+    """Phase 5: source reliability learning — SUGGESTIONS only; the owner applies them."""
+
+    enabled: bool = True
+    every_days: float = Field(default=7, gt=0)
+    window_days: float = Field(default=30, gt=0)
+    min_samples: int = Field(default=5, ge=1)  # per signal, below this the signal is ignored
+    min_change: int = Field(default=3, ge=1)  # smaller changes are not worth a suggestion
+    max_step: int = Field(default=10, ge=1, le=50)  # per suggestion
+    target_approval: float = Field(default=0.75, ge=0, le=1)
+
+
 class ScoringConfig(StrictModel):
     """Explainable importance and confidence (spec §8). Weights are relative."""
 
@@ -504,6 +524,8 @@ class PipelineConfig(StrictModel):
     related: RelatedConfig = RelatedConfig()
     timeline: TimelineConfig = TimelineConfig()
     daily_brief: DailyBriefConfig = DailyBriefConfig()
+    costs: CostsConfig = CostsConfig()
+    reliability: ReliabilityConfig = ReliabilityConfig()
 
 
 # --------------------------------------------------------------------------------------------

@@ -253,3 +253,19 @@ daily_brief:
   max_items: 10
   include_trends: true
   destination: channel            # or "admins" (a preview in the admins' private chats)
+
+# ---------------------------------------------------------------- Phase 5: operations
+costs:
+  monthly_budget_usd: 0           # 0 = free tier, no alert; else the owner is warned at 80 %
+  alert_at_fraction: 0.8
+
+# Source reliability learning: SUGGESTIONS only, every week, applied only by the owner (/panel).
+reliability:
+  enabled: true
+  every_days: 7
+  window_days: 30
+  min_samples: 5                  # a signal with fewer cases is ignored
+  min_change: 3                   # smaller changes are not suggested
+  max_step: 10                    # at most ±10 per suggestion
+  target_approval: 0.75           # admins approving 75 % of a source's items = neutral
+
