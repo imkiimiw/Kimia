@@ -111,6 +111,7 @@ export function createListenersService({ repo, settings, clock, log }) {
       const list = await repo.popular(100);
       return list.length ? list[Math.floor(Math.random() * list.length)] : null;
     },
+    popularList: (limit) => repo.popular(limit),
     byArtist: (artistKey, page) => repo.byArtist(artistKey, LIMITS.listenerPage + 1, page * LIMITS.listenerPage),
     album: (track) => (track.album && track.normalized_artist ? repo.album(track.normalized_artist, track.album, LIMITS.albumMax) : Promise.resolve([])),
     byGenre: (genre, page) => repo.byGenre(genre, LIMITS.listenerPage + 1, page * LIMITS.listenerPage),
@@ -124,5 +125,18 @@ export function createListenersService({ repo, settings, clock, log }) {
     followersAfter: (artistKey, cursor, limit) => repo.followersAfter(artistKey, cursor, limit),
     claimNoticeBatch: (id, from, to) => repo.claimNoticeBatch(id, from, to),
     finishNoticeBatch: (id, sent, done) => repo.finishNoticeBatch(id, sent, done, now()),
+
+    // ---- 🎮 game (bot/game_ui.js)
+    gameCandidates: (limit) => repo.gameCandidates(limit),
+    round: (chatId) => repo.round(chatId),
+    openRound: (chatId, trackId, messageId, at, staleBefore) => repo.openRound(chatId, trackId, messageId, at, staleBefore),
+    closeRound: (chatId, messageId, status, winnerId, at) => repo.closeRound(chatId, messageId, status, winnerId, at),
+    addPoint: (chatId, userId, name, at) => repo.addPoint(chatId, userId, name, at),
+    topScores: (chatId, limit) => repo.topScores(chatId, limit),
+
+    // ---- ⭐ donations
+    /** @returns {Promise<boolean>} false when this payment was already recorded */
+    addDonation: (userId, amount, chargeId) => repo.addDonation(userId, amount, chargeId, now()),
+    donationsSince: (since) => repo.donationsSince(since),
   };
 }

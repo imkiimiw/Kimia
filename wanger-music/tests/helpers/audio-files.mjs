@@ -79,3 +79,11 @@ export function chunked(bytes, size = 65536) {
   })();
   return { body, stats };
 }
+
+/** A real MP3 stream: `frames` MPEG-1 layer III frames (128 kbps, 44.1 kHz, 417 bytes, ~26 ms each), optionally after a tag. */
+export function realMp3(frames = 4000, tag = null) {
+  const out = new Uint8Array((tag ? tag.length : 0) + frames * 417);
+  if (tag) out.set(tag);
+  for (let i = 0; i < frames; i++) out.set([0xff, 0xfb, 0x90, 0x64], (tag ? tag.length : 0) + i * 417);
+  return out;
+}

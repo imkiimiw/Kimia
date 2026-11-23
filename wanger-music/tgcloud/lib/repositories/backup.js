@@ -7,7 +7,7 @@ import { sql } from 'sdk/db';
 /**
  * The core tables, in restore order (parents before children, though there are no foreign keys).
  * Not backed up: track_terms (rebuilt from tracks), processed_updates, error_log, alerts,
- * user_flows, import_sessions, missed_searches, notice_jobs (short-lived operational state).
+ * user_flows, import_sessions, missed_searches, notice_jobs, game_rounds (short-lived operational state).
  * @type {Readonly<Record<string, {key: string[], columns: string[]}>>}
  */
 export const BACKUP_TABLES = Object.freeze({
@@ -26,6 +26,8 @@ export const BACKUP_TABLES = Object.freeze({
   favorites: { key: ['user_id', 'track_id'], columns: ['user_id', 'track_id', 'created_at'] },
   artist_follows: { key: ['artist_key', 'user_id'], columns: ['artist_key', 'user_id', 'artist_name', 'created_at'] },
   song_requests: { key: ['id'], columns: ['id', 'user_id', 'text', 'key', 'status', 'track_id', 'created_at', 'done_at'] },
+  game_scores: { key: ['chat_id', 'user_id'], columns: ['chat_id', 'user_id', 'name', 'points', 'updated_at'] },
+  donations: { key: ['id'], columns: ['id', 'user_id', 'amount', 'charge_id', 'created_at'] },
 });
 
 /** @param {any[]} parts @param {any} sep */

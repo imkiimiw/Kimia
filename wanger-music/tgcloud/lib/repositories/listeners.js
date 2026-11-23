@@ -109,5 +109,33 @@ export function createListenersRepo() {
       SELECT ${COLS} FROM tracks t WHERE t.status = 'active' AND t.mood = ${mood}
       ORDER BY t.activated_at DESC LIMIT ${limit} OFFSET ${offset}`),
     activeById: (id) => db.get(sql`SELECT ${COLS} FROM tracks t WHERE t.id = ${id} AND t.status = 'active'`),
+    /** Candidates for a game round: popular active MP3s (≤ 20 MB, the download limit) with a title. */
+    gameCandidates: (limit) => db.all(sql`
+      SELECT ${COLS}, t.mime_type, t.file_size FROM tracks t WHERE t.status = 'active'
+      ORDER BY t.play_count DESC, t.activated_at DESC LIMIT ${limit}`),
+
+    // ---- 🎮 game
+    round: (chatId) => db.get(sql`SELECT * FROM game_rounds WHERE chat_id = ${chatId}`),
+    /** Opens a round unless one is open and recent. @returns {Promise<boolean>} */
+    openRound: (chatId, trackId, messageId, now, staleBefore) => db.run(sql`
+      INSERT INTO game_rounds (chat_id, track_id, message_id, status, started_at) VALUES (${chatId}, ${trackId}, ${messageId}, 'open', ${now})
+      ON CONFLICT (chat_id) DO UPDATE SET track_id = excluded.track_id, message_id = excluded.message_id, status = 'open',
+        winner_id = NULL, started_at = excluded.started_at, ended_at = NULL
+      WHERE game_rounds.status != 'open' OR game_rounds.started_at < ${staleBefore}`).then((r) => r.rowsAffected > 0),
+    /** The first right answer (or a reveal) closes the round. @returns {Promise<any|null>} */
+    closeRound: (chatId, messageId, status, winnerId, now) => db.run(sql`
+      UPDATE game_rounds SET status = ${status}, winner_id = ${winnerId}, ended_at = ${now}
+      WHERE chat_id = ${chatId} AND message_id = ${messageId} AND status = 'open' RETURNING *`).then(first),
+    addPoint: (chatId, userId, name, now) => db.run(sql`
+      INSERT INTO game_scores (chat_id, user_id, name, points, updated_at) VALUES (${chatId}, ${userId}, ${name}, 1, ${now})
+      ON CONFLICT (chat_id, user_id) DO UPDATE SET points = points + 1, name = excluded.name, updated_at = excluded.updated_at
+      RETURNING points`).then((r) => (r.rows[0] ? Number(r.rows[0].points) : 1)),
+    topScores: (chatId, limit) => db.all(sql`SELECT user_id, name, points FROM game_scores WHERE chat_id = ${chatId} ORDER BY points DESC LIMIT ${limit}`),
+
+    // ---- ⭐ donations
+    addDonation: (userId, amount, chargeId, now) => db.run(sql`
+      INSERT INTO donations (user_id, amount, charge_id, created_at) VALUES (${userId}, ${amount}, ${chargeId}, ${now})
+      ON CONFLICT (charge_id) DO NOTHING RETURNING id`).then((r) => r.rows.length > 0),
+    donationsSince: (since) => db.get(sql`SELECT count(*) AS n, coalesce(sum(amount), 0) AS stars FROM donations WHERE created_at >= ${since}`),
   };
 }

@@ -174,6 +174,12 @@ export function createFakeTelegram() {
       return { file: { file_id: p.file_id, file_size: bytes.length }, body: s.body, stats: s.stats };
     },
     setMyCommands: () => true,
+    setChatMenuButton: () => true,
+    sendInvoice(p, m) {
+      if (p.currency !== 'XTR' || !Array.isArray(p.prices) || !p.prices.length) fail(400, 'Bad Request: CURRENCY_INVALID', m);
+      return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, invoice: { title: p.title, currency: p.currency, total_amount: p.prices[0].amount, payload: p.payload } });
+    },
+    answerPreCheckoutQuery: () => true,
     deleteMyCommands: () => true,
     deleteMessage: () => true,
   };

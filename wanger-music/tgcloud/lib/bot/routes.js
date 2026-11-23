@@ -17,6 +17,7 @@ import * as approvalsUi from '../admin/approvals_ui.js';
 import * as statsUi from '../admin/stats_ui.js';
 import * as listenerUi from './listener_ui.js';
 import * as engageUi from '../admin/engage_ui.js';
+import * as gameUi from './game_ui.js';
 
 /**
  * @typedef {{ns: string, action: string, args: string[], perm: string|null, gate?: boolean,
@@ -43,6 +44,7 @@ export const CALLBACK_ROUTES = [
   ...statsUi.routes,
   ...listenerUi.routes,
   ...engageUi.routes,
+  ...gameUi.routes,
 ];
 
 /** @type {Map<string, CallbackRoute>} */
@@ -71,4 +73,5 @@ export const FLOWS = {
   ...sourcesUi.flows,
   ...destinationsUi.flows,
   ...listenerUi.flows,
+  ...gameUi.flows,
 };

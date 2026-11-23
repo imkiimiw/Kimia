@@ -433,3 +433,39 @@ export const noticeJobs = table('notice_jobs', {
 }, (t) => ({
   openIdx: index('idx_notice_jobs_open').on(t.id).where(sql`${t.doneAt} IS NULL`),
 }));
+
+/** 🎮 the open guessing round of a chat (a group, or a listener's private chat). */
+export const gameRounds = table('game_rounds', {
+  chatId: integer('chat_id').primaryKey(),
+  trackId: integer('track_id').notNull(),
+  messageId: integer('message_id').notNull(),
+  status: text('status').notNull().default('open'),
+  winnerId: integer('winner_id'),
+  startedAt: integer('started_at').notNull(),
+  endedAt: integer('ended_at'),
+}, (t) => ({
+  statusChk: check('game_rounds_status_chk', sql`${t.status} IN ('open', 'won', 'revealed')`),
+}));
+
+/** 🎮 points per player per chat (only the first name, for the chat's own table). */
+export const gameScores = table('game_scores', {
+  chatId: integer('chat_id').notNull(),
+  userId: integer('user_id').notNull(),
+  name: text('name').notNull(),
+  points: integer('points').notNull().default(0),
+  updatedAt: integer('updated_at').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.chatId, t.userId] }),
+  byPoints: index('idx_game_scores_points').on(t.chatId, t.points),
+})).withoutRowid();
+
+/** ⭐ Telegram Stars donations (successful payments; charge_id lets the owner refund). */
+export const donations = table('donations', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  amount: integer('amount').notNull(),
+  chargeId: text('charge_id').notNull().unique(),
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  byTime: index('idx_donations_time').on(t.createdAt),
+}));

@@ -1,0 +1,27 @@
+:root {
+  --bg: var(--tg-theme-bg-color, #fff);
+  --text: var(--tg-theme-text-color, #111);
+  --hint: var(--tg-theme-hint-color, #888);
+  --card: var(--tg-theme-secondary-bg-color, #f2f2f5);
+  --accent: var(--tg-theme-button-color, #2481cc);
+  --accent-text: var(--tg-theme-button-text-color, #fff);
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; background: var(--bg); color: var(--text); }
+header { position: sticky; top: 0; background: var(--bg); padding: 12px 12px 6px; z-index: 1; }
+h1 { font-size: 18px; margin: 0 0 8px; }
+input { width: 100%; padding: 10px 12px; border: 0; border-radius: 12px; background: var(--card); color: var(--text); font: inherit; }
+nav { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; }
+nav button { flex: 0 0 auto; border: 0; border-radius: 16px; padding: 6px 12px; background: var(--card); color: var(--text); font: inherit; }
+nav button.on { background: var(--accent); color: var(--accent-text); }
+main { padding: 0 12px 24px; }
+ul { list-style: none; margin: 0; padding: 0; }
+li { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--card); }
+.info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.info b, .info span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.info span, .muted { color: var(--hint); font-size: 13px; }
+li button, #gate button { border: 0; border-radius: 12px; padding: 8px 10px; background: var(--card); font: inherit; color: var(--text); }
+#gate { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; }
+#gate[hidden] { display: none; }
+#recheck { background: var(--accent) !important; color: var(--accent-text) !important; }
+#toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, .8); color: #fff; padding: 8px 14px; border-radius: 14px; font-size: 14px; }

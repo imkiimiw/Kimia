@@ -75,6 +75,7 @@ token. If a later provider needs an API key, it goes in the git-ignored
 | `backup.weekly` | `false` | on/off | A backup document is sent to the owner once a week from the tick (Phase 8) |
 | `publishing.clean_files` | `true` | on/off | 🧹 A track's first post downloads its MP3 (≤ 20 MB), replaces every tag with a clean ID3v2.3 one (title, artist, album, the original cover; no ID3v1 / APE), uploads it with a ≤ 320 px thumbnail when one is known, and keeps the new file_id as the track's audio (`tracks.cleaned` 1); not an MP3 / too big / refused → sent as it is (`cleaned` 2) |
 | `listeners.notices` | `true` | on/off | A followed artist's newly active song, and a song that fits an open request, are sent to the listener by the tick (processor `notices`, ≤ 25 messages per tick, at most once) |
+| (tgcloud.jsonc) `static.source` | `webapp` | folder | The 📱 Mini App's files, served at `https://app<bot id>.tgcloud.ai/` (`miniAppUrl()`) |
 | `report.daily` | `true` | on/off | Yesterday's numbers (users, searches and empty ones, plays, activated tracks, posts, queue, top 3 of 7 days) to the owner, once a day from the first tick after 09:00 in `time_zone` (`LIMITS.reportHour`); once per day through an alert claim (`report:<date>`) |
 
 Internal state keys (not editable): `system.bootstrapped`, `forcejoin.seeded`, `forcejoin.version`,

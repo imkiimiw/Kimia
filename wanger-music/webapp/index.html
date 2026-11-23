@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Wanger Music</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>🎧 Wanger Music</h1>
+    <form id="search" autocomplete="off">
+      <input id="q" type="search" placeholder="اسم آهنگ یا خواننده (فارسی یا فینگلیش)" maxlength="64" enterkeyhint="search">
+    </form>
+    <nav>
+      <button data-tab="home" class="on">🔥 محبوب</button>
+      <button data-tab="favs">❤️ علاقه‌مندی‌ها</button>
+      <button data-tab="random">🎲 تصادفی</button>
+    </nav>
+  </header>
+  <main>
+    <p id="status" class="muted">در حال بارگذاری…</p>
+    <ul id="list"></ul>
+    <div id="gate" hidden>
+      <p>برای استفاده از ربات اول عضو این کانال‌ها شو:</p>
+      <div id="channels"></div>
+      <button id="recheck">✅ عضو شدم</button>
+    </div>
+  </main>
+  <div id="toast" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -157,6 +157,23 @@ followers; a cursor over follower ids, like a broadcast). user_id is the Telegra
   keeps the message id and the publication ids; closing it (`stopPoll`) sends the winner with
   `worker.sendPublicationNow`.
 
+## Game, donations, Mini App (owner's ideas, 2026-11-23)
+
+- **🎮 Guess the song** (`bot/game_ui.js`): `/guess` in a group (router: game commands and replies to
+  the bot go to `onGroupGame` before the source-group path; group buttons `g:*` skip user rows) or 🎮
+  in the private menu (then the `game` flow takes the guesses). A round = 15 s of a popular MP3 cut on
+  frame boundaries (`music/artwork.js#mp3Clip`, nothing decoded, no tag), uploaded with title ❓.
+  `game_rounds` (one open round per chat; a conditional upsert opens it, a conditional update closes
+  it — the first right answer wins), `game_scores` (first name + points per chat).
+- **⭐ Stars** (`bot/listener_ui.js`): `sendInvoice` in XTR (10/50/100/500), `handlers/pre_checkout_query`
+  checks payload, currency and amount (no tick before the answer), `successful_payment` →
+  `donations` (unique charge id) + a note to the owner; `/paysupport` copies the next message to the owner.
+- **📱 Mini App**: `webapp/` (plain HTML/CSS/JS, `tgcloud.jsonc` static source) calls
+  `endpoints/miniApi` (`Telegram.WebApp.Serverless.call`), which runs `listener_ui#miniApi` as the
+  verified init-data user (force-join gate, flood guard). Audio can't play inside it (a file link
+  carries the bot token), so ▶️ sends the song to the chat. The chat menu button opens it
+  (`setChatMenuButton`, COMMANDS_VERSION 3).
+
 ## Source channels (Phase 4)
 
 `handlers/channel_post` → `publishing/sources.handlePost`: a post counts only if its channel is a

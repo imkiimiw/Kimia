@@ -49,6 +49,7 @@ export function sync({ extraModules = {} } = {}) {
   fs.mkdirSync(STAGING_DIR, { recursive: true });
   copyTree(path.join(ROOT, 'tgcloud'), path.join(STAGING_DIR, 'tgcloud'));
   for (const f of ['tgcloud.jsonc', 'package.json']) fs.copyFileSync(path.join(ROOT, f), path.join(STAGING_DIR, f));
+  if (fs.existsSync(path.join(ROOT, 'webapp'))) copyTree(path.join(ROOT, 'webapp'), path.join(STAGING_DIR, 'webapp')); // the Mini App
   const nm = path.join(STAGING_DIR, 'node_modules');
   if (!fs.existsSync(nm)) fs.symlinkSync(path.join(ROOT, 'node_modules'), nm, 'dir');
   fs.mkdirSync(path.join(STAGING_DIR, '.tgcloud'), { recursive: true });

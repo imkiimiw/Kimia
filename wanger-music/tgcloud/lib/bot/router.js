@@ -13,6 +13,8 @@ import { handleMedia } from '../admin/import_ui.js';
 import { searchFromText } from './search_ui.js';
 import { promptBotAdded } from '../admin/sources_ui.js';
 import { botBecameAdmin, isGroupChat } from '../publishing/sources.js';
+import { onGroupGame, onGroupGameCallback } from './game_ui.js';
+import { onSuccessfulPayment, startPaySupport, onPreCheckout } from './listener_ui.js';
 export { onInlineQuery, onChosenInlineResult } from './search_ui.js';
 
 /** Plain text of an i18n message for a toast (no HTML tags). */
@@ -21,7 +23,7 @@ const toastText = (lang, key, vars) => tp(lang, key, vars).replace(/<[^>]+>/g, '
 /** @param {any} app @param {any} message */
 export async function onMessage(app, message) {
   // a group where the bot is admin: only a registered source group matters (no user rows, no replies)
-  if (message && isGroupChat(message.chat)) return app.sources.handlePost(message);
+  if (message && isGroupChat(message.chat)) return (await onGroupGame(app, message)) || app.sources.handlePost(message);
   if (!message || !message.chat || message.chat.type !== 'private' || !message.from || message.from.is_bot) return 'ignored';
   const user = await app.users.touch(message.from);
   app.user = user;
@@ -39,6 +41,8 @@ export async function onMessage(app, message) {
     if (flood === 'notify') await app.tg.send(chat, { text: t(app.lang, 'common.too_fast', { s: LIMITS.floodWindowSeconds }) }, 'too_fast');
     return 'flood';
   }
+  // ⭐ a finished Stars payment (Telegram sends it as a message)
+  if (message.successful_payment) return onSuccessfulPayment(app, user, message.successful_payment);
   if (cmd && cmd.name === 'cancel') {
     const n = await app.flows.clear(chat);
     await app.tg.send(chat, { text: t(app.lang, n ? 'common.cancelled' : 'common.nothing_to_cancel') }, 'cancel');
@@ -89,6 +93,9 @@ export async function onMessage(app, message) {
       case 'search':
         await searchFromText(app, user, cmd.args);
         return 'search';
+      case 'paysupport':
+        await startPaySupport(app, user);
+        return 'paysupport';
       case 'admin':
         if (can(user, 'panel.open')) {
           await openPanel(app, user);
@@ -121,6 +128,8 @@ export async function onCallback(app, cq) {
   };
   try {
     if (!cq || !cq.from || cq.from.is_bot) return answer();
+    // 🎮 game buttons in a group: no user rows for group players
+    if (cq.message && isGroupChat(cq.message.chat) && String(cq.data || '').startsWith('g:')) return onGroupGameCallback(app, cq, answer);
     const user = await app.users.touch(cq.from);
     app.user = user;
     app.lang = await app.users.languageOf(user);
@@ -197,3 +206,6 @@ export function onReactionCount(app, upd) {
   const total = (Array.isArray(upd.reactions) ? upd.reactions : []).reduce((n, r) => n + (Number(r && r.total_count) || 0), 0);
   return app.publisher.recordReactions(upd.chat.id, upd.message_id, total);
 }
+
+/** pre_checkout_query (⭐ donations): answered at once, within Telegram's 10 seconds. */
+export const onPreCheckoutQuery = (app, q) => onPreCheckout(app, q);

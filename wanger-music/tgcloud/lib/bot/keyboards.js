@@ -1,7 +1,7 @@
 // Inline keyboard builders (pure). Callback data always goes through the codec.
 import { encode } from './codec.js';
 
-/** @typedef {{text: string, callback_data?: string, url?: string, switch_inline_query?: string, switch_inline_query_current_chat?: string}} Button */
+/** @typedef {{text: string, callback_data?: string, url?: string, switch_inline_query?: string, switch_inline_query_current_chat?: string, web_app?: {url: string}}} Button */
 
 /** A callback button. @param {string} text @param {string} ns @param {string} action @param {...(string|number)} args @returns {Button} */
 export const btn = (text, ns, action, ...args) => ({ text, callback_data: encode(ns, action, ...args) });

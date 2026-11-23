@@ -1,6 +1,6 @@
 // User-facing screens and routes: /start (with payloads), /help, /lang, the force-join message
 // and «✅ عضو شدم».
-import { BOT_USERNAME } from '../config/static.js';
+import { BOT_USERNAME, miniAppUrl } from '../config/static.js';
 import { t, tp } from '../i18n/index.js';
 import { btn, markup } from './keyboards.js';
 import { parseStartPayload } from './commands.js';
@@ -15,6 +15,7 @@ export function welcomeView(lang, user) {
     text: t(lang, 'start.welcome', { bot: BOT_USERNAME }),
     keyboard: markup([
       [{ text: tp(lang, 'search.btn_inline'), switch_inline_query_current_chat: '' }],
+      [{ text: tp(lang, 'l.btn_app'), web_app: { url: miniAppUrl() } }],
       ...menuRows(lang),
       [btn(tp(lang, 'start.btn_help'), 'u', 'help'), btn(tp(lang, 'start.btn_lang'), 'u', 'lang')],
       can(user, 'panel.open') ? [btn(tp(lang, 'common.home'), 'adm', 'home')] : [],

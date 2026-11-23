@@ -81,7 +81,7 @@ const lastDocument = (h) => {
 test('the backup lists every column of the schema; excluded tables are only derived or short-lived ones', () => {
   const h = setup();
   const tables = h.q("SELECT name FROM sqlite_master WHERE type = 'table' AND name != 'sqlite_sequence'").map((r) => r.name).sort();
-  const excluded = ['alerts', 'error_log', 'import_sessions', 'missed_searches', 'notice_jobs', 'processed_updates', 'track_terms', 'user_flows'];
+  const excluded = ['alerts', 'error_log', 'game_rounds', 'import_sessions', 'missed_searches', 'notice_jobs', 'processed_updates', 'track_terms', 'user_flows'];
   assert.deepEqual(tables.filter((t) => !BACKUP_TABLES[t]).sort(), excluded);
   for (const [name, spec] of Object.entries(BACKUP_TABLES)) {
     const info = h.q(`PRAGMA table_info(${name})`);

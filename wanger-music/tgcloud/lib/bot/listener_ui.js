@@ -2,12 +2,13 @@
 // (❤️, 🔔 follow the artist, 👤 more from the artist, 💿 album, 📤 send to a friend), the listener
 // menu (🎲 random, 🎭 genres and moods, ❤️ favourites, 🔔 my artists, 📝 requests), the owner's
 // request and missed-search lists, and the tick processor that sends queued notices.
-import { LIMITS, GENRES, MOODS } from '../config/static.js';
+import { LIMITS, GENRES, MOODS, OWNER_ID } from '../config/static.js';
 import { t, tp, digits } from '../i18n/index.js';
 import { btn, markup, grid } from './keyboards.js';
 import { truncate, UserError } from '../core/util.js';
 import { classify } from '../telegram/errors.js';
 import { cooldownAfter429, cooldownActive } from '../telegram/limiter.js';
+import { joinUrl } from '../forcejoin/gate.js';
 
 const PAGE = LIMITS.listenerPage;
 const label = (lang, tr) => truncate(`${tr.title || tp(lang, 'trk.untitled')} — ${tr.artist || '?'}`, 56);
@@ -62,6 +63,7 @@ export const menuRows = (lang) => [
   [btn(tp(lang, 'l.btn_random'), 'l', 'rnd'), btn(tp(lang, 'l.btn_browse'), 'l', 'br')],
   [btn(tp(lang, 'l.btn_favs'), 'l', 'favs', 0), btn(tp(lang, 'l.btn_follows'), 'l', 'fols', 0)],
   [btn(tp(lang, 'l.btn_request'), 'l', 'req'), btn(tp(lang, 'l.btn_my_requests'), 'l', 'reqs')],
+  [btn(tp(lang, 'game.btn_play'), 'g', 'new'), btn(tp(lang, 'don.btn'), 'don', 'home')],
 ];
 
 /**
@@ -426,3 +428,136 @@ export const flows = {
   },
 };
 
+
+// ---------------------------------------------------------------- ⭐ Telegram Stars donations (2026-11-23)
+// A listener chooses an amount; Telegram shows its own payment sheet (currency XTR, no provider);
+// pre_checkout_query is answered after checking the payload; the successful payment is recorded
+// once (charge id) and the owner is told. /paysupport forwards a message to the owner (Telegram
+// asks bots that take payments to offer it).
+export const DONATE_AMOUNTS = Object.freeze([10, 50, 100, 500]);
+const PAYLOAD = /^donate:(\d{1,6})$/;
+
+function donateView(lang) {
+  return {
+    text: t(lang, 'don.title_text'),
+    keyboard: markup([DONATE_AMOUNTS.map((n) => btn(tp(lang, 'don.btn_amount', { n: digits(n, lang) }), 'don', 'pay', n)), [menuButton(lang)]]),
+  };
+}
+
+/** pre_checkout_query: only our own donation payloads, in Stars, for the listed amounts. */
+export async function onPreCheckout(app, q) {
+  const m = PAYLOAD.exec(String((q && q.invoice_payload) || ''));
+  const amount = m ? Number(m[1]) : 0;
+  const ok = Boolean(m) && q.currency === 'XTR' && DONATE_AMOUNTS.includes(amount) && Number(q.total_amount) === amount;
+  await app.tg.call('answerPreCheckoutQuery', ok ? { pre_checkout_query_id: q.id, ok: true } : { pre_checkout_query_id: q.id, ok: false, error_message: tp('fa', 'don.refused') }, 'pre_checkout');
+  return ok ? 'ok' : 'refused';
+}
+
+/** A message with successful_payment (private chat). */
+export async function onSuccessfulPayment(app, user, payment) {
+  const amount = Number(payment.total_amount) || 0;
+  if (payment.currency !== 'XTR' || !PAYLOAD.test(String(payment.invoice_payload || ''))) return 'ignored';
+  if (!(await app.listeners.addDonation(user.telegram_id, amount, String(payment.telegram_payment_charge_id)))) return 'duplicate';
+  await app.tg.send(user.telegram_id, { text: t(app.lang, 'don.thanks', { n: digits(amount, app.lang) }), keyboard: markup([[menuButton(app.lang)]]) }, 'donation_thanks');
+  const owner = await app.users.get(OWNER_ID);
+  const lang = await app.users.languageOf(owner);
+  await app.tg.send(OWNER_ID, { text: t(lang, 'don.owner_note', { name: user.first_name || (user.username ? '@' + user.username : String(user.telegram_id)), n: digits(amount, lang), id: String(user.telegram_id) }) }, 'donation_owner').catch(() => {});
+  return 'donation';
+}
+
+/** /paysupport: the next message goes to the owner. */
+export async function startPaySupport(app, user) {
+  await app.flows.start(user.telegram_id, 'paysupport', {});
+  await app.tg.send(user.telegram_id, { text: t(app.lang, 'don.support_prompt'), keyboard: markup([[btn(tp(app.lang, 'common.no'), 'u', 'cancel')]]) }, 'paysupport_prompt');
+}
+
+routes.push(
+  { ns: 'don', action: 'home', args: [], perm: null, run: async (app, user, _a, cq) => { await app.tg.show(user.telegram_id, cq.message && !cq.message.audio ? cq.message.message_id : null, donateView(app.lang), 'donate'); return {}; } },
+  {
+    ns: 'don', action: 'pay', args: ['uint'], perm: null,
+    async run(app, user, [n]) {
+      const amount = Number(n);
+      if (!DONATE_AMOUNTS.includes(amount)) return { toast: tp(app.lang, 'common.expired_user'), alert: true };
+      await app.tg.call('sendInvoice', {
+        chat_id: user.telegram_id, title: tp(app.lang, 'don.invoice_title'), description: tp(app.lang, 'don.invoice_text', { n: digits(amount, app.lang) }),
+        payload: `donate:${amount}`, provider_token: '', currency: 'XTR', prices: [{ label: tp(app.lang, 'don.invoice_label'), amount }],
+      }, 'donate_invoice');
+      return {};
+    },
+  },
+);
+
+Object.assign(flows, {
+  paysupport: {
+    perm: null,
+    maxInput: 2000,
+    async run(app, user, message) {
+      await app.flows.clear(user.telegram_id);
+      const owner = await app.users.get(OWNER_ID);
+      const lang = await app.users.languageOf(owner);
+      await app.tg.send(OWNER_ID, { text: t(lang, 'don.support_owner', { name: user.first_name || '?', id: String(user.telegram_id) }) }, 'paysupport_owner');
+      await app.tg.call('copyMessage', { chat_id: OWNER_ID, from_chat_id: user.telegram_id, message_id: message.message_id }, 'paysupport_copy');
+      await app.tg.send(user.telegram_id, { text: t(app.lang, 'don.support_sent') }, 'paysupport_sent');
+    },
+  },
+});
+
+// ---------------------------------------------------------------- 📱 the Mini App's server side
+// endpoints/miniApi → here. The caller is ctx.initData.user (verified by the platform). Songs can't be
+// played inside the Mini App (a Telegram file link carries the bot token), so «▶️» sends the song to
+// the listener's chat, with the same buttons as everywhere.
+const MINI_PAGE = 30;
+/** @param {any} tr */
+const miniTrack = (tr) => ({ id: tr.public_id, title: tr.title || '', artist: tr.artist || '', album: tr.album || '', duration: Number(tr.duration) || 0 });
+
+/**
+ * @param {any} app @param {{id: number, first_name?: string, username?: string, language_code?: string}} from
+ * @param {{op?: string, q?: string, id?: string}} input
+ */
+export async function miniApi(app, from, input) {
+  const user = await app.users.touch({ ...from, is_bot: false });
+  app.user = user;
+  app.lang = await app.users.languageOf(user);
+  if (user.is_banned) return { error: 'banned' };
+  if ((await app.users.flood(user)) !== 'ok') return { error: 'too_fast' };
+  const verdict = await app.forcejoin.check(user);
+  if (!verdict.passed) {
+    return { gate: true, channels: verdict.missing.map((c) => ({ title: c.title || c.username || '', url: joinUrl(c) })).filter((c) => c.url) };
+  }
+  const op = String(input.op || 'home');
+  const pid = /^[A-Za-z0-9]{8,10}$/.test(String(input.id || '')) ? String(input.id) : '';
+  switch (op) {
+    case 'home':
+      return { lang: app.lang, name: user.first_name || '', popular: (await app.listeners.popularList(MINI_PAGE)).map(miniTrack) };
+    case 'search': {
+      const res = await app.search.query(String(input.q || ''), { limit: MINI_PAGE });
+      if (res.q.tokens.length) {
+        app.stats.count('search.private');
+        if (!res.tracks.length) {
+          app.stats.count('search.private_empty');
+          await app.listeners.recordMissed(res.q.text);
+        }
+      }
+      return { q: res.q.text, fuzzy: res.fuzzy, tracks: res.tracks.map(miniTrack) };
+    }
+    case 'favs':
+      return { tracks: (await app.listeners.favorites(user.telegram_id, 0)).slice(0, LIMITS.listenerPage).map(miniTrack) };
+    case 'random': {
+      const tr = await app.listeners.random();
+      return { tracks: tr ? [miniTrack(tr)] : [] };
+    }
+    case 'send': {
+      const tr = pid ? await app.provider.getTrack(pid) : null;
+      if (!tr) return { error: 'gone' };
+      await sendTrackTo(app, user, tr, { view: 'mini_app_track' });
+      return { sent: true };
+    }
+    case 'fav': {
+      const tr = pid ? await app.provider.getTrack(pid) : null;
+      if (!tr) return { error: 'gone' };
+      return { on: (await app.listeners.toggleFavorite(user.telegram_id, tr)).on };
+    }
+    default:
+      return { error: 'unknown' };
+  }
+}

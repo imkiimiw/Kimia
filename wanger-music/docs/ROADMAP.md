@@ -33,6 +33,8 @@ code with a synthetic catalog (5000 tracks, ~2000 users) for load and restore te
 | 2026-11-08 | New-song message to the owner and admins at once, with buttons (language, activate, approve / reject, send now, play); burst limit; fix: a batch's «activate all» window could take in the next batch's first song (second boundary) | **Deployed** |
 | 2026-11-08 | Manual publishing (owner's request): automatic sending off by default; «📤 ارسال صف انتشار» first on /admin, in 🗳 and on each channel card; a message when posts wait | **Deployed** |
 | 2026-11-08 | Fix: cover_then_audio posts failed with the audio's thumbnail as cover (now uploaded as a photo, or skipped); queue + next post time + «▶️ send the next post now» on the destination card; current values on its buttons; ⚙️ Settings shortcuts to 📡 / 📢; group chatter runs the piggyback tick again | **Deployed** |
+| 2026-11-23 | Batch 4: 🎮 guess the song (/guess in groups — replies are guesses, no user rows; 🎮 in the private menu; 15 s cut from the MP3's frames, Finglish and one-letter typos accepted, scores per chat); ⭐ Telegram Stars donations (XTR invoice, pre-checkout check, recorded once, owner told) + /paysupport; 📱 the Mini App (`webapp/`, plain files; search, popular, favourites, random; ▶️ sends the song to the chat) with the menu button | **Deployed** |
+| — | Song recognition from a voice / clip (AudD) — waits for the owner's AudD API key (not built without a way to test it live) | Waiting |
 | 2026-11-23 | Batch 3 (channels): 🧹 a track's first post re-uploads the MP3 with clean tags (title, artist, album, cover; other channels' names and links gone; setting `publishing.clean_files`); ❤️ reactions on channel posts (`handlers/message_reaction_count`) and «most liked posts»; 🔥 weekly chart (bot plays + channel reactions; preview, one tap); 🗳 next-song poll over the queue (closing it posts the winner) | **Deployed** |
 | 2026-11-23 | Batch 2 (listeners): buttons under every song in the bot (❤️ favourite, 🔔 follow the artist, 👤 more from the artist, 💿 album, 📤 send to a friend); a followed artist's new song and an arrived request are sent by the tick; 📝 requests (from «nothing found» or the menu; ≤ 5 open; the owner's list); 🎲 random; 🎭 moods (set on the card) and genres; Finglish search (consonant skeletons); 🔎 searches with no result for the owner (30 days, no user ids) | **Deployed** |
 | 2026-11-23 | Batch 1 of the owner's ideas: both channels take every language («🌍 every language» rule; no language questions while no channel needs them); «🎧 get it in the bot» / «📤 send to a friend» under posts; hashtags and file quality in captions; quality on track cards (a better duplicate says so); promo line every N posts; daily report | **Deployed** |
@@ -73,9 +75,9 @@ code with a synthetic catalog (5000 tracks, ~2000 users) for load and restore te
 
 ## Module budget
 
-89 of ≤ 92 modules (Phase 8: +2, `repositories/backup`, `backup/service`; then `music/artwork`; batch 2 of the
+92 of ≤ 92 modules (full: merge before adding) (Phase 8: +2, `repositories/backup`, `backup/service`; then `music/artwork`; batch 2 of the
 owner's ideas: `repositories/listeners`, `listeners/service`, `bot/listener_ui`; batch 3: `handlers/message_reaction_count`,
-`admin/engage_ui`; the budget went from 85 to 92,
+`admin/engage_ui`; batch 4: `bot/game_ui`, `handlers/pre_checkout_query`, `endpoints/miniApi`; the budget went from 85 to 92,
 still under the 94 another bot deployed). The platform
 refused a 104-module deploy for another bot. All eight phases are built; new features should first
 merge modules if they need room.

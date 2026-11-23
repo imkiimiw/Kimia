@@ -8,6 +8,8 @@ export const OWNER_ID = 5557901897;
 /** Verified with getMe on 2026-11-05 (the spec's working name was @WangerMusicBot). */
 export const BOT_ID = 9280424458;
 export const BOT_USERNAME = 'Wange_Musicbot';
+/** 📱 the Mini App (webapp/, hosted next to the bot by the platform). */
+export const miniAppUrl = () => `https://app${BOT_ID}.tgcloud.ai/`;
 export const BOT_NAME = 'Wanger Music';
 
 /** @type {readonly string[]} */
@@ -201,4 +203,4 @@ export const VERSION_MARKERS = Object.freeze([
 ]);
 
 /** Bump when the command menus change (e.g. /search in Phase 3); the owner's next update re-syncs them. */
-export const COMMANDS_VERSION = 2;
+export const COMMANDS_VERSION = 3; // 3: /paysupport and the Mini App menu button (2026-11-23)

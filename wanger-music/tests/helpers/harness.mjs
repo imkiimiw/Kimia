@@ -12,6 +12,8 @@ import inlineHandler from '../../tgcloud/handlers/inline_query.js';
 import chosenHandler from '../../tgcloud/handlers/chosen_inline_result.js';
 import channelPostHandler from '../../tgcloud/handlers/channel_post.js';
 import reactionHandler from '../../tgcloud/handlers/message_reaction_count.js';
+import preCheckoutHandler from '../../tgcloud/handlers/pre_checkout_query.js';
+import miniApiEndpoint from '../../tgcloud/endpoints/miniApi.js';
 
 export const OWNER = 5557901897;
 export const SEED = [-1002407928564, -1001816009903, -1001910797391];
@@ -94,6 +96,13 @@ export function setup({ seedChannels = true, botAdminIn = SEED, autoSend = true,
       return myChatMemberHandler(upd, { update: { update_id: updateId++, my_chat_member: upd } });
     },
     opsTick: (userId, input = {}) => opsTick(input, { initData: { user: { id: userId } } }),
+    /** The Mini App calling POST /api/miniApi as this user (init data verified by the platform). */
+    mini: (userId, input = {}) => miniApiEndpoint(input, userId ? { initData: { user: person(userId) } } : {}),
+    /** Telegram's pre_checkout_query for a Stars payment. */
+    preCheckout(fromId, { payload, amount, currency = 'XTR' }) {
+      const q = { id: `pc${updateId}`, from: person(fromId), currency, total_amount: amount, invoice_payload: payload };
+      return preCheckoutHandler(q, { update: { update_id: updateId++, pre_checkout_query: q } });
+    },
     /** An inline query; returns the answerInlineQuery params the bot sent (or null). */
     async inline(fromId, query, offset = '') {
       const q = { id: `iq${updateId}`, from: person(fromId), query, offset, chat_type: 'sender' };

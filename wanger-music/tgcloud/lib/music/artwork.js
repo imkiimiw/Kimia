@@ -388,3 +388,57 @@ export function thumbnailOk(bytes) {
   const info = bytes && bytes.length <= 200 * 1024 ? imageInfo(bytes) : null;
   return Boolean(info && info.mime === 'image/jpeg' && Math.max(info.width, info.height) <= THUMBNAIL_SIDE);
 }
+
+// ---------------------------------------------------------------- 🎮 a clip for the guessing game
+const KBPS = {
+  1: [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320], // MPEG-1 layer III
+  2: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160], // MPEG-2 / 2.5 layer III
+};
+const RATES = { 3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000] };
+
+/** One MPEG layer III frame at `i`: its length and length in seconds, or null. */
+function mp3Frame(b, i) {
+  if (i + 4 > b.length || b[i] !== 0xff || (b[i + 1] & 0xe0) !== 0xe0) return null;
+  const version = (b[i + 1] >> 3) & 3; // 3 = MPEG-1, 2 = MPEG-2, 0 = MPEG-2.5
+  const layer = (b[i + 1] >> 1) & 3; // 1 = layer III
+  if (version === 1 || layer !== 1) return null;
+  const kbps = KBPS[version === 3 ? 1 : 2][(b[i + 2] >> 4) & 15];
+  const rate = (RATES[version] || [])[(b[i + 2] >> 2) & 3];
+  if (!kbps || !rate) return null;
+  const pad = (b[i + 2] >> 1) & 1;
+  const samples = version === 3 ? 1152 : 576;
+  const length = Math.floor(((samples / 8) * kbps * 1000) / rate) + pad;
+  return length > 4 ? { length, seconds: samples / rate } : null;
+}
+
+/**
+ * About `seconds` of an MP3 from `from` (0–1 of its length) as a new MP3 without any tag (pure):
+ * whole frames copied, nothing decoded. null when the file isn't a layer III MP3.
+ * @param {Uint8Array} b @param {{from?: number, seconds?: number}} [o]
+ */
+export function mp3Clip(b, { from = 0.3, seconds = 15 } = {}) {
+  let i = 0;
+  while (i + 10 <= b.length && ascii(b, i, 3) === 'ID3') i += 10 + syncsafe(b, i + 6) + (b[i + 5] & 0x10 ? 10 : 0);
+  let start = -1;
+  for (let j = i; j < Math.min(b.length - 4, i + 65536); j++) {
+    if (mp3Frame(b, j) && mp3Frame(b, j + mp3Frame(b, j).length)) { start = j; break; }
+  }
+  if (start < 0) return null;
+  /** @type {number[]} */
+  const offsets = [];
+  let total = 0;
+  for (let j = start; ;) {
+    const f = mp3Frame(b, j);
+    if (!f || j + f.length > b.length) break;
+    offsets.push(j);
+    total += f.seconds;
+    j += f.length;
+  }
+  if (offsets.length < 20) return null;
+  const per = total / offsets.length;
+  const want = Math.max(1, Math.round(seconds / per));
+  const first = Math.min(Math.max(1, Math.floor(offsets.length * from)), Math.max(1, offsets.length - want)); // frame 0 may be a VBR header
+  const last = Math.min(offsets.length - 1, first + want);
+  const end = offsets[last];
+  return b.slice(offsets[first], end > offsets[first] ? end : b.length);
+}

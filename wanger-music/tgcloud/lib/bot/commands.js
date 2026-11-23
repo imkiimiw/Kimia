@@ -1,5 +1,5 @@
 // Commands: parsing (pure) and the scoped command menus (setMyCommands).
-import { BOT_USERNAME, OWNER_ID, LIMITS, COMMANDS_VERSION } from '../config/static.js';
+import { BOT_USERNAME, OWNER_ID, LIMITS, COMMANDS_VERSION, miniAppUrl } from '../config/static.js';
 import { tp } from '../i18n/index.js';
 import { classify } from '../telegram/errors.js';
 
@@ -28,8 +28,8 @@ export function parseStartPayload(args) {
   return m ? { kind: 'track', publicId: m[1] } : { kind: 'none' };
 }
 
-const USER_COMMANDS = ['start', 'search', 'help', 'lang', 'cancel'];
-const STAFF_COMMANDS = ['start', 'search', 'help', 'lang', 'cancel', 'admin'];
+const USER_COMMANDS = ['start', 'search', 'help', 'lang', 'cancel', 'paysupport'];
+const STAFF_COMMANDS = ['start', 'search', 'help', 'lang', 'cancel', 'paysupport', 'admin'];
 
 /** @param {string[]} names @param {string} lang */
 const commandList = (names, lang) => names.map((c) => ({ command: c, description: tp(lang, `cmd.${c}`) }));
@@ -54,6 +54,8 @@ export async function syncCommandMenus(app, opts = {}) {
   if (!opts.only && !opts.removed) {
     await run(() => app.tg.setMyCommands({ commands: commandList(USER_COMMANDS, 'fa') }));
     await run(() => app.tg.setMyCommands({ commands: commandList(USER_COMMANDS, 'en'), language_code: 'en' }));
+    // 📱 the menu button next to the message field opens the Mini App
+    await run(() => app.tg.call('setChatMenuButton', { menu_button: { type: 'web_app', text: tp('fa', 'l.menu_button'), web_app: { url: miniAppUrl() } } }, 'menu_button'));
   }
   const staff = opts.only || (opts.removed ? [] : [OWNER_ID, ...(await app.users.adminIds())]);
   for (const id of staff) {

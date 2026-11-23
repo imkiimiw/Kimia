@@ -116,7 +116,8 @@ test('settings: enums cycle, numbers are validated in a flow, the archive channe
   await h.tap(OWNER, 'set:sync');
   const calls = h.tg.callsOf('setMyCommands', undefined, mark);
   assert.equal(calls.length, 3, 'default fa, default en, owner chat scope');
-  assert.deepEqual(calls[0].params.commands.map((c) => c.command), ['start', 'search', 'help', 'lang', 'cancel']);
+  assert.deepEqual(calls[0].params.commands.map((c) => c.command), ['start', 'search', 'help', 'lang', 'cancel', 'paysupport']);
+  assert.deepEqual(h.tg.callsOf('setChatMenuButton', undefined, mark)[0].params.menu_button, { type: 'web_app', text: '🎧 موزیک', web_app: { url: 'https://app9280424458.tgcloud.ai/' } }, 'the menu button opens the Mini App');
   assert.ok(calls[2].params.commands.some((c) => c.command === 'admin'));
   assert.ok(h.q('SELECT action FROM audit_log').every((r) => r.action === 'settings.set'));
 });
