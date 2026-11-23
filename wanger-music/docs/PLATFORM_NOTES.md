@@ -40,7 +40,7 @@ deployed yet) · **Unknown** = neither documented nor measurable without deployi
 | `getWebhookInfo` | **Refused**: `403 Method getWebhookInfo is restricted`. The platform manages the webhook; its state is visible only through `npx tgcloud webhook`. |
 | Channels | The bot is **administrator with post/edit/delete rights** in all three force-join channels — @HIDE_i_SEEK (`-1002407928564`), @Nepenthw_ir (`-1001816009903`), @wangerBots (`-1001910797391`) — and in the two planned destination channels @WangerBeat (`-1004370326177`) and @WangerFlow (`-1004391543350`). |
 | Cloud project | Revision 0, no modules, no tables, webhook "in sync" (nothing deployed yet). |
-| Module count | Not documented. An earlier bot in this repo measured: a deploy of **104 modules was refused**, 88 and 94 deployed. This project keeps a budget of **≤ 85 modules** for all eight phases (a test enforces it). |
+| Module count | Not documented. An earlier bot in this repo measured: a deploy of **104 modules was refused**, 88 and 94 deployed. This project kept a budget of **≤ 85 modules** for all eight phases; since 2026-11-23 **≤ 92** (still under the measured 94; a test enforces it). |
 
 ## Conflicts between the spec and the platform (official/measured wins)
 

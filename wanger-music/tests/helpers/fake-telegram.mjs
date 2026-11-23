@@ -55,8 +55,16 @@ export function createFakeTelegram() {
     editMessageText(p, m) {
       const msg = messages.get(p.chat_id) && messages.get(p.chat_id).get(p.message_id);
       if (!msg) fail(400, 'Bad Request: message to edit not found', m);
+      if (msg.audio && !msg.text) fail(400, 'Bad Request: there is no text in the message to edit', m); // like Telegram
       if (msg.text === p.text && JSON.stringify(msg.reply_markup) === JSON.stringify(p.reply_markup || null)) fail(400, 'Bad Request: message is not modified: specified new message content and reply markup are exactly the same', m);
       msg.text = p.text;
+      msg.reply_markup = p.reply_markup || null;
+      return msg;
+    },
+    editMessageReplyMarkup(p, m) {
+      const msg = messages.get(p.chat_id) && messages.get(p.chat_id).get(p.message_id);
+      if (!msg) fail(400, 'Bad Request: message to edit not found', m);
+      if (JSON.stringify(msg.reply_markup) === JSON.stringify(p.reply_markup || null)) fail(400, 'Bad Request: message is not modified: specified new message content and reply markup are exactly the same', m);
       msg.reply_markup = p.reply_markup || null;
       return msg;
     },
@@ -98,7 +106,7 @@ export function createFakeTelegram() {
       } else if (blocked.has(p.chat_id)) fail(403, 'Forbidden: bot was blocked by the user', m);
       if (typeof p.audio !== 'string' || !p.audio) fail(400, 'Bad Request: wrong file identifier/HTTP URL specified', m);
       if (p.caption && p.caption.length > 1024) fail(400, 'Bad Request: message caption is too long', m);
-      return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, audio: { file_id: p.audio }, caption: p.caption || null });
+      return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, audio: { file_id: p.audio }, caption: p.caption || null, reply_markup: p.reply_markup || null });
     },
     sendPhoto(p, m) {
       if (p.chat_id < 0) {

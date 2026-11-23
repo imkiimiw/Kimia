@@ -1,7 +1,7 @@
 // 🎵 Music (catalog.manage): counts, filtered lists, search, and the track card with every
 // action — activate, hide, remove (confirm), restore, purge (owner, confirm), edit title / artist /
 // album, language, genre, cover, soft-duplicate decisions, play.
-import { GENRES, LIMITS } from '../config/static.js';
+import { GENRES, LIMITS, MOODS } from '../config/static.js';
 import { t, tp, raw, digits } from '../i18n/index.js';
 import { esc } from '../telegram/html.js';
 import { btn, markup, grid } from '../bot/keyboards.js';
@@ -33,6 +33,7 @@ export async function trackView(app, viewer, tr, { header = '' } = {}) {
   lines.push(t(lang, 'trk.line.artist', { artist: tr.artist || '—', featured: tr.featured_artists ? ` (feat. ${tr.featured_artists})` : '' }));
   if (tr.album) lines.push(t(lang, 'trk.line.album', { album: tr.album }));
   if (tr.genre) lines.push(t(lang, 'trk.line.genre', { genre: tp(lang, `genre.${tr.genre}`) }));
+  if (tr.mood) lines.push(t(lang, 'trk.line.mood', { mood: tp(lang, `mood.${tr.mood}`) }));
   const quality = await app.catalog.ensureQuality(tr);
   lines.push(t(lang, 'trk.line.file', { duration: fmtDuration(tr.duration, lang), size: fmtSize(tr.file_size, lang), quality: quality ? raw(` · 🎚 ${esc(quality)}`) : '' }));
   lines.push(t(lang, 'trk.line.language', { language: tp(lang, `tlang.${tr.language}`), confidence: tp(lang, `conf.${tr.language_confidence}`), source: tp(lang, `lsrc.${tr.language_source}`) }));
@@ -62,7 +63,7 @@ function cardKeyboard(lang, viewer, tr) {
     [btn(tp(lang, 'trk.btn.title'), 'trk', 'ed', id, 'title'), btn(tp(lang, 'trk.btn.artist'), 'trk', 'ed', id, 'artist'), btn(tp(lang, 'trk.btn.album'), 'trk', 'ed', id, 'album')],
     // one tap: the language (✓ = set by a person); a correction re-routes waiting channel posts
     ['fa', 'en', 'other'].map((l) => btn(`${tr.language === l && tr.language_source === 'manual' ? '✓ ' : ''}🌐 ${tp(lang, `tlang.${l}`)}`, 'trk', 'setl', id, l)),
-    [btn(tp(lang, 'trk.btn.genre'), 'trk', 'genre', id), btn(tp(lang, 'trk.btn.cover'), 'trk', 'cover', id)],
+    [btn(tp(lang, 'trk.btn.genre'), 'trk', 'genre', id), btn(tp(lang, 'trk.btn.mood'), 'trk', 'mood', id), btn(tp(lang, 'trk.btn.cover'), 'trk', 'cover', id)],
     tr.artist ? [btn(tp(lang, 'trk.btn.artist_card'), 'art', 'byt', id)] : [],
   ];
   const back = [btn(tp(lang, 'pub.btn_track'), 'pub', 'trk', tr.id), btn(tp(lang, 'mus.back'), 'mus', 'home')];
@@ -85,7 +86,7 @@ function cardKeyboard(lang, viewer, tr) {
 
 async function homeView(app) {
   const lang = app.lang;
-  const c = await app.catalog.counts();
+  const c = { ...(await app.catalog.counts()), requests: await app.listeners.countOpenRequests() };
   const f = (name) => btn(tp(lang, 'mus.filter_btn', { name: tp(lang, `mus.filter.${name}`), n: c[name] || 0 }), 'mus', 'ls', name, 0);
   return {
     text: t(lang, 'mus.title', c),
@@ -95,6 +96,7 @@ async function homeView(app) {
       [f('fa'), f('en')],
       [f('other'), f('unknown')],
       [btn(tp(lang, 'mus.btn_search'), 'mus', 'find'), btn(tp(lang, 'art.btn_list'), 'art', 'ls', 0)],
+      [btn(tp(lang, 'lr.btn_requests_n', { n: c.requests || 0 }), 'lr', 'home'), btn(tp(lang, 'lr.btn_missed'), 'lr', 'miss')],
       [homeButton(lang)],
     ]),
   };
@@ -242,6 +244,26 @@ export const routes = [
         keyboard: markup([...grid(GENRES.map((g) => btn(tp(lang, `genre.${g}`), 'trk', 'setg', id, g)), 3), [btn(tp(lang, 'trk.btn.genre_none'), 'trk', 'setg', id, 'none'), btn(tp(lang, 'common.back'), 'trk', 'v', id)]]),
       }, 'track_genre');
       return {};
+    },
+  },
+  {
+    // 🎭 mood: what listeners browse by (🎭 in their menu)
+    ns: 'trk', action: 'mood', args: ['uint'], perm: PERM,
+    async run(app, user, [id], cq) {
+      const tr = await withTrack(app, id);
+      const lang = app.lang;
+      await screen(app, user, cq, {
+        text: t(lang, 'trk.mood_choose', { title: label(lang, tr) }),
+        keyboard: markup([...grid(MOODS.map((m) => btn(`${tr.mood === m ? '✅ ' : ''}${tp(lang, `mood.${m}`)}`, 'trk', 'setm', id, m)), 3), [btn(tp(lang, 'trk.btn.genre_none'), 'trk', 'setm', id, 'none'), btn(tp(lang, 'common.back'), 'trk', 'v', id)]]),
+      }, 'track_mood');
+      return {};
+    },
+  },
+  {
+    ns: 'trk', action: 'setm', args: ['uint', 'word'], perm: PERM,
+    async run(app, user, [id, m], cq) {
+      await app.catalog.setMood(user, id, m === 'none' ? null : String(m));
+      return showCard(app, user, cq, id, tp(app.lang, 'trk.saved'));
     },
   },
   {

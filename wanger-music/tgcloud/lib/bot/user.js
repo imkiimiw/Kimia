@@ -7,6 +7,7 @@ import { parseStartPayload } from './commands.js';
 import { joinView } from '../forcejoin/gate.js';
 import { isStaff, can } from '../permissions/policy.js';
 import { sendTrack } from './search_ui.js';
+import { menuRows } from './listener_ui.js';
 
 /** @param {string} lang @param {any} user */
 export function welcomeView(lang, user) {
@@ -14,6 +15,7 @@ export function welcomeView(lang, user) {
     text: t(lang, 'start.welcome', { bot: BOT_USERNAME }),
     keyboard: markup([
       [{ text: tp(lang, 'search.btn_inline'), switch_inline_query_current_chat: '' }],
+      ...menuRows(lang),
       [btn(tp(lang, 'start.btn_help'), 'u', 'help'), btn(tp(lang, 'start.btn_lang'), 'u', 'lang')],
       can(user, 'panel.open') ? [btn(tp(lang, 'common.home'), 'adm', 'home')] : [],
     ]),

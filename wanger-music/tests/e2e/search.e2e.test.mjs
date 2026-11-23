@@ -43,7 +43,9 @@ test('§9 must-pass: ي/ی, ك/ک, «می‌خوام» forms, ۲ = 2, “week”
   assert.deepEqual(ids((await h.inline(U, 'قسمت 2')).answer), [part2.public_id], '۲ = 2');
   assert.deepEqual(ids((await h.inline(U, 'week')).answer), [weeknd.public_id], 'week finds The Weeknd');
   assert.deepEqual(ids((await h.inline(U, 'شادمهر')).answer), [shad.public_id], '«شادمهر» finds «شادمهر عقیلی»');
-  assert.deepEqual(ids((await h.inline(U, 'shadmehr')).answer), [], 'no alias yet');
+  assert.deepEqual(ids((await h.inline(U, 'shadmehr')).answer), [shad.public_id], 'Finglish (2026-11-23): no alias needed any more');
+  assert.deepEqual(ids((await h.inline(U, 'shadmehr aghili')).answer), [shad.public_id]);
+  assert.deepEqual(ids((await h.inline(U, 'xyzzy')).answer), []);
 
   await h.press(OWNER, `art:byt:${shad.id}`, 1);
   const artistId = h.one('SELECT id FROM artists WHERE normalized_name = ?', 'شادمهر عقیلی').id;

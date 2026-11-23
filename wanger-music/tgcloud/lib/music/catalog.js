@@ -1,7 +1,7 @@
 // CatalogService: the track lifecycle (draft → active ⇄ hidden → removed), metadata edits,
 // duplicate resolution and the optional archive channel. Every change is audited; activating,
 // hiding or removing bumps catalog.version (part of every search cache key from Phase 3).
-import { LIMITS, GENRES } from '../config/static.js';
+import { LIMITS, GENRES, MOODS } from '../config/static.js';
 import { assertCan } from '../permissions/policy.js';
 import { UserError, truncate } from '../core/util.js';
 import { normalizeTrack, display, key } from './normalize.js';
@@ -24,11 +24,11 @@ const LANGUAGE_BATCH = 200;
 const ACTIVATE_MANY_MAX = 300;
 
 /**
- * @param {{repo: any, tg: any, settings: any, audit: any, alerts: any, clock: any, log: any, index?: {add: (t: any) => Promise<any>, remove: (id: number) => Promise<any>}, publishing?: {routeTrack: (t: any) => Promise<any>, cancelForTrack: (id: number) => Promise<any>, deleteForTrack: (id: number) => Promise<any>, reroute?: (t: any) => Promise<{cancelled: number, routed: number}>}}} deps
+ * @param {{repo: any, tg: any, settings: any, audit: any, alerts: any, clock: any, log: any, listeners?: {onActivated: (t: any) => Promise<any>}, index?: {add: (t: any) => Promise<any>, remove: (id: number) => Promise<any>}, publishing?: {routeTrack: (t: any) => Promise<any>, cancelForTrack: (id: number) => Promise<any>, deleteForTrack: (id: number) => Promise<any>, reroute?: (t: any) => Promise<{cancelled: number, routed: number}>}}} deps
  *   index: the search index (Phase 3) — a track is indexed while it is active
  *   publishing: routing on activation, cancellation on hide/remove, cleanup on purge (Phase 6)
  */
-export function createCatalogService({ repo, tg, settings, audit, alerts, clock, log, index = { add: async (_t) => {}, remove: async (_id) => {} }, publishing = { routeTrack: async (_t) => 0, cancelForTrack: async (_id) => 0, deleteForTrack: async (_id) => 0 } }) {
+export function createCatalogService({ repo, tg, settings, audit, alerts, clock, log, index = { add: async (_t) => {}, remove: async (_id) => {} }, publishing = { routeTrack: async (_t) => 0, cancelForTrack: async (_id) => 0, deleteForTrack: async (_id) => 0 }, listeners = { onActivated: async (_t) => ({}) } }) {
   async function mustGet(id) {
     const tr = await repo.get(id);
     if (!tr) throw new UserError('trk.err.gone');
@@ -120,6 +120,7 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
       await bumpVersion();
       await index.add(row);
       await publishing.routeTrack(row);
+      await listeners.onActivated(row); // followers and requests (best effort, never throws)
       await audit.record(actor, 'catalog.activate', 'track', row.public_id);
       const archive = await settings.get('archive.chat_id');
       if (archive && !row.archive_message_id && (await archiveSlot())) await archiveOne(row, archive);
@@ -311,6 +312,16 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
         if (c.code === 400) await repo.update(track.id, { quality: '' }, clock.now());
         return '';
       }
+    },
+
+    /** 🎭 mood for listeners' browsing (null clears it). */
+    async setMood(actor, id, mood) {
+      assertCan(actor, PERM);
+      if (mood !== null && !MOODS.includes(mood)) throw new UserError('trk.err.state');
+      const tr = await mustGet(id);
+      const row = await repo.update(id, { mood }, clock.now());
+      await audit.record(actor, 'catalog.mood', 'track', tr.public_id, { mood });
+      return row;
     },
 
     /** Cover for channel posts (the audio file's own thumbnail does not change). */

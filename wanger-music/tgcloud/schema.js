@@ -151,6 +151,9 @@ export const tracks = table('tracks', {
   coverSource: text('cover_source'),
   // addition: "320kbps" / "FLAC" / "AAC 256kbps" from the file's size, length and header; '' = unknown, NULL = not checked
   quality: text('quality'),
+  // addition: mood for 🎭 browsing (sad / happy / romantic / energetic / chill; checked in code: an added
+  // column can't get a table CHECK without a rebuild)
+  mood: text('mood'),
   normalizedTitle: text('normalized_title').notNull().default(''),
   normalizedArtist: text('normalized_artist').notNull().default(''),
   dupKey: text('dup_key').notNull(),
@@ -186,6 +189,9 @@ export const tracks = table('tracks', {
   // Phase 3: empty inline query → popular, then newest
   popularIdx: index('idx_tracks_popular').on(t.status, t.playCount, t.activatedAt),
   // added later: tracks whose language nobody decided (unknown, or a low-confidence script guess)
+  // 2026-11-23: 🎭 browsing by genre / mood, newest first
+  genreIdx: index('idx_tracks_genre').on(t.status, t.genre, t.activatedAt),
+  moodIdx: index('idx_tracks_mood').on(t.status, t.mood, t.activatedAt),
   undecidedIdx: index('idx_tracks_undecided_language').on(t.sourceId, t.status).where(sql`${t.languageSource} = 'heuristic' AND (${t.language} = 'unknown' OR ${t.languageConfidence} = 'low')`),
 }));
 
@@ -349,3 +355,68 @@ export const statsDaily = table('stats_daily', {
 }, (t) => ({
   pk: primaryKey({ columns: [t.date, t.metric, t.dimension] }),
 })).withoutRowid();
+
+// ---------------------------------------------------------------- listeners (owner's ideas, 2026-11-23)
+// user_id is the Telegram id everywhere here. No foreign keys: a removed track simply stops showing
+// (every read joins active tracks).
+
+/** ❤️ a listener's favourites. */
+export const favorites = table('favorites', {
+  userId: integer('user_id').notNull(),
+  trackId: integer('track_id').notNull(),
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.trackId] }),
+  byUserTime: index('idx_favorites_user_time').on(t.userId, t.createdAt),
+})).withoutRowid();
+
+/** 🔔 followed artists (artist_key = tracks.normalized_artist): a newly active track of theirs is sent to the follower. */
+export const artistFollows = table('artist_follows', {
+  artistKey: text('artist_key').notNull(),
+  userId: integer('user_id').notNull(),
+  artistName: text('artist_name').notNull(),
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.artistKey, t.userId] }),
+  byUser: index('idx_follows_user').on(t.userId, t.createdAt),
+})).withoutRowid();
+
+/** 📝 song requests: open → matched (a newly active track fits it: track_id) → done (requester told) · dropped. */
+export const songRequests = table('song_requests', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  text: text('text').notNull(),
+  key: text('key').notNull(),
+  status: text('status').notNull().default('open'),
+  trackId: integer('track_id'),
+  createdAt: integer('created_at').notNull(),
+  doneAt: integer('done_at'),
+}, (t) => ({
+  statusChk: check('song_requests_status_chk', sql`${t.status} IN ('open', 'matched', 'done', 'dropped')`),
+  byStatus: index('idx_song_requests_status').on(t.status, t.id),
+  byUser: index('idx_song_requests_user').on(t.userId, t.status),
+}));
+
+/** 🔎 searches that found nothing — the normalized text and a count, never who searched; kept 30 days. */
+export const missedSearches = table('missed_searches', {
+  key: text('key').primaryKey(),
+  text: text('text').notNull(),
+  n: integer('n').notNull().default(1),
+  firstAt: integer('first_at').notNull(),
+  lastAt: integer('last_at').notNull(),
+}, (t) => ({
+  byLast: index('idx_missed_last').on(t.lastAt),
+}));
+
+/** A newly active track's followers to tell, walked by user id (like a broadcast); one job per track. */
+export const noticeJobs = table('notice_jobs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  trackId: integer('track_id').notNull().unique(),
+  artistKey: text('artist_key').notNull(),
+  cursorUserId: integer('cursor_user_id').notNull().default(0),
+  sent: integer('sent').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+  doneAt: integer('done_at'),
+}, (t) => ({
+  openIdx: index('idx_notice_jobs_open').on(t.id).where(sql`${t.doneAt} IS NULL`),
+}));

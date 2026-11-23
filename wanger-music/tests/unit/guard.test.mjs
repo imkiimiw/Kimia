@@ -37,8 +37,8 @@ const PURE = [
 ];
 const SDK_ALLOWED = (f) => f === 'schema.js' || f.startsWith('lib/repositories/') || f === 'lib/telegram/client.js' || f.startsWith('endpoints/');
 
-test('module budget (the platform refused a 104-module deploy)', () => {
-  assert.ok(files.length <= 85, `${files.length} modules`);
+test('module budget (the platform refused a 104-module deploy; 88 and 94 deployed for another bot)', () => {
+  assert.ok(files.length <= 92, `${files.length} modules`);
 });
 
 test('pure modules import nothing from sdk, even indirectly', () => {

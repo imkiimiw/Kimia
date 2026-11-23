@@ -8,6 +8,7 @@ import { truncate } from '../core/util.js';
 import { inlineGateAnswer } from '../forcejoin/gate.js';
 import { captionValues, renderCaption } from '../publishing/captions.js';
 import { classify } from '../telegram/errors.js';
+import { sendTrackTo, menuRows } from './listener_ui.js';
 
 const PRIVATE_PAGE = 10;
 const label = (lang, tr) => truncate(`${tr.title || tp(lang, 'trk.untitled')} — ${tr.artist || '?'}`, 56);
@@ -63,7 +64,11 @@ export async function onInlineQuery(app, q) {
   // after the answer: analytics (written by the boundary at the very end) and the day's activity
   if (countsAsSearch(page, offset)) {
     app.stats.count('search.inline');
-    if (!page.tracks.length) app.stats.count('search.inline_empty');
+    if (!page.tracks.length) {
+      app.stats.count('search.inline_empty');
+      // a query per keystroke: only 4+ characters go to the owner's «searches with no result»
+      if ([...String(page.q.text || '')].length >= 4) await app.listeners.recordMissed(page.q.text);
+    }
   }
   await app.users.noteActive(user);
   return { results: page.tracks.length, offset, more: page.more };
@@ -95,11 +100,13 @@ async function results(app, text, page) {
 function resultsView(lang, res, page) {
   if (!res.q.tokens.length) return { text: t(lang, 'search.prompt'), keyboard: markup([[{ text: tp(lang, 'search.btn_inline'), switch_inline_query_current_chat: '' }]]) };
   const inline = { text: tp(lang, 'search.btn_inline'), switch_inline_query_current_chat: res.q.text };
-  if (!res.tracks.length) return { text: t(lang, page ? 'search.no_more' : 'search.none', { q: res.q.text }), keyboard: markup([[inline]]) };
+  if (!res.tracks.length && page) return { text: t(lang, 'search.no_more', { q: res.q.text }), keyboard: markup([[inline]]) };
+  // nothing at all: ask for it (the request waits until the song is added), or try something else
+  if (!res.tracks.length) return { text: t(lang, 'search.none', { q: res.q.text }), keyboard: markup([[btn(tp(lang, 'l.btn_request_this'), 'l', 'rq')], [inline], ...menuRows(lang).slice(0, 1)]) };
   const rows = res.tracks.map((tr) => [btn(`🎵 ${label(lang, tr)}`, 's', 'get', tr.public_id)]);
   rows.push([page > 0 ? btn(tp(lang, 'common.prev'), 's', 'pg', page - 1) : null, res.more ? btn(tp(lang, 'common.next'), 's', 'pg', page + 1) : null]);
   rows.push([inline]);
-  return { text: t(lang, 'search.results', { q: res.q.text, page: page + 1 }), keyboard: markup(rows) };
+  return { text: t(lang, res.fuzzy ? 'search.results_fuzzy' : 'search.results', { q: res.q.text, page: page + 1 }), keyboard: markup(rows) };
 }
 
 /** Plain text or /search <query> in private chat. */
@@ -107,7 +114,10 @@ export async function searchFromText(app, user, text) {
   const { view, res } = await results(app, text, 0);
   if (res.q.tokens.length) {
     app.stats.count('search.private');
-    if (!res.tracks.length) app.stats.count('search.private_empty');
+    if (!res.tracks.length) {
+      app.stats.count('search.private_empty');
+      await app.listeners.recordMissed(res.q.text);
+    }
   }
   return app.tg.send(user.telegram_id, view, 'search_results');
 }
@@ -119,12 +129,7 @@ export async function sendTrack(app, user, publicId) {
     await app.tg.send(user.telegram_id, { text: t(app.lang, 'start.track_gone') }, 'track_gone');
     return false;
   }
-  await app.tg.call('sendAudio', { chat_id: user.telegram_id, audio: tr.audio_file_id }, 'track');
-  const id = await app.search.addPlay(tr.public_id);
-  if (id) {
-    app.stats.count('play.private');
-    app.stats.count('track.play', id);
-  }
+  await sendTrackTo(app, user, tr); // with ❤️ 🔔 👤 💿 📤 under it; counts the play
   return true;
 }
 

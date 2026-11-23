@@ -121,6 +121,28 @@ The archive backlog (active tracks without a copy) is worked by the tick, ≤ 3 
 - **Artists** (`admin/artists_ui.js`): aliases such as "shadmehr" → «شادمهر عقیلی»; adding/removing
   one re-indexes that artist's active tracks.
 
+## Listeners (owner's ideas, 2026-11-23)
+
+`repositories/listeners.js` (SQL) · `listeners/service.js` (rules) · `bot/listener_ui.js` (screens, the
+tick processor `notices`). Tables: `favorites` (user, track), `artist_follows` (artist_key =
+`tracks.normalized_artist`, user), `song_requests` (open → matched → done / dropped), `missed_searches`
+(normalized text + count, no user id, 30 days), `notice_jobs` (one per newly active track whose artist has
+followers; a cursor over follower ids, like a broadcast). user_id is the Telegram id.
+
+- Every song the bot sends in a private chat (`sendTrackTo`) carries ❤️ / 🔔 / 👤 more from the artist /
+  💿 album / 📤 send to a friend (switch_inline_query); ❤️ and 🔔 redraw the keyboard in place.
+- `catalog.activate` → `listeners.onActivated(track)` (best effort): a notice job if the artist has
+  followers, and the newest 500 open requests checked with `requestMatches` (every request token, or two
+  neighbours joined, is one of the track's search terms as written or as its Finglish skeleton).
+- The tick processor `notices` sends matched requests, then one batch of a job's followers (≤ 25 per
+  tick, blocked/banned users skipped); every message is claimed first (status → done, cursor moved), so a
+  lost batch is never re-sent; a 429 sets the global cooldown.
+- Search: tokens also get consonant-skeleton terms (`search/terms.js#skeleton`: «شادمهر» and "shadmehr" are
+  both `~Sdmhr`); a query with no result is retried in skeleton terms (`fuzzy`). Empty private searches
+  and inline queries of 4+ characters go to `missed_searches` (after the inline answer).
+- Moods (`tracks.mood`, `MOODS`) are set on the admin track card; listeners browse 🎭 moods and genres
+  (indexes `idx_tracks_mood`, `idx_tracks_genre`); 🎲 picks one of the 100 most played.
+
 ## Source channels (Phase 4)
 
 `handlers/channel_post` → `publishing/sources.handlePost`: a post counts only if its channel is a

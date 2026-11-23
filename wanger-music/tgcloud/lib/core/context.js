@@ -35,11 +35,13 @@ import { createCatalogProvider } from '../music/providers/catalog.js';
 import { key } from '../music/normalize.js';
 import { createStatsRepo } from '../repositories/stats.js';
 import { createStatsService } from '../stats/service.js';
+import { createListenersRepo } from '../repositories/listeners.js';
+import { createListenersService } from '../listeners/service.js';
 import { createBackupRepo, BACKUP_TABLES } from '../repositories/backup.js';
 import { createBackupService } from '../backup/service.js';
 
 /** Bumped when bootstrap() learns something new to set up. */
-const BOOTSTRAP_VERSION = 2;
+const BOOTSTRAP_VERSION = 3;
 
 /** Wall clock. Date.now() advances across awaits on this platform (not during pure CPU work). */
 export const systemClock = Object.freeze({ now: () => Math.floor(Date.now() / 1000), ms: () => Date.now() });
@@ -63,6 +65,7 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
     publications: createPublicationsRepo(),
     stats: createStatsRepo(),
     backup: createBackupRepo(),
+    listeners: createListenersRepo(),
   };
   /** @type {any} */
   const app = { kind, updateId, clock, log, repos, lang: 'fa', user: null };
@@ -89,7 +92,9 @@ export async function createApp({ kind, updateId = null, clock = systemClock }) 
     repo: repos.tracks, tg: app.tg, settings: app.settings, audit: app.audit, alerts: app.alerts, clock, log,
     index: { add: (t) => app.search.indexTrack(t), remove: (id) => app.search.unindex(id) },
     publishing: { routeTrack: (t) => app.publisher.routeTrack(t), cancelForTrack: (id) => app.publisher.cancelForTrack(id), deleteForTrack: (id) => app.publisher.deleteForTrack(id), reroute: (t) => app.publisher.reroute(t) },
+    listeners: { onActivated: (t) => app.listeners.onActivated(t) },
   });
+  app.listeners = createListenersService({ repo: repos.listeners, settings: app.settings, clock, log });
   app.ingest = createIngestService({ repo: repos.tracks, catalog: app.catalog, audit: app.audit, clock, log });
   app.provider = createCatalogProvider({ repo: repos.tracks, key });
   app.destinations = createDestinationsService({ repo: repos.destinations, tg: app.tg, settings: app.settings, alerts: app.alerts, audit: app.audit, clock, log, onRemoved: (id) => app.publisher.cancelForChannel(id) });
@@ -109,6 +114,7 @@ async function bootstrap(app) {
   await app.settings.ensure('tick.last_at', 0);
   await app.forcejoin.seedIfNeeded();
   if (from < 2) await app.search.requestRebuild(); // Phase 3: index tracks activated before search existed
+  else if (from < 3) await app.search.requestRebuild(); // 2026-11-23: Finglish skeleton terms for every active track
   await app.settings.setInternal('system.bootstrapped', BOOTSTRAP_VERSION);
   app.log.info('bootstrapped');
 }

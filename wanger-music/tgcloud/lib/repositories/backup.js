@@ -7,7 +7,7 @@ import { sql } from 'sdk/db';
 /**
  * The core tables, in restore order (parents before children, though there are no foreign keys).
  * Not backed up: track_terms (rebuilt from tracks), processed_updates, error_log, alerts,
- * user_flows, import_sessions (short-lived operational state).
+ * user_flows, import_sessions, missed_searches, notice_jobs (short-lived operational state).
  * @type {Readonly<Record<string, {key: string[], columns: string[]}>>}
  */
 export const BACKUP_TABLES = Object.freeze({
@@ -17,12 +17,15 @@ export const BACKUP_TABLES = Object.freeze({
   artists: { key: ['id'], columns: ['id', 'name', 'normalized_name', 'language', 'created_at'] },
   artist_aliases: { key: ['alias_normalized'], columns: ['alias_normalized', 'artist_id'] },
   sources: { key: ['id'], columns: ['id', 'source_type', 'chat_id', 'username', 'title', 'default_language', 'enabled', 'auto_import', 'last_post_at', 'imported_count', 'created_at', 'updated_at', 'chat_type'] },
-  tracks: { key: ['id'], columns: ['id', 'public_id', 'title', 'artist', 'featured_artists', 'album', 'version', 'duration', 'genre', 'language', 'language_confidence', 'language_source', 'audio_file_id', 'audio_file_unique_id', 'mime_type', 'file_size', 'file_name', 'cover_file_id', 'cover_source', 'quality', 'normalized_title', 'normalized_artist', 'dup_key', 'duplicate_of', 'source_type', 'source_id', 'origin_chat_id', 'origin_message_id', 'status', 'added_by', 'play_count', 'archive_chat_id', 'archive_message_id', 'created_at', 'updated_at', 'activated_at'] },
+  tracks: { key: ['id'], columns: ['id', 'public_id', 'title', 'artist', 'featured_artists', 'album', 'version', 'duration', 'genre', 'language', 'language_confidence', 'language_source', 'audio_file_id', 'audio_file_unique_id', 'mime_type', 'file_size', 'file_name', 'cover_file_id', 'cover_source', 'quality', 'mood', 'normalized_title', 'normalized_artist', 'dup_key', 'duplicate_of', 'source_type', 'source_id', 'origin_chat_id', 'origin_message_id', 'status', 'added_by', 'play_count', 'archive_chat_id', 'archive_message_id', 'created_at', 'updated_at', 'activated_at'] },
   destination_channels: { key: ['id'], columns: ['id', 'chat_id', 'username', 'title', 'enabled', 'auto_publish', 'approval_required', 'rules', 'caption_template', 'post_format', 'min_interval_seconds', 'active_hours', 'daily_limit', 'time_zone', 'bot_rights_ok', 'bot_rights', 'removed_at', 'publishing_since', 'last_published_at', 'created_at', 'updated_at', 'signature', 'post_buttons', 'promo_text', 'promo_every', 'posts_since_promo'] },
   publications: { key: ['id'], columns: ['id', 'track_id', 'channel_id', 'status', 'attempt_count', 'last_error', 'next_attempt_at', 'locked_until', 'telegram_message_id', 'cover_message_id', 'deleted_at', 'decided_by', 'decided_at', 'published_at', 'created_at', 'updated_at'] },
   broadcasts: { key: ['id'], columns: ['id', 'created_by', 'source_chat_id', 'source_message_id', 'status', 'cursor_user_id', 'total', 'sent', 'failed', 'blocked', 'created_at', 'started_at', 'finished_at', 'progress_chat_id', 'progress_message_id', 'lock_until'] },
   stats_daily: { key: ['date', 'metric', 'dimension'], columns: ['date', 'metric', 'dimension', 'value'] },
   audit_log: { key: ['id'], columns: ['id', 'actor_id', 'action', 'target_type', 'target_id', 'details', 'created_at'] },
+  favorites: { key: ['user_id', 'track_id'], columns: ['user_id', 'track_id', 'created_at'] },
+  artist_follows: { key: ['artist_key', 'user_id'], columns: ['artist_key', 'user_id', 'artist_name', 'created_at'] },
+  song_requests: { key: ['id'], columns: ['id', 'user_id', 'text', 'key', 'status', 'track_id', 'created_at', 'done_at'] },
 });
 
 /** @param {any[]} parts @param {any} sep */

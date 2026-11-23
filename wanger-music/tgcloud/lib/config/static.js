@@ -66,6 +66,16 @@ export const LIMITS = Object.freeze({
   // a channel's promo / ad line (plain text) and the local hour from which the daily report may go out
   promoMax: 200,
   reportHour: 9,
+  // listener features (2026-11-23)
+  favoritesMax: 300,
+  followsMax: 100,
+  requestsOpenMax: 5,
+  requestsScan: 500,
+  listenerPage: 10,
+  listenerAdminList: 30,
+  albumMax: 30,
+  albumSendMax: 5, // songs per «📥» press: a private chat takes about one message a second
+  noticeBatch: 25,
 });
 
 /**
@@ -103,6 +113,8 @@ export const SETTINGS = Object.freeze({
   'backup.weekly': { type: 'bool', default: false },
   // a short report of yesterday to the owner, once a day (from the first tick after reportHour)
   'report.daily': { type: 'bool', default: true },
+  // a followed artist's new song and an arrived request are sent to the listener (tick processor `notices`)
+  'listeners.notices': { type: 'bool', default: true },
   // internal state (not editable)
   'system.bootstrapped': { type: 'int', default: 0, internal: true },
   'forcejoin.seeded': { type: 'int', default: 0, internal: true },
@@ -160,6 +172,8 @@ export const SUGGESTED_DESTINATIONS = Object.freeze([
 ]);
 
 /** Genre keys (shown through i18n `genre.<key>`); channel rules in Phase 5 use the same keys. */
+/** 🎭 moods listeners browse by (set on the track card). */
+export const MOODS = Object.freeze(['sad', 'happy', 'romantic', 'energetic', 'chill']);
 export const GENRES = Object.freeze(['pop', 'rock', 'rap', 'electronic', 'rnb', 'jazz', 'classical', 'traditional', 'folk', 'instrumental', 'soundtrack', 'other']);
 
 /** Track languages and the confidence order (higher index = more confident). */

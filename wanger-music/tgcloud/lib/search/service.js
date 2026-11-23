@@ -3,7 +3,7 @@
 import { assertCan } from '../permissions/policy.js';
 import { UserError } from '../core/util.js';
 import { key } from '../music/normalize.js';
-import { termsForTrack, parseQuery, artistKeys } from './terms.js';
+import { termsForTrack, parseQuery, artistKeys, skeletonQuery } from './terms.js';
 
 const REBUILD_BATCH = 20;
 const ARTIST_REINDEX_MAX = 50;
@@ -38,13 +38,20 @@ export function createSearchService({ repo, settings, audit, clock, log }) {
 
     /**
      * @param {any} raw query text @param {{limit: number, offset?: number}} page
-     * @returns {Promise<{q: {text: string, tokens: string[], full: string}, tracks: any[], more: boolean, offset: number}>}
+     * Nothing as written → the same query as Finglish skeletons ("shadmehr" finds «شادمهر»; `fuzzy`).
+     * @returns {Promise<{q: {text: string, tokens: string[], full: string}, tracks: any[], more: boolean, offset: number, fuzzy: boolean}>}
      */
     async query(raw, { limit, offset = 0 }) {
       const q = parseQuery(raw);
       const off = Math.min(Math.max(0, offset | 0), OFFSET_MAX);
-      const rows = q.tokens.length ? await repo.search(q.tokens, q.full, limit + 1, off) : await repo.popular(limit + 1, off);
-      return { q, tracks: rows.slice(0, limit), more: rows.length > limit && off + limit < OFFSET_MAX, offset: off };
+      let rows = q.tokens.length ? await repo.search(q.tokens, q.full, limit + 1, off) : await repo.popular(limit + 1, off);
+      let fuzzy = false;
+      const sk = !rows.length ? skeletonQuery(q) : null;
+      if (sk) {
+        rows = await repo.search(sk.tokens, sk.full, limit + 1, off);
+        fuzzy = rows.length > 0;
+      }
+      return { q, tracks: rows.slice(0, limit), more: rows.length > limit && off + limit < OFFSET_MAX, offset: off, fuzzy };
     },
 
     addPlay: (publicId) => repo.addPlay(publicId),

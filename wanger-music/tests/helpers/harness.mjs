@@ -67,7 +67,7 @@ export function setup({ seedChannels = true, botAdminIn = SEED, autoSend = true,
     /** Presses a button: data, and the message it sits on. */
     async press(fromId, data, messageId = null, chat = { id: fromId, type: 'private' }) {
       const stored = messageId ? tg.message(chat.id, messageId) : null;
-      const cq = { id: `cq${updateId}`, from: person(fromId), chat_instance: 'x', data, ...(messageId ? { message: { message_id: messageId, chat, date: 0, ...(stored && stored.text ? { text: stored.text.replace(/<[^>]+>/g, '') } : {}) } } : {}) };
+      const cq = { id: `cq${updateId}`, from: person(fromId), chat_instance: 'x', data, ...(messageId ? { message: { message_id: messageId, chat, date: 0, ...(stored && stored.text ? { text: stored.text.replace(/<[^>]+>/g, '') } : {}), ...(stored && stored.audio ? { audio: stored.audio } : {}) } } : {}) };
       const update_id = updateId++;
       return callbackHandler(cq, { update: { update_id, callback_query: cq } });
     },
