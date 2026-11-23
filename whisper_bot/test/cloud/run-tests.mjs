@@ -789,16 +789,20 @@ async function main() {
       const w = devtools({ op: 'wake_now' });
       expect(w.woke === true, `wakeSoon: ${JSON.stringify(w)}`);
       expect(w.calls.map((c) => c.join(' ')).join(', ') === 'sendPoll ok, stopPoll ok, deleteMessage ok', `calls ${JSON.stringify(w.calls)}`);
-      const pollId = String(w.pending || '').split('@')[0];
-      expect(pollId, `pending ${w.pending}`);
-      if (LOCAL) ok(tgcloudRun('handlers/poll', { id: pollId, is_closed: true }, { update: { update_id: updateId(), poll: { id: pollId, is_closed: true } } })); // what Telegram does
+      // On the platform the wake can be handled before this call even returns (the marker is gone by
+      // then); the local stand-in has no Telegram, so the runner delivers the update itself.
+      if (LOCAL) {
+        const pollId = String(w.pending || '').split('@')[0];
+        expect(pollId, `pending ${w.pending}`);
+        ok(tgcloudRun('handlers/poll', { id: pollId, is_closed: true }, { update: { update_id: updateId(), poll: { id: pollId, is_closed: true } } }));
+      }
       let after = before;
       for (let i = 0; i < 10 && after <= before; i += 1) { // the update arrives within a second or two
         pause(2000);
         after = devtools({ op: 'wake_last' });
       }
       expect(after > before, `no wake-up arrived (wake_last ${before} → ${after})`);
-      return { detail: `poll ${pollId} sent, stopped and deleted in the owner's chat; the bot ran again${before ? ` (${after - before}s after the previous wake)` : ''}` };
+      return { detail: `a silent poll sent, stopped and deleted in the owner's chat; Telegram ran the bot again (wake_last ${before} → ${after})` };
     });
 
     await scenario('15. lazy cleanup: an unsent draft older than 24h is deleted on a later update', () => {
