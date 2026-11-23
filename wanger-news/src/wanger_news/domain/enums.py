@@ -84,6 +84,7 @@ class PostStatus(StrEnum):
 class ChannelRole(StrEnum):
     TEST = "test"
     MAIN = "main"
+    EDITION = "edition"  # Phase 6: an extra channel with its own selection/language
 
 
 class JobStatus(StrEnum):

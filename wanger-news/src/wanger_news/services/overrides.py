@@ -18,7 +18,7 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from wanger_news.config.models import AppConfig, SourceConfig, SourcesFile
+from wanger_news.config.models import AppConfig, EditionConfig, SourceConfig, SourcesFile
 from wanger_news.db.repositories import Repositories
 from wanger_news.domain.chatref import ChatRef, ChatRefError
 from wanger_news.domain.enums import Transport
@@ -29,6 +29,7 @@ CHANNELS_KEY = "panel.channels"
 SOURCES_KEY = "panel.sources"
 RULES_KEY = "panel.rules"
 RELIABILITY_KEY = "panel.reliability"  # source id → score the owner applied (Phase 5)
+EDITIONS_KEY = "panel.editions"  # Phase 6: edition channels added or changed in the panel
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,11 +51,17 @@ class Overrides:
     active: dict[str, bool] = field(default_factory=dict)  # RSS source id → on/off
     rules: dict[str, bool] = field(default_factory=dict)  # editorial rule id → on/off
     scores: dict[str, int] = field(default_factory=dict)  # source id → applied reliability
+    editions: list[dict[str, Any]] = field(default_factory=list)  # Phase 6 edition channels
 
     # ---------------------------------------------------------------- storage
     @classmethod
     def from_settings(
-        cls, channels: Any, sources: Any, rules: Any = None, scores: Any = None
+        cls,
+        channels: Any,
+        sources: Any,
+        rules: Any = None,
+        scores: Any = None,
+        editions: Any = None,
     ) -> Overrides:
         ch = channels if isinstance(channels, dict) else {}
 
@@ -73,6 +80,9 @@ class Overrides:
             else {},
             rules={str(k): bool(v) for k, v in rules.items()} if isinstance(rules, dict) else {},
             scores={str(k): int(v) for k, v in scores.items()} if isinstance(scores, dict) else {},
+            editions=[dict(e) for e in editions if isinstance(e, dict)]
+            if isinstance(editions, list)
+            else [],
         )
 
     def channels_value(self) -> dict[str, Any]:
@@ -93,12 +103,14 @@ class Overrides:
             await repos.settings.get(SOURCES_KEY),
             await repos.settings.get(RULES_KEY),
             await repos.settings.get(RELIABILITY_KEY),
+            await repos.settings.get(EDITIONS_KEY),
         )
 
     async def save(self, repos: Repositories, now: Any) -> None:
         await repos.settings.set(CHANNELS_KEY, self.channels_value(), now)
         await repos.settings.set(SOURCES_KEY, dict(sorted(self.active.items())), now)
         await repos.settings.set(RULES_KEY, dict(sorted(self.rules.items())), now)
+        await repos.settings.set(EDITIONS_KEY, self.editions, now)
 
 
 async def load(engine: AsyncEngine) -> Overrides:
@@ -172,12 +184,46 @@ def apply(config: AppConfig, ov: Overrides) -> AppConfig:
         r.model_copy(update={"enabled": ov.rules[r.id]}) if r.id in ov.rules else r
         for r in config.rules.rules
     ]
+    pipeline = config.pipeline.model_copy(
+        update={
+            "editions": config.pipeline.editions.model_copy(
+                update={"editions": _editions(config, ov)}
+            )
+        }
+    )
     return config.model_copy(
         update={
             "sources": SourcesFile(sources=sources),
             "rules": config.rules.model_copy(update={"rules": rules}),
+            "pipeline": pipeline,
         }
     )
+
+
+def _editions(config: AppConfig, ov: Overrides) -> list[EditionConfig]:
+    """The config file's editions, then the panel's (same id: the panel's version wins).
+    An entry that no longer validates (e.g. a category removed from the files) is left out."""
+    known = {c.id for c in config.categories.categories}
+    out = {e.id: e for e in config.pipeline.editions.editions}
+    for raw in ov.editions:
+        try:
+            edition = EditionConfig.model_validate(raw)
+        except ValueError:
+            log.warning("panel_edition_invalid", extra={"edition": str(raw.get("id"))[:40]})
+            continue
+        if set(edition.categories) - known:
+            edition = edition.model_copy(
+                update={"categories": [c for c in edition.categories if c in known]}
+            )
+        out[edition.id] = edition
+    return list(out.values())
+
+
+def edition_id(chat: ChatRef) -> str:
+    """A stable edition id for a channel added in the panel."""
+    if chat.username:
+        return ("ed-" + chat.username.lower().replace("_", "-"))[:32].rstrip("-")
+    return f"ed-{abs(chat.chat_id or 0)}"[:32]
 
 
 def channels(

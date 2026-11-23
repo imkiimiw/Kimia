@@ -10,12 +10,13 @@ import httpx
 from wanger_news.adapters.http.fetcher import SafeFetcher
 from wanger_news.adapters.http.robots import RobotsChecker
 from wanger_news.adapters.http.ssrf import SystemResolver, UrlGuard
+from wanger_news.adapters.mother import HttpMotherBot, MotherBotError
 from wanger_news.adapters.telegram.client import TelegramClient
 from wanger_news.ai.gemini import GeminiProvider
 from wanger_news.ai.prompts import PromptLibrary
 from wanger_news.config.models import AppConfig
 from wanger_news.db.engine import MEMORY_URL, create_all, create_engine
-from wanger_news.ports import SystemClock
+from wanger_news.ports import MotherBot, NullMotherBot, SystemClock
 from wanger_news.services import overrides
 from wanger_news.services.inbox import chat_refs
 from wanger_news.services.overrides import Overrides
@@ -70,6 +71,7 @@ async def build(
         feed_client(config) as feeds,
         telegram_client(config) as tg_http,
         httpx.AsyncClient(timeout=config.pipeline.ai.timeout_seconds) as ai_http,
+        httpx.AsyncClient(timeout=config.pipeline.mother_bot.timeout_seconds) as mother_http,
     ):
         ai = None
         if settings.gemini_api_key is not None and config.pipeline.ai.enabled:
@@ -89,6 +91,22 @@ async def build(
                 base_url=settings.telegram_api_base,
                 rate_limit_max_wait=config.pipeline.telegram.rate_limit_max_wait_seconds,
             )
+        mother: MotherBot = NullMotherBot()
+        if (
+            settings.mother_url.strip()
+            and settings.mother_secret is not None
+            and config.pipeline.mother_bot.enabled
+            and not dry_run
+        ):
+            try:
+                mother = HttpMotherBot(
+                    settings.mother_url,
+                    settings.mother_secret,
+                    mother_http,
+                    config.pipeline.mother_bot,
+                )
+            except MotherBotError as exc:
+                out(f"⚠ mother bot not connected: {exc}\n")
         try:
             yield Deps(
                 config=config,
@@ -106,6 +124,7 @@ async def build(
                 admin_ids=settings.admin_id_set,
                 out=out,
                 base_config=base_config,
+                mother=mother,
             )
         finally:
             await engine.dispose()

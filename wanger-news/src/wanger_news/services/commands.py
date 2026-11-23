@@ -17,7 +17,7 @@ from wanger_news.domain.enums import ArticleStatus, PublishMode, ReviewAction
 from wanger_news.domain.jalali import format_tehran, format_time_fa
 from wanger_news.domain.text import to_ascii_digits, to_persian_digits
 from wanger_news.formatting.telegram_html import bold, esc, split_html
-from wanger_news.formatting.templates_fa import reason_fa, render_story_timeline
+from wanger_news.formatting.templates_fa import reason_fa, render_search, render_story_timeline
 from wanger_news.services.ai_stage import DAILY_QUOTA_KEY, MODES_KEY, daily_quota, modes_from
 from wanger_news.services.brief import BriefService
 from wanger_news.services.context import RunContext
@@ -72,6 +72,8 @@ class CommandService:
         self.corrections: Any = None  # CorrectionService (Phase 5)
         self.analytics: Any = None  # AnalyticsService (Phase 5)
         self.reliability: Any = None  # ReliabilityService (Phase 5)
+        self.search: Any = None  # SearchService (Phase 6)
+        self.weekly: Any = None  # WeeklyService (Phase 6)
 
     async def handle(self, repos: Repositories, ctx: RunContext, message: Message) -> str:
         sender = message.from_user.id if message.from_user else None
@@ -84,7 +86,7 @@ class CommandService:
         owner = sender == ctx.owner_id
         if self.panel is not None and owner and name in ("panel", "start"):
             return str(await self.panel.open(repos, ctx, message.chat.id))
-        if name in ("panel", "channel") and not owner:
+        if name in ("panel", "channel", "edition") and not owner:
             await self._reply(ctx, message.chat.id, "این بخش فقط برای مالک ربات است.")
             return f"command:{name}:not_owner"
         simple = {
@@ -100,6 +102,7 @@ class CommandService:
             "pending": self._pending,
             "trends": self._trends_now,
             "brief": self._brief_preview,
+            "weekly": self._weekly_preview,
         }
         decisions = {
             "approve": ReviewAction.APPROVE,
@@ -124,6 +127,10 @@ class CommandService:
             text = esc(await self.corrections.from_admin(repos, ctx, args, sender))
         elif name == "channel" and self.panel is not None:
             text = str(await self.panel.channel_command(repos, ctx, args))
+        elif name == "search":
+            text = await self._search(repos, ctx, args)
+        elif name == "edition" and self.panel is not None:
+            text = str(await self.panel.edition_command(repos, ctx, args))
         elif name == "quota":
             text = await self._quota(repos, ctx, args, owner=owner)
         elif name in LATER_PHASE:
@@ -174,6 +181,9 @@ class CommandService:
                 "/brief — پیش‌نمایش خلاصهٔ روز (چیزی منتشر نمی‌شود)",
                 "/correct 12 | مورد | مقدار اشتباه | مقدار درست | منبع — اصلاحیه برای خبر #۱۲",
                 "/report 7 — آمار و هزینهٔ ۷ روز اخیر",
+                "/search کلمه — جستجو در خبرهای منتشرشده (متنی و معنایی)",
+                "/weekly — پیش‌نمایش گزارش هفتگی (چیزی منتشر نمی‌شود)",
+                "/edition — نسخه‌ها: کانال‌های شخصی‌سازی‌شده و انگلیسی (فقط مالک)",
                 "/quota — سهمیهٔ روزانهٔ هوش مصنوعی؛ /quota 1000 (فقط مالک) عددِ AI Studio را می‌گذارد",
                 "",
                 "کارت‌های بررسی دکمه دارند: ✅ تأیید · 📤 انتشار فوری · ✏️ ویرایش · ❌ رد.",
@@ -466,6 +476,34 @@ class CommandService:
         return render_story_timeline(title, rows) + summary_line
 
     # ---------------------------------------------------------------- for the panel
+    async def _weekly_preview(self, repos: Repositories, ctx: RunContext) -> str:
+        if self.weekly is None or ctx.target is None:
+            return "گزارش هفتگی فعال نیست یا کانال مقصد تنظیم نشده."
+        cfg = self._cfg.pipeline.weekly_report
+        composed = await self.weekly.compose(repos, ctx)
+        days = ["دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه", "یکشنبه"]
+        when = f"{days[cfg.weekday]} ساعت {to_persian_digits(cfg.local_time)}"
+        if composed is None:
+            return (
+                "هنوز خبر کافی برای گزارش هفتگی منتشر نشده "
+                f"(حداقل {to_persian_digits(str(cfg.min_stories))} خبر). "
+                f"گزارش هر هفته {when} فرستاده می‌شود."
+            )
+        return f"{composed[0]}\n\n<i>پیش‌نمایش — گزارش واقعی {esc(when)} فرستاده می‌شود.</i>"
+
+    async def _search(self, repos: Repositories, ctx: RunContext, args: str) -> str:
+        if self.search is None:
+            return "جستجو فعال نیست."
+        if not args.strip():
+            return "بعد از /search چیزی بنویسید، مثلاً: /search بانک مرکزی"
+        chats = [str(c.api_value).lower() for c in ctx.channels.values() if c is not None]
+        if ctx.target is not None and ctx.target.key not in chats:
+            chats.append(ctx.target.key)
+        result = await self.search.search(
+            repos, ctx.now(), args, chats=chats or None, run_id=ctx.run_id
+        )
+        return render_search(result, self._cfg.pipeline.timezone, ctx.now())
+
     async def status_text(self, repos: Repositories, ctx: RunContext) -> str:
         return await self._status(repos, ctx)
 
@@ -477,3 +515,6 @@ class CommandService:
 
     async def brief_text(self, repos: Repositories, ctx: RunContext) -> str:
         return await self._brief_preview(repos, ctx)
+
+    async def weekly_text(self, repos: Repositories, ctx: RunContext) -> str:
+        return await self._weekly_preview(repos, ctx)

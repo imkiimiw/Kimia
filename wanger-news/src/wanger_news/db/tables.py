@@ -147,7 +147,13 @@ class PublishedPost(Base):
     """One row per (article, channel). The unique idempotency key makes a double post impossible."""
 
     __tablename__ = "published_posts"
-    __table_args__ = (sa.Index("ix_published_posts_status_claimed_at", "status", "claimed_at"),)
+    __table_args__ = (
+        sa.Index("ix_published_posts_status_claimed_at", "status", "claimed_at"),
+        # Phase 6: the feed / search / weekly report (sent posts of one channel by time) and
+        # an edition's reply target (a story's first post in a channel)
+        sa.Index("ix_published_posts_chat_status_sent_at", "chat_id", "status", "sent_at"),
+        sa.Index("ix_published_posts_cluster_chat", "cluster_id", "chat_id"),
+    )
     id: Mapped[int] = mapped_column(BigId, primary_key=True, autoincrement=True)
     idempotency_key: Mapped[str] = mapped_column(sa.String(200), unique=True)
     # None for posts that belong to no article (Phase 4: daily brief, trend alert)
@@ -323,6 +329,7 @@ class StoryCluster(Base):
     """One event (spec §7). Lives on after publication so later reports become update posts."""
 
     __tablename__ = "story_clusters"
+    __table_args__ = (sa.Index("ix_story_clusters_published_at", "published_at"),)  # Phase 6
     id: Mapped[int] = mapped_column(BigId, primary_key=True, autoincrement=True)
     event_id: Mapped[str] = mapped_column(sa.String(32), unique=True)
     lead_article_id: Mapped[int | None] = mapped_column(sa.BigInteger)

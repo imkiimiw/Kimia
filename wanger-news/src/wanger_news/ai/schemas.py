@@ -67,6 +67,14 @@ class TranslateOutput(_Model):
     text: str
 
 
+class LocalizeOutput(_Model):
+    """Phase 6: one verified summary in another language (an edition channel's language)."""
+
+    title: str
+    summary: str
+    key_points: list[str] = []
+
+
 class ClassifiedArticle(_Model):
     id: str
     category: str

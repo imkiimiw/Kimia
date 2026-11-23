@@ -184,6 +184,8 @@ class InboxService:
         chat = message.chat
         if self._is_target(ctx, chat.id, chat.username):
             return "ignored:target_edit"
+        if self._is_edition(ctx, chat.id, chat.username):
+            return "ignored:edition_channel"
         source = self._source_for(chat.id, chat.username)
         if source is None:
             return "ignored:unknown_channel"
@@ -221,6 +223,10 @@ class InboxService:
     def _is_target(self, ctx: RunContext, chat_id: int, username: str | None) -> bool:
         return any(ref.matches(chat_id, username) for ref in ctx.observed_chats)
 
+    @staticmethod
+    def _is_edition(ctx: RunContext, chat_id: int, username: str | None) -> bool:
+        return any(ref.matches(chat_id, username) for ref in ctx.edition_chats)
+
     async def _channel_post(
         self, repos: Repositories, ctx: RunContext, messages: list[Message]
     ) -> str:
@@ -229,6 +235,8 @@ class InboxService:
             if not self._cfg.pipeline.telegram.observe_target_channels:
                 return "ignored:target_channel"
             return await self._observe_target_post(repos, ctx, messages)
+        if self._is_edition(ctx, chat.id, chat.username):  # an edition is never a source
+            return "ignored:edition_channel"
         source = self._source_for(chat.id, chat.username)
         if source is not None:
             return await self._source_post(repos, ctx, source, messages)

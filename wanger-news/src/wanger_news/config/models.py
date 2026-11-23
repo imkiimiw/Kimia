@@ -467,6 +467,105 @@ class ReliabilityConfig(StrictModel):
     target_approval: float = Field(default=0.75, ge=0, le=1)
 
 
+# ------------------------------------------------------------------------------ Phase 6
+
+
+class WeeklyReportConfig(StrictModel):
+    """Phase 6: once a week, an intelligence report of what was already published — counts,
+    top and developing stories, trends, sources. No new AI text (like the daily brief)."""
+
+    enabled: bool = True
+    weekday: int = Field(default=4, ge=0, le=6)  # Monday = 0 … Friday = 4 (pipeline.timezone)
+    local_time: str = Field(default="20:00", pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
+    max_late_hours: float = Field(default=12, gt=0)
+    window_days: float = Field(default=7, gt=0)
+    min_stories: int = Field(default=5, ge=1)
+    top_stories: int = Field(default=7, ge=1, le=15)
+    developing: int = Field(default=3, ge=0, le=10)  # stories with the most update posts
+    trends: int = Field(default=5, ge=0, le=10)
+    sources: int = Field(default=5, ge=0, le=15)
+    destination: Literal["channel", "admins"] = "channel"
+
+
+class SearchConfig(StrictModel):
+    """Phase 6: search over what was published — text first, then by meaning (embeddings)."""
+
+    enabled: bool = True
+    window_days: float = Field(default=90, gt=0)
+    max_results: int = Field(default=8, ge=1, le=50)
+    min_query_chars: int = Field(default=2, ge=1)
+    max_query_chars: int = Field(default=200, ge=10, le=1000)
+    max_terms: int = Field(default=6, ge=1, le=20)
+    semantic: bool = True  # one embedding call per search (embedding quota, not the daily one)
+    semantic_candidates: int = Field(default=2000, ge=10, le=20000)
+    min_similarity: float = Field(default=0.62, ge=0, le=1)
+
+
+class EditionConfig(StrictModel):
+    """One extra channel with its own selection and language (personalization)."""
+
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,31}$")
+    chat: str
+    title: str = ""
+    language: Literal["fa", "en"] = "fa"
+    categories: list[str] = []  # empty = every category
+    min_importance: int = Field(default=0, ge=0, le=100)
+    breaking_only: bool = False
+    include_updates: bool = True
+    include_source_posts: bool = False
+    active: bool = True
+
+    @field_validator("chat")
+    @classmethod
+    def _chat(cls, value: str) -> str:
+        try:
+            ChatRef.parse(value)
+        except ChatRefError as exc:
+            raise ValueError(str(exc)) from None
+        return value
+
+    @property
+    def chat_ref(self) -> ChatRef:
+        return ChatRef.parse(self.chat)
+
+
+class EditionsConfig(StrictModel):
+    """Phase 6: editions get a filtered (and, for ``en``, translated) copy of what reached the
+    main channel. Only what already passed every check there; nothing new is decided here."""
+
+    enabled: bool = True
+    follow: Literal["main", "any"] = "main"  # "any" also copies from the test channel
+    window_hours: float = Field(default=12, gt=0)
+    max_posts_per_run: int = Field(default=10, ge=0, le=100)  # per edition
+    max_translations_per_run: int = Field(default=6, ge=0, le=50)
+    editions: list[EditionConfig] = []
+
+
+class MotherBotConfig(StrictModel):
+    """Phase 6: signed reports to the owner's mother bot (WANGER_NEWS_MOTHER_URL / _SECRET)."""
+
+    enabled: bool = True
+    timeout_seconds: float = Field(default=10, gt=0, le=60)
+    events: list[Literal["run", "published", "review", "error", "weekly"]] = [
+        "run",
+        "published",
+        "review",
+        "error",
+        "weekly",
+    ]
+
+
+class PublicApiConfig(StrictModel):
+    """Phase 6: the read-only mobile/public API (/api/v1) and the web dashboard (option B)."""
+
+    feed_channel: Literal["main", "test"] = "main"
+    page_size: int = Field(default=20, ge=1, le=50)
+    max_page_size: int = Field(default=50, ge=1, le=100)
+    requests_per_minute: int = Field(default=120, ge=1)  # per client address
+    cors_origins: list[str] = []
+    dashboard: bool = True
+
+
 class ScoringConfig(StrictModel):
     """Explainable importance and confidence (spec §8). Weights are relative."""
 
@@ -530,6 +629,11 @@ class PipelineConfig(StrictModel):
     daily_brief: DailyBriefConfig = DailyBriefConfig()
     costs: CostsConfig = CostsConfig()
     reliability: ReliabilityConfig = ReliabilityConfig()
+    weekly_report: WeeklyReportConfig = WeeklyReportConfig()
+    search: SearchConfig = SearchConfig()
+    editions: EditionsConfig = EditionsConfig()
+    mother_bot: MotherBotConfig = MotherBotConfig()
+    public_api: PublicApiConfig = PublicApiConfig()
 
 
 # --------------------------------------------------------------------------------------------
@@ -673,6 +777,10 @@ class AppConfig(StrictModel):
         unknown_modes = set(self.editorial.publish_modes.categories) - known
         if unknown_modes:
             raise ValueError(f"editorial: unknown categories {sorted(unknown_modes)}")
+        for edition in self.pipeline.editions.editions:
+            unknown = set(edition.categories) - known
+            if unknown:
+                raise ValueError(f"edition {edition.id}: unknown categories {sorted(unknown)}")
         topics = {t.id for t in self.categories.sensitive_topics}
         sources = {s.id for s in self.sources.sources}
         for rule in self.rules.rules:

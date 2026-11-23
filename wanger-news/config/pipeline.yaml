@@ -273,3 +273,43 @@ reliability:
   max_step: 10                    # at most ±10 per suggestion
   target_approval: 0.75           # admins approving 75 % of a source's items = neutral
 
+# ---------------------------------------------------------------- Phase 6: expansion
+weekly_report:                    # no new AI text: only what was already published
+  enabled: true
+  weekday: 4                      # Monday = 0 … Friday = 4 (pipeline.timezone, Tehran)
+  local_time: "20:00"
+  max_late_hours: 12
+  window_days: 7
+  min_stories: 5
+  top_stories: 7
+  developing: 3
+  trends: 5
+  sources: 5
+  destination: channel            # or "admins"
+
+search:                           # /search, /api/search, /api/v1/search
+  enabled: true
+  window_days: 90
+  max_results: 8
+  semantic: true                  # by meaning: one embedding call per search
+  min_similarity: 0.62
+
+editions:                         # personalization: extra channels, managed in /panel → editions
+  enabled: true
+  follow: main                    # editions copy only what reached the MAIN channel
+  window_hours: 12
+  max_posts_per_run: 10           # per edition
+  max_translations_per_run: 6     # English editions: AI calls, inside the daily quota pacing
+  editions: []                    # e.g. {id: en, chat: "@my_en", language: en, min_importance: 60}
+
+mother_bot:                       # active only with WANGER_NEWS_MOTHER_URL and _SECRET
+  enabled: true
+  timeout_seconds: 10
+  events: [run, published, review, error, weekly]
+
+public_api:                       # option B: /api/v1 (mobile) and /dashboard
+  feed_channel: main
+  page_size: 20
+  requests_per_minute: 120
+  cors_origins: []                # e.g. ["https://my-app.example"]
+  dashboard: true

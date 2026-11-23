@@ -16,10 +16,11 @@ from typing import Any
 
 from wanger_news.adapters.telegram.client import TelegramError, TelegramNotSent
 from wanger_news.adapters.telegram.types import CallbackQuery, Message
-from wanger_news.config.models import AppConfig, SourceConfig
+from wanger_news.config.models import AppConfig, EditionConfig, SourceConfig
 from wanger_news.db.repositories import Repositories
 from wanger_news.domain.chatref import ChatRef, ChatRefError
 from wanger_news.domain.enums import ArticleStatus, PublishMode, Transport
+from wanger_news.domain.text import to_ascii_digits as to_ascii
 from wanger_news.domain.text import to_persian_digits
 from wanger_news.formatting.telegram_html import bold, esc
 from wanger_news.services import overrides
@@ -33,7 +34,14 @@ PAGE_SIZE = 8
 MODE_ICON = {"auto": "🤖", "semi": "🧐", "manual": "✋"}
 MODE_FA = {"auto": "خودکار", "semi": "نیمه‌خودکار", "manual": "دستی"}
 NEXT_MODE = {"semi": "auto", "auto": "manual", "manual": "semi"}
-ROLE_FA = {"test": "کانال تست", "main": "کانال اصلی (مقصد)", "source": "کانال منبع"}
+ROLE_FA = {
+    "test": "کانال تست",
+    "main": "کانال اصلی (مقصد)",
+    "source": "کانال منبع",
+    "edition": "کانال نسخه (شخصی‌سازی‌شده)",
+}
+LANG_FA = {"fa": "فارسی", "en": "انگلیسی"}
+ON_OFF = {"on": True, "off": False, "yes": True, "no": False, "1": True, "0": False}
 LATER = "تغییر از اجرای بعدی اعمال می‌شود."
 
 Keyboard = list[list[dict[str, str]]]
@@ -97,8 +105,11 @@ class PanelService:
             return None
         await repos.settings.set(PROMPT_KEY, None, ctx.now())
         ref = self._ref_from(message)
-        text = await self.set_channel(repos, ctx, str(prompt.get("action")), ref)
-        screen = await self._channels(repos, ctx)
+        action = str(prompt.get("action"))
+        text = await self.set_channel(repos, ctx, action, ref)
+        screen = (
+            await self._editions(repos) if action == "edition" else await self._channels(repos, ctx)
+        )
         await self._send(ctx, message.chat.id, Screen(f"{text}\n\n{screen.text}", screen.keyboard))
         return "panel:channel_set"
 
@@ -178,6 +189,18 @@ class PanelService:
             if parts[1:2] == ["t"] and len(parts) > 2:
                 note = await self._toggle_rule(repos, ctx, parts[2])
             return await self._rules(repos), note
+        if head == "weekly":
+            return self._text_screen(await self._commands.weekly_text(repos, ctx)), ""
+        if head == "ed":
+            action, eid = (parts[1] if len(parts) > 1 else ""), ":".join(parts[2:])
+            if action == "add":
+                await self._prompt(repos, ctx, query, "edition")
+                note = "✉️ پیامی برایتان فرستادم؛ نام کانال نسخه را در پاسخ به آن بفرستید."
+            elif action in ("a", "l", "b", "u", "s") and eid:
+                note = await self._toggle_edition(repos, ctx, eid, action)
+            elif action == "x" and eid:
+                note = await self._remove_edition(repos, ctx, eid)
+            return await self._editions(repos), note
         if head == "mode":
             if parts[1:2] == ["d"]:
                 note = await self._cycle_mode(repos, ctx, None)
@@ -210,7 +233,8 @@ class PanelService:
             [button("📰 منابع خبری", "pn:src"), button("⚙️ حالت انتشار", "pn:mode")],
             [button("🧐 منتظر بررسی", "pn:pend"), button("📈 روندها", "pn:trends")],
             [button("📜 قوانین", "pn:rules"), button("💰 آمار و هزینه", "pn:stats")],
-            [button("🎯 اعتبار منابع", "pn:rel")],
+            [button("🎯 اعتبار منابع", "pn:rel"), button("🌐 نسخه‌ها", "pn:ed")],
+            [button("🗓 گزارش هفتگی", "pn:weekly")],
             [
                 button("🗞 خلاصهٔ روز", "pn:brief"),
                 button("▶️ ادامهٔ انتشار" if paused else "⏸ توقف انتشار", "pn:pause"),
@@ -416,6 +440,8 @@ class PanelService:
         channel, problem = await self._inspect(ctx, ref, need_post=action != "source")
         if channel is None:
             return f"✖ {problem}"
+        if action == "edition":
+            return await self._add_edition(repos, ctx, channel, "fa")
         ov = await Overrides.read(repos)
         test, main = await self._effective_channels(repos, ctx)
         targets = {c.ref.lower() for c in (test, main) if c is not None}
@@ -498,6 +524,188 @@ class PanelService:
         PublishMode(new)  # validates
         await repos.settings.set(MODES_KEY, stored, ctx.now())
         return f"✅ {esc(label)}: {MODE_ICON[new]} {MODE_FA[new]} (از اجرای بعدی)"
+
+    # ---------------------------------------------------------------- editions (Phase 6)
+    async def _edition_list(self, repos: Repositories) -> tuple[Overrides, list[EditionConfig]]:
+        ov = await Overrides.read(repos)
+        return ov, list(overrides.apply(self._base, ov).pipeline.editions.editions)
+
+    def describe_edition(self, edition: EditionConfig) -> str:
+        names = [
+            (cat.name_fa if (cat := self._cfg.categories.get(c)) else c) for c in edition.categories
+        ]
+        parts = [
+            f"{'✅' if edition.active else '⚪️'} <b>{esc(edition.id)}</b> → {esc(edition.chat)}",
+            f"زبان: {LANG_FA[edition.language]}",
+            "دسته‌ها: " + (esc("، ".join(names)) if names else "همه"),
+            f"حداقل اهمیت: {fa(edition.min_importance)}",
+        ]
+        if edition.breaking_only:
+            parts.append("فقط خبر فوری 🔴")
+        parts.append(f"به‌روزرسانی‌ها: {'✓' if edition.include_updates else '✗'}")
+        parts.append(f"پست‌های کانال منبع: {'✓' if edition.include_source_posts else '✗'}")
+        return " · ".join(parts)
+
+    async def _editions(self, repos: Repositories) -> Screen:
+        _, editions = await self._edition_list(repos)
+        lines = [
+            bold("🌐 نسخه‌ها — کانال‌های شخصی‌سازی‌شده"),
+            "هر نسخه یک کانال جداست که از پست‌های کانال اصلی فقط آن‌هایی را می‌گیرد که با "
+            "تنظیمش جور است؛ نسخهٔ انگلیسی ترجمهٔ بررسی‌شدهٔ همان خبر را می‌گیرد. چیزی که "
+            "در کانال اصلی منتشر نشده، به هیچ نسخه‌ای نمی‌رود (فقط وقتی مقصد «کانال اصلی» است).",
+            "",
+        ]
+        keyboard: Keyboard = []
+        if not editions:
+            lines.append("هنوز نسخه‌ای ندارید.")
+        for edition in editions:
+            lines.append(self.describe_edition(edition))
+            keyboard.append(
+                [
+                    button(
+                        ("✅ " if edition.active else "⚪️ ") + edition.id, f"pn:ed:a:{edition.id}"
+                    ),
+                    button("🌐 " + LANG_FA[edition.language], f"pn:ed:l:{edition.id}"),
+                    button(
+                        "🔴 فقط فوری" if edition.breaking_only else "📰 همه",
+                        f"pn:ed:b:{edition.id}",
+                    ),
+                    button("🗑", f"pn:ed:x:{edition.id}"),
+                ]
+            )
+        lines += [
+            "",
+            "دسته‌ها و حداقل اهمیت با دستور: <code>/edition set شناسه categories=world,economy "
+            "min=60 updates=off source=on</code> (categories=all یعنی همه).",
+        ]
+        keyboard.append([button("➕ افزودن نسخه", "pn:ed:add")])
+        keyboard.append([button("🔙 بازگشت", "pn:home")])
+        return Screen("\n".join(lines), keyboard)
+
+    async def _add_edition(
+        self, repos: Repositories, ctx: RunContext, channel: Channel, language: str
+    ) -> str:
+        ov, editions = await self._edition_list(repos)
+        same = channel.ref.lower()
+        test, main = await self._effective_channels(repos, ctx)
+        if same in {c.ref.lower() for c in (test, main) if c is not None}:
+            return "✖ کانال تست یا اصلی نمی‌تواند نسخه هم باشد."
+        if same in {c.ref.lower() for c in self._source_channels(ov)}:
+            return "✖ این کانال، کانال منبع است؛ نسخه نمی‌تواند منبع هم باشد (پست‌ها دور می‌زنند)."
+        if same in {e.chat.lower() for e in editions}:
+            return f"این کانال همین الان یک نسخه است: {esc(channel.ref)}"
+        base_id = overrides.edition_id(channel.chat)
+        taken = {e.id for e in editions}
+        eid, n = base_id, 2
+        while eid in taken:
+            eid, n = f"{base_id[:28]}-{n}", n + 1
+        edition = EditionConfig(id=eid, chat=channel.ref, title=channel.title, language=language)
+        ov.editions = [*ov.editions, edition.model_dump(mode="json")]
+        await ov.save(repos, ctx.now())
+        return f"✅ نسخهٔ {esc(eid)}: {esc(channel.ref)} ({LANG_FA[language]}). {LATER}"
+
+    async def _change_edition(
+        self, repos: Repositories, ctx: RunContext, eid: str, changes: dict[str, Any]
+    ) -> tuple[EditionConfig | None, str]:
+        ov, editions = await self._edition_list(repos)
+        current = next((e for e in editions if e.id == eid), None)
+        if current is None:
+            return None, f"نسخهٔ «{esc(eid)}» پیدا نشد."
+        try:
+            changed = EditionConfig.model_validate({**current.model_dump(), **changes})
+        except ValueError:
+            return None, "مقدار نامعتبر."
+        unknown = set(changed.categories) - {c.id for c in self._cfg.categories.categories}
+        if unknown:
+            return None, f"دستهٔ نامعلوم: {esc(', '.join(sorted(unknown)))}"
+        ov.editions = [e for e in ov.editions if e.get("id") != eid]
+        ov.editions.append(changed.model_dump(mode="json"))
+        await ov.save(repos, ctx.now())
+        return changed, ""
+
+    async def _toggle_edition(
+        self, repos: Repositories, ctx: RunContext, eid: str, action: str
+    ) -> str:
+        _, editions = await self._edition_list(repos)
+        current = next((e for e in editions if e.id == eid), None)
+        if current is None:
+            return f"نسخهٔ «{esc(eid)}» پیدا نشد."
+        options: dict[str, dict[str, Any]] = {
+            "a": {"active": not current.active},
+            "l": {"language": "en" if current.language == "fa" else "fa"},
+            "b": {"breaking_only": not current.breaking_only},
+            "u": {"include_updates": not current.include_updates},
+            "s": {"include_source_posts": not current.include_source_posts},
+        }
+        changed, problem = await self._change_edition(repos, ctx, eid, options[action])
+        if changed is None:
+            return problem
+        return f"✅ {self.describe_edition(changed)}\n{LATER}"
+
+    async def _remove_edition(self, repos: Repositories, ctx: RunContext, eid: str) -> str:
+        ov, editions = await self._edition_list(repos)
+        if not any(e.id == eid for e in editions):
+            return f"نسخهٔ «{esc(eid)}» پیدا نشد."
+        if any(e.id == eid for e in self._base.pipeline.editions.editions):
+            _, problem = await self._change_edition(repos, ctx, eid, {"active": False})
+            return problem or f"نسخهٔ {esc(eid)} در فایل تنظیمات است؛ خاموش شد. {LATER}"
+        ov.editions = [e for e in ov.editions if e.get("id") != eid]
+        await ov.save(repos, ctx.now())
+        return f"✅ نسخهٔ {esc(eid)} حذف شد. {LATER}"
+
+    async def edition_command(self, repos: Repositories, ctx: RunContext, args: str) -> str:
+        """/edition · /edition add @x [fa|en] · /edition remove ID · /edition set ID k=v …"""
+        parts = args.split()
+        if parts[:1] == ["add"] and len(parts) in (2, 3):
+            language = parts[2].lower() if len(parts) == 3 else "fa"
+            if language not in LANG_FA:
+                return "زبان باید fa یا en باشد."
+            try:
+                ref = ChatRef.parse(parts[1])
+            except ChatRefError:
+                return f"«{esc(parts[1][:60])}» نام کانال نیست."
+            channel, problem = await self._inspect(ctx, ref, need_post=True)
+            if channel is None:
+                return f"✖ {problem}"
+            return await self._add_edition(repos, ctx, channel, language)
+        if parts[:1] == ["remove"] and len(parts) == 2:
+            return await self._remove_edition(repos, ctx, self._edition_ref(parts[1], repos))
+        if parts[:1] == ["set"] and len(parts) >= 3:
+            changes: dict[str, Any] = {}
+            for pair in parts[2:]:
+                key, _, value = pair.partition("=")
+                key, value = key.lower(), value.strip()
+                if key in ("lang", "language") and value in LANG_FA:
+                    changes["language"] = value
+                elif key in ("categories", "cats"):
+                    changes["categories"] = (
+                        [] if value in ("all", "") else [c for c in value.split(",") if c]
+                    )
+                elif key == "min" and to_ascii(value).isdigit():
+                    changes["min_importance"] = int(to_ascii(value))
+                elif key in ("breaking", "updates", "source", "active") and value in ON_OFF:
+                    field_name = {
+                        "breaking": "breaking_only",
+                        "updates": "include_updates",
+                        "source": "include_source_posts",
+                        "active": "active",
+                    }[key]
+                    changes[field_name] = ON_OFF[value]
+                else:
+                    return f"تنظیم نامعتبر: {esc(pair[:40])}"
+            changed, problem = await self._change_edition(repos, ctx, parts[1], changes)
+            if changed is None:
+                return problem
+            return f"✅ {self.describe_edition(changed)}\n{LATER}"
+        screen = await self._editions(repos)
+        return screen.text + (
+            "\n\nبا دستور: /edition add @کانال en · /edition remove شناسه · "
+            "/edition set شناسه categories=world min=60 breaking=on updates=off source=on"
+        )
+
+    @staticmethod
+    def _edition_ref(raw: str, repos: Repositories) -> str:
+        return raw if not raw.startswith("@") else overrides.edition_id(ChatRef.parse(raw))
 
     # ---------------------------------------------------------------- helpers
     async def _target_role(self, repos: Repositories, ctx: RunContext) -> str:

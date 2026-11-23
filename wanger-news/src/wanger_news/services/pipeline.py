@@ -39,6 +39,7 @@ from wanger_news.services.commands import PAUSED_KEY, TARGET_KEY, CommandService
 from wanger_news.services.context import RunContext, Target
 from wanger_news.services.corrections import CorrectionService
 from wanger_news.services.dedup import DedupService
+from wanger_news.services.editions import EditionService
 from wanger_news.services.inbox import InboxService
 from wanger_news.services.ingest import HealthSnapshot, IngestService
 from wanger_news.services.panel import PanelService
@@ -46,9 +47,11 @@ from wanger_news.services.processing import ProcessingService
 from wanger_news.services.publish import PublishService
 from wanger_news.services.reliability import ReliabilityService
 from wanger_news.services.review import ReviewService
+from wanger_news.services.search import SearchService
 from wanger_news.services.stories import StoryService
 from wanger_news.services.targets import TargetError, resolve_target
 from wanger_news.services.trends import TrendService
+from wanger_news.services.weekly import WeeklyService
 
 log = logging.getLogger("wanger_news.pipeline")
 LOCK_NAME = "pipeline"
@@ -129,6 +132,14 @@ class Pipeline:
         self.commands.analytics = self.analytics
         self.commands.reliability = self.reliability
         self.inbox = InboxService(cfg, self.dedup, self.commands, self.review, self.publisher)
+        # Phase 6
+        self.search = SearchService(cfg, deps.ai)
+        self.weekly = WeeklyService(cfg, self.publisher)
+        self.editions = EditionService(
+            cfg, self.publisher, deps.ai, allowance=self.ai.allowance, sleep=deps.sleep
+        )
+        self.commands.search = self.search
+        self.commands.weekly = self.weekly
 
     @asynccontextmanager
     async def _session(self, dry_run: bool) -> AsyncIterator[AsyncSession]:
@@ -160,6 +171,7 @@ class Pipeline:
             target=self.d.target,
             observed_chats=self.d.observed_chats,
             channels=dict(self.d.channels),
+            edition_chats=[e.chat_ref for e in self.d.config.pipeline.editions.editions],
             out=self.d.out,
             max_posts=opts.max_posts,
             only_sources=opts.only_sources,
@@ -194,8 +206,10 @@ class Pipeline:
                 if ctx.bot is not None or ctx.dry_run:
                     await self._stage(repos, ctx, "review", self._review(repos, ctx))
                 await self._stage(repos, ctx, "publish", self._publish(repos, ctx))
+                await self._stage(repos, ctx, "editions", self._editions(repos, ctx))
                 await self._stage(repos, ctx, "trends", self._trends(repos, ctx))
                 await self._stage(repos, ctx, "brief", self._brief(repos, ctx))
+                await self._stage(repos, ctx, "weekly", self._weekly(repos, ctx))
                 await self._stage(repos, ctx, "operations", self._operations(repos, ctx))
                 if not opts.dry_run:
                     await self._stage(repos, ctx, "maintenance", self._maintenance(repos, ctx))
@@ -216,15 +230,28 @@ class Pipeline:
                 if not opts.dry_run:
                     await repos.locks.release(LOCK_NAME, run_id)
                 await repos.commit()
-        try:
-            await self.d.mother.report_run(summary.as_dict())
-        except Exception:  # the mother-bot link must never fail a run
-            log.exception("mother_bot_report_failed", extra={"run_id": run_id})
+        await self._report_to_mother(summary, ctx, opts)
         log.info(
             "run_finished",
             extra={"run_id": run_id, "status": summary.status.value, "counters": summary.counters},
         )
         return summary
+
+    async def _report_to_mother(
+        self, summary: RunSummary, ctx: RunContext, opts: RunOptions
+    ) -> None:
+        """Phase 6: the run and its notable events to the mother bot, after the database work
+        is committed. The link must never fail a run."""
+        if summary.errors:
+            ctx.mother_events.append(("error", {"errors": summary.errors[:5]}))
+        try:
+            await self.d.mother.report_run({**summary.as_dict(), "dry_run": opts.dry_run})
+            for kind, payload in ctx.mother_events:
+                await self.d.mother.report_event(
+                    kind, {**payload, "run_id": summary.run_id, "dry_run": opts.dry_run}
+                )
+        except Exception:
+            log.exception("mother_bot_report_failed", extra={"run_id": summary.run_id})
 
     async def _stage(
         self, repos: Repositories, ctx: RunContext, name: str, work: Awaitable[None]
@@ -327,7 +354,10 @@ class Pipeline:
             ctx.count(f"ai_routed_{status}", n)
 
     async def _review(self, repos: Repositories, ctx: RunContext) -> None:
-        ctx.count("review_cards", await self.review.send_cards(repos, ctx))
+        sent = await self.review.send_cards(repos, ctx)
+        ctx.count("review_cards", sent)
+        if sent:
+            ctx.mother_events.append(("review", {"cards": sent}))
         cards = await self.corrections.send_cards(repos, ctx)
         if cards:
             ctx.count("correction_cards", cards)
@@ -343,6 +373,10 @@ class Pipeline:
             ctx.counters[f"publish_skipped:{report.skipped}"] = 1
         for key in ("sent", "previewed", "failed", "uncertain", "expired"):
             ctx.count(f"posts_{key}", getattr(report, key))
+        if report.sent and ctx.target is not None:
+            ctx.mother_events.append(
+                ("published", {"posts": report.sent, "channel": ctx.target.role.value})
+            )
         if not paused and ctx.target is not None:
             corrected = await self.corrections.publish_approved(repos, ctx)
             if corrected:
@@ -366,6 +400,27 @@ class Pipeline:
         report = await self.brief.run(repos, ctx)
         if report.outcome != "not_due":
             ctx.counters[f"brief:{report.outcome}"] = 1
+
+    async def _editions(self, repos: Repositories, ctx: RunContext) -> None:
+        paused = bool(await repos.settings.get(PAUSED_KEY, False))
+        report = await self.editions.run(repos, ctx, paused=paused)
+        if report.skipped and report.skipped != "none":
+            ctx.counters[f"editions_skipped:{report.skipped}"] = 1
+        for key in ("sent", "previewed", "failed"):
+            if getattr(report, key):
+                ctx.count(f"editions_{key}", getattr(report, key))
+        if report.sent:
+            ctx.mother_events.append(("published", {"posts": report.sent, "channel": "edition"}))
+
+    async def _weekly(self, repos: Repositories, ctx: RunContext) -> None:
+        if bool(await repos.settings.get(PAUSED_KEY, False)):
+            ctx.counters["weekly:paused"] = 1
+            return
+        outcome = await self.weekly.run(repos, ctx)
+        if outcome.outcome not in ("not_due", "done", "disabled"):
+            ctx.counters[f"weekly:{outcome.outcome}"] = 1
+        if outcome.outcome in ("sent", "sent_to_admins"):
+            ctx.mother_events.append(("weekly", {"stories": outcome.stories}))
 
     async def _operations(self, repos: Repositories, ctx: RunContext) -> None:
         """Phase 5: weekly reliability suggestions, the monthly cost alert."""

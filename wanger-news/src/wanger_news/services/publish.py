@@ -24,6 +24,7 @@ from wanger_news.db.repositories import Repositories
 from wanger_news.db.tables import Article, PublishedPost, StoryCluster
 from wanger_news.domain.enums import (
     ArticleStatus,
+    ChannelRole,
     ClusterRole,
     JobStatus,
     PostStatus,
@@ -358,7 +359,8 @@ class PublishService:
             article = (
                 await repos.articles.get(post.article_id) if post.article_id is not None else None
             )
-            if article is None:  # a brief or a trend alert
+            if article is None or post.channel_role == ChannelRole.EDITION.value:
+                # a brief, a trend alert, or an edition's copy (the article itself was sent)
                 await ctx.notify_owner(
                     repos,
                     "❓ <b>وضعیت یک پست نامشخص است</b>\n"
@@ -448,6 +450,68 @@ class PublishService:
         )
         await repos.commit()
         self.last_message_ids = delivery.message_ids
+        return "sent"
+
+    # ---------------------------------------------------------------- editions (Phase 6)
+    async def send_edition(
+        self,
+        repos: Repositories,
+        ctx: RunContext,
+        target: Target,
+        article: Article,
+        rendered: RenderedPost | None,
+        *,
+        kind: str,
+        cluster_id: int | None,
+        reply_to: int | None,
+        breaking: bool,
+    ) -> str:
+        """An item already published in the main channel, copied to an edition channel. Same
+        claim → send → record; the article's status and its story stay as the main post left
+        them. Returns sent | exists | failed | uncertain | rate_limited."""
+        cfg = self._cfg.pipeline.publish
+        key = idempotency_key(article.id, target)
+        post = await repos.posts.claim(
+            key=key,
+            article_id=article.id,
+            role=target.role,
+            chat_id=target.key,
+            method="copy" if article.transport == Transport.TELEGRAM_CHANNEL.value else "send",
+            run_id=ctx.run_id,
+            now=ctx.now(),
+            max_attempts=cfg.max_attempts,
+        )
+        if post is None:
+            return "exists"
+        post.kind = kind
+        post.cluster_id = cluster_id
+        post.reply_to_message_id = reply_to
+        post.breaking = breaking
+        await repos.commit()  # the claim is durable BEFORE anything is sent
+        try:
+            delivery = await self._deliver(ctx, target, article, rendered, reply_to)
+        except TelegramRateLimited as exc:
+            post.attempts = max(0, post.attempts - 1)
+            await repos.posts.finish(post, PostStatus.FAILED, ctx.now(), error=str(exc))
+            await repos.commit()
+            return "rate_limited"
+        except TelegramUncertain as exc:
+            await repos.posts.finish(post, PostStatus.UNCERTAIN, ctx.now(), error=str(exc))
+            await repos.commit()
+            return "uncertain"
+        except TelegramNotSent as exc:
+            await repos.posts.finish(post, PostStatus.FAILED, ctx.now(), error=str(exc))
+            await repos.commit()
+            return "chat_error" if is_chat_level(exc) else "failed"
+        await repos.posts.finish(
+            post,
+            PostStatus.SENT,
+            ctx.now(),
+            message_ids=delivery.message_ids,
+            text=delivery.text,
+            method=delivery.method,
+        )
+        await repos.commit()
         return "sent"
 
     # ---------------------------------------------------------------- stories
