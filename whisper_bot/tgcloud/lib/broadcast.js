@@ -1,12 +1,13 @@
 // Owner broadcasts as a database queue (there is no scheduler): the users after broadcasts.last_user
-// in idx_users_reachable order are still to do. Each "▶️ ادامه ارسال" press sends one batch of
-// BC_BATCH; every other update also sends a chunk of BC_CHUNK on the side, so a broadcast keeps
-// moving while the bot is in use. A lock row field keeps concurrent updates from sending twice.
+// in idx_users_reachable order are still to do. A batch that leaves users to do wakes the bot for
+// the next one (lib/wake.js), so a broadcast runs to the end by itself; "▶️ ادامه ارسال" sends a
+// batch at once, and every other update also sends a chunk of BC_CHUNK on the side (and restarts
+// the waking if it stopped). A lock row field keeps concurrent runs from sending twice.
 //   403 → the user blocked the bot: marked inactive, never retried.
 //   429 → stop this batch, wait parameters.retry_after seconds; that user is retried later.
 //   anything else → counted as failed.
 import {
-  BC_CHUNK, BC_LOCK_SEC, BC_PROGRESS_EVERY_SEC, OWNER_ID,
+  BC_CHUNK, BC_LOCK_SEC, BC_PROGRESS_EVERY_SEC, OWNER_ID, WAKE_MAX_WAIT_SEC,
 } from './config.js';
 import { dur, langOf, num, t } from './i18n.js';
 import {
@@ -17,6 +18,7 @@ import {
   btn, call, describeError, isApiError, send,
 } from './tg.js';
 import { nowSec } from './util.js';
+import { wakeSoon } from './wake.js';
 
 const processed = (b) => b.sent + b.failed + b.blocked;
 
@@ -130,20 +132,32 @@ export async function finalReport(ctx, b) {
   }) + took, [[btn(t(lang, 'adm.btn_panel'), 'a')]], OWNER_ID);
 }
 
-/** A small chunk on the side of another update; never throws. */
-export async function broadcastTick(ctx, id) {
+/**
+ * After a batch (or a press that found none to run): wake the bot for the next one while users are
+ * left — through a short 429 pause too; a long one waits for the next update. 'locked' means another
+ * run is sending, and that run wakes the next.
+ */
+export async function keepGoing(ctx, r) {
+  if (r.ran ? !r.done : r.reason === 'wait' && r.b && r.b.nextAt - nowSec() <= WAKE_MAX_WAIT_SEC) {
+    await wakeSoon(ctx, 'broadcast');
+  }
+}
+
+/** A step of a running broadcast, on the side of another update or woken for it; never throws. */
+export async function broadcastTick(ctx, id, limit = BC_CHUNK) {
   try {
-    const r = await processBatch(ctx, id, BC_CHUNK);
-    if (!r.ran) {
-      if (r.reason === 'not_running') await setKv('bc', null);
+    const r = await processBatch(ctx, id, limit);
+    if (!r.ran && r.reason === 'not_running') {
+      await setKv('bc', null);
       return;
     }
-    if (r.done) {
+    if (r.ran && r.done) {
       await updateProgress(ctx, r.b);
       await finalReport(ctx, r.b);
-    } else if (nowSec() - r.b.progressAt >= BC_PROGRESS_EVERY_SEC) {
-      await updateProgress(ctx, r.b);
+      return;
     }
+    if (r.ran && nowSec() - r.b.progressAt >= BC_PROGRESS_EVERY_SEC) await updateProgress(ctx, r.b);
+    await keepGoing(ctx, r);
   } catch (err) {
     console.warn(`broadcast tick failed: ${describeError(err)}`);
   }

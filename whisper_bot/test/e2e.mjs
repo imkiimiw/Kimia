@@ -18,6 +18,7 @@ for (const name of ['HIDE_i_SEEK', 'Nepenthw_ir', 'wangerBots']) mock.addChat(na
 for (let i = 1; i <= 9; i += 1) mock.addChat(`extra_chan${i}`);
 mock.addChat('not_admin_chan', { admin: false });
 mock.addChat('some_person', { type: 'private' });
+mock.addChat('wake_room', { title: 'Wake room' }); // the owner's private channel for the bot's wakes
 process.env.TG_MOCK_URL = `http://127.0.0.1:${await mock.listen()}`;
 setupDatabase(schema); // what `npx tgcloud migrate` does on the platform
 
@@ -35,10 +36,15 @@ const { default: onInline } = await import('../tgcloud/handlers/inline_query.js'
 const { default: onChosen } = await import('../tgcloud/handlers/chosen_inline_result.js');
 const { default: cardDataEndpoint } = await import('../tgcloud/endpoints/cardData.js');
 const { default: cardSendEndpoint } = await import('../tgcloud/endpoints/cardSend.js');
+const { default: onPoll } = await import('../tgcloud/handlers/poll.js');
+const { default: onChannelPost } = await import('../tgcloud/handlers/channel_post.js');
+const { wakeSoon } = await import('../tgcloud/lib/wake.js');
+const { createCtx } = await import('../tgcloud/lib/tg.js');
 
 const errors = [];
 console.error = (...args) => errors.push(args.map((a) => (a && a.stack) || String(a)).join(' '));
-console.warn = () => {}; // expected Bot API failures are logged as warnings
+// expected Bot API failures are logged as warnings; SHOW_WARN=1 prints them
+console.warn = (...args) => { if (process.env.SHOW_WARN) process.stderr.write(`warn: ${args.join(' ')}\n`); };
 
 let clock = Date.UTC(2026, 9, 29, 6, 0); // 2026-10-29 09:30 Tehran
 Date.now = () => clock;
@@ -113,6 +119,22 @@ async function post(u, inl, resultId, { skipChosen = false } = {}) {
   const c = { result_id: resultId, from: u, query: inl.query, inline_message_id: inlineId };
   const r = track(await onChosen(c, { update: { update_id: seq++, chosen_inline_result: c } }));
   return { inlineId, res, r, calls: since() };
+}
+
+/**
+ * Telegram's side of the bot waking itself up: every poll the bot stopped comes back as a `poll`
+ * update. Delivers them (and the ones those runs stop in turn) until none is left.
+ */
+let pollMark = 0;
+async function deliverWakes(max = 200) {
+  since();
+  let n = 0;
+  while (pollMark < mock.state.stoppedPolls.length && n < max) {
+    const poll = mock.state.stoppedPolls[pollMark++];
+    track(await onPoll(poll, { update: { update_id: seq++, poll } }));
+    n += 1;
+  }
+  return { n, calls: since() };
 }
 
 const mainResult = (inl) => inl.results.find((x) => x.id.startsWith('w.'));
@@ -513,7 +535,7 @@ await scenario('input validation and the no-feedback fallback', async () => {
 await scenario('/admin: only numeric id 5557901897; everyone else refused', async () => {
   const p = await say(U.owner, '/admin');
   assert.match(p.text, /پنل مالک/);
-  assert.deepEqual(dataOf(p.kb), ['a:ch', 'a:add', 'a:j', 'a:ban', 'a:unban', 'a:st', 'a:rp', 'a:bc']);
+  assert.deepEqual(dataOf(p.kb), ['a:ch', 'a:add', 'a:j', 'a:ban', 'a:unban', 'a:st', 'a:rp', 'a:bc', 'a:wk']);
   assert.match((await say(U.ali, '/admin')).text, /فقط برای مالک/);
   for (const d of ['a', 'a:ch', 'a:bc', 'a:rp', 'a:rb:1']) assert.match((await press(U.ali, d)).answer.text, /فقط برای مالک/);
   assert.match((await say(person(710004242, 'owner_t'), '/admin')).text, /فقط برای مالک|Choose|عضو/);
@@ -615,6 +637,129 @@ await scenario('broadcast: preview, batches of 25, 403 → inactive, 429 → wai
   assert.equal(userRow(U.blocker).active, 0);
   await press(U.owner, `a:bcy:${secondId}`);
   assert.match((await press(U.owner, `a:bcs:${secondId}`)).answer.text, /متوقف شد/);
+});
+
+// =====================================================================================
+// Scheduler: the bot waking itself up (lib/wake.js), the wake channel, the outside clock
+// =====================================================================================
+
+const wakeRoom = mock.state.chats.get('@wake_room').id;
+const reachableNow = () => rows('SELECT user_id FROM users WHERE started = 1 AND active = 1 AND banned = 0 AND user_id != ?', OWNER).map((r) => r.user_id);
+const ownerPolls = () => [...mock.state.messages.entries()].filter(([k, m]) => k.startsWith(`${OWNER}:`) && m.poll).length;
+
+/** The owner starts a text broadcast: the first batch goes at once. */
+async function startBroadcast(text) {
+  await press(U.owner, 'a:bc');
+  const draft = await say(U.owner, text);
+  const id = Number(dataOf(draft.kb)[0].split(':')[2]);
+  const start = await press(U.owner, `a:bcy:${id}`);
+  return { id, start, mid: draft.message.message_id };
+}
+
+await scenario('self-wake: one press and a broadcast runs to the end by itself; wake polls are silent and leave nothing behind', async () => {
+  await deliverWakes(); // wakes the earlier broadcast scenario left pending
+  advance(61);
+  const reachable = reachableNow();
+  const { id, start, mid } = await startBroadcast('پیام سراسری که خودش تا آخر می‌رود');
+  assert.equal(start.calls.filter((c) => c.method === 'copyMessage' && c.params.chat_id !== OWNER).length, 25);
+  const poll = start.calls.find((c) => c.method === 'sendPoll');
+  assert.ok(poll, 'the first batch wakes the bot for the next');
+  assert.equal(Number(poll.params.chat_id), OWNER);
+  assert.equal(poll.params.disable_notification, true);
+  assert.ok(start.calls.some((c) => c.method === 'stopPoll'));
+  assert.ok(start.calls.some((c) => c.method === 'deleteMessage' && c.params.message_id === poll.result.result.message_id), 'the poll is deleted');
+  const { n, calls } = await deliverWakes();
+  assert.equal(row('SELECT status FROM broadcasts WHERE id = ?', id).status, 'done', 'done without another press');
+  // the owner takes a slot in the queue (skipped: they saw the preview); a batch short of 25 ends it
+  assert.equal(n, Math.floor((reachable.length + 1) / 25), 'one wake per remaining batch');
+  assert.ok(calls.some((c) => c.method === 'sendMessage' && Number(c.params.chat_id) === OWNER && /گزارش نهایی/.test(c.params.text)), 'final report');
+  const got = mock.state.copied.filter((c) => c.from_chat_id === OWNER && c.message_id === mid && c.chat_id !== OWNER).map((c) => c.chat_id);
+  assert.deepEqual([...got].sort((x, y) => x - y), [...reachable].sort((x, y) => x - y), 'everyone, once');
+  assert.equal(ownerPolls(), 0, 'no poll left in the owner\'s chat');
+  assert.equal(row("SELECT value FROM kv WHERE key = 'wake_poll'").value, '', 'no wake pending');
+});
+
+await scenario('self-wake guards: foreign or repeated poll updates do nothing; one wake at a time; the hourly cap', async () => {
+  assert.equal(track(await onPoll({ id: '42', is_closed: true }, {})).wake, undefined, 'not our poll');
+  for (let i = 0; i < 40; i += 1) { // enough recipients for several batches
+    const u = person(770000000 + i, `more${i}`);
+    join(u);
+    await onboard(u);
+  }
+  const { id } = await startBroadcast('آزمایش نگهبان‌ها');
+  assert.equal(mock.state.stoppedPolls.length - pollMark, 1, 'one wake pending');
+  advance(5);
+  const side = await inline(U.ali, 'یک نجوا @Sara_T');
+  assert.equal(side.calls.filter((c) => c.method === 'copyMessage').length, 5, 'a chunk on the side of a user\'s update');
+  assert.equal(side.calls.filter((c) => c.method === 'sendPoll').length, 0, 'no second wake while one is pending');
+  const pending = mock.state.stoppedPolls[pollMark];
+  const hour = Math.floor(nowSec() / 3600);
+  rawDatabase().prepare("UPDATE kv SET value = ? WHERE key = 'wake_rate'").run(`${hour}:600`);
+  const first = await deliverWakes(1);
+  assert.equal(first.n, 1);
+  assert.ok(first.calls.filter((c) => c.method === 'copyMessage').length > 5, 'a woken step sends a full batch, not a side chunk');
+  assert.equal(first.calls.filter((c) => c.method === 'sendPoll').length, 0, 'over the hourly cap: no new wake');
+  assert.equal(track(await onPoll(pending, {})).wake, undefined, 'a repeated delivery does nothing');
+  assert.equal(row('SELECT status FROM broadcasts WHERE id = ?', id).status, 'running', 'it waits for the next update');
+  rawDatabase().prepare("DELETE FROM kv WHERE key = 'wake_rate'").run();
+  advance(5);
+  const resumed = await press(U.owner, `a:bcc:${id}`);
+  assert.ok(resumed.calls.some((c) => c.method === 'sendPoll'), 'the next run wakes again');
+  await deliverWakes();
+  assert.equal(row('SELECT status FROM broadcasts WHERE id = ?', id).status, 'done');
+});
+
+await scenario('the scheduler page; wakes move to a private channel picked by a forwarded post, then back to the private chat', async () => {
+  const page = await press(U.owner, 'a:wk');
+  assert.match(page.text, /زمان‌بند/);
+  assert.match(page.text, /جای بیدارباش:<\/b> چت خودت با ربات/);
+  assert.doesNotMatch(page.text, /آخرین بیدارباش:<\/b> هنوز نه/, 'it has woken');
+  assert.match(page.text, /ساعت بیرونی:<\/b> وصل نیست/);
+  assert.deepEqual(dataOf(page.kb), ['a:wkc', 'a:wkg', 'a']);
+  assert.match((await press(U.owner, 'a:wkg')).text, /اول یک کانال برای بیدارباش انتخاب کن/);
+  assert.match((await press(U.ali, 'a:wk')).answer.text, /فقط برای مالک/);
+  await press(U.owner, 'a:wkc');
+  assert.match((await say(U.owner, 'سلام')).text, /پیدا نکردم/);
+  rawDatabase().prepare("DELETE FROM kv WHERE key = 'wake_rate'").run(); // whatever an earlier scenario left
+  const notAdmin = mock.state.chats.get('@not_admin_chan');
+  assert.match((await say(U.owner, 'فوروارد', { forward_origin: { type: 'channel', chat: { id: notAdmin.id, type: 'channel', title: notAdmin.title }, message_id: 1, date: nowSec() } })).text, /ادمین نیست/);
+  const saved = await say(U.owner, 'فوروارد', { forward_origin: { type: 'channel', chat: { id: wakeRoom, type: 'channel', title: 'Wake room' }, message_id: 1, date: nowSec() } });
+  assert.match(saved.text, /بیدارباش‌ها در «Wake room» است/);
+  assert.equal(Number(row("SELECT value FROM kv WHERE key = 'wake_chat'").value), wakeRoom);
+  assert.ok(dataOf(saved.kb).includes('a:wkp'));
+  const guide = await press(U.owner, 'a:wkg');
+  assert.ok(guide.text.includes(`chat_id=${wakeRoom}&amp;text=tick`), 'the address to call, for this channel');
+  assert.ok(guide.last.result.ok, 'Telegram accepted the HTML');
+  advance(61);
+  since();
+  assert.equal(await wakeSoon(createCtx({}), 'test'), true);
+  const calls = since();
+  assert.equal(Number(calls.find((c) => c.method === 'sendPoll').params.chat_id), wakeRoom, 'wakes go to the channel');
+  await deliverWakes();
+  assert.match((await press(U.owner, 'a:wkp')).text, /دوباره در چت خودت است/);
+  assert.equal(row("SELECT value FROM kv WHERE key = 'wake_chat'").value, null);
+});
+
+await scenario('outside clock: a post in the wake channel runs a full step and is deleted; other posts don\'t tick', async () => {
+  rawDatabase().prepare("UPDATE kv SET value = ? WHERE key = 'wake_chat'").run(String(wakeRoom));
+  const { id } = await startBroadcast('تیک ساعت بیرونی');
+  mock.state.stoppedPolls.length = pollMark; // Telegram lost that wake: the outside clock has to move it
+  advance(61);
+  mock.seedMessage(wakeRoom, 9001);
+  since();
+  const tick = track(await onChannelPost({ message_id: 9001, chat: { id: wakeRoom, type: 'channel' }, date: nowSec(), text: 'tick' }, {}));
+  const calls = since();
+  assert.equal(tick.wake, 'tick');
+  assert.ok(calls.some((c) => c.method === 'deleteMessage' && c.params.message_id === 9001), 'the tick post is deleted');
+  assert.ok(calls.filter((c) => c.method === 'copyMessage').length > 5, 'a full batch, not a side chunk');
+  assert.ok(Number(row("SELECT value FROM kv WHERE key = 'tick_last'").value) > 0);
+  assert.equal(track(await onChannelPost({ message_id: 9002, chat: { id: wakeRoom, type: 'channel' }, date: nowSec(), poll: { id: '1', is_closed: true } }, {})).wake, undefined, 'a poll is not a tick');
+  const other = mock.state.chats.get('@hide_i_seek').id;
+  assert.equal(track(await onChannelPost({ message_id: 5, chat: { id: other, type: 'channel' }, date: nowSec(), text: 'خبر' }, {})).wake, undefined, 'posts elsewhere don\'t tick');
+  await deliverWakes();
+  assert.equal(row('SELECT status FROM broadcasts WHERE id = ?', id).status, 'done');
+  assert.match((await press(U.owner, 'a:wk')).text, /ساعت بیرونی:<\/b> آخرین تیک/);
+  rawDatabase().prepare("UPDATE kv SET value = NULL WHERE key = 'wake_chat'").run();
 });
 
 // =====================================================================================

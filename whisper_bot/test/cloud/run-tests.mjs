@@ -544,7 +544,7 @@ async function main() {
 
     await scenario('11. /admin: the owner gets the panel (with reports); a normal user is refused', () => {
       const own = ok(sendText(OWNER, '/admin'), { view: 'admin_panel' });
-      expect(own.data.join() === 'a:ch,a:add,a:j,a:ban,a:unban,a:st,a:rp,a:bc', `panel ${JSON.stringify(own.data)}`);
+      expect(own.data.join() === 'a:ch,a:add,a:j,a:ban,a:unban,a:st,a:rp,a:bc,a:wk', `panel ${JSON.stringify(own.data)}`);
       ok(sendText(T.sender, '/admin'), { view: 'admin_refused' });
       for (const d of ['a:ch', 'a:rp', 'a:bc']) {
         const btn = ok(pressPm(T.sender, d), { callback: true });
@@ -782,6 +782,23 @@ async function main() {
         expect(res.ok && (!re || re.test(body)), `${base}${file}: ${res.status}`);
       }
       return { detail: `${base} — ${checks.join(', ')}` };
+    });
+
+    await scenario('14h. scheduler: the bot wakes itself up — Telegram runs it again after it stops its own poll', () => {
+      const before = devtools({ op: 'wake_last' });
+      const w = devtools({ op: 'wake_now' });
+      expect(w.woke === true, `wakeSoon: ${JSON.stringify(w)}`);
+      expect(w.calls.map((c) => c.join(' ')).join(', ') === 'sendPoll ok, stopPoll ok, deleteMessage ok', `calls ${JSON.stringify(w.calls)}`);
+      const pollId = String(w.pending || '').split('@')[0];
+      expect(pollId, `pending ${w.pending}`);
+      if (LOCAL) ok(tgcloudRun('handlers/poll', { id: pollId, is_closed: true }, { update: { update_id: updateId(), poll: { id: pollId, is_closed: true } } })); // what Telegram does
+      let after = before;
+      for (let i = 0; i < 10 && after <= before; i += 1) { // the update arrives within a second or two
+        pause(2000);
+        after = devtools({ op: 'wake_last' });
+      }
+      expect(after > before, `no wake-up arrived (wake_last ${before} → ${after})`);
+      return { detail: `poll ${pollId} sent, stopped and deleted in the owner's chat; the bot ran again${before ? ` (${after - before}s after the previous wake)` : ''}` };
     });
 
     await scenario('15. lazy cleanup: an unsent draft older than 24h is deleted on a later update', () => {

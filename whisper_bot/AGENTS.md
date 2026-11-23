@@ -159,7 +159,7 @@ The platform manages the bot's webhook for you, derived from your deployed
 identical keys — `npm test` checks it). The first `/start` asks for the language; then two sections:
 **whispers** (`@bot text @username` in any chat posts "🔒 یک نجوا برای @username"; only the recipients,
 up to 3, and the sender can read it) and **anonymous messages** (a personal link `start=a_<code>`).
-The four handlers delegate to `lib/router.js`, which documents the order of checks and every `callback_data`.
+The handlers delegate to `lib/router.js`, which documents the order of checks and every `callback_data`.
 
 - **Owner = numeric id `5557901897`** (`lib/config.js`), checked on every admin command and callback.
 - **Whisper content lives only in the db** (`whispers.body`): never in callback_data, the posted message,
@@ -176,8 +176,12 @@ The four handlers delegate to `lib/router.js`, which documents the order of chec
 - **One draft row per sender** (`drafts`), overwritten on every inline keystroke; its id changes when
   the query changes. `chosen_inline_result` (needs BotFather `/setinlinefeedback`) turns it into a
   whisper; the first button press does it if that update never came.
-- **No scheduler**: expiry is checked on click, cleanup runs in small batches on later updates
-  (`lib/maint.js`), broadcasts are a db queue moved by button presses and other updates.
+- **No scheduler, so the bot wakes itself** (`lib/wake.js`): a poll that closes by itself doesn't
+  notify the bot (tested), but stopPoll on its own poll brings a `poll` update at once — a fresh run.
+  Long work goes in steps: a step that leaves work calls `wakeSoon()` (silent poll in the wake chat,
+  stopped and deleted; one pending at a time; capped per hour). Expiry is checked on click, cleanup
+  runs in small batches on later updates (`lib/maint.js`), broadcasts are a db queue that wakes itself
+  forward. A post in the wake channel (`/admin → ⏱`) ticks an optional outside clock (`channel_post`).
 - **Every query is index-backed and LIMITed** (`lib/store.js`); totals are kv counters, never COUNT(*).
 - Handlers return `{ trace }` — every Bot API call with its view name — for `npx tgcloud run`.
 - Tests: `npm test` (static checks + local emulation in `test/sdk/`, strict mock in

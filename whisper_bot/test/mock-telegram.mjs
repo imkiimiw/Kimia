@@ -83,6 +83,7 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
     deleted: [],
     media: [], // { chat_id, field, file, caption, upload: { filename, type, size, head } }
     botTexts: new Map(), // language_code ('' = default) -> { commands, description, short_description }
+    stoppedPolls: [], // polls the bot stopped: each one is a `poll` update Telegram would send
   };
   const botText = (p) => {
     const lang = p.language_code || '';
@@ -235,6 +236,32 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
       const message_id = state.nextMessageId++;
       state.messages.set(`${p.chat_id}:${message_id}`, { text: p.text, markup: JSON.stringify(p.reply_markup || null), reply_to: p.reply_parameters ? p.reply_parameters.message_id : null });
       return ok({ message_id, chat: { id: p.chat_id }, text: p.text });
+    },
+    // Polls: the bot wakes itself up by stopping its own poll (tgcloud/lib/wake.js). Telegram then sends
+    // a `poll` update; the e2e test delivers it (state.stoppedPolls) the way the platform would.
+    sendPoll: (p) => {
+      const r = reachable(p.chat_id);
+      if (r) return r;
+      const q = String(p.question || '');
+      if (!q || q.length > 300) return err(400, 'Bad Request: poll question length must be between 1 and 300');
+      const options = Array.isArray(p.options) ? p.options : [];
+      if (options.length < 2 || options.length > 10) return err(400, 'Bad Request: poll must have 2-10 options');
+      if (options.some((o) => !o || typeof o.text !== 'string' || !o.text || o.text.length > 100)) return err(400, 'Bad Request: poll options must be InputPollOption objects with 1-100 characters of text');
+      const message_id = state.nextMessageId++;
+      const poll = {
+        id: String(5770000000000000000n + BigInt(message_id)), question: q, options: options.map((o) => ({ text: o.text, voter_count: 0 })),
+        total_voter_count: 0, is_closed: false, is_anonymous: p.is_anonymous !== false, type: 'regular', allows_multiple_answers: false,
+      };
+      state.messages.set(`${p.chat_id}:${message_id}`, { text: null, markup: 'null', poll });
+      return ok({ message_id, chat: { id: p.chat_id }, poll });
+    },
+    stopPoll: (p) => {
+      const m = state.messages.get(`${p.chat_id}:${p.message_id}`);
+      if (!m || !m.poll) return err(400, 'Bad Request: message with poll to stop not found');
+      if (m.poll.is_closed) return err(400, 'Bad Request: poll has already been closed');
+      m.poll.is_closed = true;
+      state.stoppedPolls.push({ ...m.poll });
+      return ok({ ...m.poll });
     },
     copyMessage: (p) => {
       const chat = Number(p.chat_id);

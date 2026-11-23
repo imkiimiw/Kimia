@@ -63,5 +63,10 @@ export const BC_CHUNK = 5;
 export const BC_LOCK_SEC = 180; // a batch takes seconds; this only outlives a crashed one, with room for clock skew
 export const BC_PROGRESS_EVERY_SEC = 20;
 
+// The bot waking itself up between steps of long work (lib/wake.js).
+export const WAKE_MAX_PER_HOUR = 600; // a runaway loop stops here; work then goes on with other updates
+export const WAKE_STALE_SEC = 60; // a wake whose update never came stops blocking the next one after this
+export const WAKE_MAX_WAIT_SEC = 10; // a 429 wait up to this long is woken through; longer waits for an update
+
 // Iran Standard Time, UTC+03:30 — "whispers today" counts by the local date.
 export const TZ_OFFSET_MIN = 210;

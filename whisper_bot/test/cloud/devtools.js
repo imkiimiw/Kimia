@@ -8,6 +8,8 @@
 // script saved before the test (plus the owner's inbox counters for messages the test users sent them).
 import { api, db } from 'sdk';
 import { sql } from 'sdk/db';
+import { createCtx } from '../lib/tg.js';
+import { wakeSoon } from '../lib/wake.js';
 
 const OWNER_ID = 5557901897;
 const TARGET_403 = -1001005640892; // @telegram
@@ -44,6 +46,17 @@ async function testWhisperIds(users) {
 export default async function (input) {
   const now = Math.floor(Date.now() / 1000);
   switch (input.op) {
+    case 'wake_now': {
+      // The bot wakes itself once (lib/wake.js): a silent poll in the wake chat, stopped and deleted.
+      // Telegram then runs the deployed handlers/poll.js, which records wake_last.
+      await db.run(sql`UPDATE kv SET value = '' WHERE key = 'wake_poll'`); // a stale one from an earlier run
+      const ctx = createCtx({});
+      const woke = await wakeSoon(ctx, 'cloud test');
+      const pending = await db.get(sql`SELECT value FROM kv WHERE key = 'wake_poll'`);
+      return { woke, pending: pending ? pending.value : null, calls: ctx.trace.map((t) => [t.m, t.ok === false ? t.err : 'ok']) };
+    }
+    case 'wake_last':
+      return Number(((await db.get(sql`SELECT value FROM kv WHERE key = 'wake_last'`)) || {}).value || 0);
     case 'me': {
       const me = await api.getMe();
       return { id: me.id, username: me.username, inline: !!me.supports_inline_queries, groups: !!me.can_join_groups };

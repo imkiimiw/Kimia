@@ -100,7 +100,7 @@ for (const [prefix, names] of Object.entries(DYNAMIC)) for (const n of names) us
 for (const code of ['no_recipient', 'no_text', 'too_many', 'bad_expiry', 'self', 'bot', 'blocked']) for (const part of ['title', 'desc']) used.add(`w.err.${code}.${part}`);
 for (const file of files.filter((f) => !f.includes(`${path.sep}i18n${path.sep}`))) {
   const code = stripComments(fs.readFileSync(file, 'utf8'));
-  for (const m of code.matchAll(/'((?:w|wh|wd|wc|wst|bl|a|in|q|cd|fs|fw|as|dd|pf|adm|bc|main|ws|help|privacy|join|lang|btn|common|e|time|cat|kind|cmd|bot)\.[a-z_][\w.]*)'/g)) used.add(m[1]);
+  for (const m of code.matchAll(/'((?:w|wh|wd|wc|wst|wk|bl|a|in|q|cd|fs|fw|as|dd|pf|adm|bc|main|ws|help|privacy|join|lang|btn|common|e|time|cat|kind|cmd|bot)\.[a-z_][\w.]*)'/g)) used.add(m[1]);
 }
 for (const k of used) if (!(k in dicts.fa)) fail(i18nFile, `key "${k}" is used but missing from the dictionaries`);
 if (dicts.fa.qotd.length < 30) fail(i18nFile, 'the question-of-the-day pool is too small');

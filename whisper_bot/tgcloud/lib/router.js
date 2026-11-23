@@ -1,10 +1,10 @@
-// Entry points for the four handlers. Each one catches everything (users never see a raw error),
+// Entry points for the handlers. Each one catches everything (users never see a raw error),
 // always answers a button press, and returns { trace } — every Bot API call it made — which
 // `npx tgcloud run` prints. ctx.lang is the language of the person the update came from.
 //
 // Order of checks for a private message:
 //   1. /start w_<id> (read a whisper)   — no forced join, no ban check: reading is always allowed
-//   2. /cancel, then a pending state     — owner: add_channel / ban / unban / bc_wait; users: block_add,
+//   2. /cancel, then a pending state     — owner: add_channel / ban / unban / bc_wait / wake_chat; users: block_add,
 //      anon_send / anon_reply, inbox_search, word_add, qotd_custom, profile_name / _bio / _photo
 //   3. banned users stop here            — the owner can't be banned
 //   4. /start a_<code> (anonymous link)  — remembers the target first, so it survives the join screen
@@ -24,7 +24,11 @@
 //              qd, qd:d, qd:c, qd:0 question · cd cards · fs, fs:o|l|t|s filters · fw, fw:add, fw:rm:<i>
 //              as, as:t, as:new, as:r settings · dd, ddy delete my data · pf, pf:n|b|p|px|r|v profile
 //   owner:     a, a:x, a:ch, a:add, a:rm:<id>, a:rmy:<id>, a:j, a:ban, a:unban, a:st, a:rp, a:rv:<id>,
-//              a:rb|rr|rd:<id>, a:bc, a:bcy:<id>, a:bcn:<id>, a:bcc:<id>, a:bcs:<id>, a:bcp:<id>
+//              a:rb|rr|rd:<id>, a:bc, a:bcy:<id>, a:bcn:<id>, a:bcc:<id>, a:bcs:<id>, a:bcp:<id>,
+//              a:wk scheduler · a:wkc pick the wake channel · a:wkp back to the private chat · a:wkg guide
+//
+// poll: the bot's own wake (lib/wake.js) → a step of the due work. channel_post: a post in the wake
+// channel ticks the outside clock → the due work; posts elsewhere only carry the usual side work.
 import { OWNER_ID } from './config.js';
 import * as admin from './admin.js';
 import * as anon from './anon.js';
@@ -36,6 +40,7 @@ import { afterUpdate } from './maint.js';
 import * as menu from './menu.js';
 import * as profile from './profile.js';
 import * as qotd from './qotd.js';
+import { isOurWake, isTickPost } from './wake.js';
 import {
   clearState, getState, getUser, loadKv, touchUser,
 } from './store.js';
@@ -47,7 +52,7 @@ import {
 } from './whisper.js';
 import * as wpm from './wpm.js';
 
-const OWNER_STATES = new Set(['add_channel', 'ban', 'unban', 'bc_wait']);
+const OWNER_STATES = new Set(['add_channel', 'ban', 'unban', 'bc_wait', 'wake_chat']);
 const PROFILE_STATES = new Set(['profile_name', 'profile_bio', 'profile_photo']);
 
 function result(ctx) {
@@ -55,6 +60,8 @@ function result(ctx) {
   if (ctx.error) out.error = ctx.error;
   if (ctx.gc) out.gc = ctx.gc;
   if (ctx.filtered) out.filtered = ctx.filtered;
+  if (ctx.woke) out.woke = ctx.woke;
+  if (ctx.wake) out.wake = ctx.wake;
   return out;
 }
 
@@ -102,6 +109,7 @@ async function routeState(ctx, message, user, kv, st) {
   if (isOwner && OWNER_STATES.has(st.state)) {
     if (st.state === 'bc_wait') return admin.onBroadcastMessage(ctx, user, message);
     if (st.state === 'add_channel') return admin.onChannelInput(ctx, user, kv, message.text);
+    if (st.state === 'wake_chat') return admin.onWakeChatInput(ctx, user, kv, message);
     return admin.onBanInput(ctx, user, message.text, st.state === 'ban');
   }
   if (user.banned && !isOwner) return send(ctx, 'banned', t(ctx.lang, 'e.banned'));
@@ -393,9 +401,56 @@ async function routeAdmin(ctx, user, kv, action, arg) {
       return admin.stopBroadcast(ctx, arg);
     case 'bcp':
       return admin.showBroadcast(ctx, arg);
+    case 'wk':
+      await clearState(user.id);
+      return admin.showClock(ctx);
+    case 'wkc':
+      return admin.askWakeChat(ctx, user);
+    case 'wkp':
+      return admin.resetWakeChat(ctx);
+    case 'wkg':
+      return admin.showClockGuide(ctx);
     default:
       return answer(ctx, t(ctx.lang, 'e.old_button'));
   }
+}
+
+// ---------- the bot's own wakes, and the outside clock ----------
+
+/** A poll changed: when it is our own wake (lib/wake.js), run a step of the due work. */
+export async function onPoll(poll) {
+  const ctx = createCtx({});
+  try {
+    if (!(await isOurWake(poll))) return result(ctx);
+    ctx.wake = 'poll';
+    await afterUpdate(ctx, null, { woken: true });
+  } catch (err) {
+    console.error('poll handler failed:', err);
+    ctx.error = describeError(err);
+  }
+  return result(ctx);
+}
+
+/** A post in a channel the bot is in: in the wake channel, a tick of the outside clock (deleted). */
+export async function onChannelPost(post) {
+  const ctx = createCtx({});
+  try {
+    if (!post || !post.chat) return result(ctx);
+    const tick = await isTickPost(post);
+    if (tick) {
+      ctx.wake = 'tick';
+      try {
+        await call(ctx, 'deleteMessage', { chat_id: post.chat.id, message_id: post.message_id }, 'tick');
+      } catch (err) {
+        // no right to delete: the post stays
+      }
+    }
+    await afterUpdate(ctx, null, { woken: tick });
+  } catch (err) {
+    console.error('channel_post handler failed:', err);
+    ctx.error = describeError(err);
+  }
+  return result(ctx);
 }
 
 // ---------- inline mode ----------

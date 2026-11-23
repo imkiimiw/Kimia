@@ -8,8 +8,10 @@ import {
   getReport, listReports, restrict, setReportStatus,
 } from './astore.js';
 import { botInfo } from './bot.js';
-import { finalReport, processBatch, progressView } from './broadcast.js';
-import { num, t } from './i18n.js';
+import {
+  finalReport, keepGoing, processBatch, progressView,
+} from './broadcast.js';
+import { ago, num, t } from './i18n.js';
 import { channelRef } from './join.js';
 import {
   addChannel, bumpChannelVersion, clearState, countChannels, createBroadcast, getBroadcast, getChannel,
@@ -22,6 +24,7 @@ import {
 import {
   esc, nowSec, toAsciiDigits, truncate,
 } from './util.js';
+import { setWakeChat, wakeStatus } from './wake.js';
 
 const T = (ctx, k, v) => t(ctx.lang, k, v);
 const N = (ctx, n) => num(ctx.lang, n);
@@ -40,6 +43,7 @@ export async function showPanel(ctx, kv) {
     [running && running.status === 'running'
       ? btn(T(ctx, 'adm.btn_bc_running', { id: N(ctx, running.id) }), `a:bcp:${running.id}`)
       : btn(T(ctx, 'adm.btn_broadcast'), 'a:bc')],
+    [btn(T(ctx, 'adm.btn_clock'), 'a:wk')],
   ];
   return show(ctx, 'admin_panel', T(ctx, 'adm.panel', {
     join: T(ctx, joinOn ? 'common.on' : 'common.off'), n: N(ctx, n), max: N(ctx, MAX_CHANNELS), reports: N(ctx, s.reports),
@@ -263,19 +267,24 @@ export async function confirmBroadcast(ctx, id) {
   return runBatch(ctx, b.id);
 }
 
-/** "▶️ ادامه ارسال": one batch, then the progress message (and the final report when done). */
+/**
+ * "▶️ ادامه ارسال" (and the start): one batch, then the progress message (and the final report when
+ * done). The bot then wakes itself for the next batches (lib/wake.js), so one press is enough.
+ */
 export async function runBatch(ctx, id) {
   const r = await processBatch(ctx, Number(id), BC_BATCH);
   if (!r.ran) {
     if (r.reason === 'wait') await answer(ctx, T(ctx, 'bc.wait', { n: N(ctx, r.b.nextAt - nowSec()) }), { alert: true });
     else if (r.reason === 'locked') await answer(ctx, T(ctx, 'bc.locked'));
     else await answer(ctx);
+    await keepGoing(ctx, r);
     return r.b ? showProgress(ctx, r.b) : null;
   }
   await answer(ctx);
   if (ctx.messageId) await setBroadcastProgressMessage(r.b.id, ctx.chatId, ctx.messageId);
   await showProgress(ctx, r.b);
   if (r.done) await finalReport(ctx, r.b);
+  else await keepGoing(ctx, r);
   return null;
 }
 
@@ -300,4 +309,76 @@ export async function showBroadcast(ctx, id) {
   const b = await getBroadcast(Number(id));
   await answer(ctx);
   return b ? showProgress(ctx, b) : null;
+}
+
+// ---------- scheduler (lib/wake.js) ----------
+
+/** Where the bot wakes itself up, and when it last did; the outside clock's last tick. */
+export async function showClock(ctx, note = '') {
+  const w = await wakeStatus();
+  const now = nowSec();
+  const lines = [T(ctx, 'wk.title'), '', T(ctx, 'wk.how'), ''];
+  lines.push(w.chatId ? T(ctx, 'wk.where_channel', { name: esc(w.chatTitle || String(w.chatId)) }) : T(ctx, 'wk.where_private'));
+  lines.push(T(ctx, 'wk.last_wake', {
+    ago: w.lastWake ? ago(ctx.lang, w.lastWake, now) : T(ctx, 'wk.never'), n: N(ctx, w.thisHour), cap: N(ctx, w.cap),
+  }));
+  lines.push(w.lastTick ? T(ctx, 'wk.tick_last', { ago: ago(ctx.lang, w.lastTick, now) }) : T(ctx, 'wk.tick_none'));
+  const kb = [
+    [btn(T(ctx, 'wk.btn_channel'), 'a:wkc')],
+    ...(w.chatId ? [[btn(T(ctx, 'wk.btn_private'), 'a:wkp')]] : []),
+    [btn(T(ctx, 'wk.btn_guide'), 'a:wkg')],
+    toPanel(ctx),
+  ];
+  return show(ctx, 'admin_clock', `${note ? `${note}\n\n` : ''}${lines.join('\n')}`, kb);
+}
+
+export async function askWakeChat(ctx, user) {
+  await setState(user.id, 'wake_chat');
+  await answer(ctx);
+  return show(ctx, 'admin_clock_ask', T(ctx, 'wk.ask'), [[btn(T(ctx, 'btn.cancel'), 'a:wk')]]);
+}
+
+/** A post forwarded from the channel, its numeric id, or @name: the bot must post and delete there. */
+export async function onWakeChatInput(ctx, user, kv, message) {
+  const origin = message.forward_origin || {};
+  const fromForward = (origin.type === 'channel' && origin.chat) || message.forward_from_chat || null;
+  const text = toAsciiDigits(String(message.text || '').trim());
+  const ref = fromForward ? fromForward.id : /^-100\d{5,}$/.test(text) ? Number(text) : normalizeChannel(text) ? `@${normalizeChannel(text)}` : null;
+  if (!ref) return send(ctx, 'admin_clock_invalid', T(ctx, 'wk.invalid'));
+  let chat;
+  try {
+    chat = await call(ctx, 'getChat', { chat_id: ref }, 'admin_get_chat');
+  } catch (err) {
+    return send(ctx, 'admin_clock_invalid', T(ctx, 'wk.invalid'));
+  }
+  if (chat.type !== 'channel') return send(ctx, 'admin_clock_invalid', T(ctx, 'wk.invalid'));
+  const bot = await botInfo(ctx, kv);
+  let ok = false;
+  try {
+    const m = await call(ctx, 'getChatMember', { chat_id: chat.id, user_id: bot.id }, 'admin_check');
+    ok = m.status === 'creator' || (m.status === 'administrator' && m.can_post_messages !== false && m.can_delete_messages !== false);
+  } catch (err) {
+    console.warn(`wake channel check failed: ${describeError(err)}`);
+  }
+  const name = esc(chat.title || String(chat.id));
+  if (!ok) return send(ctx, 'admin_clock_not_admin', T(ctx, 'wk.not_admin', { name }));
+  await setWakeChat(chat.id, chat.title);
+  await clearState(user.id);
+  ctx.messageId = null;
+  return showClock(ctx, T(ctx, 'wk.saved', { name }));
+}
+
+export async function resetWakeChat(ctx) {
+  await setWakeChat(null);
+  await answer(ctx);
+  return showClock(ctx, T(ctx, 'wk.reset'));
+}
+
+/** How to connect an outside clock: a helper bot posting in the wake channel on a cron schedule. */
+export async function showClockGuide(ctx) {
+  const w = await wakeStatus();
+  await answer(ctx);
+  const kb = [[btn(T(ctx, 'btn.back'), 'a:wk')]];
+  if (!w.chatId) return show(ctx, 'admin_clock_guide', T(ctx, 'wk.guide_need_channel'), kb);
+  return show(ctx, 'admin_clock_guide', T(ctx, 'wk.guide', { chat: String(w.chatId) }), kb);
 }
