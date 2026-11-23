@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     database_url: SecretStr | None = None
     gemini_api_key: SecretStr | None = None
     api_token: SecretStr | None = None  # Phase 5: the admin API (option B); no token = no API
+    # Phase 6
+    mobile_api_token: SecretStr | None = None  # read-only /api/v1 (mobile app); none = no v1
+    mother_url: str = ""  # the mother bot's HTTPS endpoint; empty = not connected
+    mother_secret: SecretStr | None = None  # HMAC key shared with the mother bot
     owner_id: int = DEFAULT_OWNER_ID
     admin_ids: str = ""  # comma-separated numeric ids, besides the owner
     test_channel: str = ""
@@ -73,7 +77,15 @@ class Settings(BaseSettings):
     log_format: Literal["json", "text"] = "json"
     telegram_api_base: str = "https://api.telegram.org"
 
-    @field_validator("bot_token", "database_url", "gemini_api_key", "api_token", mode="before")
+    @field_validator(
+        "bot_token",
+        "database_url",
+        "gemini_api_key",
+        "api_token",
+        "mobile_api_token",
+        "mother_secret",
+        mode="before",
+    )
     @classmethod
     def _empty_is_none(cls, value: object) -> object:
         if isinstance(value, str):
@@ -127,7 +139,14 @@ class Settings(BaseSettings):
     def secrets(self) -> list[str]:
         """Secret values, for log redaction."""
         out = []
-        for secret in (self.bot_token, self.database_url, self.gemini_api_key, self.api_token):
+        for secret in (
+            self.bot_token,
+            self.database_url,
+            self.gemini_api_key,
+            self.api_token,
+            self.mobile_api_token,
+            self.mother_secret,
+        ):
             if secret is not None and secret.get_secret_value():
                 out.append(secret.get_secret_value())
         return out

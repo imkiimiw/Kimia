@@ -11,10 +11,12 @@ import html
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from wanger_news.config.models import PublishConfig
 from wanger_news.domain.jalali import format_tehran
 from wanger_news.domain.text import to_persian_digits, truncate
+from wanger_news.domain.weekly import WeeklyReport
 from wanger_news.formatting.telegram_html import bold, esc, link, utf16_len
 
 _TAGS = re.compile(r"<[^>]+>")
@@ -375,6 +377,106 @@ def render_brief(brief: DailyBrief) -> str:
         blocks.append(f"📈 موضوع‌های پرگزارش امروز: {topics}")
     blocks.append("#خلاصه_روز")
     return "\n\n".join(blocks)
+
+
+def _fa(n: int) -> str:
+    return to_persian_digits(str(n))
+
+
+def render_weekly(report: WeeklyReport, *, start: str, end: str) -> str:
+    """The week in numbers and stories (Phase 6) — only titles and counts already published."""
+    blocks = [f"🗓 <b>گزارش هفتگی Wanger News</b>\n{esc(start)} تا {esc(end)}"]
+    numbers = [
+        f"📰 خبرهای منتشرشده: {_fa(report.stories)}",
+        f"🔄 به‌روزرسانی‌ها: {_fa(report.update_posts)}",
+        f"✅ تأییدشده با ۲ منبع مستقل یا بیشتر: {_fa(report.multi_source)}",
+    ]
+    if report.breaking_posts:
+        numbers.append(f"🔴 خبرهای فوری: {_fa(report.breaking_posts)}")
+    if report.contradictions:
+        numbers.append(f"⚖️ رویدادهای با گزارش‌های متناقض: {_fa(report.contradictions)}")
+    if report.corrections:
+        numbers.append(f"✏️ اصلاحیه‌ها: {_fa(report.corrections)}")
+    if report.source_posts:
+        numbers.append(f"📮 پست‌های کانال منبع: {_fa(report.source_posts)}")
+    if report.change_percent is not None:
+        sign = "+" if report.change_percent > 0 else ""
+        numbers.append(
+            f"📊 نسبت به هفتهٔ قبل: {to_persian_digits(f'{sign}{report.change_percent}')}٪"
+        )
+    blocks.append("\n".join(numbers))
+    if report.categories:
+        blocks.append(
+            "🗂 <b>دسته‌ها:</b> "
+            + "، ".join(f"{esc(name)} {_fa(count)}" for name, count in report.categories[:8])
+        )
+    if report.top:
+        lines = []
+        for n, story in enumerate(report.top, 1):
+            title = truncate(story.title, 100)
+            text = link(story.url, title) if story.url else esc(title)
+            status = STATUS_LABELS_FA.get(story.status, story.status)
+            extra = [esc(status)]
+            if story.independent_sources >= 2:
+                extra.append(f"{_fa(story.independent_sources)} منبع مستقل")
+            if story.updates:
+                extra.append(f"{_fa(story.updates)} به‌روزرسانی")
+            mark = "🔴 " if story.breaking else ""
+            lines.append(f"{_fa(n)}. {mark}{text}\n   📌 {' · '.join(extra)}")
+        blocks.append("⭐️ <b>مهم‌ترین رویدادهای هفته</b>\n" + "\n".join(lines))
+    if report.developing:
+        lines = [
+            f"• {link(s.url, truncate(s.title, 90)) if s.url else esc(truncate(s.title, 90))}"
+            f" ({_fa(s.updates)} به‌روزرسانی)"
+            for s in report.developing
+        ]
+        blocks.append("🧵 <b>رویدادهای در جریان</b>\n" + "\n".join(lines))
+    if report.trends:
+        blocks.append(
+            "📈 <b>موضوع‌های پرگزارش:</b> "
+            + "، ".join(f"{esc(label)} ({_fa(count)} گزارش)" for label, count in report.trends)
+        )
+    if report.sources:
+        blocks.append(
+            "🏛 <b>منابعی که بیشترین سهم را داشتند:</b> "
+            + "، ".join(f"{esc(name)} ({_fa(count)})" for name, count in report.sources)
+        )
+    blocks.append("#گزارش_هفتگی")
+    return "\n\n".join(blocks)
+
+
+SEARCH_ERRORS_FA = {
+    "too_short": "عبارت جستجو خیلی کوتاه است.",
+    "too_long": "عبارت جستجو خیلی بلند است.",
+    "only_common_words": "فقط کلمه‌های خیلی رایج نوشته‌اید؛ یک کلمهٔ مشخص‌تر بنویسید.",
+    "disabled": "جستجو خاموش است (search.enabled).",
+}
+
+
+def render_search(result: Any, timezone: str, now: datetime) -> str:
+    """Search hits (``services/search.SearchResult``) as a Telegram message."""
+    from wanger_news.domain.jalali import format_time_fa
+
+    if result.error:
+        return esc(SEARCH_ERRORS_FA.get(result.error, result.error))
+    head = f"🔎 <b>جستجو:</b> {esc(truncate(result.query, 80))}"
+    if not result.hits:
+        note = "چیزی پیدا نشد."
+        if result.semantic == "unavailable":
+            note += " (جستجوی معنایی بدون کلید هوش مصنوعی در دسترس نیست.)"
+        return f"{head}\n{note}"
+    lines = [head]
+    for n, hit in enumerate(result.hits, 1):
+        title = truncate(hit.title, 100)
+        text = link(hit.post_url, title) if hit.post_url else esc(title)
+        when = format_time_fa(hit.sent_at, now, timezone)
+        mark = " ≈" if hit.match == "semantic" else ""
+        lines.append(f"{to_persian_digits(str(n))}. {text}{mark}\n   🕒 {esc(when)}")
+        if hit.snippet:
+            lines.append(f"   {esc(truncate(hit.snippet, 160))}")
+    if any(h.match == "semantic" for h in result.hits):
+        lines.append("\n≈ پیدا شده بر اساس معنا (نه همان کلمه‌ها).")
+    return "\n".join(lines)
 
 
 TIMELINE_EVENTS_FA = {

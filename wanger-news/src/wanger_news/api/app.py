@@ -12,22 +12,27 @@ from __future__ import annotations
 
 import hmac
 from collections.abc import AsyncIterator, Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import timedelta
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from wanger_news import PHASE, __version__
+from wanger_news.ai.provider import AIProvider
+from wanger_news.api.dashboard import mount_dashboard
+from wanger_news.api.mobile import mobile_router
 from wanger_news.config.models import AppConfig
 from wanger_news.db.repositories import Repositories
 from wanger_news.db.tables import Article, StoryCluster
-from wanger_news.domain.enums import ArticleStatus, ReviewAction, Transport
+from wanger_news.domain.enums import ArticleStatus, ChannelRole, ReviewAction, Transport
 from wanger_news.ports import BotApi, Clock
+from wanger_news.services import overrides
 from wanger_news.services.analytics import AnalyticsService
-from wanger_news.services.commands import PAUSED_KEY
+from wanger_news.services.commands import PAUSED_KEY, TARGET_KEY
 from wanger_news.services.context import RunContext, Target
 from wanger_news.services.corrections import CorrectionService
 from wanger_news.services.overrides import Overrides, apply
@@ -35,7 +40,9 @@ from wanger_news.services.posts import PostBuilder
 from wanger_news.services.publish import PublishService
 from wanger_news.services.reliability import ReliabilityService
 from wanger_news.services.review import ReviewService
+from wanger_news.services.search import Mode, SearchService
 from wanger_news.services.trends import TrendService
+from wanger_news.services.weekly import WeeklyService
 
 
 @dataclass(slots=True)
@@ -49,6 +56,9 @@ class ApiDeps:
     bot: BotApi | None = None
     target: Target | None = None
     channels: dict[str, Any] = field(default_factory=dict)
+    # Phase 6
+    mobile_token: SecretStr | None = None  # read-only /api/v1; None = not served
+    ai: AIProvider | None = None  # semantic search (one embedding per search)
 
 
 def create_app(deps: ApiDeps) -> FastAPI:
@@ -391,5 +401,87 @@ def create_app(deps: ApiDeps) -> FastAPI:
         await r.commit()
         return {"result": row.status, "published": "in the next publishing run"}
 
+    # ---------------------------------------------------------------- Phase 6
+    search = SearchService(deps.config, deps.ai)
+    weekly = WeeklyService(deps.config, publisher)
+
+    async def chats(r: Repositories) -> list[str]:
+        ov = await Overrides.read(r)
+        test, main = overrides.channels(deps.channels.get("test"), deps.channels.get("main"), ov)
+        return [str(c.api_value).lower() for c in (test, main) if c is not None]
+
+    @route("GET", "/api/search")
+    async def search_published(
+        q: str = Query(..., min_length=1, max_length=500),
+        mode: Mode = "auto",
+        r: Repositories = db,
+    ) -> dict[str, Any]:
+        result = await search.search(
+            r,
+            deps.clock.now(),
+            q,
+            chats=await chats(r) or None,
+            mode=mode,
+            run_id="api",
+        )
+        return result.as_dict()
+
+    @route("GET", "/api/weekly")
+    async def weekly_report(r: Repositories = db) -> dict[str, Any]:
+        config = await effective(r)
+        ctx = context(config)
+        ov = await Overrides.read(r)
+        test, main = overrides.channels(deps.channels.get("test"), deps.channels.get("main"), ov)
+        role = await r.settings.get(TARGET_KEY) or (
+            deps.target.role.value if deps.target else "test"
+        )
+        chat = main if role == "main" and main is not None else test
+        if chat is None:
+            raise HTTPException(status_code=503, detail="no target channel configured")
+        ctx.target = Target(ChannelRole.MAIN if chat == main else ChannelRole.TEST, chat)
+        report = await weekly.report(r, ctx.target.key, deps.clock.now())
+        composed = await weekly.compose(r, ctx)
+        return {"report": asdict(report), "text": composed[0] if composed else None}
+
+    @route("GET", "/api/editions")
+    async def editions(r: Repositories = db) -> list[dict[str, Any]]:
+        config = await effective(r)
+        return [e.model_dump(mode="json") for e in config.pipeline.editions.editions]
+
+    @route("POST", "/api/editions/{edition_id}/toggle")
+    async def toggle_edition(edition_id: str, r: Repositories = db) -> dict[str, Any]:
+        config = await effective(r)
+        current = next((e for e in config.pipeline.editions.editions if e.id == edition_id), None)
+        if current is None:
+            raise HTTPException(status_code=404, detail="no such edition")
+        ov = await Overrides.read(r)
+        changed = current.model_copy(update={"active": not current.active})
+        ov.editions = [e for e in ov.editions if e.get("id") != edition_id]
+        ov.editions.append(changed.model_dump(mode="json"))
+        await ov.save(r, deps.clock.now())
+        await r.commit()
+        return {"id": edition_id, "active": changed.active, "from": "next run"}
+
+    if deps.mobile_token is not None and deps.mobile_token.get_secret_value():
+        app.include_router(
+            mobile_router(
+                config=deps.config,
+                engine=deps.engine,
+                token=deps.mobile_token,
+                clock=deps.clock,
+                channels=deps.channels,
+                ai=deps.ai,
+            )
+        )
+    public = deps.config.pipeline.public_api
+    if public.cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=public.cors_origins,
+            allow_methods=["GET"],
+            allow_headers=["Authorization"],
+        )
+    if public.dashboard:
+        mount_dashboard(app)
     _ = corrections
     return app

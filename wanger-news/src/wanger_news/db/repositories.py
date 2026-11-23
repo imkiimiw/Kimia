@@ -1339,6 +1339,184 @@ class AnalyticsRepo:
         return {str(k): int(n) for k, n in (await self.s.execute(stmt)).all()}
 
 
+# ------------------------------------------------------------------------------ Phase 6
+
+#: posts that are an article's channel post (not a brief, trend, weekly or correction)
+ARTICLE_POST_KINDS = ("story", "update")
+
+
+def like_pattern(term: str) -> str:
+    """A LIKE pattern matching ``term`` literally anywhere (``%`` and ``_`` escaped)."""
+    escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+class PublishedRepo:
+    """Read views of what was published (search, feed, weekly report, editions). Every query is
+    bounded by time and LIMIT, and reads sent posts only."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.s = session
+
+    def _sent(
+        self, chats: Sequence[str] | None, since: datetime | None, kinds: Sequence[str]
+    ) -> Any:
+        stmt = (
+            sa.select(PublishedPost, Article)
+            .join(Article, Article.id == PublishedPost.article_id)
+            .where(
+                PublishedPost.status == PostStatus.SENT.value,
+                PublishedPost.kind.in_(list(kinds)),
+            )
+        )
+        if since is not None:
+            stmt = stmt.where(PublishedPost.sent_at >= since)
+        if chats is not None:
+            stmt = stmt.where(PublishedPost.chat_id.in_(list(chats)))
+        return stmt
+
+    async def items(
+        self,
+        *,
+        chats: Sequence[str] | None,
+        since: datetime,
+        limit: int,
+        before: tuple[datetime, int] | None = None,
+        kinds: Sequence[str] = ARTICLE_POST_KINDS,
+        oldest_first: bool = False,
+    ) -> list[tuple[PublishedPost, Article]]:
+        """Sent article posts, newest first (keyset pagination with ``before``)."""
+        stmt = self._sent(chats, since, kinds)
+        if before is not None:
+            at, post_id = before
+            stmt = stmt.where(
+                sa.or_(
+                    PublishedPost.sent_at < at,
+                    sa.and_(PublishedPost.sent_at == at, PublishedPost.id < post_id),
+                )
+            )
+        order = (
+            (PublishedPost.sent_at.asc(), PublishedPost.id.asc())
+            if oldest_first
+            else (PublishedPost.sent_at.desc(), PublishedPost.id.desc())
+        )
+        rows = await self.s.execute(stmt.order_by(*order).limit(limit))
+        return [(post, article) for post, article in rows.all()]
+
+    async def search_text(
+        self,
+        terms: Sequence[Sequence[str]],
+        *,
+        chats: Sequence[str] | None,
+        since: datetime,
+        limit: int,
+    ) -> list[tuple[PublishedPost, Article]]:
+        """Sent article posts whose Persian title/summary or original title/teaser contain
+        every term — a term is a group of spellings, one of which must match (Latin letters
+        case-insensitive)."""
+        stmt = self._sent(chats, since, ARTICLE_POST_KINDS).outerjoin(
+            Summary, Summary.id == Article.summary_id
+        )
+        columns = (
+            Summary.title,
+            Summary.summary,
+            Article.title_original,
+            Article.description_original,
+        )
+        for group in terms:
+            stmt = stmt.where(
+                sa.or_(
+                    *(
+                        sa.func.lower(sa.func.coalesce(column, "")).like(
+                            like_pattern(spelling.lower()), escape="\\"
+                        )
+                        for spelling in group
+                        for column in columns
+                    )
+                )
+            )
+        stmt = stmt.order_by(PublishedPost.sent_at.desc(), PublishedPost.id.desc()).limit(limit)
+        rows = await self.s.execute(stmt)
+        return [(post, article) for post, article in rows.all()]
+
+    async def stories_with_centroid(self, since: datetime, limit: int) -> list[StoryCluster]:
+        """Published stories that have an embedding (semantic search candidates)."""
+        stmt = (
+            sa.select(StoryCluster)
+            .where(
+                StoryCluster.published_at >= since,
+                StoryCluster.centroid.is_not(None),
+            )
+            .order_by(StoryCluster.published_at.desc())
+            .limit(limit)
+        )
+        return list((await self.s.scalars(stmt)).all())
+
+    async def story_posts(
+        self, cluster_ids: Sequence[int], chats: Sequence[str] | None
+    ) -> list[tuple[PublishedPost, Article]]:
+        """The sent posts of these stories (newest first)."""
+        if not cluster_ids:
+            return []
+        stmt = self._sent(chats, None, ARTICLE_POST_KINDS).where(
+            PublishedPost.cluster_id.in_(list(cluster_ids))
+        )
+        rows = await self.s.execute(
+            stmt.order_by(PublishedPost.sent_at.desc()).limit(len(cluster_ids) * 20)
+        )
+        return [(post, article) for post, article in rows.all()]
+
+    async def first_in_chat(self, cluster_id: int, chat_id: str) -> PublishedPost | None:
+        """A story's first sent post in a channel (the post an update replies to)."""
+        stmt = (
+            sa.select(PublishedPost)
+            .where(
+                PublishedPost.cluster_id == cluster_id,
+                PublishedPost.chat_id == chat_id,
+                PublishedPost.status == PostStatus.SENT.value,
+                PublishedPost.kind == "story",
+            )
+            .order_by(PublishedPost.sent_at.asc(), PublishedPost.id.asc())
+            .limit(1)
+        )
+        return await self.s.scalar(stmt)
+
+    async def summary_in(self, article_id: int, language: str) -> Summary | None:
+        """The newest valid summary of an article in a language (English editions)."""
+        stmt = (
+            sa.select(Summary)
+            .where(
+                Summary.article_id == article_id,
+                Summary.language == language,
+                Summary.valid.is_(True),
+            )
+            .order_by(Summary.id.desc())
+            .limit(1)
+        )
+        return await self.s.scalar(stmt)
+
+    async def attempts_in(self, article_id: int, language: str) -> int:
+        """How many renderings of an article into a language were made (valid or not)."""
+        stmt = (
+            sa.select(sa.func.count())
+            .select_from(Summary)
+            .where(Summary.article_id == article_id, Summary.language == language)
+        )
+        return int(await self.s.scalar(stmt) or 0)
+
+    async def corrections_published(self, since: datetime) -> int:
+        stmt = (
+            sa.select(sa.func.count())
+            .select_from(PublishedPost)
+            .where(
+                PublishedPost.kind == "correction",
+                PublishedPost.status == PostStatus.SENT.value,
+                PublishedPost.sent_at >= since,
+            )
+        )
+        return int(await self.s.scalar(stmt) or 0)
+
+
 class Repositories:
     """Everything one unit of work needs, sharing one session."""
 
@@ -1363,6 +1541,7 @@ class Repositories:
         self.corrections = CorrectionRepo(session)
         self.reliability = ReliabilityRepo(session)
         self.analytics = AnalyticsRepo(session)
+        self.published = PublishedRepo(session)
 
     async def commit(self) -> None:
         await self.session.commit()

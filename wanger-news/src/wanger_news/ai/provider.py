@@ -20,6 +20,7 @@ from wanger_news.ai.schemas import (
     ClaimsOutput,
     ClassifyOutput,
     EntitiesOutput,
+    LocalizeOutput,
     SummarizeOutput,
     TranslateOutput,
     UpdateOutput,
@@ -102,6 +103,10 @@ class AIProvider(Protocol):
     ) -> AIResult[SummarizeOutput]: ...
 
     async def translate(self, text: str, *, language: str) -> AIResult[TranslateOutput]: ...
+
+    async def localize(
+        self, item: dict[str, Any], *, language: str
+    ) -> AIResult[LocalizeOutput]: ...
 
     async def classify(
         self, items: Sequence[dict[str, Any]], *, categories: Sequence[str]

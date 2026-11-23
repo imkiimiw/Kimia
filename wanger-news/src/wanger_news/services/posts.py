@@ -149,6 +149,12 @@ class PostBuilder:
         summary = await repos.summaries.get(article.summary_id)
         return summary.title if summary is not None else article.title_original
 
+    async def sources(
+        self, repos: Repositories, article: Article, story: StoryCluster | None, update: bool
+    ) -> tuple[list[str], str]:
+        """(source names, link) as the post shows them (also used by English editions)."""
+        return await self._sources(repos, article, story, update)
+
     async def _sources(
         self, repos: Repositories, article: Article, story: StoryCluster | None, update: bool
     ) -> tuple[list[str], str]:

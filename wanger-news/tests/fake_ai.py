@@ -14,6 +14,7 @@ from wanger_news.ai.schemas import (
     ClaimsOutput,
     ClassifyOutput,
     EntitiesOutput,
+    LocalizeOutput,
     SummarizeOutput,
     TranslateOutput,
     UpdateOutput,
@@ -35,6 +36,9 @@ GENERIC = {
 }
 
 
+_ASCII = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
+
+
 def evidence_from(text: str, words: int = 8) -> str:
     """A verbatim excerpt: the first words of the source text."""
     return " ".join(re.sub(r"\s+", " ", text).split(" ")[:words])
@@ -52,6 +56,8 @@ class FakeAI:
     failures: dict[str, list[Exception]] = field(default_factory=dict)
     #: substring of any source text → fields of the update answer (same_event, has_new_information…)
     updates: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: substring of the Persian summary or sources → fields of the English edition (Phase 6)
+    localized: dict[str, dict[str, Any]] = field(default_factory=dict)
     #: substring of the text → a fixed embedding vector
     vectors: dict[str, list[float]] = field(default_factory=dict)
     calls: list[tuple[str, list[str]]] = field(default_factory=list)
@@ -187,6 +193,27 @@ class FakeAI:
             data=UpdateOutput.model_validate({"articles": out}),
             usage=self._usage("update"),
             raw="{}",
+        )
+
+    async def localize(self, item: dict[str, Any], *, language: str) -> AIResult[LocalizeOutput]:
+        """The English edition: ``localized`` (substring of the Persian summary or the sources →
+        fields) or a faithful generic rendering that keeps the summary's numbers."""
+        self._check("localize", [str(item.get("id", ""))])
+        verified = item.get("summary") or {}
+        text = " ".join(
+            [str(verified.get("title", "")), str(verified.get("summary", ""))]
+            + [str(s.get("text", "")) for s in item.get("sources") or []]
+        )
+        numbers = re.findall(r"\d+", str(verified.get("summary", "")).translate(_ASCII))
+        fields: dict[str, Any] = {
+            "title": "Test English title",
+            "summary": "English summary of the verified report"
+            + (f" with {' and '.join(numbers)}." if numbers else "."),
+            "key_points": ["Key point in English"],
+        }
+        fields.update(self._match(self.localized, text) or {})
+        return AIResult(
+            data=LocalizeOutput.model_validate(fields), usage=self._usage("localize"), raw="{}"
         )
 
     async def translate(self, text: str, *, language: str) -> AIResult[TranslateOutput]:

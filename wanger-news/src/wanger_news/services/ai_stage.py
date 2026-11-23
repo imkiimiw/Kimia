@@ -236,6 +236,13 @@ class AIStage:
             batches.append(current)
         return batches
 
+    async def allowance(self, repos: Repositories, ctx: RunContext) -> int:
+        """AI calls still allowed now (the paced daily share minus what was used): Phase 6
+        editions translate inside the same daily quota."""
+        if self._provider is None or not self._ai.enabled:
+            return 0
+        return (await self._budget(repos, ctx)).left
+
     async def _budget(self, repos: Repositories, ctx: RunContext) -> Budget:
         """This run's share: the daily quota spread evenly over the day (``domain/quota``), so
         it lasts until the daily reset — the quota Google stated if it ever did, else

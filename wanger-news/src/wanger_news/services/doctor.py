@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 
+from wanger_news.adapters.mother import HttpMotherBot, MotherBotError
 from wanger_news.adapters.telegram.client import TelegramClient, TelegramError
 from wanger_news.ai.prompts import PromptError, PromptLibrary
 from wanger_news.config.models import AppConfig
@@ -149,4 +150,35 @@ async def run_doctor(
             problems += await _chat_check(
                 bot, int(me["id"]), f"source {source.id}", source.telegram.chat_ref, False, out
             )
-    return problems
+        for edition in config.pipeline.editions.editions:  # Phase 6
+            if not edition.active:
+                out(f"• edition {edition.id}: switched off")
+                continue
+            problems += await _chat_check(
+                bot, int(me["id"]), f"edition {edition.id}", edition.chat_ref, True, out
+            )
+    return problems + await mother_check(settings, config, out)
+
+
+async def mother_check(settings: Settings, config: AppConfig, out: Callable[[str], None]) -> int:
+    """Phase 6: is the mother bot configured, and does it accept a signed ping?"""
+    if not settings.mother_url.strip():
+        out("• mother bot: not connected (WANGER_NEWS_MOTHER_URL is empty)")
+        return 0
+    if settings.mother_secret is None:
+        out("✖ mother bot: WANGER_NEWS_MOTHER_SECRET is not set (reports must be signed)")
+        return 1
+    try:
+        async with httpx.AsyncClient() as http:
+            mother = HttpMotherBot(
+                settings.mother_url, settings.mother_secret, http, config.pipeline.mother_bot
+            )
+            problem = await mother.ping()
+    except MotherBotError as exc:
+        out(f"✖ mother bot: {exc}")
+        return 1
+    if problem:
+        out(f"✖ mother bot {mother.host}: signed ping not accepted ({problem})")
+        return 1
+    out(f"✔ mother bot {mother.host} accepted a signed ping")
+    return 0

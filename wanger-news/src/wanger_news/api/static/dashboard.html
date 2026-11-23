@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Wanger News — داشبورد</title>
+<link rel="stylesheet" href="/dashboard/app.css">
+</head>
+<body>
+<header>
+  <h1>Wanger News</h1>
+  <form id="login" autocomplete="off">
+    <label for="token">توکن API</label>
+    <input id="token" type="password" placeholder="WANGER_NEWS_API_TOKEN" required>
+    <button type="submit">ورود</button>
+    <button type="button" id="logout" hidden>خروج</button>
+  </form>
+</header>
+<nav id="tabs" hidden>
+  <button data-tab="status" class="active">وضعیت</button>
+  <button data-tab="pending">منتظر بررسی</button>
+  <button data-tab="stories">رویدادها</button>
+  <button data-tab="search">جستجو</button>
+  <button data-tab="weekly">گزارش هفتگی</button>
+  <button data-tab="sources">منابع</button>
+  <button data-tab="rules">قوانین</button>
+  <button data-tab="editions">نسخه‌ها</button>
+  <button data-tab="analytics">آمار و هزینه</button>
+  <button data-tab="corrections">اصلاحیه‌ها</button>
+  <button data-tab="reliability">اعتبار منابع</button>
+</nav>
+<main>
+  <p id="message" role="status"></p>
+  <section id="view"></section>
+</main>
+<footer>تغییرها همان کد دکمه‌های ربات را اجرا می‌کنند؛ انتشار بدون بررسی ممکن نیست.</footer>
+<script src="/dashboard/app.js"></script>
+</body>
+</html>

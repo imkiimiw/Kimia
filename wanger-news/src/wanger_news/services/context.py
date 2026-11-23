@@ -42,6 +42,8 @@ class RunContext:
     target: Target | None
     observed_chats: list[ChatRef] = field(default_factory=list)  # all configured target channels
     channels: dict[str, ChatRef | None] = field(default_factory=dict)  # role → configured chat
+    edition_chats: list[ChatRef] = field(default_factory=list)  # Phase 6: never a source
+    mother_events: list[tuple[str, dict[str, Any]]] = field(default_factory=list)  # sent after
     out: Callable[[str], None] = print
     counters: Counter[str] = field(default_factory=Counter)
     errors: list[str] = field(default_factory=list)

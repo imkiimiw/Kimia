@@ -262,6 +262,17 @@ def _api(settings: Settings, args: argparse.Namespace) -> int:
     if settings.bot_token is not None:
         bot = TelegramClient(settings.bot_token, httpx.AsyncClient(timeout=20))
     test, main = settings.test_channel_ref, settings.main_channel_ref
+    ai = None  # semantic search needs one embedding per search
+    if settings.gemini_api_key is not None and config.pipeline.ai.enabled:
+        from wanger_news.ai.gemini import GeminiProvider
+        from wanger_news.ai.prompts import PromptLibrary
+
+        ai = GeminiProvider(
+            settings.gemini_api_key,
+            httpx.AsyncClient(timeout=config.pipeline.ai.timeout_seconds),
+            config.pipeline.ai,
+            PromptLibrary.load(settings.prompts_dir),
+        )
     app = create_app(
         ApiDeps(
             config=config,
@@ -273,6 +284,8 @@ def _api(settings: Settings, args: argparse.Namespace) -> int:
             bot=bot,
             target=resolve_target(test, main),
             channels={"test": test, "main": main},
+            mobile_token=settings.mobile_api_token,
+            ai=ai,
         )
     )
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
