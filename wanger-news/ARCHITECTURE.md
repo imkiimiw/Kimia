@@ -610,3 +610,27 @@ buttons, so the API cannot do anything the bot would not. It is bound to 127.0.0
 expose it only behind a TLS reverse proxy. A web dashboard UI and the Telegram webhook (instant
 replies) belong to option B and are not built.
 
+
+**ADR-052 — the daily AI quota is spread over the day.** Gemini's free tier is a per-day quota
+(requests per day, reset at midnight Pacific time: `ai.quota_reset_timezone`). Spending it as fast
+as news arrives empties it in the morning and leaves the rest of the day without summaries. Each
+run now gets its share (`domain/quota.paced_allowance`): `quota × (elapsed fraction of the quota
+day + one run interval)` minus what was already used, capped by `ai.max_calls_per_run` and by
+what is left. Missed runs leave their share to later runs (within the cap); a whole day of runs
+uses the quota and never more, so it lasts every day of the month. The quota in effect is, in
+order: the per-day value Google states in a 429 `QuotaFailure` (learned automatically,
+`settings["ai.daily_quota"]`), the owner's `/quota N` (the RPD figure AI Studio shows), else
+`ai.max_calls_per_day`. Dry runs keep their own small cap. Learning only goes down (Google
+states the quota only when it is exceeded), so a higher real quota is set with `/quota`.
+
+**ADR-053 — runs are started by an external timer.** GitHub's `schedule` started runs hours
+late for this repository (ADR-042's problem in production). Option A therefore uses a free
+external timer (cron-job.org) that calls the GitHub REST API every 10 minutes:
+`POST /repos/imkiimiw/Kimia/actions/workflows/news.yml/dispatches` with
+`{"ref": <default branch>, "inputs": {"command": "run-once", "trigger": "cron"}}`, authorised by
+a fine-grained token limited to this repository and to "Actions: read and write". `trigger=cron`
+gives the timer's runs the scheduled-run behaviour (a setup problem warns instead of failing).
+GitHub's own schedule stays as an hourly fallback; the `concurrency` group keeps runs one at a
+time. The token sits at a third party: it can only start workflows of this repository, has an
+expiry, and is revoked in GitHub settings if ever in doubt. Option B (a small server) remains
+the long-term home.

@@ -386,6 +386,7 @@ def make_config(sources: list[dict[str, Any]] | None = None, **pipeline: Any) ->
     pipe["publish"].update(min_interval_seconds=0)
     pipe["story"].update(settle_minutes=0)  # tests run a story through in one run
     pipe["trends"].update(min_history_hours=0)  # a test database has no history
+    pipe["ai"].update(pace_daily_quota=False)  # tests count calls per run (pacing: own tests)
     editorial = real.editorial.model_dump()
     # the harness publishes without a human (auto) unless a test asks for "semi"/"manual"
     editorial["publish_modes"]["default"] = pipeline.pop("mode", "auto")

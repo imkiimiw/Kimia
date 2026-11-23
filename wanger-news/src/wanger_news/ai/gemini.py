@@ -235,7 +235,9 @@ class GeminiProvider:
             return data
         message = _error_message(resp)
         if resp.status_code == 429:
-            raise AIBudgetExhausted(f"gemini quota: {message}")
+            quota_error = AIBudgetExhausted(f"gemini quota: {message}")
+            quota_error.daily_limit = _daily_limit(resp)
+            raise quota_error
         if resp.status_code in (401, 403):
             raise AIUnavailable(f"gemini auth ({resp.status_code}): check the API key — {message}")
         if resp.status_code == 404:
@@ -278,6 +280,21 @@ class GeminiProvider:
         if not text.strip():
             raise AIInvalidOutput("gemini returned an empty answer", usage)
         return text
+
+
+def _daily_limit(resp: httpx.Response) -> int | None:
+    """The per-day request quota stated in a 429 answer (google.rpc.QuotaFailure), if any."""
+    try:
+        details = resp.json().get("error", {}).get("details", [])
+    except (ValueError, AttributeError):
+        return None
+    for detail in details if isinstance(details, list) else []:
+        for violation in (detail or {}).get("violations", []) or []:
+            quota_id = str(violation.get("quotaId", ""))
+            value = str(violation.get("quotaValue", ""))
+            if "PerDay" in quota_id and value.isdigit():
+                return int(value)
+    return None
 
 
 def _error_message(resp: httpx.Response) -> str:

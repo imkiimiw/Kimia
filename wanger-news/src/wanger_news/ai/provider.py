@@ -59,9 +59,11 @@ class AIError(Exception):
 
 
 class AIBudgetExhausted(AIError):
-    """Our per-run/per-day budget or the provider's quota is used up: try again next run."""
+    """Our per-run/per-day budget or the provider's quota is used up: try again next run.
+    ``daily_limit``: the provider's per-day quota, when its answer states it."""
 
     status = "quota"
+    daily_limit: int | None = None
 
 
 class AIUnavailable(AIError):
