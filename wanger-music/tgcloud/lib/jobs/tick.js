@@ -5,6 +5,7 @@ import { runMaintenance } from './maintenance.js';
 import { runMonitor } from '../core/health.js';
 import { askMissingLanguages } from '../admin/sources_ui.js';
 import { notifyQueue } from '../admin/approvals_ui.js';
+import { sendDailyReport } from '../admin/stats_ui.js';
 
 /** Processors in order (spec 10.7): maintenance → broadcast → publications → digests → archive → search index → stats (Phase 7: aggregation every 15 min, retention daily) → backup (Phase 8: weekly, when on) → monitor (Phase 8: warnings → throttled owner alerts). */
 const PROCESSORS = [
@@ -18,6 +19,7 @@ const PROCESSORS = [
   { name: 'backup', run: (app, _deadlineMs, trigger) => app.backup.runWeekly(trigger) },
   { name: 'languages', run: (app) => askMissingLanguages(app) },
   { name: 'queue_notice', run: (app) => notifyQueue(app) },
+  { name: 'report', run: (app) => sendDailyReport(app) },
   { name: 'monitor', run: (app) => runMonitor(app) },
 ];
 

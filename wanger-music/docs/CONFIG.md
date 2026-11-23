@@ -73,6 +73,7 @@ token. If a later provider needs an API key, it goes in the git-ignored
 | `music.language_auto` | `confident` | `confident` (only Persian script → Persian; Latin letters stay unknown: they may be Persian written in Latin), `all` (also Latin → English, low confidence — the old behaviour), `off` (never guess) | Language of new tracks when no person, source default or known artist decided it |
 | `import.auto_activate` | `false` | on/off | Audio the owner/admins send or forward is activated right away when it has a title and an artist (otherwise it stays a draft) |
 | `backup.weekly` | `false` | on/off | A backup document is sent to the owner once a week from the tick (Phase 8) |
+| `report.daily` | `true` | on/off | Yesterday's numbers (users, searches and empty ones, plays, activated tracks, posts, queue, top 3 of 7 days) to the owner, once a day from the first tick after 09:00 in `time_zone` (`LIMITS.reportHour`); once per day through an alert claim (`report:<date>`) |
 
 Internal state keys (not editable): `system.bootstrapped`, `forcejoin.seeded`, `forcejoin.version`,
 `tick.last_at`, `tick.last`, `telegram.cooldown_until`, `commands.version`, `catalog.version`,
@@ -103,10 +104,19 @@ default language.
 
 Destination channels (Phase 5) live in the `destination_channels` table, never in code; per channel:
 enabled (default off), auto-publish (default off), approval (default on), rules, caption template
-(default `🎵 {title} / 👤 {artist} / 💿 {album} / ⏱ {duration}`), post format, minimum interval
+(default `🎵 {title} / 👤 {artist} / 💿 {album} / ⏱ {duration} / 🎚 {quality} / (blank) / {hashtags}` since 2026-11-23;
+`{quality}` = "320kbps" / "FLAC" / "AAC 256kbps" from the file, `{hashtags}` = artist, featured artists and genre),
+post format, minimum interval
 (default 10 min), active hours (default all day), daily limit (default 50), time zone (default the
 `time_zone` setting), and «🆔 channel link at the end of captions» (`signature`, default on: the
 last line is `🆔 @username`; private channels have no public link, so no line; a template that uses
-`{channel}` places it itself). The owner named **@WangerBeat** (`-1004370326177`) for English music and
-**@WangerFlow** (`-1004391543350`) for Persian music (one-tap add buttons). Publishing starts only in
+`{channel}` places it itself), «🔘 buttons under posts» (`post_buttons`, default on: «🎧 get it in the bot»
+→ `t.me/<bot>?start=t_<id>` and «📤 send to a friend» → a `t.me/share/url` link to the same), and a promo
+line (`promo_text`, plain text ≤ 200 characters, escaped, above the channel link on every `promo_every`-th
+post: 1/2/3/5/10, counter `posts_since_promo`). Rules may say «🌍 every language» (`rules.any_language`:
+every language and undecided ones match, no approval for low confidence); while every channel says so,
+the bot asks no source-language questions, raises no «no language» warning and leaves the language
+line and buttons out of the new-song message. The owner named **@WangerBeat** (`-1004370326177`) for English music and
+**@WangerFlow** (`-1004391543350`) for Persian music (one-tap add buttons); since 2026-11-23 both take
+every song, whatever its language (the owner's choice). Publishing starts only in
 Phase 6, and only for channels the owner enables with auto-publish on.

@@ -69,7 +69,7 @@ test('the preview uploads the full picture first; the channel post then uses it 
   assert.deepEqual(photos(h, FLOW), [], 'the preview never goes to the channel');
   await send(h);
   assert.equal(photos(h, FLOW)[0].params.photo, row(h, tr.id).cover_file_id);
-  assert.equal(streams(h), 1, 'the file was read once');
+  assert.equal(streams(h), 2, 'the file was read twice: its first bytes for the quality (import card), then for the cover — once');
 });
 
 test('a file without a bigger picture keeps the thumbnail (uploaded as a photo) and is not read again', async () => {
@@ -94,7 +94,7 @@ test('a cover a person set is never replaced; a file Telegram won\'t hand out fa
   await h.press(OWNER, `trk:act:${a.id}`, 1);
   await send(h);
   assert.equal(photos(h, FLOW)[0].params.photo, 'MANUAL');
-  assert.equal(streams(h), 0);
+  assert.equal(streams(h), 1, 'only for the quality (import card): never for a cover');
 
   const b = await track(h, null);
   h.tg.failNext('getFileStream', 400, 'Bad Request: file is too big');

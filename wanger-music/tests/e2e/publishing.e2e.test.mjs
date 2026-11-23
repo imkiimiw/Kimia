@@ -47,7 +47,12 @@ test('done when: a newly activated matching track is posted exactly once', async
   const sent = posts(h, FLOW);
   assert.equal(sent.length, 1, 'posted exactly once');
   assert.equal(sent[0].params.audio, tr.audio_file_id);
-  assert.match(sent[0].params.caption, /^🎵 دلم تنگه\n👤 شادمهر عقیلی\n⏱ \d+:\d\d\n\n🆔 @WangerFlow$/, 'default caption, empty album line dropped, the channel link last');
+  assert.match(sent[0].params.caption, /^🎵 دلم تنگه\n👤 شادمهر عقیلی\n⏱ \d+:\d\d\n\n#شادمهر_عقیلی\n\n🆔 @WangerFlow$/, 'default caption, empty album / quality lines dropped, hashtags, the channel link last');
+  const link = `https://t.me/Wange_Musicbot?start=t_${tr.public_id}`;
+  assert.deepEqual(sent[0].params.reply_markup.inline_keyboard, [[
+    { text: '🎧 دریافت در ربات', url: link },
+    { text: '📤 ارسال برای دوست', url: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('🎵 دلم تنگه — شادمهر عقیلی')}` },
+  ]], 'buttons under the post bring channel members to the bot');
   assert.equal(sent[0].params.parse_mode, 'HTML');
   const p = pubs(h)[0];
   assert.deepEqual([p.status, p.telegram_message_id, p.attempt_count], ['published', sent[0].result.message_id, 1]);

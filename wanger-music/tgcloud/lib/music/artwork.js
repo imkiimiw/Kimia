@@ -221,12 +221,46 @@ export function scanCover(b) {
   return null;
 }
 
+const STANDARD_KBPS = [32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+
+/** "320kbps" from the audio's bytes (the file minus its tags) and length; a VBR file gets its average. */
+function kbpsLabel(audioBytes, duration, prefix = '') {
+  if (!(audioBytes > 0) || !(duration > 0)) return '';
+  const kbps = (audioBytes * 8) / duration / 1000;
+  if (kbps < 16 || kbps > 400) return ''; // a wrong length or size
+  const near = STANDARD_KBPS.reduce((a, b) => (Math.abs(b - kbps) < Math.abs(a - kbps) ? b : a));
+  return `${prefix}${Math.abs(near - kbps) / near <= 0.06 ? near : Math.round(kbps)}kbps`;
+}
+
 /**
- * Reads chunks of a file only as far as the cover needs (≤ READ_CAP bytes).
- * @param {AsyncIterable<Uint8Array>} chunks @param {number} [cap]
- * @returns {Promise<Picture|null>}
+ * The file's quality label: "FLAC", "320kbps" (MP3: size without the ID3 tag ÷ length), "AAC 256kbps"
+ * (M4A: the mdat box ÷ length), '' when unknown. An MP3 needs only its first 12 bytes.
+ * @param {Uint8Array} b @param {number} fileSize @param {number} duration seconds
+ * @returns {{label: string}|{need: number}}
  */
-export async function readCover(chunks, cap = READ_CAP) {
+export function scanQuality(b, fileSize, duration) {
+  if (b.length < 12) return { need: 12 };
+  if (ascii(b, 0, 4) === 'fLaC') return { label: 'FLAC' };
+  if (ascii(b, 0, 3) === 'ID3') return { label: kbpsLabel(fileSize - (10 + syncsafe(b, 6) + (b[5] & 0x10 ? 10 : 0)), duration) };
+  if (b[0] === 0xff && (b[1] & 0xe0) === 0xe0) return { label: kbpsLabel(fileSize, duration) }; // an MPEG frame, no tag
+  if (ascii(b, 4, 4) !== 'ftyp') return { label: '' };
+  for (let o = 0; ;) {
+    if (b.length < o + 16) return { need: o + 16 };
+    let size = u32(b, o);
+    if (size === 1) size = u32(b, o + 8) * 0x100000000 + u32(b, o + 12);
+    if (ascii(b, o + 4, 4) === 'mdat') return { label: kbpsLabel(size === 0 ? fileSize - o : size, duration, 'AAC ') };
+    if (size < 8) return { label: '' };
+    o += size;
+  }
+}
+
+/**
+ * Reads chunks of a file from its start only as far as `scan` needs (≤ cap bytes).
+ * @template {object} T
+ * @param {AsyncIterable<Uint8Array>} chunks @param {(b: Uint8Array) => (T|{need: number}|null)} scan
+ * @returns {Promise<T|null>} null: nothing found, past the cap, or the file ended first
+ */
+export async function readScan(chunks, scan, cap = READ_CAP) {
   /** @type {Uint8Array[]} */
   const parts = [];
   let have = 0;
@@ -244,12 +278,25 @@ export async function readCover(chunks, cap = READ_CAP) {
     parts.push(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk));
     have += chunk.length;
     while (have >= need) {
-      const r = scanCover(joined());
+      const r = scan(joined());
       if (!r) return null;
-      if ('picture' in r) return r.picture;
-      if (r.need > cap) return null;
-      need = r.need;
+      const more = /** @type {any} */ (r).need;
+      if (typeof more !== 'number') return /** @type {T} */ (r);
+      if (more > cap) return null;
+      need = more;
     }
   }
-  return null; // the file ended first
+  return null;
+}
+
+/** The cover picture of a file's chunks (≤ cap bytes read). @returns {Promise<Picture|null>} */
+export async function readCover(chunks, cap = READ_CAP) {
+  const r = await readScan(chunks, scanCover, cap);
+  return r && 'picture' in r ? r.picture : null;
+}
+
+/** The quality label of a file's chunks ('' when unknown). */
+export async function readQuality(chunks, fileSize, duration) {
+  const r = await readScan(chunks, (b) => scanQuality(b, fileSize, duration), 4 * 1024 * 1024);
+  return r ? r.label : '';
 }

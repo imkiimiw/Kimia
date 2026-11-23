@@ -5,7 +5,8 @@ import { sql } from 'sdk/db';
 const first = (r) => r.rows[0] || null;
 /** Columns an update may touch (identifiers only from this list); objects are stored as JSON. */
 const EDITABLE = ['username', 'title', 'enabled', 'auto_publish', 'approval_required', 'rules', 'caption_template', 'post_format',
-  'min_interval_seconds', 'active_hours', 'daily_limit', 'time_zone', 'bot_rights_ok', 'bot_rights', 'publishing_since', 'signature'];
+  'min_interval_seconds', 'active_hours', 'daily_limit', 'time_zone', 'bot_rights_ok', 'bot_rights', 'publishing_since', 'signature',
+  'post_buttons', 'promo_text', 'promo_every'];
 const JSON_COLS = ['rules', 'active_hours', 'bot_rights'];
 /** @param {any[]} parts */
 const commaJoin = (parts) => parts.reduce((acc, p, i) => (i ? sql`${acc}, ${p}` : p), sql``);
@@ -46,7 +47,11 @@ export function createDestinationsRepo() {
       WHERE id = ${id} RETURNING *`).then(first),
     /** Channels routing may target now (the newest track activation must be after publishing_since). */
     routable: () => db.all(sql`SELECT * FROM destination_channels WHERE enabled = 1 AND auto_publish = 1 AND removed_at IS NULL LIMIT 50`),
-    setLastPublished: (id, now) => db.run(sql`UPDATE destination_channels SET last_published_at = ${now} WHERE id = ${id}`),
+    /** After a post: its time, and the promo counter (reset when the post carried the promo line). */
+    setLastPublished: (id, now, promoSent = false) => db.run(sql`
+      UPDATE destination_channels SET last_published_at = ${now},
+        posts_since_promo = CASE WHEN ${promoSent ? 1 : 0} = 1 THEN 0 ELSE posts_since_promo + 1 END
+      WHERE id = ${id}`),
     softRemove: (id, now) => db.run(sql`
       UPDATE destination_channels SET removed_at = ${now}, enabled = 0, auto_publish = 0, updated_at = ${now}
       WHERE id = ${id} AND removed_at IS NULL`).then((r) => r.rowsAffected),

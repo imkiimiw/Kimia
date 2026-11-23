@@ -1,13 +1,14 @@
 // Destination rules and schedules (pure). Phase 5 stores and shows them; Phase 6 routing uses
 // matches() and withinHours(). Rules: languages (a track's language must be listed), genres
 // (if any are listed, the track's genre must be one), excluded genres, minimum language confidence
-// (below it a track still goes to the channel, but only through approval).
+// (below it a track still goes to the channel, but only through approval). any_language (the owner,
+// 2026-11-23: "the song's language shouldn't matter"): every language, unknown too, no confidence check.
 import { GENRES, CONFIDENCE_ORDER } from '../config/static.js';
 import { toAsciiDigits } from '../music/normalize.js';
 import { tzOffsetSeconds, dayStart } from '../core/util.js';
 
 export const RULE_LANGUAGES = Object.freeze(['fa', 'en', 'other']);
-export const DEFAULT_RULES = Object.freeze({ languages: [], genres: [], exclude_genres: [], min_language_confidence: 'medium' });
+export const DEFAULT_RULES = Object.freeze({ languages: [], genres: [], exclude_genres: [], min_language_confidence: 'medium', any_language: false });
 
 const onlyFrom = (list, allowed) => [...new Set((Array.isArray(list) ? list : []).filter((x) => allowed.includes(x)))];
 
@@ -27,6 +28,7 @@ export function normalizeRules(raw) {
     genres: onlyFrom(r.genres, GENRES),
     exclude_genres: onlyFrom(r.exclude_genres, GENRES),
     min_language_confidence: CONFIDENCE_ORDER.includes(r.min_language_confidence) ? r.min_language_confidence : 'medium',
+    any_language: r.any_language === true,
   };
 }
 
@@ -52,10 +54,10 @@ export function matches(track, channel) {
   const r = normalizeRules(channel.rules);
   const no = (reason) => ({ match: false, needsApproval: false, reason });
   if (!track || track.status !== 'active') return no('not_active');
-  if (!r.languages.includes(track.language)) return no('language');
+  if (!r.any_language && !r.languages.includes(track.language)) return no('language');
   if (r.genres.length && !r.genres.includes(track.genre)) return no('genre');
   if (track.genre && r.exclude_genres.includes(track.genre)) return no('excluded_genre');
-  const low = !confidenceAtLeast(track.language_confidence, r.min_language_confidence);
+  const low = !r.any_language && !confidenceAtLeast(track.language_confidence, r.min_language_confidence);
   return { match: true, needsApproval: !!channel.approval_required || low, reason: low ? 'low_confidence' : null };
 }
 

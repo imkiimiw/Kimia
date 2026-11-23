@@ -11,6 +11,7 @@ import { classify as classifyError } from '../telegram/errors.js';
 import { esc } from '../telegram/html.js';
 import { windowAllows } from '../telegram/limiter.js';
 import { t } from '../i18n/index.js';
+import { readQuality } from './artwork.js';
 
 const PERM = 'catalog.manage';
 
@@ -290,6 +291,27 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
      * @param {number} id @param {string|null} fileId null keeps the current cover @param {'file'|'thumb'|null} source
      */
     replaceCover: (id, fileId, source) => repo.update(id, fileId ? { cover_file_id: fileId, cover_source: source } : { cover_source: source }, clock.now()),
+
+    /**
+     * The file's quality ("320kbps", "FLAC", "AAC 256kbps"; '' unknown), read once from the start of the
+     * file (12 bytes for an MP3) and kept. A passing download problem leaves it unknown for next time.
+     * @returns {Promise<string>}
+     */
+    async ensureQuality(track) {
+      if (!track) return '';
+      if (track.quality !== null && track.quality !== undefined) return track.quality;
+      try {
+        const label = await readQuality((await tg.fileStream(track.audio_file_id)).body, Number(track.file_size) || 0, Number(track.duration) || 0);
+        await repo.update(track.id, { quality: label }, clock.now());
+        track.quality = label;
+        return label;
+      } catch (e) {
+        const c = classifyError(e);
+        log.warn('quality_read_failed', { track_id: track.id, error: c.kind });
+        if (c.code === 400) await repo.update(track.id, { quality: '' }, clock.now());
+        return '';
+      }
+    },
 
     /** Cover for channel posts (the audio file's own thumbnail does not change). */
     async setCover(actor, id, fileId) {

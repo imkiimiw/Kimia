@@ -63,7 +63,7 @@ test('the owner adds @WangerBeat (English) and @WangerFlow (Persian), configures
   await h.tap(OWNER, `dst:tog:${id}`);
   await h.tap(OWNER, `dst:auto:${id}`);
   const d = dest(h, FLOW);
-  assert.deepEqual(JSON.parse(d.rules), { languages: ['fa', 'other'], genres: ['pop', 'traditional'], exclude_genres: ['rap'], min_language_confidence: 'high' });
+  assert.deepEqual(JSON.parse(d.rules), { languages: ['fa', 'other'], genres: ['pop', 'traditional'], exclude_genres: ['rap'], min_language_confidence: 'high', any_language: false });
   assert.deepEqual([d.post_format, d.time_zone, d.min_interval_seconds, JSON.parse(d.active_hours), d.daily_limit, d.approval_required, d.enabled, d.auto_publish],
     ['cover_then_audio', 'UTC', 900, { from: 9, to: 23 }, 30, 0, 1, 1]);
   assert.deepEqual(channelPosts(h), [], 'nothing was posted to any channel');
@@ -130,7 +130,7 @@ test('preview with a real matching track: cover first (cover_then_audio), then t
   const audio = h.tg.callsOf('sendAudio', OWNER).at(-1);
   assert.equal(photo.params.photo, 'COVER');
   assert.equal(audio.params.audio, 'FILE_FA');
-  assert.equal(audio.params.caption, '🎵 دلم تنگه &lt;3\n👤 شادمهر عقیلی\n⏱ 4:05\n\n🆔 @WangerFlow', 'default template, escaped, album line dropped, the channel\'s link last');
+  assert.equal(audio.params.caption, '🎵 دلم تنگه &lt;3\n👤 شادمهر عقیلی\n⏱ 4:05\n\n#شادمهر_عقیلی\n\n🆔 @WangerFlow', 'default template, escaped, album line dropped, hashtags, the channel\'s link last');
   assert.match(h.lastText(OWNER), /چیزی توی کانال ارسال نشد/);
   assert.deepEqual(channelPosts(h), [], 'the preview never goes to the channel');
 });

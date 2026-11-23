@@ -21,6 +21,8 @@ export const fmtDuration = (s, lang) => digits(`${Math.floor((s || 0) / 60)}:${S
 export const fmtSize = (b, lang) => (b ? digits(`${(b / 1048576).toFixed(1)} MB`, lang) : '—');
 
 const label = (lang, tr) => truncate(`${tr.title || tp(lang, 'trk.untitled')} — ${tr.artist || '?'}`, 48);
+/** Quality labels in order: FLAC above any bitrate. */
+const qualityRank = (q) => (q === 'FLAC' ? 100000 : parseInt(String(q).replace(/^\D+/, ''), 10) || 0);
 
 /** The track card (also the import card, with a header). */
 export async function trackView(app, viewer, tr, { header = '' } = {}) {
@@ -31,7 +33,8 @@ export async function trackView(app, viewer, tr, { header = '' } = {}) {
   lines.push(t(lang, 'trk.line.artist', { artist: tr.artist || '—', featured: tr.featured_artists ? ` (feat. ${tr.featured_artists})` : '' }));
   if (tr.album) lines.push(t(lang, 'trk.line.album', { album: tr.album }));
   if (tr.genre) lines.push(t(lang, 'trk.line.genre', { genre: tp(lang, `genre.${tr.genre}`) }));
-  lines.push(t(lang, 'trk.line.file', { duration: fmtDuration(tr.duration, lang), size: fmtSize(tr.file_size, lang) }));
+  const quality = await app.catalog.ensureQuality(tr);
+  lines.push(t(lang, 'trk.line.file', { duration: fmtDuration(tr.duration, lang), size: fmtSize(tr.file_size, lang), quality: quality ? raw(` · 🎚 ${esc(quality)}`) : '' }));
   lines.push(t(lang, 'trk.line.language', { language: tp(lang, `tlang.${tr.language}`), confidence: tp(lang, `conf.${tr.language_confidence}`), source: tp(lang, `lsrc.${tr.language_source}`) }));
   lines.push(t(lang, 'trk.line.status', { status: tp(lang, `trk.status.${tr.status}`), id: `t_${tr.public_id}`, plays: tr.play_count || 0 }));
   if (tr.origin_chat_id) lines.push(t(lang, 'trk.line.origin', { chat: String(tr.origin_chat_id), message: String(tr.origin_message_id ?? '—') }));
@@ -40,7 +43,12 @@ export async function trackView(app, viewer, tr, { header = '' } = {}) {
   if (!tr.artist) lines.push(t(lang, 'trk.line.missing', { what: tp(lang, 'trk.what.artist') }));
   if (tr.duplicate_of) {
     const other = await app.catalog.get(tr.duplicate_of);
-    if (other) lines.push(t(lang, 'trk.line.dup', { title: label(lang, other), id: `t_${other.public_id}` }));
+    if (other) {
+      lines.push(t(lang, 'trk.line.dup', { title: label(lang, other), id: `t_${other.public_id}` }));
+      // the owner asked: a better copy of a song should say so (the «replace the older one» button)
+      const theirs = await app.catalog.ensureQuality(other);
+      if (quality && theirs && quality !== theirs) lines.push(t(lang, qualityRank(quality) > qualityRank(theirs) ? 'trk.line.dup_better' : 'trk.line.dup_worse', { mine: quality, other: theirs }));
+    }
   }
   for (const r of await app.catalog.relatedVersions(tr)) lines.push(t(lang, 'trk.line.related', { title: label(lang, r), version: r.version || '—', id: `t_${r.public_id}` }));
   lines.push(...(await trackPublicationLines(app, tr)));

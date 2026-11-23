@@ -101,6 +101,27 @@ export function createDestinationsService({ repo, tg, settings, alerts, audit, c
     toggleApproval: async (actor, id) => change(actor, id, { approval_required: (await mustGet(id)).approval_required ? 0 : 1 }, 'destination.approval'),
     /** The 🆔 @channel line at the end of every caption (on by default). */
     toggleSignature: async (actor, id) => change(actor, id, { signature: (await mustGet(id)).signature === 0 ? 1 : 0 }, 'destination.signature'),
+    togglePostButtons: async (actor, id) => change(actor, id, { post_buttons: (await mustGet(id)).post_buttons === 0 ? 1 : 0 }, 'destination.post_buttons'),
+    /** The promo line (plain text, ≤ LIMITS.promoMax; null removes it). */
+    setPromo: async (actor, id, text) => change(actor, id, { promo_text: text, promo_every: text ? ((await mustGet(id)).promo_every || 3) : 0 }, 'destination.promo'),
+    async cyclePromoEvery(actor, id) {
+      const d = await mustGet(id);
+      const steps = [1, 2, 3, 5, 10];
+      return change(actor, id, { promo_every: steps[(steps.indexOf(d.promo_every) + 1) % steps.length] }, 'destination.promo_every');
+    },
+    /** «🌍 every language»: the song's language doesn't decide (unknown languages too, no approval for low confidence). */
+    async toggleAnyLanguage(actor, id) {
+      const r = normalizeRules((await mustGet(id)).rules);
+      return change(actor, id, { rules: { ...r, any_language: !r.any_language } }, 'destination.rules');
+    },
+    /**
+     * Does a channel still route by language? No (every channel takes every language) → language
+     * questions and warnings are pointless. No channel yet → yes (as before channels existed).
+     */
+    async languageMatters() {
+      const all = await repo.list();
+      return !all.length || all.some((d) => !normalizeRules(d.rules).any_language);
+    },
     async cycleFormat(actor, id) {
       const d = await mustGet(id);
       return change(actor, id, { post_format: d.post_format === 'audio' ? 'cover_then_audio' : 'audio' }, 'destination.format');

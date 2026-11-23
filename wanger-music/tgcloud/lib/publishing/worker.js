@@ -17,8 +17,24 @@ export const MAX_ATTEMPTS = 6;
 /** Captions use the channel's first language for names (Persian unless it is an English channel). */
 export const captionLanguage = (ch) => (normalizeRules(ch.rules).languages[0] === 'en' ? 'en' : 'fa');
 
-/** The caption a track gets in a channel. */
-export async function captionFor(track, ch, sources) {
+/** Does this post carry the channel's promo line? (every `promo_every`-th post) */
+export const promoDue = (ch) => Boolean(ch.promo_text) && ch.promo_every > 0 && (Number(ch.posts_since_promo) || 0) + 1 >= ch.promo_every;
+
+/**
+ * Buttons under a channel post (owner's request, 2026-11-23): the track in the bot, and a share link
+ * that opens it there — channel members become bot users. Off per channel with post_buttons = 0.
+ */
+export function postButtons(track, ch) {
+  if (ch.post_buttons === 0 || !track || !track.public_id) return undefined;
+  const lang = captionLanguage(ch);
+  const link = `https://t.me/${BOT_USERNAME}?start=t_${track.public_id}`;
+  const about = [track.title, track.artist].filter(Boolean).join(' — ');
+  const share = `https://t.me/share/url?url=${encodeURIComponent(link)}${about ? `&text=${encodeURIComponent(`🎵 ${about}`)}` : ''}`;
+  return { inline_keyboard: [[{ text: tp(lang, 'post.btn_get'), url: link }, { text: tp(lang, 'post.btn_share'), url: share }]] };
+}
+
+/** The caption a track gets in a channel. `promo`: add the channel's promo line. */
+export async function captionFor(track, ch, sources, { promo = false } = {}) {
   const lang = captionLanguage(ch);
   const src = track.source_id && sources ? await sources.get(track.source_id) : null;
   return renderCaption(ch.caption_template || DEFAULT_TEMPLATE, captionValues(track, {
@@ -27,7 +43,7 @@ export async function captionFor(track, ch, sources) {
     genreName: (g) => tp(lang, `genre.${g}`),
     sourceName: src ? src.title || '' : '',
     channel: channelHandle(ch),
-  }), CAPTION_MAX, channelSignature(ch));
+  }), CAPTION_MAX, channelSignature(ch), promo ? ch.promo_text : '');
 }
 
 /**
@@ -122,14 +138,20 @@ export function createWorker({ pubs, channels, catalog, sources, settings, tg, a
       await pubs.transition(pub.id, ['sending'], 'cancelled', 0, clock.now(), { error: 'track no longer active' });
       return 'cancelled';
     }
-    const caption = await captionFor(track, ch, sources);
+    if (/\{quality\}/.test(ch.caption_template || DEFAULT_TEMPLATE)) await catalog.ensureQuality(track);
+    const promo = promoDue(ch);
+    const caption = await captionFor(track, ch, sources, { promo });
     let coverId = null;
     try {
       if (ch.post_format === 'cover_then_audio' && (track.cover_file_id || !track.cover_source)) coverId = await sendCover(track, ch.chat_id);
-      const m = await tg.call('sendAudio', { chat_id: ch.chat_id, audio: track.audio_file_id, caption, parse_mode: 'HTML' }, 'publish');
+      const keyboard = postButtons(track, ch);
+      const m = await tg.call('sendAudio', { chat_id: ch.chat_id, audio: track.audio_file_id, caption, parse_mode: 'HTML', ...(keyboard ? { reply_markup: keyboard } : {}) }, 'publish');
       const now = clock.now();
       await pubs.markPublished(pub.id, m.message_id, coverId, now);
-      await channels.setLastPublished(ch.id, now);
+      await channels.setLastPublished(ch.id, now, promo);
+      // the same row in memory (a «send the queue» press sends several posts with one channel object)
+      ch.posts_since_promo = promo ? 0 : (Number(ch.posts_since_promo) || 0) + 1;
+      ch.last_published_at = now;
       log.info('published', { publication_id: pub.id, track_id: track.id, channel_id: ch.chat_id });
       return 'sent';
     } catch (e) {

@@ -28,7 +28,10 @@ test('query: ≤ 64 characters, ≤ 5 tokens, normalized like the index', () => 
 
 test('captions: escaping, empty lines dropped, 1024 limit, variables', () => {
   const v = captionValues({ public_id: 'AbCdEfGh1', title: 'A <b> & B', artist: `شادمهر عقیلی`, album: null, duration: 187 }, { botUsername: 'Wange_Musicbot' });
-  assert.equal(renderCaption(DEFAULT_TEMPLATE, v), '🎵 A &lt;b&gt; &amp; B\n👤 شادمهر عقیلی\n⏱ 3:07', 'album line dropped');
+  assert.equal(renderCaption(DEFAULT_TEMPLATE, v), '🎵 A &lt;b&gt; &amp; B\n👤 شادمهر عقیلی\n⏱ 3:07\n\n#شادمهر_عقیلی', 'album and quality lines dropped');
+  const full = captionValues({ public_id: 'X', title: 'Bi To', artist: 'Ebi', featured_artists: 'Shadmehr Aghili, Ebi', genre: 'pop', quality: '320kbps', duration: 60 }, { botUsername: 'b', genreName: () => 'پاپ' });
+  assert.equal(full.hashtags, '#Ebi #Shadmehr_Aghili #پاپ', 'artist, featured artists, genre; once each');
+  assert.equal(renderCaption(DEFAULT_TEMPLATE, full, 1024, '🆔 @WangerFlow', 'Join @Other <b>'), '🎵 Bi To\n👤 Ebi\n⏱ 1:00\n🎚 320kbps\n\n#Ebi #Shadmehr_Aghili #پاپ\n\nJoin @Other &lt;b&gt;\n🆔 @WangerFlow', 'the promo line (escaped) above the signature');
   assert.equal(renderCaption('{artist_tag} · <a href="{bot_link}">▶️</a>', v), '#شادمهر_عقیلی · <a href="https://t.me/Wange_Musicbot?start=t_AbCdEfGh1">▶️</a>');
   assert.equal(artistTag(`می${ZWNJ}خوام & co.`), '#میخوام_co', 'ZWNJ and punctuation removed');
   const long = renderCaption('{title}\n{album}', { ...v, title: 'T'.repeat(2000), album: 'A'.repeat(2000) });

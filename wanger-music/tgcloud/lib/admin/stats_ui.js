@@ -5,7 +5,8 @@ import { esc } from '../telegram/html.js';
 import { btn, markup } from '../bot/keyboards.js';
 import { screen, homeButton } from './panel.js';
 import { PERIODS } from '../stats/service.js';
-import { toJalali, truncate } from '../core/util.js';
+import { toJalali, truncate, tzOffsetSeconds } from '../core/util.js';
+import { OWNER_ID, LIMITS } from '../config/static.js';
 
 const PERM = 'stats.view';
 const MAX_ROWS = 10;
@@ -90,6 +91,50 @@ export function topView(lang, top) {
 }
 
 const period = (v) => (PERIODS.includes(Number(v)) ? Number(v) : 7);
+
+/** The daily report: yesterday's numbers and what waits now. @param {any} y stats.daily() row of yesterday */
+export function reportView(lang, y, queued, top) {
+  const n = (v) => num(v || 0, lang);
+  const searches = (y['search.inline'] || 0) + (y['search.private'] || 0);
+  const empty = (y['search.inline_empty'] || 0) + (y['search.private_empty'] || 0);
+  const L = [
+    t(lang, 'rep.title', { date: dateLabel(y.date, lang) }),
+    t(lang, 'rep.users', { total: n(y['users.total']), new: n(y['users.new']), active: n(y['users.active']) }),
+    t(lang, 'rep.search', { n: n(searches), empty: n(empty) }),
+    t(lang, 'rep.plays', { n: n((y['play.inline'] || 0) + (y['play.private'] || 0)) }),
+    t(lang, 'rep.tracks', { activated: n(y['tracks.activated']), published: n(y['pub.published']) }),
+    t(lang, 'rep.queue', { n: n(queued) }),
+  ];
+  if (top.length) L.push('', t(lang, 'rep.top'), ...top.slice(0, 3).map((tr, i) => trackLine(lang, i, tr)));
+  const rows = [[btn(tp(lang, 'rep.btn_stats'), 'sts', 'home', 7)]];
+  if (queued) rows.unshift([btn(tp(lang, 'pub.btn_sendq', { n: digits(queued, lang) }), 'pub', 'sendq')]);
+  rows.push([btn(tp(lang, 'rep.btn_off'), 'set', 'e', 'report.daily')]);
+  return { text: L.join('\n'), keyboard: markup(rows) };
+}
+
+/**
+ * Tick processor `report`: once per local day, from the first tick after LIMITS.reportHour, a short
+ * report of yesterday to the owner (setting report.daily). The alert claim makes it once per day.
+ */
+export async function sendDailyReport(app) {
+  if (!(await app.settings.get('report.daily'))) return 'off';
+  const now = app.clock.now();
+  const tz = String((await app.settings.get('time_zone')) || 'UTC');
+  const hour = Math.floor((((now + tzOffsetSeconds(tz, now)) % 86400) + 86400) % 86400 / 3600);
+  if (hour < LIMITS.reportHour) return 'early';
+  const today = await app.stats.today();
+  if (!(await app.alerts.claim(`report:${today}`, 36 * 3600))) return 'sent';
+  const [days, counts, top] = await Promise.all([app.stats.daily(2), app.publisher.counts(), app.stats.top(7)]);
+  const lang = await app.users.languageOf(await app.users.get(OWNER_ID));
+  const y = days[1] || { date: today };
+  try {
+    await app.tg.send(OWNER_ID, reportView(lang, y, counts.queued || 0, top.period), 'daily_report');
+    return 'sent_now';
+  } catch (e) {
+    app.log.warn('daily_report_failed', { error: String(e && (e.description || e.message)).slice(0, 120) });
+    return 'failed';
+  }
+}
 
 export const routes = [
   {

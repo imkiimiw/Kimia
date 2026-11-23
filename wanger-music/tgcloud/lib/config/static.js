@@ -63,6 +63,9 @@ export const LIMITS = Object.freeze({
   destinationsMax: 20,
   alertDestinationEverySeconds: 60 * 60,
   captionTemplateMax: 1000,
+  // a channel's promo / ad line (plain text) and the local hour from which the daily report may go out
+  promoMax: 200,
+  reportHour: 9,
 });
 
 /**
@@ -98,6 +101,8 @@ export const SETTINGS = Object.freeze({
   // Persian written in Latin, so they stay unknown for a human); all = old behaviour; off = never guess
   'music.language_auto': { type: 'enum', values: ['confident', 'all', 'off'], default: 'confident' },
   'backup.weekly': { type: 'bool', default: false },
+  // a short report of yesterday to the owner, once a day (from the first tick after reportHour)
+  'report.daily': { type: 'bool', default: true },
   // internal state (not editable)
   'system.bootstrapped': { type: 'int', default: 0, internal: true },
   'forcejoin.seeded': { type: 'int', default: 0, internal: true },

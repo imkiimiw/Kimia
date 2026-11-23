@@ -8,8 +8,8 @@ const track = (extra = {}) => ({ status: 'active', language: 'fa', language_conf
 const channel = (rules, extra = {}) => ({ rules: JSON.stringify(rules), approval_required: 0, ...extra });
 
 test('rules: stored JSON is cleaned; genre and excluded genre lists exclude each other', () => {
-  assert.deepEqual(normalizeRules('not json'), { languages: [], genres: [], exclude_genres: [], min_language_confidence: 'medium' });
-  assert.deepEqual(normalizeRules({ languages: ['fa', 'xx', 'fa'], genres: ['pop', 'nope'], min_language_confidence: 'huge' }), { languages: ['fa'], genres: ['pop'], exclude_genres: [], min_language_confidence: 'medium' });
+  assert.deepEqual(normalizeRules('not json'), { languages: [], genres: [], exclude_genres: [], min_language_confidence: 'medium', any_language: false });
+  assert.deepEqual(normalizeRules({ languages: ['fa', 'xx', 'fa'], genres: ['pop', 'nope'], min_language_confidence: 'huge' }), { languages: ['fa'], genres: ['pop'], exclude_genres: [], min_language_confidence: 'medium', any_language: false });
   let r = toggleIn({}, 'languages', 'en');
   assert.deepEqual(r.languages, ['en']);
   r = toggleIn(r, 'languages', 'en');

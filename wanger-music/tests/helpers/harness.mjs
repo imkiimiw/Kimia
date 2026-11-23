@@ -30,15 +30,17 @@ console.warn = (...a) => logs.push(['warn', a.join(' ')]);
 console.error = (...a) => logs.push(['error', a.join(' ')]);
 
 /**
- * @param {{seedChannels?: boolean, botAdminIn?: number[], autoSend?: boolean}} [opts] autoSend: the tick sends the
+ * @param {{seedChannels?: boolean, botAdminIn?: number[], autoSend?: boolean, dailyReport?: boolean}} [opts] autoSend: the tick sends the
  *   publication queue (production default is manual since 2026-11-08; most tests exercise the worker)
  */
-export function setup({ seedChannels = true, botAdminIn = SEED, autoSend = true } = {}) {
+export function setup({ seedChannels = true, botAdminIn = SEED, autoSend = true, dailyReport = false } = {}) {
   offsetMs = 0;
   logs.length = 0;
   Date.now = () => realNow() + offsetMs;
   setupDatabase(schema);
   if (autoSend) rawDatabase().prepare("INSERT INTO settings (key, value, updated_at, updated_by) VALUES ('publishing.auto_send', 'true', 0, 0)").run();
+  // the daily report (on in production) would land between the messages older tests look at
+  if (!dailyReport) rawDatabase().prepare("INSERT INTO settings (key, value, updated_at, updated_by) VALUES ('report.daily', 'false', 0, 0)").run();
   const tg = createFakeTelegram();
   setApiHandler(tg.handler);
   if (seedChannels) {

@@ -189,7 +189,7 @@ export function createStatsService({ repo, settings, clock, log, live }) {
       await svc.aggregate({ force: true });
       const to = await svc.today();
       const from = addDays(to, 1 - n);
-      const rows = await repo.series(from, to, ['users.total', 'users.new', 'users.active', 'search.inline', 'search.private', 'play.inline', 'play.private', 'pub.published']);
+      const rows = await repo.series(from, to, ['users.total', 'users.new', 'users.active', 'search.inline', 'search.inline_empty', 'search.private', 'search.private_empty', 'play.inline', 'play.private', 'pub.published', 'tracks.activated']);
       /** @type {{date: string, [metric: string]: any}[]} */
       const days = [];
       for (let i = 0; i < n; i += 1) {

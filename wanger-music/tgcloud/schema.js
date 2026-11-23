@@ -149,6 +149,8 @@ export const tracks = table('tracks', {
   // addition: where cover_file_id came from — NULL = the audio's small thumbnail (not checked yet),
   // 'file' = the full picture inside the audio file, 'thumb' = checked, the file has no bigger one, 'manual' = a person
   coverSource: text('cover_source'),
+  // addition: "320kbps" / "FLAC" / "AAC 256kbps" from the file's size, length and header; '' = unknown, NULL = not checked
+  quality: text('quality'),
   normalizedTitle: text('normalized_title').notNull().default(''),
   normalizedArtist: text('normalized_artist').notNull().default(''),
   dupKey: text('dup_key').notNull(),
@@ -285,6 +287,12 @@ export const destinationChannels = table('destination_channels', {
   updatedAt: integer('updated_at').notNull(),
   // added later (owner's request): end every caption with the channel's link (🆔 @username)
   signature: integer('signature').notNull().default(1),
+  // added 2026-11-23 (owner's request): «🎧 get it in the bot» / «📤 send to a friend» under each post
+  postButtons: integer('post_buttons').notNull().default(1),
+  // an ad / promo line the owner writes, added to every Nth post (0 = never)
+  promoText: text('promo_text'),
+  promoEvery: integer('promo_every').notNull().default(0),
+  postsSincePromo: integer('posts_since_promo').notNull().default(0),
 }, (t) => ({
   formatChk: check('dest_post_format_chk', sql`${t.postFormat} IN ('audio', 'cover_then_audio')`),
   flagsChk: check('dest_flags_chk', sql`${t.enabled} IN (0, 1) AND ${t.autoPublish} IN (0, 1) AND ${t.approvalRequired} IN (0, 1) AND ${t.botRightsOk} IN (0, 1)`),

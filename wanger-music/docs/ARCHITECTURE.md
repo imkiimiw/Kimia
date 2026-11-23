@@ -173,8 +173,10 @@ The monitor warns (System Status + owner alert) while active tracks are undecide
 channels the owner named, the "bot added" prompt, or forward / @username / id) checks with
 `getChat` + `getChatMember` that it is a channel and the bot may post (edit/delete recommended).
 New channels: disabled, auto-publish off, approval on, rules language preset. Rules
-(`publishing/rules.js`, pure): listed languages; optional genre list; excluded genres; a minimum
-language confidence (below it → approval in Phase 6). Schedule: minimum interval, active hours in
+(`publishing/rules.js`, pure): listed languages, or `any_language` (every language, no confidence
+check — `destinations.languageMatters()` is false while every channel has it, which turns off the
+source-language questions, the `no_language` warning and the new-song message's language buttons);
+optional genre list; excluded genres; a minimum language confidence (below it → approval in Phase 6). Schedule: minimum interval, active hours in
 the channel's time zone, daily limit. Caption template (`publishing/captions.js`): validated by a
 preview the owner receives (cover + audio with the caption, using the newest matching active
 track, or a sample). Health: `my_chat_member` and «🔄 Check rights» update `bot_rights`; losing
@@ -197,7 +199,10 @@ restores the row (disabled) with its settings. **Nothing is posted to any channe
   global 429 cooldown; first expired leases → `uncertain` (owner alerted); then per channel that is
   ready (`rules.channelReady`: interval, active hours in the channel's zone, daily limit) it claims
   one due row (`UPDATE … WHERE id IN (SELECT … LIMIT 1) AND status = 'queued' RETURNING *`, lease
-  60 s), sends (cover first for cover_then_audio), and records the outcome. Failures go through
+  60 s), sends (cover first for cover_then_audio; under the audio `worker.postButtons`: the track in the
+  bot + a share link; every `promo_every`-th post carries the promo line; `{quality}` is read once per
+  track by `catalog.ensureQuality` — the first 12 bytes of an MP3, `music/artwork.js#scanQuality`), and
+  records the outcome. Failures go through
   `telegram/errors.js#publishAction`: 429 → requeue at retry_after + global cooldown (attempt not
   counted); 5xx / network → backoff 1, 2, 4… min (jitter, cap 60) and failed after 6 attempts;
   channel errors → failed + channel disabled + alert; file errors → failed + track hidden + alert;

@@ -36,16 +36,18 @@ const chName = (p) => (p.channel_username ? '@' + p.channel_username : p.channel
 export async function newTrackView(app, viewer, tr, lang) {
   const src = tr.source_id ? await app.sources.get(tr.source_id) : null;
   const pubsOf = (await app.publisher.forTrack(tr.id)).filter((p) => ['pending_approval', 'queued', 'sending', 'published', 'failed', 'uncertain'].includes(p.status));
+  // no channel routes by language any more (the owner's choice): no language line, no language buttons
+  const askLanguage = UNDECIDED(tr) && (await app.destinations.languageMatters());
   const lines = [
     t(lang, 'nt.head', { source: src ? src.title || (src.username ? '@' + src.username : '') : '—' }),
     t(lang, 'nt.track', { title: tr.title || tp(lang, 'trk.untitled'), artist: tr.artist || '?' }),
-    UNDECIDED(tr) ? t(lang, 'nt.lang_unknown') : t(lang, 'nt.lang', { language: tp(lang, `tlang.${tr.language}`) }),
+    ...(askLanguage ? [t(lang, 'nt.lang_unknown')] : UNDECIDED(tr) ? [] : [t(lang, 'nt.lang', { language: tp(lang, `tlang.${tr.language}`) })]),
     t(lang, 'nt.status', { status: tp(lang, `trk.status.${tr.status}`) }),
   ];
   for (const p of pubsOf) lines.push(t(lang, 'nt.pub', { channel: chName(p), state: tp(lang, `nt.pub_state.${p.status}`) }));
-  if (tr.status === 'active' && !pubsOf.length && !UNDECIDED(tr)) lines.push(t(lang, 'nt.no_channel'));
+  if (tr.status === 'active' && !pubsOf.length && !askLanguage) lines.push(t(lang, 'nt.no_channel'));
   const rows = [];
-  if (UNDECIDED(tr) && can(viewer, 'catalog.manage')) rows.push(['fa', 'en', 'other'].map((l) => btn(tp(lang, `srclang.${l}`), 'nt', 'lang', tr.id, l)));
+  if (askLanguage && can(viewer, 'catalog.manage')) rows.push(['fa', 'en', 'other'].map((l) => btn(tp(lang, `srclang.${l}`), 'nt', 'lang', tr.id, l)));
   if (tr.status === 'draft' && can(viewer, 'catalog.manage')) rows.push([btn(tp(lang, 'nt.btn_activate'), 'nt', 'act', tr.id)]);
   for (const p of pubsOf) {
     if (p.status === 'pending_approval' && can(viewer, 'approvals.review')) rows.push([btn(tp(lang, 'nt.btn_ok', { channel: chName(p) }), 'nt', 'ok', p.id), btn(tp(lang, 'nt.btn_no'), 'nt', 'no', p.id)]);

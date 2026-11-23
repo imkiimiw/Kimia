@@ -13,6 +13,7 @@ import { normalizeRules, parseHours, hoursOf, matches, RULE_LANGUAGES } from '..
 import { storedRights } from '../publishing/destinations.js';
 import { renderCaption, captionValues, unknownVariables, DEFAULT_TEMPLATE, CAPTION_VARS, CAPTION_MAX, channelHandle, channelSignature } from '../publishing/captions.js';
 import { classify } from '../telegram/errors.js';
+import { postButtons } from '../publishing/worker.js';
 
 const PERM = 'destinations.manage';
 const title = (d) => d.title || (d.username ? '@' + d.username : String(d.chat_id));
@@ -22,7 +23,7 @@ function rulesText(lang, d) {
   const r = normalizeRules(d.rules);
   const names = (list, prefix) => list.map((x) => tp(lang, `${prefix}.${x}`)).join('، ');
   return t(lang, 'dst.rules', {
-    langs: r.languages.length ? names(r.languages, 'tlang') : raw(t(lang, 'dst.no_languages')),
+    langs: r.any_language ? tp(lang, 'dst.any_language') : r.languages.length ? names(r.languages, 'tlang') : raw(t(lang, 'dst.no_languages')),
     genres: r.genres.length ? names(r.genres, 'genre') : tp(lang, 'dst.all'),
     exclude: r.exclude_genres.length ? names(r.exclude_genres, 'genre') : '—',
     conf: tp(lang, `conf.${r.min_language_confidence}`),
@@ -62,7 +63,8 @@ async function cardView(app, d) {
   lines.push(queueLine(lang, queue, await app.settings.get('publishing.auto_send')));
   if (!d.bot_rights_ok) lines.push(t(lang, 'dst.warn_rights'));
   else if (!rights.edit || !rights.delete) lines.push(t(lang, 'dst.warn_edit_delete'));
-  if (!normalizeRules(d.rules).languages.length) lines.push(t(lang, 'dst.warn_languages'));
+  if (d.promo_text) lines.push(t(lang, 'dst.card_promo', { text: d.promo_text, n: digits(d.promo_every, lang) }));
+  if (!normalizeRules(d.rules).any_language && !normalizeRules(d.rules).languages.length) lines.push(t(lang, 'dst.warn_languages'));
   const id = d.id;
   return {
     text: lines.join('\n'),
@@ -71,7 +73,10 @@ async function cardView(app, d) {
       [btn(tp(lang, 'dst.btn_approval', { v: tp(lang, d.approval_required ? 'common.on' : 'common.off') }), 'dst', 'appr', id), btn(tp(lang, 'dst.btn_conf', { v: tp(lang, `conf.${normalizeRules(d.rules).min_language_confidence}`) }), 'dst', 'conf', id)],
       [btn(tp(lang, 'dst.btn_langs'), 'dst', 'langs', id), btn(tp(lang, 'dst.btn_genres'), 'dst', 'gen', id, 'inc'), btn(tp(lang, 'dst.btn_exclude'), 'dst', 'gen', id, 'exc')],
       [btn(tp(lang, 'dst.btn_caption'), 'dst', 'cap', id), btn(tp(lang, 'dst.btn_preview'), 'dst', 'prev', id), btn(tp(lang, 'dst.btn_format'), 'dst', 'fmt', id)],
-      [btn(tp(lang, 'dst.btn_signature', { v: tp(lang, d.signature !== 0 ? 'common.on' : 'common.off') }), 'dst', 'sig', id)],
+      [btn(tp(lang, 'dst.btn_signature', { v: tp(lang, d.signature !== 0 ? 'common.on' : 'common.off') }), 'dst', 'sig', id), btn(tp(lang, 'dst.btn_post_buttons', { v: tp(lang, d.post_buttons !== 0 ? 'common.on' : 'common.off') }), 'dst', 'pbtn', id)],
+      d.promo_text
+        ? [btn(tp(lang, 'dst.btn_promo_edit'), 'dst', 'promo', id), btn(tp(lang, 'dst.btn_promo_every', { n: digits(d.promo_every, lang) }), 'dst', 'pev', id)]
+        : [btn(tp(lang, 'dst.btn_promo_add'), 'dst', 'promo', id)],
       [btn(tp(lang, 'dst.btn_sendq', { n: digits(queue.queued, lang) }), 'dst', 'sendq', id), btn(tp(lang, 'dst.btn_send_now'), 'dst', 'now', id)],
       [btn(tp(lang, 'dst.btn_interval_v', { v: digits(Math.round(d.min_interval_seconds / 60), lang) }), 'dst', 'int', id), btn(tp(lang, 'dst.btn_daily_v', { v: d.daily_limit ? digits(d.daily_limit, lang) : tp(lang, 'dst.no_limit') }), 'dst', 'daily', id)],
       [btn(tp(lang, 'dst.btn_hours_v', { v: hoursText(lang, d) }), 'dst', 'hours', id)],
@@ -87,7 +92,7 @@ async function listView(app) {
   const rows = await app.destinations.list();
   const lines = rows.map((d, i) => {
     const r = normalizeRules(d.rules);
-    return `${digits(i + 1, lang)}. ${d.enabled ? '✅' : '⏸'} ${d.bot_rights_ok ? '🟢' : '🔴'} ${esc(title(d))} · ${esc(r.languages.map((l) => tp(lang, `tlang.${l}`)).join('، ') || '—')}`;
+    return `${digits(i + 1, lang)}. ${d.enabled ? '✅' : '⏸'} ${d.bot_rights_ok ? '🟢' : '🔴'} ${esc(title(d))} · ${esc(r.any_language ? tp(lang, 'dst.any_language') : r.languages.map((l) => tp(lang, `tlang.${l}`)).join('، ') || '—')}`;
   });
   const buttons = rows.map((d, i) => [btn(`⚙️ ${digits(i + 1, lang)}. ${title(d)}`.slice(0, 60), 'dst', 'v', d.id)]);
   const known = new Set(rows.map((d) => d.chat_id));
@@ -118,7 +123,7 @@ async function sampleTrack(app, d) {
 /** Caption values of a track (or a made-up one) in the owner's language. */
 async function valuesFor(app, tr) {
   const lang = app.lang;
-  const track = tr || { public_id: 'AbCdEfGh1', title: tp(lang, 'dst.sample_title'), artist: tp(lang, 'dst.sample_artist'), album: tp(lang, 'dst.sample_album'), duration: 187, language: 'fa', genre: 'pop' };
+  const track = tr || { public_id: 'AbCdEfGh1', title: tp(lang, 'dst.sample_title'), artist: tp(lang, 'dst.sample_artist'), album: tp(lang, 'dst.sample_album'), duration: 187, language: 'fa', genre: 'pop', quality: '320kbps' };
   const src = tr && tr.source_id ? await app.sources.get(tr.source_id) : null;
   return captionValues(track, { botUsername: BOT_USERNAME, languageName: (l) => tp(lang, `tlang.${l}`), genreName: (g) => tp(lang, `genre.${g}`), sourceName: src ? src.title || '' : '' });
 }
@@ -129,12 +134,15 @@ async function valuesFor(app, tr) {
  */
 async function sendPreview(app, user, d, template) {
   const tr = await sampleTrack(app, d);
-  const caption = renderCaption(template || DEFAULT_TEMPLATE, { ...(await valuesFor(app, tr)), channel: channelHandle(d) }, CAPTION_MAX, channelSignature(d));
+  if (tr) await app.catalog.ensureQuality(tr);
+  // the promo line is shown whenever the channel has one (in the channel it goes on every Nth post)
+  const caption = renderCaption(template || DEFAULT_TEMPLATE, { ...(await valuesFor(app, tr)), channel: channelHandle(d) }, CAPTION_MAX, channelSignature(d), d.promo_text || '');
   const chat = user.telegram_id;
   try {
     if (tr) {
       if (d.post_format === 'cover_then_audio' && (tr.cover_file_id || !tr.cover_source)) await app.worker.sendCover(tr, chat, 'destination_preview');
-      await app.tg.call('sendAudio', { chat_id: chat, audio: tr.audio_file_id, caption, parse_mode: 'HTML' }, 'destination_preview');
+      const keyboard = postButtons(tr, d);
+      await app.tg.call('sendAudio', { chat_id: chat, audio: tr.audio_file_id, caption, parse_mode: 'HTML', ...(keyboard ? { reply_markup: keyboard } : {}) }, 'destination_preview');
     } else {
       await app.tg.call('sendMessage', { chat_id: chat, text: caption || '—', parse_mode: 'HTML', link_preview_options: { is_disabled: true } }, 'destination_preview');
     }
@@ -170,7 +178,11 @@ function languagesView(lang, d) {
   const r = normalizeRules(d.rules);
   return {
     text: t(lang, 'dst.langs_title', { title: title(d) }),
-    keyboard: markup([RULE_LANGUAGES.map((l) => btn(`${r.languages.includes(l) ? '✅' : '▫️'} ${tp(lang, `tlang.${l}`)}`, 'dst', 'tl', d.id, l)), [btn(tp(lang, 'common.back'), 'dst', 'v', d.id)]]),
+    keyboard: markup([
+      [btn(`${r.any_language ? '✅' : '▫️'} ${tp(lang, 'dst.btn_any_language')}`, 'dst', 'tla', d.id)],
+      ...(r.any_language ? [] : [RULE_LANGUAGES.map((l) => btn(`${r.languages.includes(l) ? '✅' : '▫️'} ${tp(lang, `tlang.${l}`)}`, 'dst', 'tl', d.id, l))]),
+      [btn(tp(lang, 'common.back'), 'dst', 'v', d.id)],
+    ]),
   };
 }
 
@@ -237,6 +249,10 @@ export const routes = [
   cardAction('tz', (app, user, id) => app.destinations.cycleTimeZone(user, id)),
   cardAction('check', (app, user, id) => app.destinations.checkRights(user, id)),
   { ns: 'dst', action: 'langs', args: ['uint'], perm: PERM, run: async (app, user, [id], cq) => { const d = await app.destinations.get(id); if (!d) return showCard(app, user, cq, id); await screen(app, user, cq, languagesView(app.lang, d), 'destination_languages'); return {}; } },
+  { ns: 'dst', action: 'tla', args: ['uint'], perm: PERM, run: async (app, user, [id], cq) => { const d = await app.destinations.toggleAnyLanguage(user, id); await screen(app, user, cq, languagesView(app.lang, d), 'destination_languages'); return {}; } },
+  cardAction('pbtn', (app, user, id) => app.destinations.togglePostButtons(user, id)),
+  cardAction('pev', (app, user, id) => app.destinations.cyclePromoEvery(user, id)),
+  flowAction('promo', 'dst_promo', 'dst.promo_prompt', (d) => ({ current: d.promo_text || '—', max: LIMITS.promoMax })),
   { ns: 'dst', action: 'tl', args: ['uint', 'tlang'], perm: PERM, run: async (app, user, [id, l], cq) => { const d = await app.destinations.toggleLanguage(user, id, l); await screen(app, user, cq, languagesView(app.lang, d), 'destination_languages'); return {}; } },
   { ns: 'dst', action: 'gen', args: ['uint', 'mode'], perm: PERM, run: async (app, user, [id, mode], cq) => { const d = await app.destinations.get(id); if (!d) return showCard(app, user, cq, id); await screen(app, user, cq, genresView(app.lang, d, String(mode)), 'destination_genres'); return {}; } },
   { ns: 'dst', action: 'tg', args: ['uint', 'mode', 'word'], perm: PERM, run: async (app, user, [id, mode, g], cq) => { const d = await app.destinations.toggleGenre(user, id, mode, String(g)); await screen(app, user, cq, genresView(app.lang, d, String(mode)), 'destination_genres'); return {}; } },
@@ -266,6 +282,16 @@ export const routes = [
 ];
 
 export const flows = {
+  dst_promo: {
+    perm: PERM,
+    maxInput: LIMITS.promoMax,
+    async run(app, user, message, flow) {
+      const raw = String(message.text || '').trim();
+      if (!raw) throw new UserError('dst.err.promo');
+      await app.destinations.setPromo(user, Number(flow.data && flow.data.id), raw === '-' ? null : raw);
+      await finish(app, user, Number(flow.data && flow.data.id));
+    },
+  },
   dst_add: {
     perm: PERM,
     async run(app, user, message) {

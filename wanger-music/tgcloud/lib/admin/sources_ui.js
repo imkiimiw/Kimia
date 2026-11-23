@@ -93,6 +93,7 @@ export async function promptBotAdded(app, chat, from) {
  * @param {{id: number, title?: string, username?: string, n?: number}} src
  */
 export async function askSourceLanguage(app, src) {
+  if (!(await app.destinations.languageMatters())) return false; // every channel takes every language
   if (!(await app.alerts.claim(`srclang:${src.id}`, 12 * 3600))) return false;
   const owner = await app.users.get(OWNER_ID);
   const lang = await app.users.languageOf(owner);
@@ -113,6 +114,7 @@ export async function askSourceLanguage(app, src) {
 
 /** Tick processor: sources without a default language whose tracks wait for one → ask (throttled). */
 export async function askMissingLanguages(app) {
+  if (!(await app.destinations.languageMatters())) return { skipped: 'any_language' };
   let asked = 0;
   for (const src of await app.catalog.sourcesNeedingLanguage(5)) if (await askSourceLanguage(app, src)) asked += 1;
   return { asked };
