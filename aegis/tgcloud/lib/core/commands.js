@@ -3,7 +3,8 @@
  * commands also work as plain words in any of our languages — Persian and English always — via
  * the "alias" locale namespace (e.g. «زبان» or "language", «پیکربندی» or "config"). The bot's command menu (the "/"
  * button) is set per language with setMyCommands, once per COMMANDS_REV; the owner's private chat
- * gets the owner commands as well.
+ * gets the owner commands as well. The bot's description («What can this bot do?») and short
+ * description (profile, shared links) are set per language too, once per DESC_REV.
  */
 import { LANGS, OWNER_ID, REASON_MAX } from '../config.js';
 import { defaultRights } from '../engines/rights.js';
@@ -24,6 +25,7 @@ const PUBLIC = ['start', 'config', 'appeal', 'language', 'help'];
 const OWNER = ['start', 'config', 'panel', 'staff', 'status', 'shutdown', 'activate', 'appeal', 'language', 'help', 'cancel'];
 const STAFF = [...PUBLIC, 'staff'];
 export const COMMANDS_REV = '4';
+export const DESC_REV = '1';
 
 /*
  * The command in a private message, or null. `aliases`: also accept plain words (off while an
@@ -71,6 +73,22 @@ export async function syncCommands(ctx) {
     ok = ok && !!r;
   }
   if (ok) await kv.set(ctx, 'cmd_rev', COMMANDS_REV);
+}
+
+/* The bot's description and short description, in English (the default) and each language; its own revision and retry throttle. */
+export async function syncDescriptions(ctx) {
+  const s = await kv.all(ctx);
+  if (s.desc_rev === DESC_REV) return;
+  if (!(await kv.claim(`desc_try_${DESC_REV}`, nowSec(), 3600))) return;
+  let ok = true;
+  for (const lang of [null, ...LANGS]) {
+    const l = lang || 'en';
+    const extra = lang ? { language_code: lang } : {};
+    const d = await tryCall(ctx, 'setMyDescription', { description: t(l, 'cmd.about').replace(/\u200F/g, ''), ...extra }, 'description');
+    const sd = await tryCall(ctx, 'setMyShortDescription', { short_description: t(l, 'cmd.about_short').replace(/\u200F/g, ''), ...extra }, 'description');
+    ok = ok && !!d && !!sd;
+  }
+  if (ok) await kv.set(ctx, 'desc_rev', DESC_REV);
 }
 
 /* The owner's own menu (only possible once the owner has opened the bot's chat). */

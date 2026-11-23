@@ -469,6 +469,18 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       state.commands.push(p);
       return ok(true);
     },
+    setMyDescription: (p) => {
+      if (typeof p.description !== 'string' || p.description.length > 512) return err(400, 'Bad Request: description is too long');
+      state.descriptions = state.descriptions || {};
+      state.descriptions[`long:${p.language_code || ''}`] = p.description;
+      return ok(true);
+    },
+    setMyShortDescription: (p) => {
+      if (typeof p.short_description !== 'string' || p.short_description.length > 120) return err(400, 'Bad Request: short description is too long');
+      state.descriptions = state.descriptions || {};
+      state.descriptions[`short:${p.language_code || ''}`] = p.short_description;
+      return ok(true);
+    },
     deleteMyCommands: (p) => {
       const key = JSON.stringify(p.scope || { type: 'default' });
       state.commands = state.commands.filter((c) => JSON.stringify(c.scope || { type: 'default' }) !== key || c.language_code !== p.language_code);

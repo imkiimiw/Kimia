@@ -80,6 +80,7 @@ export const chats = table('aegis_chats', {
   funAt: integer('fun_at').notNull().default(0), /* Phase 9: the start of the current minute of fun commands */
   funN: integer('fun_n').notNull().default(0), /* … and how many there were in it (the chat's rate limit) */
   funDay: integer('fun_day').notNull().default(0), /* the local day birthdays were last greeted */
+  weeklyAt: integer('weekly_at').notNull().default(0), /* when the admins' weekly report was last sent (0: not yet; the first week starts then) */
 }, (t) => ({
   activeType: index('idx_aegis_chats_active_type').on(t.active, t.type, t.chatId),
   countAt: index('idx_aegis_chats_count_at').on(t.active, t.countAt),

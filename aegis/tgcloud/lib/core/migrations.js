@@ -4,6 +4,8 @@
  * on the first update after a deploy. aegis_kv.data_version records the last applied step. Every
  * step must be idempotent (a concurrent first update may run it twice).
  */
+import { db } from 'sdk';
+import { sql } from 'sdk/db';
 import * as join from '../engines/join.js';
 import { seals } from '../engines/system.js';
 import * as audit from './audit.js';
@@ -32,6 +34,13 @@ export const MIGRATIONS = [
     name: 'phase 10: the audit log and its seals become append-only (database triggers refuse UPDATE and DELETE)',
     async run() {
       await seals.installGuard();
+    },
+  },
+  {
+    v: 4,
+    name: 'per-chat throttles move from aegis_kv to the chat\'s own rows: the old kv keys are removed',
+    async run() {
+      await db.run(sql`DELETE FROM aegis_kv WHERE key GLOB 'flt_-[0-9]*' OR key GLOB 'gpanel_-[0-9]*' OR key GLOB 'ghelp_-[0-9]*'`);
     },
   },
 ];

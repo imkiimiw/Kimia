@@ -122,5 +122,7 @@
   "filters_save": "saved the filter «{key}»",
   "filters_remove": "removed the filter «{key}»",
   "chat_preset": "applied a setup preset",
-  "security_shared": "the shared blacklist flagged {target}"
+  "security_shared": "the shared blacklist flagged {target}",
+  "chat_copy": "copied the settings of another chat ({key})",
+  "stats_weekly": "sent the weekly report to the admins"
 }

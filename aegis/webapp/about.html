@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Aegis</title>
+  <meta name="description" content="Aegis — a free Telegram bot for groups and channels: anti-spam, captcha, locks, notes, statistics and games, in five languages.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="about.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="site-strings.js"></script>
+</head>
+<body class="site">
+  <!-- Aegis's landing page. Texts come from site-strings.js (generated from locales/<lang>/site.json);
+       the bot's name and the add-links' rights come from the fragment the bot puts in its link:
+       about.html#bot=<username>&lang=<fa|en|ru|zh|fr>&g=<group rights>&c=<channel rights>. -->
+  <nav id="langs" class="langs"></nav>
+  <header class="hero">
+    <div class="logo">🛡</div>
+    <h1 data-s="title"></h1>
+    <p class="muted" data-s="tagline"></p>
+    <div id="cta" class="cta">
+      <a id="a-group" class="button" data-s="btn_group"></a>
+      <a id="a-channel" class="button" data-s="btn_channel"></a>
+      <a id="a-open" class="button plain-link" data-s="btn_open"></a>
+    </div>
+    <p id="no-bot" class="muted" data-s="no_bot" hidden></p>
+  </header>
+  <main class="features">
+    <section><h2 data-s="f_security_t"></h2><p data-s="f_security"></p></section>
+    <section><h2 data-s="f_locks_t"></h2><p data-s="f_locks"></p></section>
+    <section><h2 data-s="f_setup_t"></h2><p data-s="f_setup"></p></section>
+    <section><h2 data-s="f_notes_t"></h2><p data-s="f_notes"></p></section>
+    <section><h2 data-s="f_mod_t"></h2><p data-s="f_mod"></p></section>
+    <section><h2 data-s="f_channel_t"></h2><p data-s="f_channel"></p></section>
+    <section><h2 data-s="f_social_t"></h2><p data-s="f_social"></p></section>
+    <section><h2 data-s="f_fun_t"></h2><p data-s="f_fun"></p></section>
+  </main>
+  <section class="how">
+    <h2 data-s="how_t"></h2>
+    <ol>
+      <li data-s="how_1"></li>
+      <li data-s="how_2"></li>
+      <li data-s="how_3"></li>
+    </ol>
+    <p class="muted" data-s="honest"></p>
+  </section>
+  <footer class="muted" data-s="footer"></footer>
+  <script src="about.js"></script>
+</body>
+</html>

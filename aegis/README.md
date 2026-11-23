@@ -33,6 +33,27 @@ Design decisions taken without the master spec (it was never added to the reposi
 Features that can't be built for free on this platform, or only partly, are listed in
 [docs/NOT_BUILT.md](docs/NOT_BUILT.md).
 
+## After the release — the round of ten improvements
+
+- **📝 Notes, filters and custom commands** (panel → 📝 Notes and filters): `/save name text` (buttons after a
+  `---` line), `#name` or `/name` to show it, `/filter "word" reply` for auto-replies (whole words, at most
+  one reply every 3 s in a chat), `/stop`, `/notes`, `/filters`; admins need Settings access.
+- **🧙 Setup wizard**: what the group is for (chat, study, shop, a channel's discussion) × how strict
+  (relaxed, balanced, strict) → a summary → «Apply» sets security modules, locks and settings through the
+  usual logged paths. **📋 Copy settings** from another of your groups (or channels): the same content as a
+  backup — settings, configuration lists, locks, security modules; never punishments, notes or anything
+  tied to another chat; the target needs Full access and the source is re-checked live.
+- **🌐 Shared blacklist** (Security): a newcomer banned or removed in 2 / 3 / 5 other groups that use Aegis
+  in the last 90 days is reported or punished. (The CAS list was dropped: its API now needs a key — see NOT_BUILT.)
+- **Bot profile**: the description («What can this bot do?») and short description in all five languages,
+  set once per revision (`DESC_REV`); **a landing page** at `https://app8940801714.tgcloud.ai/about`
+  (`webapp/about.html`, texts from `locales/<lang>/site.json`, built into `webapp/site-strings.js`), linked
+  from ❓ Help with the add-to-group / add-to-channel links in its `#fragment`.
+- **📬 Weekly report** (📊 Statistics → on by default): messages and the trend, members who wrote, joins and
+  leaves, the busiest day, automatic and admin punishments, members' reports — privately to the admins with
+  Settings access who started Aegis. No scheduler: it goes out with the first message in the group after
+  each 7 days (`aegis_chats.weekly_at`; the first week starts at the first message).
+
 ## What Phase 10 does
 
 **🛠 Management** — a button in the owner panel (`/panel`), and for the bot's team `/staff` («ستاد»).

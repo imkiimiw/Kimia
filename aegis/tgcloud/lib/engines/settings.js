@@ -23,7 +23,7 @@
  *   ch_title_locked; posts ch_archive ch_approval ch_edit_lock ch_edit_grace; the discussion group
  *   dg_members dg_as_channel dg_imp dg_first; direct messages dm_on dm_links dm_scam dm_fakes
  *   dm_flood dm_suggest, the admins' vote on publishing them dm_vote dm_vote_mode (f forward · c copy); extras ch_footer ch_buttons ch_post_ttl ch_protect ch_silent; backup ch_mirror.
- * Phase 8 — stats_on (count activity), points pts_on pts_msg pts_gap pts_thanks pts_announce,
+ * Phase 8 — stats_on (count activity), weekly_on (a weekly report to the admins in private), points pts_on pts_msg pts_gap pts_thanks pts_announce,
  *   questions qa_on anon_on, appeals_on, review_all (decisions of non-Full admins go to review).
  */
 import { db } from 'sdk';
@@ -131,7 +131,7 @@ export const DEFAULTS = {
   dm_on: '0', dm_links: '1', dm_scam: '1', dm_fakes: '1', dm_flood: '10', dm_suggest: '0', dm_vote: '0', dm_vote_mode: 'f',
   ch_footer: '', ch_buttons: '', ch_post_ttl: '0', ch_protect: '0', ch_silent: '0', ch_mirror: '0',
   /* Phase 8 */
-  stats_on: '1', pts_on: '0', pts_msg: '1', pts_gap: '60', pts_thanks: '1', pts_announce: '1', qa_on: '1', anon_on: '0', appeals_on: '1', review_all: '0',
+  stats_on: '1', weekly_on: '1', pts_on: '0', pts_msg: '1', pts_gap: '60', pts_thanks: '1', pts_announce: '1', qa_on: '1', anon_on: '0', appeals_on: '1', review_all: '0',
   /* Phase 9: fun (the features: fx_<code>; who may use each group: fcat_<group>; see engines/fun.js) and media tools */
   fun_on: '1', fun_rate: '10', fun_clean: '0', fun_reward: '1', fun_free: '1', bday_cal: 'auto',
   media_on: '1', media_who: 'a', media_daily: '10',
@@ -160,7 +160,7 @@ const FLAGS = new Set(['audit', 'notify', 'warn_reset', 'betray_on', 'log_on', '
   'ev_join', 'ev_leave', 'ev_admin', 'ev_names', 'notes_on', 'filters_on',
   'ch_jr_captcha', 'ch_jr_names', 'ch_imp', 'ch_al_admins', 'ch_al_info', 'ch_al_edits', 'ch_al_bot', 'ch_title_lock', 'ch_archive',
   'ch_approval', 'ch_edit_lock', 'dg_members', 'dg_as_channel', 'dg_imp', 'dg_first', 'dm_on', 'dm_links', 'dm_scam', 'dm_fakes', 'dm_suggest', 'dm_vote',
-  'ch_protect', 'ch_silent', 'stats_on', 'pts_on', 'pts_thanks', 'pts_announce', 'qa_on', 'anon_on', 'appeals_on', 'review_all',
+  'ch_protect', 'ch_silent', 'stats_on', 'weekly_on', 'pts_on', 'pts_thanks', 'pts_announce', 'qa_on', 'anon_on', 'appeals_on', 'review_all',
   'fun_on', 'fun_reward', 'fun_free', 'media_on']);
 export const isFlag = (key) => FLAGS.has(key);
 
@@ -194,6 +194,18 @@ function valid(key, value) {
     return Array.isArray(list) && list.length <= CLEAN_MAX_TIMES && list.every((x) => Number.isInteger(x) && x >= 0 && x < 1440);
   }
   return false;
+}
+
+/*
+ * True for exactly one caller per `interval` seconds in one chat: a throttle or "last done" time kept
+ * with the chat's own rows (keys starting with «_», never settings: all() and backups ignore them),
+ * so per-chat state never crowds the bot-wide aegis_kv.
+ */
+export async function claim(chatId, key, now, interval) {
+  await db.run(sql`INSERT INTO aegis_chat_settings (chat_id, key, value) VALUES (${chatId}, ${key}, '0') ON CONFLICT(chat_id, key) DO NOTHING`);
+  const r = await db.run(sql`UPDATE aegis_chat_settings SET value = ${String(now)}
+    WHERE chat_id = ${chatId} AND key = ${key} AND CAST(COALESCE(value, '0') AS INTEGER) <= ${now - interval}`);
+  return r.rowsAffected > 0;
 }
 
 /* All settings of a chat, defaults filled in; cached on ctx for the update. */

@@ -8,9 +8,9 @@ import { stubFetch } from './sdk/fetch.mjs';
 import { createMockTelegram, parseHtml } from './mock-telegram.mjs';
 import { rawDatabase, setupDatabase } from './sdk/db.mjs';
 import * as schema from '../tgcloud/schema.js';
-import { BC_BATCH, BC_CHUNK, JOIN_CACHE_SEC, MAX_JOIN_CHANNELS, OWNER_ID, PHASE, VERSION } from '../tgcloud/lib/config.js';
+import { APP_URL, BC_BATCH, BC_CHUNK, JOIN_CACHE_SEC, MAX_JOIN_CHANNELS, OWNER_ID, PHASE, VERSION } from '../tgcloud/lib/config.js';
 import { LATEST } from '../tgcloud/lib/core/migrations.js';
-import { COMMANDS_REV } from '../tgcloud/lib/core/commands.js';
+import { COMMANDS_REV, DESC_REV } from '../tgcloud/lib/core/commands.js';
 import { num } from '../tgcloud/lib/i18n/index.js';
 import { fmtTime, localMinutes, TZ_OFFSETS } from '../tgcloud/lib/core/clock.js';
 import { utf8Bytes, utf8Text } from '../tgcloud/lib/core/util.js';
@@ -146,6 +146,17 @@ await scenario('first /start: data migration seeds the 3 channels, command menus
   assert.equal(sent(await dm(U.ali, 'hello'), 'setMyCommands').length, 0, 'menus are set once');
 });
 
+await scenario('the bot\'s description and short description are set once, in English (default) and each language', async () => {
+  const d = mock.state.descriptions;
+  assert.equal(Object.keys(d).length, 12, 'long + short × (default + 5 languages)');
+  assert.match(d['long:'], /^Aegis keeps your Telegram groups and channels safe/);
+  assert.match(d['short:fa'], /^مدیریت گروه و کانال/);
+  assert.ok(Object.values(d).every((x) => !/\u200F/.test(x)));
+  assert.equal(row("SELECT value FROM aegis_kv WHERE key = 'desc_rev'").value, DESC_REV);
+  const again = await dm(U.ali, 'hello');
+  assert.equal(sent(again, 'setMyDescription').length + sent(again, 'setMyShortDescription').length, 0, 'once');
+});
+
 await scenario('choosing Persian → the join screen in Persian lists only the checkable channels (the broken one is skipped)', async () => {
   const pick = lastBotMessage(U.ali.id);
   const r = await press(U.ali, 'lg:fa', pick.message_id);
@@ -191,6 +202,13 @@ await scenario('"✅ I joined": missing → alert with the count; joined → tha
   const cached = await dm(U.ali, '/help');
   assert.equal(sent(cached, 'getChatMember').length, 0, 'cached pass');
   assert.match(sent(cached)[0].params.text, /راهنما/);
+  const site = sent(cached)[0].params.reply_markup.inline_keyboard.flat().find((x) => x.url && x.url.includes('/about#'));
+  assert.ok(site && /درباره Aegis/.test(site.text), 'help links the landing page');
+  const frag = Object.fromEntries(site.url.split('#')[1].split('&').map((kv) => kv.split('=').map(decodeURIComponent)));
+  assert.deepEqual([frag.bot, frag.lang], ['aegis_test_bot', 'fa']);
+  assert.equal(frag.g, 'change_info+delete_messages+restrict_members+invite_users+pin_messages+promote_members');
+  assert.match(frag.c, /^post_messages\+/);
+  assert.ok(site.url.startsWith(APP_URL));
   tick(JOIN_CACHE_SEC + 1);
   assert.equal(sent(await dm(U.ali, '/help'), 'getChatMember').length, 3, 'checked again after the cache expires');
 });
@@ -1022,7 +1040,7 @@ await scenario('🧙 the setup wizard: what the group is for, how strict, a summ
   const cp2 = (d) => press(P.carol, d, carolPanel);
   await cp2(`g:${ALPHA}:wz`);
   assert.match(screenOf(P.carol, carolPanel).plain, /🧙 Setup wizard — ⁨Alpha⁩\n\nWhat is this group for\?/);
-  assert.deepEqual(dataOf(screenOf(P.carol, carolPanel)), ['chat', 'study', 'shop', 'news'].map((x) => `g:${ALPHA}:wz:${x}`).concat(`g:${ALPHA}`));
+  assert.deepEqual(dataOf(screenOf(P.carol, carolPanel)), ['chat', 'study', 'shop', 'news'].map((x) => `g:${ALPHA}:wz:${x}`).concat(`g:${ALPHA}:cp`, `g:${ALPHA}`));
   await cp2(`g:${ALPHA}:wz:shop`);
   assert.match(screenOf(P.carol, carolPanel).plain, /Group: 🛍 Shop \/ business\n\nHow strict should Aegis be\?/);
   await cp2(`g:${ALPHA}:wz:shop:balanced`);
@@ -2380,6 +2398,89 @@ await scenario('🌐 the shared blacklist: a newcomer banned in two other Aegis 
   await moduleOff('shared');
   rawDatabase().prepare('DELETE FROM aegis_guards WHERE chat_id = ? AND code = ?').run(DELTA, 'shared');
   stubFetch(null);
+});
+
+await scenario('📋 copy settings from another group: only the person\'s groups where they can change settings; a summary; copied and logged once; no access, no copy', async () => {
+  const TWO = -1009650;
+  const twoChat = { id: TWO, type: 'supergroup', title: 'Delta Two' };
+  const two = mock.addChat({ ...twoChat, botRights: delta.botRights });
+  two.admins.set(Q.olga.id, { status: 'creator', user: Q.olga });
+  await botChange(twoChat, Q.olga, 'left', 'administrator', delta.botRights);
+  rawDatabase().prepare('UPDATE aegis_chats SET reminder = 0 WHERE chat_id = ?').run(TWO);
+  /* the source: Delta with anti-flood on, a setting and a lock */
+  await moduleOn('flood');
+  rawDatabase().prepare("INSERT INTO aegis_chat_settings (chat_id, key, value) VALUES (?, 'del_join', '1') ON CONFLICT DO UPDATE SET value = excluded.value").run(DELTA);
+  const T = (x) => `g:${TWO}:${x}`;
+  await olga(T('wz'));
+  assert.ok(dataOf(olgaScreen()).includes(T('cp')), 'the wizard offers copying');
+  await olga(T('cp'));
+  const pick = olgaScreen();
+  assert.match(pick.plain, /📋 Copy settings — ⁨Delta Two⁩[^]*Copied: the settings[^]*Not copied: punishments/);
+  const choices = dataOf(pick);
+  assert.ok(choices.includes(T(`cp:${DELTA}`)) && choices.includes(T(`cp:${BETA}`)), choices.join(' '));
+  assert.ok(!choices.includes(T(`cp:${TWO}`)), 'not itself');
+  assert.ok(!choices.some((d) => d.includes(`cp:${ALPHA}`)), 'not a group of someone else');
+  /* a group Olga doesn't manage, typed by hand: refused, nothing copied */
+  await olga(T(`cp:${ALPHA}`));
+  assert.match(olgaScreen().plain, /can't change settings in that chat/);
+  await olga(T(`cp:${ALPHA}:y`));
+  assert.equal(row('SELECT count(*) AS n FROM aegis_guards WHERE chat_id = ?', TWO).n, 0);
+  /* the summary, then the copy */
+  await olga(T(`cp:${DELTA}`));
+  const sum = olgaScreen().plain;
+  assert.match(sum, /Copy from ⁨Delta⁩ to ⁨Delta Two⁩\?/);
+  assert.match(sum, /⚙️ [1-9]\d* settings · 📋 \d+ list entries · 🔒 \d+ locks · 🛡 [1-9]\d* security modules/);
+  assert.equal(row('SELECT count(*) AS n FROM aegis_guards WHERE chat_id = ?', TWO).n, 0, 'nothing before «Copy»');
+  const done = await olga(T(`cp:${DELTA}:y`));
+  assert.equal(done.toast, '✅ Applied');
+  assert.match(olgaScreen().plain, /✅ Copied \d+ values from ⁨Delta⁩/);
+  const flood = JSON.parse(row("SELECT config FROM aegis_guards WHERE chat_id = ? AND code = 'flood'", TWO).config);
+  assert.equal(flood.on, 1);
+  assert.equal(row("SELECT value FROM aegis_chat_settings WHERE chat_id = ? AND key = 'del_join'", TWO).value, '1');
+  assert.ok(row("SELECT id FROM aegis_audit WHERE chat_id = ? AND action = 'chat.copy' AND target = ?", TWO, String(DELTA)));
+  /* an admin of the target without full access can't copy */
+  two.admins.set(Q.abe.id, { status: 'administrator', user: Q.abe, rights: { can_manage_chat: true, can_delete_messages: true, can_restrict_members: true }, promotedBy: Q.olga.id });
+  const abePanel = midOf(sent(await dm(Q.abe, '/config'))[0]);
+  const abeTry = await press(Q.abe, T(`cp:${DELTA}:y`), abePanel);
+  assert.ok(abeTry.alert && /Full/.test(abeTry.toast), abeTry.toast);
+  assert.equal(row("SELECT count(*) AS n FROM aegis_audit WHERE chat_id = ? AND action = 'chat.copy'", TWO).n, 1, 'not copied again');
+  /* back as it was: Delta's flood off, Aegis leaves the extra group */
+  await moduleOff('flood');
+  rawDatabase().prepare("DELETE FROM aegis_chat_settings WHERE chat_id = ? AND key = 'del_join'").run(DELTA);
+  await botChange(twoChat, Q.olga, 'administrator', 'left');
+});
+
+await scenario('📬 the weekly report: the first message starts the week; after 7 days the next message sends it privately to admins with Settings access; once; off in the panel', async () => {
+  rawDatabase().prepare('UPDATE aegis_chats SET weekly_at = 0 WHERE chat_id = ?').run(DELTA);
+  const reportsTo = (calls) => sent(calls).filter((x) => /📬 <b>Weekly report/.test(x.params.text || ''));
+  assert.equal(reportsTo(await dmsg(P5.ivy, 'hello there')).length, 0, 'the first week starts, nothing sent');
+  const start = row('SELECT weekly_at FROM aegis_chats WHERE chat_id = ?', DELTA).weekly_at;
+  assert.ok(start > 0);
+  tick(3 * 86400);
+  assert.equal(reportsTo(await dmsg(P5.ivy, 'three days later')).length, 0, 'not before 7 days');
+  rawDatabase().prepare("INSERT INTO aegis_punishments (chat_id, user_id, kind, reason, actor_id, source, status, created_at) VALUES (?, 1, 'mute', 'x', 0, 'security', 'active', ?), (?, 2, 'ban', 'x', ?, 'command', 'active', ?)")
+    .run(DELTA, nowS(), DELTA, Q.olga.id, nowS());
+  tick(4 * 86400 + 5);
+  const due = await dmsg(P5.ivy, 'a week later');
+  const sentReports = reportsTo(due);
+  assert.deepEqual(sentReports.map((x) => x.params.chat_id), [Q.olga.id], 'the creator only (Abe has View access)');
+  const text = sentReports[0].params.text;
+  assert.match(text, /📬 <b>Weekly report — ⁨Delta⁩<\/b>\n\d{4}-\d\d-\d\d → \d{4}-\d\d-\d\d/);
+  assert.match(text, /💬 Messages: \d+/);
+  assert.match(text, /🛡 Stopped automatically: [1-9]\d* · 👮 Punishments by admins: [1-9]\d*/);
+  assert.deepEqual(sentReports[0].params.reply_markup.inline_keyboard[0].map((b) => b.callback_data), [`g:${DELTA}`, `g:${DELTA}:st`]);
+  assert.ok(row("SELECT id FROM aegis_audit WHERE chat_id = ? AND action = 'stats.weekly'", DELTA));
+  assert.equal(reportsTo(await dmsg(P5.ivy, 'right after')).length, 0, 'once a week');
+  /* off from the statistics screen */
+  await olga(D('st'));
+  assert.match(labelsOf(Q.olga, olgaPanel).join(' | '), /Weekly report to admins: (✅ )?(ON|On|on)/);
+  assert.match(olgaScreen().plain, /There is no scheduler, so it is sent with the first message/);
+  await olga(D('st:s:weekly_on'));
+  assert.match(labelsOf(Q.olga, olgaPanel).join(' | '), /Weekly report to admins: (⚪\uFE0F? )?(OFF|Off|off)/);
+  tick(8 * 86400);
+  assert.equal(reportsTo(await dmsg(P5.ivy, 'next week')).length, 0, 'off: nothing sent');
+  await olga(D('st:s:weekly_on'));
+  rawDatabase().prepare("DELETE FROM aegis_punishments WHERE chat_id = ? AND reason = 'x'").run(DELTA);
 });
 
 await scenario('phase 5 — join requests: the captcha in private decides the request (approve or decline)', async () => {

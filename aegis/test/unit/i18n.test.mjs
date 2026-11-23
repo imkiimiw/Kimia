@@ -68,8 +68,10 @@ test('button labels and command descriptions fit Telegram limits', () => {
   for (const lang of LANGS) {
     for (const [key, s] of Object.entries(dicts[lang])) {
       if (/\.btn_|^common\.(back|cancel|no|yes_remove|refresh)$|^bc\.(aud|mode)_btn_/.test(key)) assert.ok(s.length <= 64, `${lang} ${key} is too long for a button`);
-      if (key.startsWith('cmd.')) assert.ok(s.length >= 1 && s.length <= 256, `${lang} ${key}`);
-      if (/^(app|cmd|alias|modcmd|seccmd|advcmd|soccmd|qacmd|funcmd|mediacmd|funlist|fallist|cultlist|ptest|dreamlist|gamelist|notecmd|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
+      if (key === 'cmd.about') assert.ok(s.length <= 512, `${lang} ${key}: the bot's description is at most 512 characters`);
+      else if (key === 'cmd.about_short') assert.ok(s.length <= 120, `${lang} ${key}: the short description is at most 120 characters`);
+      else if (key.startsWith('cmd.')) assert.ok(s.length >= 1 && s.length <= 256, `${lang} ${key}`);
+      if (/^(app|cmd|alias|modcmd|seccmd|advcmd|soccmd|qacmd|funcmd|mediacmd|funlist|fallist|cultlist|ptest|dreamlist|gamelist|notecmd|site|rights|levels)\./.test(key)) assert.ok(!/[<>&]/.test(s), `${lang} ${key} must be plain text (no < > &): it is used in buttons and inside HTML`);
     }
   }
 });

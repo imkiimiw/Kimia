@@ -101,6 +101,14 @@ try {
     && p6.member.join() === 'rules,report,true', JSON.stringify([p6.times, p6.next, p6.local, p6.member]));
   for (const t of ['aegis_guards', 'aegis_flood', 'aegis_captchas', 'aegis_lockdowns', 'aegis_risk_events', 'aegis_media_seen', 'aegis_msg_hashes', 'aegis_feds',
     'aegis_fed_chats', 'aegis_fed_admins', 'aegis_fed_bans']) check(`Phase 5 table ${t}`, tables.includes(t));
+  {
+    /* the landing page is served next to the bot (the host serves about.html at /about), with its generated strings */
+    const get = async (f) => { try { const r = await fetch(`https://app8940801714.tgcloud.ai/${f}`); return [r.status, await r.text()]; } catch (e) { return [0, String(e)]; } };
+    const [ps, page] = await get('about');
+    const [ss, strings] = await get('site-strings.js');
+    check('the landing page and its strings in 5 languages are served from the Mini App host', ps === 200 && page.includes('about.js') && ss === 200
+      && ['fa', 'en', 'ru', 'zh', 'fr'].every((l) => strings.includes(`"${l}": {`)), `${ps} ${ss}`);
+  }
   const cs = dev('shared');
   check('the shared blacklist on the real platform: other groups only, active bans and kicks, 90 days', cs.before === 0 && cs.after === 2, JSON.stringify(cs));
   const p5 = dev('p5');
@@ -127,9 +135,14 @@ try {
   check('/start runs on the platform without errors', !r1.error, r1.error || '');
   check('first contact shows the language picker', r1.trace.some((e) => e.view === 'language'));
   const kv = Object.fromEntries(dev('read').kv.map((r) => [r.key, r.value]));
-  check('data migrations applied', kv.data_version === '3', `data_version=${kv.data_version}`);
+  check('data migrations applied', kv.data_version === '4', `data_version=${kv.data_version}`);
   const rev = /COMMANDS_REV = '(\d+)'/.exec(fs.readFileSync(path.join(ROOT, 'tgcloud/lib/core/commands.js'), 'utf8'))[1];
   check('command menus and default admin rights accepted by Telegram', kv.cmd_rev === rev, `cmd_rev=${kv.cmd_rev}, expected ${rev}`);
+  const drev = /DESC_REV = '(\d+)'/.exec(fs.readFileSync(path.join(ROOT, 'tgcloud/lib/core/commands.js'), 'utf8'))[1];
+  check('the bot\'s description and short description (default + 5 languages) accepted by Telegram', kv.desc_rev === drev, `desc_rev=${kv.desc_rev}, expected ${drev} ${kv.desc_rev === drev ? '' : JSON.stringify(dev('desc'))}`);
+  const h46 = dev('h46');
+  check('per-chat throttles, the weekly report\'s counts and clock on the real database; no per-chat keys left in aegis_kv (data migration 4)',
+    JSON.stringify(h46.claims) === '[true,false]' && typeof h46.counts.auto === 'number' && typeof h46.reports === 'number' && h46.moved === false && h46.stray === 0, JSON.stringify(h46));
   check('the global switch is on (not shut down)', kv.shutdown === '0', `shutdown=${kv.shutdown}`);
   /* after /start: the data migrations (3: the audit log's triggers) run on the first update after a deploy */
   const p10 = dev('p10');

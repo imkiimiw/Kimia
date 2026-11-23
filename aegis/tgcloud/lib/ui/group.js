@@ -185,7 +185,7 @@ export async function configInGroup(ctx, message) {
   const acc = await admins.liveAccess(ctx, tgChat.id, from.id);
   if (!acc.member || !['creator', 'administrator'].includes(acc.member.status)) {
     /* an ordinary member: a short answer (at most one every 20 s in a chat) that the panel is for admins */
-    if (await kv.claim(`gpanel_${tgChat.id}`, nowSec(), 20)) {
+    if (await settings.claim(tgChat.id, '_gpanel', nowSec(), 20)) {
       await send(ctx, tgChat.id, t(chat.lang, 'group.panel_member', { name: iso(fullName(from)) }), null, 'panel-member', reply);
     }
     return;
@@ -297,7 +297,7 @@ export async function helpInGroup(ctx, message) {
   const tgChat = message.chat;
   const chat = await ensureChat(ctx, tgChat);
   if (!chat) return;
-  if (!(await kv.claim(`ghelp_${tgChat.id}`, nowSec(), 20))) return; /* at most one help every 20 s in a chat */
+  if (!(await settings.claim(tgChat.id, '_ghelp', nowSec(), 20))) return; /* at most one help every 20 s in a chat */
   const lang = chat.lang;
   const from = message.from;
   let admin = !!(message.sender_chat && message.sender_chat.id === tgChat.id); /* an anonymous admin */

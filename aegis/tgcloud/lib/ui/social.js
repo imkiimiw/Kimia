@@ -19,7 +19,7 @@ import { answer, btn, call, me, send, tryCall, urlBtn } from '../core/tg.js';
 import { asciiDigits, localMinutes, tzOf } from '../core/clock.js';
 import { contentOf } from '../core/content.js';
 import { autoEmoji, earned, isThanks, levelOf, pointsFor } from '../core/levels.js';
-import { esc, fullName, iso, normalizeWord, nowSec, short, toInt } from '../core/util.js';
+import { esc, fullName, iso, isoMinute, normalizeWord, nowSec, short, toInt } from '../core/util.js';
 import { appeals, badges, contests, polls, questions, stats } from '../engines/social.js';
 import * as chats from '../engines/chats.js';
 import * as logs from '../engines/logs.js';
@@ -31,6 +31,7 @@ import { isAdmin } from './enforce.js';
 import * as state from '../core/state.js';
 import * as admins from '../engines/admins.js';
 import * as punish from '../engines/punish.js';
+import { reportCount } from '../engines/groupdata.js';
 import { removeKeyboard } from './guard.js';
 
 const flag = settings.flag;
@@ -38,6 +39,55 @@ const inChat = (m) => !!m && (['member', 'administrator', 'creator'].includes(m.
 const isContent = (m) => !!(m.text || m.caption || contentOf(m).kind !== 'other' || m.poll || m.contact || m.location || m.dice);
 const reply = (message) => ({ reply_parameters: { message_id: message.message_id, allow_sending_without_reply: true } });
 const BADGE_CHECK = new Set([1, 100, 1000, 10000]);
+
+/* ---------- the admins' weekly report ---------- */
+
+const WEEK = 7 * 86400;
+const dayLabel = (day) => isoMinute(day * 86400).slice(0, 10);
+
+/*
+ * There is no scheduler: the report goes out with the first message in the group after each 7 days
+ * (the chat row is loaded anyway, so checking costs nothing). The first week starts the first time
+ * this runs. It goes privately to the admins with Settings access who started Aegis (at most
+ * NOTIFY_ADMINS_MAX), each in their language.
+ */
+async function weekly(ctx, chat, now) {
+  const c = chat.chat_id;
+  const at = Number(chat.weekly_at);
+  if (!at) {
+    await chats.moveWeekly(c, 0, now);
+    return;
+  }
+  if (at > now - WEEK || !(await chats.moveWeekly(c, at, now))) return;
+  const s7 = await stats.sum(c, 7, now);
+  const s14 = await stats.sum(c, 14, now);
+  const prev = s14.messages - s7.messages;
+  const active = await stats.activeSince(c, 7, now);
+  const pun = await punish.counts(c, now - WEEK);
+  const reports = await reportCount(c, now - WEEK);
+  const busiest = (await stats.days(c, 7, now)).reduce((best, d) => (!best || Number(d.messages) > Number(best.messages) ? d : best), null);
+  const ov = await admins.overrides(c);
+  let n = 0;
+  for (const r of await admins.listRows(c)) {
+    if (Number(r.is_bot) || n >= NOTIFY_ADMINS_MAX) continue;
+    const o = ov.get(Number(r.user_id));
+    if (admins.effectiveLevel(admins.memberOfRow(r), o ? o.level : null) < admins.L.settings) continue;
+    const u = await users.get(Number(r.user_id));
+    if (!u || !Number(u.started) || Number(u.blocked)) continue;
+    const lang = u.lang;
+    const pct = prev ? Math.round(((s7.messages - prev) / prev) * 100) : 0;
+    const trend = !prev ? '' : t(lang, pct > 0 ? 'soc.wk_up' : pct < 0 ? 'soc.wk_down' : 'soc.wk_same', { pct: num(lang, Math.abs(pct)) });
+    const lines = [t(lang, 'soc.wk_title', { title: iso(chat.title || '', 48) }), t(lang, 'soc.wk_range', { from: dayLabel(Math.floor((now - WEEK) / 86400) + 1), to: dayLabel(Math.floor(now / 86400)) }), '',
+      t(lang, 'soc.wk_messages', { n: num(lang, s7.messages), trend }),
+      t(lang, 'soc.wk_active', { n: num(lang, active) }),
+      t(lang, 'soc.wk_members', { joins: num(lang, s7.joins), leaves: num(lang, s7.leaves) })];
+    if (busiest && Number(busiest.messages)) lines.push(t(lang, 'soc.wk_busiest', { day: dayLabel(Number(busiest.day)), n: num(lang, Number(busiest.messages)) }));
+    lines.push(t(lang, 'soc.wk_moderation', { auto: num(lang, pun.auto), admins: num(lang, pun.admins) }), t(lang, 'soc.wk_reports', { n: num(lang, reports) }), '', t(lang, 'soc.wk_footer'));
+    const rows = [[btn(t(lang, 'soc.wk_btn_panel'), `g:${c}`), btn(t(lang, 'soc.wk_btn_stats'), `g:${c}:st`)]];
+    if (await tryCall(ctx, 'sendMessage', { chat_id: u.user_id, text: lines.join('\n'), parse_mode: 'HTML', reply_markup: { inline_keyboard: rows } }, 'weekly-report')) n += 1;
+  }
+  await audit.log(0, 'stats.weekly', { chatId: c, details: { sent: n } });
+}
 
 /* ---------- messages ---------- */
 
@@ -70,6 +120,7 @@ export async function onMessage(ctx, chat, message) {
       if (r) await afterPoints(ctx, chat, s, user, r, BADGE_CHECK.has(Number(m.messages)) || [7, 30].includes(Number(m.streak)) || Number(m.messages) % 50 === 0);
     }
   }
+  if (flag(s, 'weekly_on')) await weekly(ctx, chat, now);
   for (const row of await contests.live(c)) {
     if (Number(row.ends_at) <= now) continue;
     if (row.kind === 'raffle') continue;

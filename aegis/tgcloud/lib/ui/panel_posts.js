@@ -454,7 +454,7 @@ async function backupScreen(ctx, user, g, place, notice = '') {
     else if (job && job.status === 'paused') kb.push([btn(t(lang, 'post.btn_job_resume'), `g:${c}:Y:jr`)]);
     else kb.push([btn(t(lang, 'post.btn_job_start'), `g:${c}:Y:j`)]);
   }
-  kb.push([btn(t(lang, 'post.btn_archive_csv'), `g:${c}:Y:a`)], back(lang, `g:${c}`));
+  kb.push([btn(t(lang, 'post.btn_archive_csv'), `g:${c}:Y:a`)], [btn(t(lang, 'adv.cp_btn_channel'), `g:${c}:cp`)], back(lang, `g:${c}`));
   return screen(ctx, user.user_id, place, lines.join('\n'), kb, 'channel-backups');
 }
 

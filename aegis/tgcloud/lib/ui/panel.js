@@ -640,6 +640,7 @@ export async function callback(ctx, user, parts, place) {
     case 'V': return advPanel.callback(ctx, user, g, parts, place);
     case 'nt': return g.chat.type === 'channel' ? root(ctx, user, g, place) : advPanel.notes(ctx, user, g, parts, place);
     case 'wz': return g.chat.type === 'channel' ? root(ctx, user, g, place) : advPanel.wizard(ctx, user, g, parts, place);
+    case 'cp': return advPanel.copyFrom(ctx, user, g, parts, place);
     case 'T': return topicPanel.callback(ctx, user, g, parts, place);
     case 'L': case 'P': case 'W': case 'B': case 'U': case 'O': return mod.callback(ctx, user, g, parts, place);
     case 'J': case 'M': case 'I': case 'Q': case 'A': case 'D': case 'H': case 'E':

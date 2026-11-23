@@ -70,7 +70,7 @@
  */
 import { OWNER_ID } from './config.js';
 import { answer, createCtx, me, send, tryCall } from './core/tg.js';
-import { mentionOf, parseCommand, startPayload, syncCommands, syncOwnerCommands } from './core/commands.js';
+import { mentionOf, parseCommand, startPayload, syncCommands, syncDescriptions, syncOwnerCommands } from './core/commands.js';
 import * as dedupe from './core/dedupe.js';
 import * as errors from './core/errors.js';
 import * as kv from './core/kv.js';
@@ -238,6 +238,7 @@ async function handleMessage(ctx, message) {
   if (ctx.shutdown && !isOwner) return;
   const user = await users.touch(from, { started: true });
   await syncCommands(ctx);
+  await syncDescriptions(ctx);
   const pending = await state.get(from.id);
   const isInput = !!pending && (isUserInput(pending.kind) || (isOwner && OWNER_INPUTS.has(pending.kind)) || admin.INPUTS.has(pending.kind));
   const cmd = parseCommand(message.text, { aliases: !isInput });

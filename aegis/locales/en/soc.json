@@ -129,5 +129,20 @@
   "pl_total": "Voters: {n}",
   "pl_closes": "⏳ Closes in {time}.",
   "btn_pl_stop": "⏹ Stop the poll",
-  "btn_pl_voters": "📄 Voters (CSV)"
+  "btn_pl_voters": "📄 Voters (CSV)",
+  "wk_note": "📬 <i>The weekly report goes privately to the admins with Settings access who have started Aegis. There is no scheduler, so it is sent with the first message in the group after each 7 days.</i>",
+  "wk_title": "📬 <b>Weekly report — {title}</b>",
+  "wk_range": "{from} → {to}",
+  "wk_messages": "💬 Messages: {n} {trend}",
+  "wk_up": "(▲ {pct}% on the week before)",
+  "wk_down": "(▼ {pct}% on the week before)",
+  "wk_same": "(the same as the week before)",
+  "wk_active": "🙋 Members who wrote: {n}",
+  "wk_members": "👥 Joined: {joins} · Left: {leaves}",
+  "wk_busiest": "🔥 Busiest day: {day} — {n} messages",
+  "wk_moderation": "🛡 Stopped automatically: {auto} · 👮 Punishments by admins: {admins}",
+  "wk_reports": "🚩 Reports from members: {n}",
+  "wk_footer": "<i>Turn it off in the panel: 📊 Statistics → Weekly report to admins.</i>",
+  "wk_btn_panel": "⚙️ Panel",
+  "wk_btn_stats": "📊 Statistics"
 }

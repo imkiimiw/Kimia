@@ -33,6 +33,12 @@ const ACTIVE = new Set(['member', 'administrator', 'creator', 'restricted']);
 export const isGroupType = (type) => type === 'group' || type === 'supergroup';
 export const isTracked = (type) => isGroupType(type) || type === 'channel';
 
+/* The weekly report's clock: moves weekly_at from `from` to `to`; true for exactly one caller. */
+export async function moveWeekly(chatId, from, to) {
+  const r = await db.run(sql`UPDATE aegis_chats SET weekly_at = ${to} WHERE chat_id = ${chatId} AND weekly_at = ${from}`);
+  return r.rowsAffected > 0;
+}
+
 export async function get(chatId) {
   return db.get(sql`SELECT * FROM aegis_chats WHERE chat_id = ${chatId}`);
 }

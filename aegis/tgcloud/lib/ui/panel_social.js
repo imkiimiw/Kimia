@@ -81,7 +81,8 @@ async function statsScreen(ctx, user, g, place) {
     lines.push('', t(lang, 'soc.st_top'));
     for (const [i, r] of top.entries()) lines.push(`${num(lang, i + 1)}. ${iso(await users.displayName(Number(r.user_id)), 32)} — ${num(lang, Number(r.messages))}`);
   }
-  const kb = [[settingBtn(lang, c, s, 'stats_on', 'st')], [btn(t(lang, 'soc.btn_csv_days'), `g:${c}:st:d`), btn(t(lang, 'soc.btn_csv_members'), `g:${c}:st:m`)],
+  lines.push('', t(lang, 'soc.wk_note'));
+  const kb = [[settingBtn(lang, c, s, 'stats_on', 'st')], [settingBtn(lang, c, s, 'weekly_on', 'st')], [btn(t(lang, 'soc.btn_csv_days'), `g:${c}:st:d`), btn(t(lang, 'soc.btn_csv_members'), `g:${c}:st:m`)],
     back(lang, `g:${c}`)];
   return screen(ctx, user.user_id, place, lines.join('\n'), kb, 'panel-stats');
 }

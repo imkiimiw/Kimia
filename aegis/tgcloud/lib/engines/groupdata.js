@@ -41,6 +41,8 @@ export async function addReport(chatId, reporterId, targetId, msgId, snippet, re
 }
 
 export const report = (id) => db.get(sql`SELECT * FROM aegis_reports WHERE id = ${id}`);
+/* How many reports members made in a chat since `since`. */
+export const reportCount = async (chatId, since) => Number((await db.get(sql`SELECT count(*) AS n FROM aegis_reports WHERE chat_id = ${chatId} AND at > ${since}`)).n);
 
 export async function lastReportAt(chatId, reporterId) {
   const r = await db.get(sql`SELECT at FROM aegis_reports WHERE chat_id = ${chatId} AND reporter_id = ${reporterId} ORDER BY at DESC LIMIT 1`);

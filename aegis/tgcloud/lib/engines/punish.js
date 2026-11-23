@@ -78,6 +78,13 @@ export const isActive = (row) => row.status === 'active' && !isExpired(row);
 export const undoable = (row) => isActive(row) && row.kind !== 'kick';
 
 /* Active (counting) warnings of a member: unexpired per warn_ttl. */
+/* Punishments in a chat since `since` (index-backed): given by admins (command, panel) and automatic (every other source). */
+export async function counts(chatId, since) {
+  const r = await db.get(sql`SELECT count(*) AS n, coalesce(sum(CASE WHEN source IN ('command', 'panel') THEN 1 ELSE 0 END), 0) AS m
+    FROM aegis_punishments WHERE chat_id = ${chatId} AND created_at > ${since}`);
+  return { admins: Number(r.m), auto: Number(r.n) - Number(r.m) };
+}
+
 export async function warnCount(ctx, chatId, userId) {
   const s = await settings.all(ctx, chatId);
   const ttl = Number(s.warn_ttl);

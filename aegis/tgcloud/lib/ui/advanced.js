@@ -24,7 +24,6 @@ import { sql } from 'sdk/db';
 import { ADMIN_CALL_GAP_SEC, FJ_CACHE_SEC, REPORT_ADMINS_MAX, REPORT_GAP_SEC } from '../config.js';
 import * as audit from '../core/audit.js';
 import { canPublish, contentOf, parseButtons, publish } from '../core/content.js';
-import * as kv from '../core/kv.js';
 import { answer, btn, me, send, tryCall, urlBtn } from '../core/tg.js';
 import { inWindow, localMinutes, nextTime, tzOf } from '../core/clock.js';
 import { parseModCommand } from '../core/commands.js';
@@ -752,7 +751,7 @@ export async function notesReply(ctx, chat, message) {
   const words = ` ${ftNorm(text)} `;
   const hit = list.find((f) => words.includes(` ${f.trigger} `));
   /* at most one filter reply every 3 s in a chat (two filters can't answer each other in a loop: bots are ignored) */
-  if (!hit || !(await kv.claim(`flt_${c}`, nowSec(), 3))) return false;
+  if (!hit || !(await settings.claim(c, '_flt', nowSec(), 3))) return false;
   await sendNote(ctx, chat, hit, message, message.message_id);
   return true;
 }

@@ -129,5 +129,20 @@
   "pl_total": "投票人数：{n}",
   "pl_closes": "⏳ {time}后关闭。",
   "btn_pl_stop": "⏹ 结束投票",
-  "btn_pl_voters": "📄 投票人（CSV）"
+  "btn_pl_voters": "📄 投票人（CSV）",
+  "wk_note": "📬 <i>每周报告会私信发给拥有「设置」权限并已启动 Aegis 的管理员。没有定时器，所以报告会在每满 7 天后群里的第一条消息时发送。</i>",
+  "wk_title": "📬 <b>每周报告 — {title}</b>",
+  "wk_range": "{from} → {to}",
+  "wk_messages": "💬 消息：{n} {trend}",
+  "wk_up": "（比上周 ▲ {pct}%）",
+  "wk_down": "（比上周 ▼ {pct}%）",
+  "wk_same": "（与上周持平）",
+  "wk_active": "🙋 发言成员：{n}",
+  "wk_members": "👥 加入：{joins} · 离开：{leaves}",
+  "wk_busiest": "🔥 最活跃的一天：{day} — {n} 条消息",
+  "wk_moderation": "🛡 自动拦截：{auto} · 👮 管理员处罚：{admins}",
+  "wk_reports": "🚩 成员举报：{n}",
+  "wk_footer": "<i>关闭方法：面板 → 📊 统计 → 每周报告发给管理员。</i>",
+  "wk_btn_panel": "⚙️ 面板",
+  "wk_btn_stats": "📊 统计"
 }

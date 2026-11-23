@@ -3,9 +3,9 @@
  * Every screen edits the pressed message when there is one, else sends a new message.
  */
 import { OWNER_ID } from '../config.js';
-import { btn, me, screen, urlBtn } from '../core/tg.js';
+import { appUrl, btn, me, screen, urlBtn } from '../core/tg.js';
 import { fullName, iso } from '../core/util.js';
-import { addToChannelUrl, addToGroupUrl } from '../engines/rights.js';
+import { addToChannelUrl, addToGroupUrl, deepLinkRights } from '../engines/rights.js';
 import { staff } from '../engines/system.js';
 import { langFlag, langName, LANGS, t } from '../i18n/index.js';
 
@@ -44,11 +44,18 @@ export async function welcome(ctx, user, from, place = null) {
   return screen(ctx, user.user_id, place, text, await mainRows(ctx, lang, user.user_id), 'welcome');
 }
 
+/* The landing page (webapp/about.html): the bot's name and the add-links' rights travel in the fragment, so the page can be shared as it is. */
+export async function siteUrl(ctx, lang) {
+  const bot = (await me(ctx)).username;
+  const q = Object.entries({ bot, lang, g: deepLinkRights('supergroup'), c: deepLinkRights('channel') }).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+  return `${await appUrl(ctx)}about#${q}`; /* the host serves about.html at /about (it redirects the .html form) */
+}
+
 export async function help(ctx, user, place = null) {
   const lang = user.lang;
   const parts = [t(lang, 'start.help')];
   if (user.user_id === OWNER_ID) parts.push('', t(lang, 'start.help_owner'));
-  return screen(ctx, user.user_id, place, parts.join('\n'), [[btn(t(lang, 'common.back'), 'mm')]], 'help');
+  return screen(ctx, user.user_id, place, parts.join('\n'), [[urlBtn(t(lang, 'start.btn_site'), await siteUrl(ctx, lang))], [btn(t(lang, 'common.back'), 'mm')]], 'help');
 }
 
 /* "Join these channels first": one URL button per missing channel, then "✅ I joined". */

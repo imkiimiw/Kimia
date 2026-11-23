@@ -302,5 +302,16 @@
   "wz_keep": "<i>Tout le reste reste tel quel ; vous pourrez tout modifier ensuite dans le panneau.</i>",
   "wz_apply": "✅ Appliquer",
   "wz_done_toast": "✅ Appliqué",
-  "wz_done": "✅ <b>Fait :</b> {type} · {level}. Chaque changement est dans le journal ; affinez la sécurité et les verrous ci-dessous."
+  "wz_done": "✅ <b>Fait :</b> {type} · {level}. Chaque changement est dans le journal ; affinez la sécurité et les verrous ci-dessous.",
+  "cp_btn": "📋 Copier les réglages d’un autre groupe",
+  "cp_btn_channel": "📋 Copier les réglages d’un autre canal",
+  "cp_title": "📋 <b>Copier des réglages — {title}</b>",
+  "cp_intro": "Choisissez la discussion à copier. Seules vos discussions du même type où vous pouvez modifier les réglages sont listées.\n\n<b>Copiés :</b> les réglages, les listes de configuration (liens autorisés, mots interdits …), les verrous et les modules de sécurité.\n<b>Non copiés :</b> sanctions, avertissements, notes et filtres, le canal de journal et tout ce qui dépend d’une autre discussion.",
+  "cp_none_group": "Vous ne gérez aucun autre groupe avec Aegis où vous pouvez modifier les réglages. Ajoutez-y d’abord Aegis.",
+  "cp_none_channel": "Vous ne gérez aucun autre canal avec Aegis où vous pouvez modifier les réglages. Ajoutez-y d’abord Aegis.",
+  "cp_no_access": "Vous ne pouvez (plus) modifier les réglages de cette discussion, ou Aegis l’a quittée — rien n’a été copié.",
+  "cp_empty": "{from} n’utilise encore que les réglages par défaut — rien à copier.",
+  "cp_confirm": "Copier de <b>{from}</b> vers <b>{to}</b> ?\n\n⚙️ {settings} réglages · 📋 {entries} entrées de listes · 🔒 {locks} verrous · 🛡 {guards} modules de sécurité\n\nCe qui est réglé dans la source remplace les mêmes éléments ici ; le reste ne change pas.",
+  "cp_apply": "✅ Copier",
+  "cp_done": "✅ {n} valeurs copiées depuis {from}. La copie est inscrite dans le journal des modifications."
 }

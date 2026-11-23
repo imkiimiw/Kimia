@@ -302,5 +302,16 @@
   "wz_keep": "<i>Everything else stays as it is, and you can change any of it later in the panel.</i>",
   "wz_apply": "✅ Apply",
   "wz_done_toast": "✅ Applied",
-  "wz_done": "✅ <b>Done:</b> {type} · {level}. Every change is in the change log; fine-tune security and locks below."
+  "wz_done": "✅ <b>Done:</b> {type} · {level}. Every change is in the change log; fine-tune security and locks below.",
+  "cp_btn": "📋 Copy settings from another group",
+  "cp_btn_channel": "📋 Copy settings from another channel",
+  "cp_title": "📋 <b>Copy settings — {title}</b>",
+  "cp_intro": "Pick the chat to copy from. Only your chats of the same kind where you can change settings are listed.\n\n<b>Copied:</b> the settings, the configuration lists (allowed links, banned words …), locks and security modules.\n<b>Not copied:</b> punishments, warnings, notes and filters, the log channel and anything tied to another chat.",
+  "cp_none_group": "You don't manage another group with Aegis where you can change settings. Add Aegis to it first.",
+  "cp_none_channel": "You don't manage another channel with Aegis where you can change settings. Add Aegis to it first.",
+  "cp_no_access": "You can't change settings in that chat (any more), or Aegis has left it — nothing was copied.",
+  "cp_empty": "{from} still uses only the defaults — there is nothing to copy.",
+  "cp_confirm": "Copy from <b>{from}</b> to <b>{to}</b>?\n\n⚙️ {settings} settings · 📋 {entries} list entries · 🔒 {locks} locks · 🛡 {guards} security modules\n\nWhat the source has set replaces the same items here; everything else stays as it is.",
+  "cp_apply": "✅ Copy",
+  "cp_done": "✅ Copied {n} values from {from}. The copy is recorded in the change log."
 }

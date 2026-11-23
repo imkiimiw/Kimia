@@ -9,5 +9,7 @@
   "shutdown": "Shut down (owner)",
   "activate": "Activate (owner)",
   "appeal": "Appeal a punishment",
-  "staff": "Team panel (bot team)"
+  "staff": "Team panel (bot team)",
+  "about": "Aegis keeps your Telegram groups and channels safe and lively — free.\n\n🛡 Anti-spam, anti-raid, captcha, flood and link guards, 42 locks\n⚙️ Setup wizard, notes, filters, welcome messages, warnings and logs\n📢 Channels: scheduled posts, join requests, admins vote on direct messages\n📊 Statistics, points, contests and polls\n🎲 100 fun features: games, fortune telling, fonts\n\nAdd Aegis to your group as an admin, then send /config.",
+  "about_short": "Group and channel manager: anti-spam, captcha, locks, notes, stats, games — free, in 5 languages."
 }

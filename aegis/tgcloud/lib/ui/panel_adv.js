@@ -21,6 +21,8 @@ import { fmtTime, parseTimes, TZ_OFFSETS, tzLabel, tzOf } from '../core/clock.js
 import * as state from '../core/state.js';
 import { esc, iso, normalizeWord, nowSec, parseJson, short } from '../core/util.js';
 import * as admins from '../engines/admins.js';
+import * as backup from '../engines/backup.js';
+import * as chats from '../engines/chats.js';
 import { parseButtons } from '../core/content.js';
 import * as gd from '../engines/groupdata.js';
 import * as guards from '../engines/guards.js';
@@ -427,6 +429,7 @@ export async function wizard(ctx, user, g, parts, place) {
   const head = [t(lang, 'adv.wz_title', { title: title(g) }), ''];
   if (!type) {
     const kb = pairs(WZ_TYPES.map((x) => btn(t(lang, `adv.wz_t_${x}`), `g:${c}:wz:${x}`)));
+    kb.push([btn(t(lang, 'adv.cp_btn'), `g:${c}:cp`)]);
     kb.push(back(lang, `g:${c}`));
     return screen(ctx, user.user_id, place, [...head, t(lang, 'adv.wz_q1')].join('\n'), kb, 'wizard-type');
   }
@@ -446,4 +449,47 @@ export async function wizard(ctx, user, g, parts, place) {
     t(lang, `adv.wz_sum_${level}`), t(lang, `adv.wz_sum_t_${type}`), '', t(lang, 'adv.wz_keep')];
   return screen(ctx, user.user_id, place, lines.join('\n'), [[btn(t(lang, 'adv.wz_apply'), `g:${c}:wz:${type}:${level}:ok`)], [btn(t(lang, 'common.back'), `g:${c}:wz:${type}`)]],
     'wizard-summary');
+}
+
+/* ---------- copying settings from another chat ---------- */
+
+const sameKind = (a, b) => (a === 'channel') === (b === 'channel');
+
+/*
+ * g:<c>:cp — the chats to copy from: the person's other chats of the same kind (group or channel)
+ * where they can change settings. g:<c>:cp:<src> — what would be copied; g:<c>:cp:<src>:y — copy.
+ * It is the backup format (engines/backup.js): settings, configuration lists, locks and security
+ * modules; never punishments, notes or anything tied to another chat. The target needs full access
+ * (like restoring a backup); the source is re-checked live.
+ */
+export async function copyFrom(ctx, user, g, parts, place) {
+  const lang = user.lang;
+  const c = g.chat.chat_id;
+  const head = [t(lang, 'adv.cp_title', { title: title(g) }), ''];
+  const home = g.chat.type === 'channel' ? `g:${c}:Y` : `g:${c}:wz`;
+  if (!(await needLevel(ctx, user, g, L.full))) return null;
+  const src = parts[3] ? Number(parts[3]) : 0;
+  if (!src) {
+    const list = (await admins.chatsOf(user.user_id)).filter((x) => x.chatId !== c && x.level >= L.settings && sameKind(x.type, g.chat.type));
+    const kb = list.slice(0, 20).map((x) => [btn(`${x.type === 'channel' ? '📢' : '👥'} ${short(x.title || String(x.chatId), 40)}`, `g:${c}:cp:${x.chatId}`)]);
+    kb.push(back(lang, home));
+    const body = list.length ? t(lang, 'adv.cp_intro') : t(lang, g.chat.type === 'channel' ? 'adv.cp_none_channel' : 'adv.cp_none_group');
+    return screen(ctx, user.user_id, place, [...head, body].join('\n'), kb, 'copy-pick');
+  }
+  const from = await chats.get(src);
+  const acc = from && src !== c && Number(from.active) && sameKind(from.type, g.chat.type) ? await admins.liveAccess(ctx, src, user.user_id) : null;
+  if (!acc || acc.level < L.settings) return screen(ctx, user.user_id, place, [...head, t(lang, 'adv.cp_no_access')].join('\n'), [back(lang, `g:${c}:cp`)], 'copy-denied');
+  const fromName = iso(from.title || String(src), 48);
+  const checked = backup.check(JSON.stringify(await backup.make(from)), g.chat);
+  if (checked.error) return screen(ctx, user.user_id, place, [...head, t(lang, 'adv.cp_empty', { from: fromName })].join('\n'), [back(lang, `g:${c}:cp`)], 'copy-empty');
+  if (parts[4] === 'y') {
+    const n = await backup.apply(ctx, g.chat, checked.data, user.user_id);
+    await audit.log(user.user_id, 'chat.copy', { chatId: c, target: String(src), details: { from: src, n } });
+    await answer(ctx, t(lang, 'adv.wz_done_toast'));
+    return screen(ctx, user.user_id, place, [...head, t(lang, 'adv.cp_done', { n: num(lang, n), from: fromName })].join('\n'), [back(lang, `g:${c}`)], 'copy-done');
+  }
+  const k = checked.counts;
+  const lines = [...head, t(lang, 'adv.cp_confirm', { from: fromName, to: title(g), settings: num(lang, k.settings), entries: num(lang, k.entries),
+    locks: num(lang, k.locks), guards: num(lang, k.guards) })];
+  return screen(ctx, user.user_id, place, lines.join('\n'), [[btn(t(lang, 'adv.cp_apply'), `g:${c}:cp:${src}:y`)], back(lang, `g:${c}:cp`)], 'copy-confirm');
 }

@@ -122,5 +122,7 @@
   "filters_save": "فیلتر «{key}» را ذخیره کرد",
   "filters_remove": "فیلتر «{key}» را حذف کرد",
   "chat_preset": "یک تنظیم آماده را اعمال کرد",
-  "security_shared": "فهرست سیاه مشترک {target} را علامت زد"
+  "security_shared": "فهرست سیاه مشترک {target} را علامت زد",
+  "chat_copy": "تنظیمات چت دیگری را کپی کرد ({key})",
+  "stats_weekly": "گزارش هفتگی را برای مدیران فرستاد"
 }

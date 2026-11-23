@@ -10,7 +10,8 @@
  * member, added and removed; fortune telling and fonts: pure, nothing written). It never writes to the audit log (federations are not created here for that
  * reason; Phase 10 seals the rows already there, as housekeeping would, and checks the seals).
  */
-import { db } from 'sdk';
+import { api, db } from 'sdk';
+import { t as tr } from '../lib/i18n/index.js';
 import { sql } from 'sdk/db';
 import { csv, utf8Bytes as bytesOf, utf8Bytes, utf8Text } from '../lib/core/util.js';
 import { adminActions } from '../lib/engines/betrayal.js';
@@ -21,6 +22,7 @@ import * as feds from '../lib/engines/feds.js';
 import * as guards from '../lib/engines/guards.js';
 import { deobfuscate, invisible, mixedScriptWords, score } from '../lib/core/signals.js';
 import { hostsOf, linksOf, scan } from '../lib/core/msgscan.js';
+import * as chats from '../lib/engines/chats.js';
 import * as punish from '../lib/engines/punish.js';
 import * as settings from '../lib/engines/settings.js';
 import * as msglog from '../lib/engines/msglog.js';
@@ -189,7 +191,7 @@ export default async function (input) {
   }
   if (action === 'read') {
     return {
-      kv: await db.all(sql`SELECT key, value FROM aegis_kv WHERE key IN ('data_version', 'join_enabled', 'join_rev', 'cmd_rev', 'bot_id', 'bot_username', 'shutdown') LIMIT 20`),
+      kv: await db.all(sql`SELECT key, value FROM aegis_kv WHERE key IN ('data_version', 'join_enabled', 'join_rev', 'cmd_rev', 'desc_rev', 'bot_id', 'bot_username', 'shutdown') LIMIT 20`),
       channels: await db.all(sql`SELECT id, username, chat_id, title, bot_admin, last_error, position FROM aegis_join_channels ORDER BY position LIMIT 20`),
       users: await db.all(sql`SELECT user_id, lang, lang_set, started, blocked FROM aegis_users WHERE user_id BETWEEN ${LO} AND ${HI} LIMIT 50`),
       tables: await db.all(sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'aegis_%' ORDER BY name LIMIT 200`),
@@ -240,6 +242,33 @@ export default async function (input) {
       joined: (await members.joinedAt(FAKE_CHAT, LO)) > 0,
       counts: await locks.countOn(FAKE_CHAT),
     };
+  }
+  if (action === 'desc') {
+    /* the bot's descriptions: what Telegram answers to each call, and the retry lock's state */
+    const out = {};
+    for (const lang of ['', 'fa']) {
+      const extra = lang ? { language_code: lang } : {};
+      for (const [m, field, key] of [['setMyDescription', 'description', 'cmd.about'], ['setMyShortDescription', 'short_description', 'cmd.about_short']]) {
+        try {
+          out[`${m}:${lang}`] = await api[m]({ [field]: tr(lang || 'en', key).replace(/\u200F/g, ''), ...extra });
+        } catch (e) {
+          out[`${m}:${lang}`] = `${e.code || ''} ${e.description || e.message || e}`;
+        }
+      }
+    }
+    const kv = await db.all(sql`SELECT key, value FROM aegis_kv WHERE key LIKE 'desc%'`);
+    return { out, kv };
+  }
+  if (action === 'h46') {
+    /* the per-chat claim, the weekly report's counts and clock, and no per-chat keys left in aegis_kv */
+    const now = Math.floor(Date.now() / 1000);
+    const claims = [await settings.claim(FAKE_CHAT, '_smoke', now, 20), await settings.claim(FAKE_CHAT, '_smoke', now, 20)];
+    await db.run(sql`DELETE FROM aegis_chat_settings WHERE chat_id = ${FAKE_CHAT} AND key = '_smoke'`);
+    const counts = await punish.counts(FAKE_CHAT, now - 7 * 86400);
+    const reports = await gd.reportCount(FAKE_CHAT, now - 7 * 86400);
+    const moved = await chats.moveWeekly(FAKE_CHAT, 12345, now);
+    const stray = Number((await db.get(sql`SELECT count(*) AS n FROM aegis_kv WHERE key GLOB 'flt_-[0-9]*' OR key GLOB 'gpanel_-[0-9]*' OR key GLOB 'ghelp_-[0-9]*'`)).n);
+    return { claims, counts, reports, moved, stray };
   }
   if (action === 'shared') {
     /* the shared blacklist: the cross-group count on the real database (other groups only, active bans and kicks, 90 days) */
