@@ -122,8 +122,12 @@ ai:
   max_input_chars_per_article: 6000
   # Budget. Free-tier limits are per Google project (AI Studio → Rate limits); daily quota resets
   # at midnight Pacific time. Items over budget simply wait for the next run.
-  max_calls_per_run: 6
-  max_calls_per_day: 150
+  max_calls_per_run: 24          # hard cap of one run; pacing below decides the real share
+  max_calls_per_day: 150         # assumed daily quota; the owner's /quota N or Google's 429
+                                  # "per day" answer (stored in settings) replaces it
+  pace_daily_quota: true          # spread the daily quota evenly: it never runs out before the
+                                  # daily reset, every day of the month
+  run_interval_minutes: 10        # how often runs are triggered (the external timer)
   dry_run_max_calls: 2
   requests_per_minute: 8
   quota_reset_timezone: America/Los_Angeles

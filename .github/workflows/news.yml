@@ -4,10 +4,13 @@ name: Wanger News
 # - test: on every push/PR touching wanger-news/ — lint, types, offline tests (+ a PostgreSQL
 #   service for migrations/concurrency), then a live dry run and a migrate + run-once smoke on
 #   the service database (no bot token there, so nothing can be posted).
-# - run:  every 15 minutes (GitHub may start it late; the design does not depend on timing) and
-#   on demand. Does nothing until the WANGER_NEWS_DATABASE_URL secret exists.
-#   Scheduled runs only happen for the copy of this file on the DEFAULT branch, and GitHub
-#   disables schedules of a public repository after 60 days without activity.
+# - run:  started every 10 minutes by an external timer (cron-job.org calls the GitHub API:
+#   workflow_dispatch with command=run-once, trigger=cron — README "Regular runs"), with
+#   GitHub's own schedule hourly as a fallback (GitHub starts it late, often by hours), and on
+#   demand. The design does not depend on timing. Does nothing until the
+#   WANGER_NEWS_DATABASE_URL secret exists. Scheduled runs only happen for the copy of this file
+#   on the DEFAULT branch, and GitHub disables schedules of a public repository after 60 days
+#   without activity (the external timer is not affected).
 
 on:
   push:
@@ -15,7 +18,7 @@ on:
   pull_request:
     paths: ["wanger-news/**", ".github/workflows/news.yml"]
   schedule:
-    - cron: "7,22,37,52 * * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       command:
@@ -23,6 +26,11 @@ on:
         type: choice
         options: [run-once, run-once --dry-run, migrate, doctor, check-sources]
         default: run-once
+      trigger:
+        description: Who started it (the external timer sends "cron")
+        type: choice
+        options: [manual, cron]
+        default: manual
 
 permissions:
   contents: read
@@ -109,7 +117,7 @@ jobs:
       WANGER_NEWS_ADMIN_IDS: ${{ vars.WANGER_NEWS_ADMIN_IDS }}
       WANGER_NEWS_PUBLISH_TARGET: ${{ vars.WANGER_NEWS_PUBLISH_TARGET || 'test' }}
       COMMAND: ${{ github.event_name == 'schedule' && 'run-once' || inputs.command }}
-      TRIGGER: ${{ github.event_name == 'schedule' && 'cron' || 'manual' }}
+      TRIGGER: ${{ github.event_name == 'schedule' && 'cron' || inputs.trigger || 'manual' }}
     steps:
       - name: Skip until the database secret exists
         id: gate
@@ -137,7 +145,7 @@ jobs:
           case "$COMMAND" in
             "run-once")
               # a scheduled run with a setup problem (wrong secret, database not migrated)
-              # warns instead of failing: no failure e-mail every 15 minutes. Manual runs fail.
+              # warns instead of failing: no failure e-mail every 10 minutes. Manual runs fail.
               status=0
               python -m wanger_news run-once --trigger "$TRIGGER" || status=$?
               if [ "$status" = "1" ] && [ "$TRIGGER" = "cron" ]; then

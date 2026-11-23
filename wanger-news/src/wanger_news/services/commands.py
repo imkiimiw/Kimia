@@ -18,7 +18,7 @@ from wanger_news.domain.jalali import format_tehran, format_time_fa
 from wanger_news.domain.text import to_ascii_digits, to_persian_digits
 from wanger_news.formatting.telegram_html import bold, esc, split_html
 from wanger_news.formatting.templates_fa import reason_fa, render_story_timeline
-from wanger_news.services.ai_stage import MODES_KEY, modes_from
+from wanger_news.services.ai_stage import DAILY_QUOTA_KEY, MODES_KEY, daily_quota, modes_from
 from wanger_news.services.brief import BriefService
 from wanger_news.services.context import RunContext
 from wanger_news.services.review import ReviewService
@@ -124,6 +124,8 @@ class CommandService:
             text = esc(await self.corrections.from_admin(repos, ctx, args, sender))
         elif name == "channel" and self.panel is not None:
             text = str(await self.panel.channel_command(repos, ctx, args))
+        elif name == "quota":
+            text = await self._quota(repos, ctx, args, owner=owner)
         elif name in LATER_PHASE:
             text = (
                 f"⏳ /{esc(name)} در فاز {to_persian_digits(str(LATER_PHASE[name]))} اضافه می‌شود."
@@ -172,6 +174,7 @@ class CommandService:
                 "/brief — پیش‌نمایش خلاصهٔ روز (چیزی منتشر نمی‌شود)",
                 "/correct 12 | مورد | مقدار اشتباه | مقدار درست | منبع — اصلاحیه برای خبر #۱۲",
                 "/report 7 — آمار و هزینهٔ ۷ روز اخیر",
+                "/quota — سهمیهٔ روزانهٔ هوش مصنوعی؛ /quota 1000 (فقط مالک) عددِ AI Studio را می‌گذارد",
                 "",
                 "کارت‌های بررسی دکمه دارند: ✅ تأیید · 📤 انتشار فوری · ✏️ ویرایش · ❌ رد.",
             ]
@@ -191,13 +194,14 @@ class CommandService:
         )
         ai = self._cfg.pipeline.ai
         usage = await repos.ai_runs.usage_since(ctx.now() - timedelta(hours=24))
+        quota = await daily_quota(repos, ai)
         lines = [
             bold("📊 وضعیت"),
             f"نسخه: {esc(__version__)} · فاز {to_persian_digits(str(PHASE))}",
             f"انتشار: {'⏸ متوقف' if paused else '▶️ فعال'} · مقصد: {esc(target)}",
             f"هوش مصنوعی: {esc(ai.model)} · فراخوانی ۲۴ ساعت: "
-            f"{to_persian_digits(str(int(usage['calls'])))} از سقف روزانه "
-            f"{to_persian_digits(str(ai.max_calls_per_day))}",
+            f"{to_persian_digits(str(int(usage['calls'])))} از سهمیهٔ روزانه "
+            f"{to_persian_digits(str(quota))}",
         ]
         if previous is not None:
             when = format_tehran(previous.started_at, self._cfg.pipeline.timezone)
@@ -214,6 +218,31 @@ class CommandService:
             lines.append(bold("آخرین خطاها"))
             lines.extend(f"• {esc(r.event)}" for r in recent)
         return "\n".join(lines)
+
+    async def _quota(self, repos: Repositories, ctx: RunContext, args: str, *, owner: bool) -> str:
+        """Show the daily AI quota, or (owner) set it to the number AI Studio shows. The quota is
+        spread evenly over the day (``ai.pace_daily_quota``), so it lasts every day of the month."""
+        ai = self._cfg.pipeline.ai
+        value = to_ascii_digits(args.strip())
+        if value:
+            if not owner:
+                return "تغییر سهمیه فقط برای مالک ربات است."
+            if not value.isdigit() or not 1 <= int(value) <= 100_000:
+                return "عدد سهمیه را بنویسید، مثلاً: /quota 1000"
+            await repos.settings.set(DAILY_QUOTA_KEY, int(value), ctx.now())
+        quota = await daily_quota(repos, ai)
+        per_run = round(quota * ai.run_interval_minutes / (24 * 60), 1)
+        return "\n".join(
+            [
+                bold("🤖 سهمیهٔ روزانهٔ هوش مصنوعی"),
+                f"سهمیه: {to_persian_digits(str(quota))} درخواست در روز ({esc(ai.model)})",
+                f"تقسیم یکنواخت در طول روز: حدود {to_persian_digits(str(per_run))} درخواست در هر "
+                f"اجرای {to_persian_digits(str(int(ai.run_interval_minutes)))} دقیقه‌ای، "
+                "تا سهمیه هیچ روزی زودتر از موعد تمام نشود.",
+                "اگر گوگل عدد دیگری اعلام کند (خطای ۴۲۹)، همان خودکار جایگزین می‌شود.",
+                "عدد درست: aistudio.google.com ← Rate limits ← ستون RPD مدل بالا.",
+            ]
+        )
 
     async def _sources(self, repos: Repositories, ctx: RunContext) -> str:
         health = await repos.sources.all_health()

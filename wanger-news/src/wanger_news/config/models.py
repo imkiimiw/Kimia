@@ -317,8 +317,12 @@ class AIConfig(StrictModel):
     timeout_seconds: float = Field(default=90, gt=0)
     articles_per_call: int = Field(default=4, ge=1, le=10)
     max_input_chars_per_article: int = Field(default=6000, ge=500)
-    max_calls_per_run: int = Field(default=6, ge=0)
+    max_calls_per_run: int = Field(default=24, ge=0)  # hard cap of one run (pacing below)
+    # the daily quota when Google has not told us yet (a 429 "per day" answer carries the real
+    # number, which then replaces this — stored in settings as ai.daily_quota)
     max_calls_per_day: int = Field(default=150, ge=0)
+    pace_daily_quota: bool = True  # spread the daily quota evenly over the day
+    run_interval_minutes: float = Field(default=10, gt=0)  # how often runs are triggered
     dry_run_max_calls: int = Field(default=2, ge=0)
     requests_per_minute: int = Field(default=8, ge=1)
     quota_reset_timezone: str = "America/Los_Angeles"

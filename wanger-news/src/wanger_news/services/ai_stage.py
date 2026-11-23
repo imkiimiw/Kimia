@@ -38,7 +38,7 @@ from wanger_news.ai.provider import (
     AIResult,
     AIUnavailable,
 )
-from wanger_news.config.models import AppConfig, PublishModes
+from wanger_news.config.models import AIConfig, AppConfig, PublishModes
 from wanger_news.db.repositories import Repositories
 from wanger_news.db.tables import AIRun, Article, Claim, Evidence, StoryCluster, Summary
 from wanger_news.domain import guard as guard_layer1
@@ -57,6 +57,7 @@ from wanger_news.domain.enums import (
 )
 from wanger_news.domain.guard import GuardReport
 from wanger_news.domain.independence import Origin, origins
+from wanger_news.domain.quota import paced_allowance
 from wanger_news.domain.rules import Facts
 from wanger_news.domain.rules import evaluate as evaluate_rules
 from wanger_news.domain.scoring import confidence, importance
@@ -202,6 +203,8 @@ class AIStage:
                 if self._stop:
                     raise AIUnavailable(self._stop)
             except AIBudgetExhausted as exc:
+                if exc.daily_limit:  # Google stated the real daily quota: pace with it
+                    await repos.settings.set(DAILY_QUOTA_KEY, exc.daily_limit, ctx.now())
                 await repos.commit()  # keep what was recorded (ai_runs)
                 report.stopped = f"quota: {exc}"
                 await ctx.event(repos, "warning", "ai_quota", error=str(exc)[:200])
@@ -234,10 +237,26 @@ class AIStage:
         return batches
 
     async def _budget(self, repos: Repositories, ctx: RunContext) -> Budget:
-        reset = _quota_day_start(ctx.now(), self._ai.quota_reset_timezone)
+        """This run's share: the daily quota spread evenly over the day (``domain/quota``), so
+        it lasts until the daily reset — the quota Google stated if it ever did, else
+        ``ai.max_calls_per_day``."""
+        now = ctx.now()
+        reset = _quota_day_start(now, self._ai.quota_reset_timezone)
         used_today = await repos.ai_runs.calls_since(reset)
-        per_run = self._ai.dry_run_max_calls if ctx.dry_run else self._ai.max_calls_per_run
-        return Budget(min(per_run, self._ai.max_calls_per_day - used_today))
+        quota = await daily_quota(repos, self._ai)
+        if ctx.dry_run:
+            per_run = self._ai.dry_run_max_calls
+        elif self._ai.pace_daily_quota:
+            per_run = paced_allowance(
+                quota=quota,
+                used=used_today,
+                elapsed_fraction=(now - reset) / timedelta(days=1),
+                interval_fraction=self._ai.run_interval_minutes / (24 * 60),
+                per_run_cap=self._ai.max_calls_per_run,
+            )
+        else:
+            per_run = self._ai.max_calls_per_run
+        return Budget(max(0, min(per_run, quota - used_today)))
 
     async def _expire(self, repos: Repositories, ctx: RunContext, report: AIReport) -> None:
         limit = ctx.now() - timedelta(hours=self._cfg.pipeline.publish.max_publish_age_hours)
@@ -1027,6 +1046,21 @@ def _draft_of(summary: Summary) -> SummaryDraft:
             "insufficient_information": summary.insufficient,
         }
     )
+
+
+DAILY_QUOTA_KEY = (
+    "ai.daily_quota"  # per-day quota: stated by Google in a 429, or the owner's /quota
+)
+
+
+async def daily_quota(repos: Repositories, ai: AIConfig) -> int:
+    """The daily AI quota in effect: Google's stated value or the owner's ``/quota`` over
+    ``ai.max_calls_per_day``."""
+    value = await repos.settings.get(DAILY_QUOTA_KEY)
+    try:
+        return int(value) if value else ai.max_calls_per_day
+    except (TypeError, ValueError):
+        return ai.max_calls_per_day
 
 
 def _quota_day_start(now: datetime, timezone: str) -> datetime:
