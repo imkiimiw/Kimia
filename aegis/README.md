@@ -53,6 +53,27 @@ Features that can't be built for free on this platform, or only partly, are list
   leaves, the busiest day, automatic and admin punishments, members' reports — privately to the admins with
   Settings access who started Aegis. No scheduler: it goes out with the first message in the group after
   each 7 days (`aegis_chats.weekly_at`; the first week starts at the first message).
+- **✨ Inline mode** (`handlers/inline_query.js`): `@bot text` in any chat offers the text in up to 40
+  styles (tap one to send it) plus a Hafez reading, a Khayyam quatrain and a famous poem; with no text, a
+  hint and the three readings. Off while Aegis is shut down or fun is off globally. **Needs one step in
+  @BotFather**: `/setinline` → choose the bot → a placeholder (e.g. «متن…») — the Bot API can't switch it on.
+- **📈 Dashboard Mini App** (📊 Statistics → 📈 Dashboard; `webapp/dash.html`, `endpoints/dash.js`): KPI tiles,
+  30 days of messages, members who wrote, joins and leaves, messages by hour, most messages, punishments by
+  kind, and a table view — plain SVG, Telegram's theme (light/dark), RTL in Persian. The endpoint answers
+  only an admin of that group (checked live).
+- **📣 /tagall [text]** («تگ همه»): an admin with Settings access mentions the members who wrote in the
+  last 7 days (at most 50, 25 a message; once every 30 minutes in a group). Telegram has no «mention
+  everyone» and doesn't let bots list members, so members who never wrote can't be tagged.
+- **💓 Heartbeat** (`scripts/heartbeat.mjs`, template `ops/heartbeat.yml`): an outside scheduler signs fresh
+  owner init data with the bot token and calls `bcLive { action: 'beat' }`, which runs the timed work at
+  once (broadcast batches, expiries, night locks, cleanups, scheduled posts). Init data older than 5 minutes
+  is refused. `/status` shows the last beat. To turn it on: copy `aegis/ops/heartbeat.yml` to
+  `.github/workflows/aegis-heartbeat.yml`, add the repository secret `AEGIS_BOT_TOKEN` (the token from
+  @BotFather) and press «Run workflow» once. Free on GitHub Actions (every 30 minutes ≈ 1,440 of the 2,000
+  free minutes a month of a private repository; unlimited when public).
+- Two small modules were merged to stay under the platform's module limit: `engines/crisis.js` is now the
+  `crisis` namespace of `engines/channels.js`, `engines/schedules.js` the `schedules` namespace of
+  `engines/msglog.js`.
 
 ## What Phase 10 does
 

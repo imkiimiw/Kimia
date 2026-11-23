@@ -35,7 +35,7 @@ for (const name of ['TextEncoder', 'TextDecoder', 'URL', 'URLSearchParams', 'Blo
 
 const H = {};
 for (const h of ['message', 'edited_message', 'callback_query', 'my_chat_member', 'chat_member', 'chat_join_request', 'channel_post',
-  'edited_channel_post', 'poll', 'poll_answer', 'message_reaction_count']) H[h] = (await import(`../tgcloud/handlers/${h}.js`)).default;
+  'edited_channel_post', 'poll', 'poll_answer', 'message_reaction_count', 'inline_query']) H[h] = (await import(`../tgcloud/handlers/${h}.js`)).default;
 const bcLive = (await import('../tgcloud/endpoints/bcLive.js')).default;
 
 const errors = [];
@@ -2481,6 +2481,54 @@ await scenario('📬 the weekly report: the first message starts the week; after
   assert.equal(reportsTo(await dmsg(P5.ivy, 'next week')).length, 0, 'off: nothing sent');
   await olga(D('st:s:weekly_on'));
   rawDatabase().prepare("DELETE FROM aegis_punishments WHERE chat_id = ? AND reason = 'x'").run(DELTA);
+});
+
+await scenario('📈 the dashboard Mini App: a button on 📊 Statistics; the endpoint gives 30 days of numbers to the group\'s admins only (checked live), never to others', async () => {
+  const dash = (await import('../tgcloud/endpoints/dash.js')).default;
+  const code = async (fn) => {
+    try {
+      await fn();
+      return 'ok';
+    } catch (e) {
+      return (e && e.parameters && e.parameters.code) || String(e);
+    }
+  };
+  await olga(D('st'));
+  const btnDash = kb(olgaScreen()).find((b) => b.web_app);
+  assert.ok(btnDash && btnDash.web_app.url === `${APP_URL}dash?c=${DELTA}`, JSON.stringify(btnDash));
+  const d = await dash({ chat: DELTA }, { initData: { user: Q.olga } });
+  assert.equal(d.title, 'Delta');
+  assert.equal(d.lang, 'en');
+  assert.equal(d.hours.length, 24);
+  assert.ok(d.days.length >= 1 && d.days.every((x) => /^\d{4}-\d\d-\d\d$/.test(x.day) && Number.isInteger(x.messages)));
+  assert.ok(d.totals.d30.messages >= d.totals.d7.messages && d.totals.d7.messages >= d.totals.d1.messages);
+  assert.ok(Array.isArray(d.top) && d.top.length >= 1 && typeof d.top[0].name === 'string');
+  assert.equal(typeof d.punish, 'object');
+  assert.equal(d.text.k_ban, 'Bans');
+  assert.ok(Object.values(d.text).every((x) => !/[<>‏⁨⁩]/.test(x)), 'plain text for the page');
+  assert.equal(await code(() => dash({ chat: DELTA }, { initData: { user: P5.ivy } })), 'NO_ACCESS', 'a member');
+  assert.equal(await code(() => dash({ chat: DELTA }, { initData: { user: { id: 860000099, is_bot: false, first_name: 'X' } } })), 'NO_ACCESS', 'a stranger');
+  assert.equal(await code(() => dash({ chat: DELTA }, { initData: {} })), 'NO_USER');
+  assert.equal(await code(() => dash({ chat: -1 }, { initData: { user: Q.olga } })), 'GONE');
+});
+
+await scenario('📣 /tagall: an admin mentions the members who wrote this week (not themselves), with a note; once every 30 minutes; members can\'t', async () => {
+  await dmsg(P5.ivy, 'still here');
+  const out = await dmsg(Q.olga, '/tagall meeting at 8');
+  const msgs = toChat(out, DELTA).filter((x) => /calls the/.test(x.params.text || '') || /tg:\/\/user/.test(x.params.text || ''));
+  assert.equal(msgs.length, 1);
+  const text = msgs[0].params.text;
+  assert.match(text, /📣 ⁨Olga⁩ calls the \d+ members who wrote this week:\n<blockquote>meeting at 8<\/blockquote>\n/);
+  assert.ok(text.includes(`<a href="tg://user?id=${P5.ivy.id}">`), 'Ivy is tagged');
+  assert.ok(!text.includes(`tg://user?id=${Q.olga.id}"`), 'not the caller');
+  assert.equal(parseHtml(text).error, undefined);
+  assert.ok(row("SELECT id FROM aegis_audit WHERE chat_id = ? AND action = 'chat.tagall'", DELTA));
+  assert.match(toChat(await dmsg(Q.olga, '/tagall'), DELTA)[0].params.text, /once every 30 min in a group/);
+  assert.match(toChat(await dmsg(P5.ivy, '/tagall'), DELTA)[0].params.text, /admins/i, 'a member gets «admins only»');
+  assert.equal(toChat(await dmsg(P5.ivy, 'tag all'), DELTA).length, 0, 'a member\'s plain words are just a message');
+  tick(31 * 60);
+  const again = toChat(await dmsg(Q.olga, 'tag all'), DELTA);
+  assert.ok(again.some((x) => /calls the/.test(x.params.text)), 'the word form, after 30 minutes');
 });
 
 await scenario('phase 5 — join requests: the captcha in private decides the request (approve or decline)', async () => {
@@ -5820,6 +5868,64 @@ await scenario('after a deploy with new command menus, they are sent on the next
   assert.equal(sent(c, 'setMyDefaultAdministratorRights').length, 2);
   assert.equal(row("SELECT value FROM aegis_kv WHERE key = 'cmd_rev'").value, COMMANDS_REV);
   assert.equal(sent(await dm(U.ali, '/help'), 'setMyCommands').length, 0, 'once');
+});
+
+await scenario('✨ inline mode: @bot <text> in any chat gives the text in many styles plus a Hafez reading, a Khayyam quatrain and a famous poem; empty → a hint; fun off globally → nothing', async () => {
+  let qid = 0;
+  const inlineQ = async (from, query) => {
+    await run(H.inline_query, { id: `iq${++qid}`, from, query, offset: '' });
+    return mock.state.inline;
+  };
+  const a = await inlineQ(U.ali, 'hello');
+  assert.ok(a.results.length >= 20 && a.results.length <= 50, String(a.results.length));
+  const fonts = a.results.filter((r) => r.id.startsWith('f'));
+  assert.ok(fonts.length >= 15 && fonts.every((r) => r.input_message_content.message_text !== 'hello' && !r.input_message_content.parse_mode));
+  assert.ok(fonts.some((r) => r.input_message_content.message_text === '𝐡𝐞𝐥𝐥𝐨' || /𝒉𝒆𝒍𝒍𝒐|𝗵𝗲𝗹𝗹𝗼|ʜᴇʟʟᴏ/u.test(r.input_message_content.message_text)), 'a Unicode font');
+  assert.match(fonts[0].description, /برای فرستادن بزنید/, 'Ali\'s language (Persian)');
+  const [h, k, v] = ['h', 'k', 'v'].map((x) => a.results.find((r) => r.id.startsWith(x)));
+  assert.match(h.title, /فال حافظ/);
+  assert.match(h.input_message_content.message_text, /<blockquote expandable>/);
+  assert.equal(h.input_message_content.parse_mode, 'HTML');
+  assert.ok(h.reply_markup.inline_keyboard[0][0].url.startsWith('https://ganjoor.net/hafez/ghazal/sh'));
+  assert.ok(k && v, 'Khayyam and a famous poem');
+  assert.deepEqual([a.is_personal, a.cache_time, a.button.start_parameter], [true, 5, 'inline']);
+  /* Persian text gets the Persian styles */
+  const fa = await inlineQ(U.ali, 'سلام');
+  assert.ok(fa.results.filter((r) => r.id.startsWith('f')).length >= 5);
+  /* empty: a hint and the three readings; a stranger in their own language */
+  const stranger = { id: 860000001, is_bot: false, first_name: 'Ива', language_code: 'ru' };
+  const e = await inlineQ(stranger, '');
+  assert.deepEqual(e.results.map((r) => r.id[0]), ['h', 'h', 'k', 'v'], 'the hint, then Hafez, Khayyam, a poem');
+  assert.equal(e.results[0].id, 'hint');
+  assert.match(e.results[0].input_message_content.message_text, /@aegis_test_bot/);
+  assert.match(e.results[1].title, /Хафиз/);
+  /* fun switched off for the whole bot: no results, only «Open Aegis» */
+  rawDatabase().prepare("INSERT INTO aegis_kv (key, value) VALUES ('g_fun', '0') ON CONFLICT(key) DO UPDATE SET value = '0'").run();
+  const off = await inlineQ(U.ali, 'hello');
+  assert.deepEqual(off.results, []);
+  rawDatabase().prepare("DELETE FROM aegis_kv WHERE key = 'g_fun'").run();
+});
+
+await scenario('💓 the heartbeat: the owner\'s fresh signed call runs the timed work now and /status shows it; stale init data or anyone else is refused', async () => {
+  const code = async (fn) => {
+    try {
+      await fn();
+      return 'ok';
+    } catch (e) {
+      return (e && e.parameters && e.parameters.code) || String(e);
+    }
+  };
+  const now = Math.floor(clock / 1000);
+  assert.match(sent(await dm(U.owner, '/status'))[0].params.text, /💓 ضربان: هنوز نه/);
+  rawDatabase().prepare("UPDATE aegis_kv SET value = '0' WHERE key = 'sec_sweep_at'").run();
+  const r = await bcLive({ action: 'beat' }, { initData: { user: U.owner, auth_date: now - 10 } });
+  assert.equal(r.ok, true);
+  assert.equal(Number(row("SELECT value FROM aegis_kv WHERE key = 'beat_at'").value), now);
+  assert.equal(Number(row("SELECT value FROM aegis_kv WHERE key = 'sec_sweep_at'").value), now, 'the sweeps ran');
+  assert.match(sent(await dm(U.owner, '/status'))[0].params.text, /💓 ضربان: آخرین بار/);
+  assert.equal(await code(() => bcLive({ action: 'beat' }, { initData: { user: U.owner, auth_date: now - 3600 } })), 'STALE');
+  assert.equal(await code(() => bcLive({ action: 'beat' }, { initData: { user: U.owner } })), 'STALE', 'no auth_date');
+  assert.equal(await code(() => bcLive({ action: 'beat' }, { initData: { user: U.ali, auth_date: now } })), 'OWNER_ONLY');
 });
 
 await scenario('every language renders the main screens; no unexpected console errors', async () => {

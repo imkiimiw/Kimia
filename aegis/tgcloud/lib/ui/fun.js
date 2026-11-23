@@ -693,26 +693,32 @@ function falMenu(lang, s, priv) {
   return { text: lines.join('\n'), rows };
 }
 
+function hafezText(lang, from, g) {
+  const verses = g.v.map(([a, b]) => `\u200F${esc(a)}\n\u200F${esc(b)}`).join('\n\n');
+  return [t(lang, 'fal.hafez_title', { user: nameOf(from), n: num(lang, g.n) }), `\u200F<blockquote expandable>${verses}</blockquote>`,
+    t(lang, 'fal.hafez_meaning'), `\u200F${esc(g.f)}`, '', t(lang, 'fal.hafez_note')].join('\n');
+}
+
 async function hafez(ctx, x) {
   const { chatId, s, lang, pre, message } = x;
   const g = fun.fal.ghazal(pre.n || fun.randInt(1, fun.fal.HAFEZ_COUNT));
-  const verses = g.v.map(([a, b]) => `\u200F${esc(a)}\n\u200F${esc(b)}`).join('\n\n');
-  const text = [t(lang, 'fal.hafez_title', { user: nameOf(message.from), n: num(lang, g.n) }), `\u200F<blockquote expandable>${verses}</blockquote>`,
-    t(lang, 'fal.hafez_meaning'), `\u200F${esc(g.f)}`, '', t(lang, 'fal.hafez_note')].join('\n');
   const rows = [[btn(t(lang, 'fal.btn_hafez_again'), 'fn:f:hafez'), urlBtn(t(lang, 'fal.btn_ganjoor'), `https://ganjoor.net/hafez/ghazal/sh${g.n}`)]];
-  return say(ctx, chatId, s, text, rows, 'fun-hafez', reply(message));
+  return say(ctx, chatId, s, hafezText(lang, message.from, g), rows, 'fun-hafez', reply(message));
 }
 
 /* Khayyam / Baba Taher: one quatrain (or dobeyti) with its interpretation, like the Hafez reading. */
+function poemText(lang, from, code, p) {
+  const verses = p.v.map(([a, b]) => `\u200F${esc(a)}\n\u200F${esc(b)}`).join('\n');
+  return [t(lang, `fal.${code}_title`, { user: nameOf(from), n: num(lang, p.n) }), `\u200F<blockquote>${verses}</blockquote>`,
+    t(lang, 'fal.hafez_meaning'), `\u200F${esc(p.f)}`, '', t(lang, `fal.${code}_note`)].join('\n');
+}
+
 async function poemReading(ctx, x) {
   const { chatId, s, lang, pre, message, parsed } = x;
   const code = parsed.code;
   const p = fun.poems.poem(code, pre.n || fun.randInt(1, fun.poems.count(code)));
-  const verses = p.v.map(([a, b]) => `\u200F${esc(a)}\n\u200F${esc(b)}`).join('\n');
-  const text = [t(lang, `fal.${code}_title`, { user: nameOf(message.from), n: num(lang, p.n) }), `\u200F<blockquote>${verses}</blockquote>`,
-    t(lang, 'fal.hafez_meaning'), `\u200F${esc(p.f)}`, '', t(lang, `fal.${code}_note`)].join('\n');
   const rows = [[btn(t(lang, `fal.btn_${code}_again`), `fn:f:${code}`), urlBtn(t(lang, 'fal.btn_ganjoor'), p.url)]];
-  return say(ctx, chatId, s, text, rows, `fun-${code}`, reply(message));
+  return say(ctx, chatId, s, poemText(lang, message.from, code, p), rows, `fun-${code}`, reply(message));
 }
 
 /* A card's name and meaning in the language: { name, meaning } (a reversed card has its own meaning). */
@@ -1223,16 +1229,20 @@ async function dialogueReading(ctx, x) {
 async function verseReading(ctx, x) {
   const { chatId, s, lang, pre, message } = x;
   const n = pre.n || fun.randInt(1, C.count('verses'));
+  return say(ctx, chatId, s, verseText(lang, message.from, n), [[btn(inline(lang, 'fun.btn_poem'), 'fn:f:poem')]], 'fun-poem', reply(message));
+}
+
+function verseText(lang, from, n) {
   const v = C.verse(n);
   const poet = lang === 'fa' ? v.poet_fa : (lang === v.lang ? v.poet : v.poet_lat);
   const work = lang === 'fa' ? v.work_fa : (lang === v.lang ? v.work : (v.work_en || v.work));
   const year = (y) => (y < 0 ? inline(lang, 'fun.vr_bc', { y: num(lang, -y) }) : num(lang, y));
   const life = v.born < 0 && v.died < 0 ? inline(lang, 'fun.vr_bc', { y: `${num(lang, -v.born)}–${num(lang, -v.died)}` }) : `${year(v.born)}–${year(v.died)}`;
   const text = v.q.split('\n').map((l) => `${lang === 'fa' ? '\u200F' : ''}${esc(l)}`).join('\n');
-  const lines = [t(lang, 'fun.vr_title', { user: nameOf(message.from) }), `${lang === 'fa' ? '\u200F' : ''}<blockquote>${text}</blockquote>`];
+  const lines = [t(lang, 'fun.vr_title', { user: nameOf(from) }), `${lang === 'fa' ? '\u200F' : ''}<blockquote>${text}</blockquote>`];
   if (lang !== v.lang) lines.push(t(lang, 'fun.tr_line', { text: esc(cultLine(lang, 'vrs', n - 1)) }));
   lines.push(t(lang, 'fun.vr_src', { poet: esc(poet), life, work: `${esc(work)}${v.year ? ` · ${year(v.year)}` : ''}` }), '', t(lang, 'fun.vr_note'));
-  return say(ctx, chatId, s, lines.join('\n'), [[btn(inline(lang, 'fun.btn_poem'), 'fn:f:poem')]], 'fun-poem', reply(message));
+  return lines.join('\n');
 }
 
 /* An excerpt of a public-domain work: the text as written, a translation, the author, the work and its year. */
@@ -2512,6 +2522,61 @@ export async function sweep(ctx) {
 }
 
 /* ========== panelFun: the 🎮 Fun section of a group's panel ========== */
+
+/* ---------- inline mode: @bot in any chat ---------- */
+
+const INLINE_PAGES = ['uni', 'fa', 'combo', 'mix', 'look', 'frame'];
+const INLINE_MAX = 40;
+const cut = (str, n) => ([...str].length > n ? `${[...str].slice(0, n - 1).join('')}…` : str);
+
+/*
+ * @bot <text> in any chat: the text in up to 40 styles (tap one to send it), then a Hafez reading, a
+ * Khayyam quatrain and a famous poem; with no text, just the three readings. The person needs no chat
+ * with Aegis. Inline mode must be switched on for the bot in @BotFather (/setinline) — the Bot API
+ * can't do that. Off while Aegis is shut down or fun is switched off globally.
+ */
+export async function inlineQuery(ctx, q) {
+  const from = q.from;
+  const u = from ? await users.get(from.id) : null;
+  const lang = u && Number(u.lang_set) ? u.lang : pickLang(from && from.language_code);
+  const bot = (await me(ctx)).username;
+  const open = { text: inline(lang, 'fun.in_open'), start_parameter: 'inline' };
+  if (ctx.shutdown || !ctx.funOn) {
+    return tryCall(ctx, 'answerInlineQuery', { inline_query_id: q.id, results: [], cache_time: 30, is_personal: false, button: open }, 'inline-off');
+  }
+  const text = String(q.query || '').trim().slice(0, 200);
+  const results = [];
+  if (text) {
+    const r = fun.fonts.render(text);
+    const seen = new Set([text]);
+    for (const page of INLINE_PAGES) {
+      for (const item of r.pages[page] || []) {
+        const out = Array.isArray(item) ? item[item.length - 1] : item;
+        if (typeof out !== 'string' || !out.trim() || seen.has(out) || out.length > 4096) continue;
+        seen.add(out);
+        results.push({ type: 'article', id: `f${results.length}`, title: cut(out, 60), description: inline(lang, 'fun.in_font_d', { style: inline(lang, `fal.fp_${page}`) }),
+          input_message_content: { message_text: out } });
+        if (results.length >= INLINE_MAX) break;
+      }
+      if (results.length >= INLINE_MAX) break;
+    }
+  }
+  const g = fun.fal.ghazal(fun.randInt(1, fun.fal.HAFEZ_COUNT));
+  results.push({ type: 'article', id: `h${g.n}`, title: inline(lang, 'fun.in_hafez_t'), description: inline(lang, 'fun.in_hafez_d'),
+    input_message_content: { message_text: hafezText(lang, from, g), parse_mode: 'HTML' },
+    reply_markup: { inline_keyboard: [[urlBtn(t(lang, 'fal.btn_ganjoor'), `https://ganjoor.net/hafez/ghazal/sh${g.n}`), urlBtn(inline(lang, 'fun.in_more'), `https://t.me/${bot}`)]] } });
+  const p = fun.poems.poem('khayyam', fun.randInt(1, fun.poems.count('khayyam')));
+  results.push({ type: 'article', id: `k${p.n}`, title: inline(lang, 'fun.in_khayyam_t'), description: inline(lang, 'fun.in_khayyam_d'),
+    input_message_content: { message_text: poemText(lang, from, 'khayyam', p), parse_mode: 'HTML' },
+    reply_markup: { inline_keyboard: [[urlBtn(t(lang, 'fal.btn_ganjoor'), p.url)]] } });
+  const n = fun.randInt(1, C.count('verses'));
+  results.push({ type: 'article', id: `v${n}`, title: inline(lang, 'fun.in_poem_t'), description: inline(lang, 'fun.in_poem_d'),
+    input_message_content: { message_text: verseText(lang, from, n), parse_mode: 'HTML' } });
+  if (!text) results.unshift({ type: 'article', id: 'hint', title: inline(lang, 'fun.in_hint_t'), description: inline(lang, 'fun.in_hint_d'),
+    input_message_content: { message_text: inline(lang, 'fun.in_hint_msg', { bot: `@${bot}` }) } });
+  /* the readings are random: no shared cache, and a short personal one */
+  return tryCall(ctx, 'answerInlineQuery', { inline_query_id: q.id, results, cache_time: 5, is_personal: true, button: open }, 'inline');
+}
 
 export const panelFun = (() => {
   const FIELDS = { o: 'on', w: 'who', c: 'cd', d: 'daily', r: 'reward' };

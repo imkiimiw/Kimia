@@ -35,6 +35,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const DEV_SRC = path.join(ROOT, 'test/cloud/devtools.js');
 const DEV_DST = path.join(ROOT, 'tgcloud/endpoints/zz_devtools.js');
 const A = 990000101;
+const OWNER = Number(/AEGIS_OWNER_ID = (\d+)/.exec(fs.readFileSync(path.join(ROOT, 'tgcloud/lib/env.js'), 'utf8'))[1]);
 const B = 990000102;
 
 function tg(args) {
@@ -140,9 +141,31 @@ try {
   check('command menus and default admin rights accepted by Telegram', kv.cmd_rev === rev, `cmd_rev=${kv.cmd_rev}, expected ${rev}`);
   const drev = /DESC_REV = '(\d+)'/.exec(fs.readFileSync(path.join(ROOT, 'tgcloud/lib/core/commands.js'), 'utf8'))[1];
   check('the bot\'s description and short description (default + 5 languages) accepted by Telegram', kv.desc_rev === drev, `desc_rev=${kv.desc_rev}, expected ${drev} ${kv.desc_rev === drev ? '' : JSON.stringify(dev('desc'))}`);
+  {
+    /* H7–H10 on the platform: inline mode (fonts + readings rendered in the isolate), the dashboard endpoint, the heartbeat */
+    const iq = tg(['handlers/inline_query', JSON5.stringify({ id: '1', from: user(A, 'fa'), query: 'hello', offset: '' })]);
+    const ans = (iq.trace || []).find((e) => e.m === 'answerInlineQuery');
+    check('inline mode: @bot <text> builds fonts and readings in the isolate and answers (Telegram refuses the made-up query id)', !iq.error && !!ans, JSON.stringify(iq).slice(0, 300));
+    let d1;
+    try {
+      d1 = tg(['endpoints/dash', JSON5.stringify({ chat: -1009999999 }), '--ctx', JSON5.stringify({ initData: { user: { id: A, first_name: 'Smoke' } } })]);
+    } catch (e) {
+      d1 = { error: String(e.message) };
+    }
+    check('the dashboard endpoint loads and refuses a chat Aegis doesn\'t know', /GONE|no longer|error/i.test(JSON.stringify(d1)), JSON.stringify(d1).slice(0, 200));
+    const hb = tg(['endpoints/bcLive', JSON5.stringify({ action: 'beat' }), '--ctx', JSON5.stringify({ initData: { user: { id: OWNER, first_name: 'Smoke' }, auth_date: Math.floor(Date.now() / 1000) } })]);
+    let stale;
+    try {
+      stale = tg(['endpoints/bcLive', JSON5.stringify({ action: 'beat' }), '--ctx', JSON5.stringify({ initData: { user: { id: OWNER, first_name: 'Smoke' }, auth_date: 1 } })]);
+    } catch (e) {
+      stale = { error: String(e.message) };
+    }
+    check('the heartbeat runs the timed work on the platform; old init data is refused', hb.ok === true && typeof hb.calls === 'number' && /STALE|Stale/.test(JSON.stringify(stale)),
+      `${JSON.stringify(hb).slice(0, 200)} ${JSON.stringify(stale).slice(0, 200)}`);
+  }
   const h46 = dev('h46');
   check('per-chat throttles, the weekly report\'s counts and clock on the real database; no per-chat keys left in aegis_kv (data migration 4)',
-    JSON.stringify(h46.claims) === '[true,false]' && typeof h46.counts.auto === 'number' && typeof h46.reports === 'number' && h46.moved === false && h46.stray === 0, JSON.stringify(h46));
+    JSON.stringify(h46.claims) === '[true,false]' && typeof h46.counts.auto === 'number' && typeof h46.reports === 'number' && h46.moved === false && h46.stray === 0 && h46.kinds === 'object' && h46.writers === true, JSON.stringify(h46));
   check('the global switch is on (not shut down)', kv.shutdown === '0', `shutdown=${kv.shutdown}`);
   /* after /start: the data migrations (3: the audit log's triggers) run on the first update after a deploy */
   const p10 = dev('p10');

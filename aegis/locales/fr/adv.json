@@ -313,5 +313,8 @@
   "cp_empty": "{from} n’utilise encore que les réglages par défaut — rien à copier.",
   "cp_confirm": "Copier de <b>{from}</b> vers <b>{to}</b> ?\n\n⚙️ {settings} réglages · 📋 {entries} entrées de listes · 🔒 {locks} verrous · 🛡 {guards} modules de sécurité\n\nCe qui est réglé dans la source remplace les mêmes éléments ici ; le reste ne change pas.",
   "cp_apply": "✅ Copier",
-  "cp_done": "✅ {n} valeurs copiées depuis {from}. La copie est inscrite dans le journal des modifications."
+  "cp_done": "✅ {n} valeurs copiées depuis {from}. La copie est inscrite dans le journal des modifications.",
+  "tg_head": "📣 {by} appelle les {n} membres qui ont écrit cette semaine :",
+  "tg_wait": "⏳ Les membres peuvent être mentionnés une fois toutes les {time} dans un groupe.",
+  "tg_none": "Personne d’autre n’a écrit ici ces 7 derniers jours. (Aegis ne peut mentionner que les membres qu’il a vus écrire — Telegram ne donne pas aux bots la liste de tous les membres.)"
 }

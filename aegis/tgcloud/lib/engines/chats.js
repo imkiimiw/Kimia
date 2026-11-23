@@ -27,7 +27,7 @@ import * as msglog from './msglog.js';
 import * as punish from './punish.js';
 import * as settings from './settings.js';
 import { missingRequired, rightsOf } from './rights.js';
-import * as schedules from './schedules.js';
+import { schedules } from './msglog.js';
 
 const ACTIVE = new Set(['member', 'administrator', 'creator', 'restricted']);
 export const isGroupType = (type) => type === 'group' || type === 'supergroup';

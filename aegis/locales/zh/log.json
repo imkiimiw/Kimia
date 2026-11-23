@@ -124,5 +124,6 @@
   "chat_preset": "应用了预设配置",
   "security_shared": "共享黑名单标记了 {target}",
   "chat_copy": "复制了另一个聊天的设置（{key}）",
-  "stats_weekly": "向管理员发送了每周报告"
+  "stats_weekly": "向管理员发送了每周报告",
+  "chat_tagall": "提醒了本周发过言的成员"
 }

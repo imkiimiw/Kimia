@@ -21,5 +21,7 @@
   "already_off": "ℹ️ Aegis 已经是关闭状态。",
   "already_on": "ℹ️ Aegis 已经在运行。",
   "paused_toast": "⏸ Aegis 正在维护，暂时停止服务。请稍后再试。",
-  "webhook_managed": "🔗 Webhook：由 Telegram Serverless 管理（机器人自身无权读取；npx tgcloud webhook 可以查看）。"
+  "webhook_managed": "🔗 Webhook：由 Telegram Serverless 管理（机器人自身无权读取；npx tgcloud webhook 可以查看）。",
+  "beat": "💓 心跳：上次在 {ago} 前",
+  "beat_none": "💓 心跳：尚无——定时任务会在下一个更新时运行（外部调度器可以按时调用：aegis/ops/heartbeat.yml）"
 }

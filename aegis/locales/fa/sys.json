@@ -21,5 +21,7 @@
   "already_off": "ℹ️ Aegis از قبل خاموش است.",
   "already_on": "ℹ️ Aegis از قبل فعال است.",
   "paused_toast": "⏸ Aegis برای نگهداری موقتاً متوقف است. لطفاً بعداً دوباره امتحان کنید.",
-  "webhook_managed": "🔗 وبهوک: توسط Telegram Serverless مدیریت می‌شود (خود ربات اجازه‌ی خواندنش را ندارد؛ npx tgcloud webhook آن را نشان می‌دهد)."
+  "webhook_managed": "🔗 وبهوک: توسط Telegram Serverless مدیریت می‌شود (خود ربات اجازه‌ی خواندنش را ندارد؛ npx tgcloud webhook آن را نشان می‌دهد).",
+  "beat": "💓 ضربان: آخرین بار {ago} پیش",
+  "beat_none": "💓 ضربان: هنوز نه — کارهای زمان‌دار با آپدیت بعدی انجام می‌شوند (یک زمان‌بند بیرونی می‌تواند به‌موقع صدایش بزند: aegis/ops/heartbeat.yml)"
 }

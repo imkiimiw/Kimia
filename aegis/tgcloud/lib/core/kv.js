@@ -8,6 +8,7 @@
  *   err_notify_at  last time the owner was told about a failure
  *   cmd_rev        revision of the command menus set with setMyCommands (cmd_try_<rev>: last attempt;
  *                  owner_cmd_rev: the owner's own menu)
+ *   beat_at        the last heartbeat (endpoints/bcLive.js «beat», from an outside scheduler)
  *   desc_rev       revision of the bot's descriptions (setMyDescription / setMyShortDescription; desc_try_<rev>: last attempt)
  *   shutdown       '1' while the owner has shut Aegis down (/shutdown); shutdown_at, shutdown_by,
  *                  activated_at

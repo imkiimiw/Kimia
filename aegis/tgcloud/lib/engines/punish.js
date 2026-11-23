@@ -85,6 +85,12 @@ export async function counts(chatId, since) {
   return { admins: Number(r.m), auto: Number(r.n) - Number(r.m) };
 }
 
+/* Punishments in a chat since `since`, per kind: { ban: 3, mute: 5, … } (index-backed). */
+export async function kindCounts(chatId, since) {
+  const rows = await db.all(sql`SELECT kind, count(*) AS n FROM aegis_punishments WHERE chat_id = ${chatId} AND created_at > ${since} GROUP BY kind LIMIT 20`);
+  return Object.fromEntries(rows.map((r) => [r.kind, Number(r.n)]));
+}
+
 export async function warnCount(ctx, chatId, userId) {
   const s = await settings.all(ctx, chatId);
   const ttl = Number(s.warn_ttl);

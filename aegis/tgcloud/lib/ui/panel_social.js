@@ -21,7 +21,7 @@ import * as audit from '../core/audit.js';
 import { csv, esc, iso, isoMinute, normalizeWord, nowSec, parseJson, short, toInt, utf8Bytes } from '../core/util.js';
 import { healthScore, levelOf } from '../core/levels.js';
 import * as state from '../core/state.js';
-import { answer, btn, call, describeError, screen, send, tryCall } from '../core/tg.js';
+import { answer, appBtn, appUrl, btn, call, describeError, screen, send, tryCall } from '../core/tg.js';
 import * as admins from '../engines/admins.js';
 import { appeals, badges, contests, polls, questions, stats } from '../engines/social.js';
 import * as settings from '../engines/settings.js';
@@ -34,7 +34,7 @@ import * as punish from '../engines/punish.js';
 import { tzLabel, tzOf } from '../core/clock.js';
 import * as channels from '../engines/channels.js';
 import * as chats from '../engines/chats.js';
-import * as crisis from '../engines/crisis.js';
+import { crisis } from '../engines/channels.js';
 import * as posts from '../engines/posts.js';
 import { postLink } from './channel.js';
 
@@ -82,7 +82,7 @@ async function statsScreen(ctx, user, g, place) {
     for (const [i, r] of top.entries()) lines.push(`${num(lang, i + 1)}. ${iso(await users.displayName(Number(r.user_id)), 32)} — ${num(lang, Number(r.messages))}`);
   }
   lines.push('', t(lang, 'soc.wk_note'));
-  const kb = [[settingBtn(lang, c, s, 'stats_on', 'st')], [settingBtn(lang, c, s, 'weekly_on', 'st')], [btn(t(lang, 'soc.btn_csv_days'), `g:${c}:st:d`), btn(t(lang, 'soc.btn_csv_members'), `g:${c}:st:m`)],
+  const kb = [[appBtn(t(lang, 'soc.btn_dbd'), `${await appUrl(ctx)}dash?c=${c}`)], [settingBtn(lang, c, s, 'stats_on', 'st')], [settingBtn(lang, c, s, 'weekly_on', 'st')], [btn(t(lang, 'soc.btn_csv_days'), `g:${c}:st:d`), btn(t(lang, 'soc.btn_csv_members'), `g:${c}:st:m`)],
     back(lang, `g:${c}`)];
   return screen(ctx, user.user_id, place, lines.join('\n'), kb, 'panel-stats');
 }

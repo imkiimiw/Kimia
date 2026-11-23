@@ -313,5 +313,8 @@
   "cp_empty": "{from} still uses only the defaults — there is nothing to copy.",
   "cp_confirm": "Copy from <b>{from}</b> to <b>{to}</b>?\n\n⚙️ {settings} settings · 📋 {entries} list entries · 🔒 {locks} locks · 🛡 {guards} security modules\n\nWhat the source has set replaces the same items here; everything else stays as it is.",
   "cp_apply": "✅ Copy",
-  "cp_done": "✅ Copied {n} values from {from}. The copy is recorded in the change log."
+  "cp_done": "✅ Copied {n} values from {from}. The copy is recorded in the change log.",
+  "tg_head": "📣 {by} calls the {n} members who wrote this week:",
+  "tg_wait": "⏳ Members can be tagged once every {time} in a group.",
+  "tg_none": "Nobody else wrote here in the last 7 days. (Aegis can only tag members it has seen writing — Telegram doesn't let bots list everyone.)"
 }

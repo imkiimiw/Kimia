@@ -8,7 +8,7 @@ import * as schema from '../tgcloud/schema.js';
 
 export const BOT_ID = 7200000001;
 const HANDLERS = ['message', 'edited_message', 'callback_query', 'my_chat_member', 'chat_member', 'chat_join_request', 'channel_post',
-  'edited_channel_post', 'poll', 'poll_answer', 'message_reaction_count'];
+  'edited_channel_post', 'poll', 'poll_answer', 'message_reaction_count', 'inline_query'];
 const ISOLATE_MISSING = ['TextEncoder', 'TextDecoder', 'URL', 'URLSearchParams', 'Blob', 'FormData', 'Headers', 'Request', 'Response', 'fetch',
   'setTimeout', 'setInterval', 'setImmediate', 'structuredClone', 'atob', 'btoa', 'crypto', 'Buffer', 'Intl'];
 export const GROUP_RIGHTS = { can_manage_chat: true, can_change_info: true, can_delete_messages: true, can_restrict_members: true, can_invite_users: true,

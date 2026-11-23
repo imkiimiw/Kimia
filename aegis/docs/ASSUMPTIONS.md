@@ -233,6 +233,28 @@ existing feature were not built twice (see NOT_BUILT.md for the full list and re
 | How changes are made | Through the same functions as the private panel (settings, the locks engine, the night-lock planner, the emergency lock with its announcement and «end now» button), so the change log, audit and log channel are the same. |
 | Clean-up | It deletes itself 5 minutes after the last press (the self-destructing message log, pushed back on each use), or at once with ✖️ Close. |
 
+### After the release — the round of ten improvements (the owner's «add all of them»)
+
+- **Notes and filters**: admins with Settings access manage them; members' plain words that look like a
+  command are just messages; a filter answers whole words only, at most once every 3 s in a chat.
+- **Setup wizard**: four group types × three strictness levels; a preset changes only what its summary lists
+  and goes through the usual logged paths. **Copy settings** needs Full access on the target (like
+  restoring a backup) and Settings on the source, both checked live; it copies what a backup holds.
+- **Shared blacklist**: 2 other groups by default (choices 2 / 3 / 5), 90 days, active bans and kicks only;
+  off by default; «report only» until an admin picks a punishment.
+- **Weekly report**: on by default; to admins with Settings access who started Aegis (at most 10); the
+  first week starts at the first message after the feature arrived, so nobody gets a report at once.
+- **Bot descriptions** are written in all five languages and English is the default for other languages.
+- **Landing page**: the add-links carry the same admin rights Aegis asks for elsewhere; without a bot name
+  in the link the page hides the buttons and says to open it from Aegis.
+- **Inline mode**: 40 styles at most, the readings random each time (personal cache of 5 s).
+- **Dashboard**: dates in UTC (the stats tables count UTC days); groups only.
+- **/tagall**: 7 days, 50 members, 25 a message, 30 minutes between uses; the caller isn't tagged.
+- **Heartbeat**: every 30 minutes in the template (the free private-repository budget); init data must be
+  at most 5 minutes old; it signs as the owner because only the owner endpoint may run timed work.
+- **Per-chat throttles** live in the chat's own `aegis_chat_settings` rows (keys starting with «_»), never in
+  the bot-wide `aegis_kv`.
+
 ## Phase 10
 
 | Topic | Decision |

@@ -26,14 +26,14 @@ import * as chats from '../lib/engines/chats.js';
 import * as punish from '../lib/engines/punish.js';
 import * as settings from '../lib/engines/settings.js';
 import * as msglog from '../lib/engines/msglog.js';
-import * as schedules from '../lib/engines/schedules.js';
+import { schedules } from '../lib/engines/msglog.js';
 import * as gd from '../lib/engines/groupdata.js';
 import { localMinutes, nextTime, parseTimes } from '../lib/core/clock.js';
 import { parseCommand as memberCommand } from '../lib/ui/advanced.js';
 import * as channels from '../lib/engines/channels.js';
 import * as invites from '../lib/engines/invites.js';
 import * as posts from '../lib/engines/posts.js';
-import * as crisis from '../lib/engines/crisis.js';
+import { crisis } from '../lib/engines/channels.js';
 import * as backup from '../lib/engines/backup.js';
 import { contentOf, withFooter } from '../lib/core/content.js';
 import { parseWhen } from '../lib/ui/panel_posts.js';
@@ -268,7 +268,9 @@ export default async function (input) {
     const reports = await gd.reportCount(FAKE_CHAT, now - 7 * 86400);
     const moved = await chats.moveWeekly(FAKE_CHAT, 12345, now);
     const stray = Number((await db.get(sql`SELECT count(*) AS n FROM aegis_kv WHERE key GLOB 'flt_-[0-9]*' OR key GLOB 'gpanel_-[0-9]*' OR key GLOB 'ghelp_-[0-9]*'`)).n);
-    return { claims, counts, reports, moved, stray };
+    const kinds = await punish.kindCounts(FAKE_CHAT, now - 30 * 86400);
+    const writers = await stats.recentWriters(FAKE_CHAT, now - 7 * 86400, 5);
+    return { claims, counts, reports, moved, stray, kinds: typeof kinds, writers: Array.isArray(writers) };
   }
   if (action === 'shared') {
     /* the shared blacklist: the cross-group count on the real database (other groups only, active bans and kicks, 90 days) */

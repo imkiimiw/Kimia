@@ -21,5 +21,7 @@
   "already_off": "ℹ️ Aegis est déjà arrêté.",
   "already_on": "ℹ️ Aegis est déjà actif.",
   "paused_toast": "⏸ Aegis est en pause pour maintenance. Réessayez plus tard.",
-  "webhook_managed": "🔗 Webhook : géré par Telegram Serverless (le bot lui-même ne peut pas le lire ; npx tgcloud webhook l’affiche)."
+  "webhook_managed": "🔗 Webhook : géré par Telegram Serverless (le bot lui-même ne peut pas le lire ; npx tgcloud webhook l’affiche).",
+  "beat": "💓 Pulsation : la dernière il y a {ago}",
+  "beat_none": "💓 Pulsation : aucune encore — le travail planifié se fait à la prochaine mise à jour (un planificateur externe peut l’appeler à l’heure : aegis/ops/heartbeat.yml)"
 }

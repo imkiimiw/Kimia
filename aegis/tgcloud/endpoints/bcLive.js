@@ -4,15 +4,24 @@
  * scheduler, so an open page is what keeps a big broadcast moving), 'status' only reports,
  * 'pause' / 'resume' / 'cancel' control it. Every label the page shows comes back in the owner's
  * language. See lib/engines/broadcast.js.
+ *
+ * { action: 'beat' }: the heartbeat — runs the timed work now (lib/router.js onHeartbeat). Sent by an
+ * outside scheduler that signs fresh owner init data with the bot token (scripts/heartbeat.mjs,
+ * ops/heartbeat.yml); init data older than HEARTBEAT_MAX_AGE_SEC is refused, so a copied request
+ * can't be replayed later.
  */
 import { EndpointError } from 'sdk';
 import { OWNER_ID } from '../lib/config.js';
 import * as errors from '../lib/core/errors.js';
+import * as kv from '../lib/core/kv.js';
 import { createCtx } from '../lib/core/tg.js';
+import { nowSec } from '../lib/core/util.js';
+import { onHeartbeat } from '../lib/router.js';
 import * as bc from '../lib/engines/broadcast.js';
 import { dur, isRtl, num, t } from '../lib/i18n/index.js';
 import { liveTick, ownerLang, refreshPanel, report } from '../lib/ui/owner_bc.js';
 
+const HEARTBEAT_MAX_AGE_SEC = 300;
 const LABELS = ['title', 'idle', 'sent', 'failed', 'blocked', 'left', 'audience', 'mode', 'status', 'wait', 'hint', 'pause', 'resume',
   'cancel', 'cancel_q', 'close', 'paused_source_gone', 'error'];
 
@@ -39,8 +48,16 @@ function view(lang, row, sent) {
 export default async function (input, pctx) {
   const u = pctx && pctx.initData && pctx.initData.user;
   if (!u || u.id !== OWNER_ID) throw new EndpointError('Owner only', { code: 'OWNER_ONLY' });
-  const ctx = createCtx({ kind: 'endpoint' });
   const action = String((input && input.action) || 'status');
+  if (action === 'beat') {
+    const now = nowSec();
+    const age = now - Number(pctx.initData.auth_date || 0);
+    if (!(age >= -60 && age <= HEARTBEAT_MAX_AGE_SEC)) throw new EndpointError('Stale init data', { code: 'STALE' });
+    const r = await onHeartbeat();
+    await kv.set(null, 'beat_at', String(now));
+    return { ok: true, at: now, calls: ((r && r.trace) || []).length };
+  }
+  const ctx = createCtx({ kind: 'endpoint' });
   try {
     const lang = await ownerLang();
     let row = await bc.active();

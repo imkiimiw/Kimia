@@ -171,6 +171,7 @@ await section(outcome, 'escaping: HTML in a group title and in names is shown es
 await section(outcome, 'Mini App endpoints act only for the user in Telegram\'s init data', async () => {
   const bcLive = (await import('../tgcloud/endpoints/bcLive.js')).default;
   const media = (await import('../tgcloud/endpoints/media.js')).default;
+  const dash = (await import('../tgcloud/endpoints/dash.js')).default;
   const code = async (fn) => {
     try {
       await fn();
@@ -180,6 +181,8 @@ await section(outcome, 'Mini App endpoints act only for the user in Telegram\'s 
     }
   };
   assert.equal(await code(() => bcLive({ action: 'tick', id: 1 }, { initData: { user: stranger } })), 'OWNER_ONLY');
+  for (const who of [stranger, member, viewer]) assert.equal(await code(() => dash({ chat: G.id }, { initData: { user: who } })), 'NO_ACCESS', `dashboard: ${who.first_name}`);
+  assert.equal(await code(() => dash({ chat: G.id, user: creator.id }, { initData: { user: stranger } })), 'NO_ACCESS', 'the input can\'t name someone else');
   assert.equal(await code(() => bcLive({ action: 'tick', id: 1 }, { initData: {} })), 'OWNER_ONLY');
   assert.equal(await code(() => media({ action: 'get', job: 1 }, { initData: {} })), 'NO_USER');
   h.db().prepare("INSERT INTO aegis_media_jobs (user_id, chat_id, kind, file_id, data, at) VALUES (?, 0, 'photo', 'f1', '{}', 0)").run(member.id);

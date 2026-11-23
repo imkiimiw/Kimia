@@ -1,0 +1,30 @@
+# Aegis heartbeat — a TEMPLATE. GitHub only runs workflows from the repository's .github/workflows/,
+# so copy this file there (e.g. .github/workflows/aegis-heartbeat.yml) and add the repository secret
+# AEGIS_BOT_TOKEN (Settings → Secrets and variables → Actions → New repository secret; the token from
+# @BotFather). Then «Run workflow» once by hand to check it.
+#
+# Free: GitHub Actions minutes are unlimited for public repositories; a private one on the free plan
+# has 2,000 minutes a month, and every run counts as at least one minute — every 30 minutes is about
+# 1,440 a month. GitHub may start scheduled runs late (often a few minutes) when it is busy.
+name: Aegis heartbeat
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  beat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: aegis/scripts/heartbeat.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node aegis/scripts/heartbeat.mjs
+        env:
+          AEGIS_BOT_TOKEN: ${{ secrets.AEGIS_BOT_TOKEN }}

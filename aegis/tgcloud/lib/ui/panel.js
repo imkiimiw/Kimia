@@ -39,7 +39,7 @@ import { esc, iso, normalizeWord, nowSec, parseJson, short, toInt } from '../cor
 import * as admins from '../engines/admins.js';
 import * as channels from '../engines/channels.js';
 import * as chats from '../engines/chats.js';
-import * as crisis from '../engines/crisis.js';
+import { crisis } from '../engines/channels.js';
 import * as posts from '../engines/posts.js';
 import * as settings from '../engines/settings.js';
 import { addToChannelUrl, addToGroupUrl, canManageAdmins as typeCanManage, grantable, rightsOf } from '../engines/rights.js';

@@ -768,6 +768,8 @@ export async function status(ctx, lang, place = null, notice = '') {
   lines.push(t(lang, 'sys.counts', { users: s.users, groups: s.groups, channels: s.channels, registered: s.registered }));
   lines.push(s.broadcast ? t(lang, 'sys.broadcast', { id: s.broadcast.id, status: t(lang, `bc.st_${s.broadcast.status}`) }) : t(lang, 'sys.broadcast_none'));
   lines.push(t(lang, 'sys.errors', { n: s.errors24h }));
+  const beat = Number((await kv.all(ctx)).beat_at || 0);
+  lines.push(beat ? t(lang, 'sys.beat', { ago: dur(lang, Math.max(0, now - beat)) }) : t(lang, 'sys.beat_none'));
   if (s.lastError) lines.push(t(lang, 'sys.last_error', { ago: dur(lang, now - s.lastError.at), source: esc(s.lastError.source), message: esc(short(s.lastError.message, 160)) }));
   if (s.webhook && s.webhook.managed) lines.push(t(lang, 'sys.webhook_managed'));
   else if (s.webhook) {

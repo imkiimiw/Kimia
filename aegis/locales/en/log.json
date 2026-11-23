@@ -124,5 +124,6 @@
   "chat_preset": "applied a setup preset",
   "security_shared": "the shared blacklist flagged {target}",
   "chat_copy": "copied the settings of another chat ({key})",
-  "stats_weekly": "sent the weekly report to the admins"
+  "stats_weekly": "sent the weekly report to the admins",
+  "chat_tagall": "tagged the members who wrote this week"
 }

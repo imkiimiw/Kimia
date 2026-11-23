@@ -667,5 +667,17 @@
   "d_codebreak": "Cassez un code de 4 chiffres différents : chaque essai indique les chiffres bien placés et les bons chiffres mal placés.",
   "cb_start": "🔢 <b>Chasse au code</b>\nJ’ai choisi un code de 4 chiffres différents. Écrivez 4 chiffres :\n🎯 bon chiffre bien placé · 🔄 bon chiffre mal placé\n({time})",
   "cb_hint": "🔢 {guess} → 🎯 {a} · 🔄 {b}",
-  "cb_win": "🔓 {user} a cassé le code <b>{code}</b> ! Essais : {n}."
+  "cb_win": "🔓 {user} a cassé le code <b>{code}</b> ! Essais : {n}.",
+  "in_open": "🛡 Ouvrir Aegis",
+  "in_font_d": "{style} — touchez pour envoyer",
+  "in_more": "🛡 Plus dans Aegis",
+  "in_hafez_t": "🔮 Lecture de Hafez",
+  "in_hafez_d": "Un ghazal de Hafez avec son interprétation",
+  "in_khayyam_t": "🍷 Quatrain de Khayyam",
+  "in_khayyam_d": "Un quatrain de Khayyam avec son interprétation",
+  "in_poem_t": "📜 Un poème célèbre",
+  "in_poem_d": "Des vers célèbres, le poète et le poème",
+  "in_hint_t": "✍️ Tapez un texte pour le styliser",
+  "in_hint_d": "ex. @bot bonjour — puis touchez un style pour l’envoyer",
+  "in_hint_msg": "✍️ Tapez {bot} et un texte dans n’importe quelle discussion pour l’envoyer dans une autre police — ou choisissez une lecture de Hafez, un quatrain de Khayyam ou un poème célèbre."
 }

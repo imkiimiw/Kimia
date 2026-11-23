@@ -363,6 +363,25 @@ export function onPoll(poll, pctx) {
   return run('poll', pctx, async (ctx) => social.onPoll(ctx, poll));
 }
 
+/*
+ * The heartbeat (endpoints/bcLive.js, action «beat», called by an outside scheduler that signs the
+ * owner's init data with the bot token — scripts/heartbeat.mjs): no update to handle, only the timed
+ * work every update runs afterwards (broadcast batches and the once-a-minute sweeps), so expiries,
+ * night locks, cleanups and scheduled posts happen on time even when the chats are quiet.
+ */
+export function onHeartbeat() {
+  return run('heartbeat', null, async () => {});
+}
+
+/* @bot in any chat (inline mode; switched on in @BotFather). See ui/fun.js inlineQuery. */
+export function onInlineQuery(q, pctx) {
+  return run('inline_query', pctx, async (ctx) => {
+    if (!q || !q.id || !q.from) return;
+    ctx.userId = q.from.id;
+    await fun.inlineQuery(ctx, q);
+  });
+}
+
 export function onPollAnswer(answer2, pctx) {
   return run('poll_answer', pctx, async (ctx) => {
     if (answer2 && answer2.user) ctx.userId = answer2.user.id;

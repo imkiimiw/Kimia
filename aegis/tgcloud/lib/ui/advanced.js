@@ -37,10 +37,11 @@ import * as logs from '../engines/logs.js';
 import { events } from '../engines/logs.js';
 import * as msglog from '../engines/msglog.js';
 import * as punish from '../engines/punish.js';
-import * as schedules from '../engines/schedules.js';
+import { schedules } from '../engines/msglog.js';
 import * as settings from '../engines/settings.js';
 import * as users from '../engines/users.js';
-import { pickLang, t, wordCommand } from '../i18n/index.js';
+import { dur, num, pickLang, t, wordCommand } from '../i18n/index.js';
+import { stats } from '../engines/social.js';
 import { deleteMessage, isAdmin, postNotice } from './enforce.js';
 import * as security from './security.js';
 import { goodbye, render, welcome } from './welcome.js';
@@ -542,8 +543,12 @@ export async function afterUpdate(ctx) {
  * Placeholders {name} {mention} {group} {count} work in texts without formatting (like the welcome message).
  */
 const NOTE_NAME = /^[\p{L}\p{N}_]{1,32}$/u;
-const NOTE_SLASH = new Set(['save', 'get', 'notes', 'clear', 'filter', 'stop', 'filters']);
-const NOTE_ADMIN = new Set(['save', 'clear', 'filter', 'stop']);
+const NOTE_SLASH = new Set(['save', 'get', 'notes', 'clear', 'filter', 'stop', 'filters', 'tagall']);
+const NOTE_ADMIN = new Set(['save', 'clear', 'filter', 'stop', 'tagall']);
+/* «tag active members»: members who wrote in the last 7 days, at most TAG_MAX, TAG_PER a message, once every TAG_GAP_SEC in a chat */
+const TAG_MAX = 50;
+const TAG_PER = 25;
+const TAG_GAP_SEC = 30 * 60;
 const PLACEHOLDER = /\{(name|mention|group|count)\}/;
 const PUNCT = /[.,!?؟،؛:;()«»"'…\-–—]+/g;
 const ftNorm = (x) => normalizeWord(String(x || '')).replace(PUNCT, ' ').replace(/\s+/g, ' ').trim();
@@ -636,6 +641,35 @@ async function canEditNotes(ctx, chatId, userId) {
 }
 
 /* The note commands in a group. Gives true when the message was one (handled). */
+/*
+ * /tagall [text] («تگ همه»): an admin with Settings access mentions the members who wrote in the
+ * last 7 days — Telegram has no «mention everyone», and Aegis can't list members who never wrote.
+ * At most TAG_MAX, the most recent first, TAG_PER a message; once every 30 minutes in a chat.
+ */
+async function tagActive(ctx, chat, message, note, say) {
+  const c = chat.chat_id;
+  const lang = chat.lang;
+  const now = nowSec();
+  if (!(await settings.claim(c, '_tagall', now, TAG_GAP_SEC))) {
+    await say('adv.tg_wait', { time: dur(lang, TAG_GAP_SEC) });
+    return true;
+  }
+  const list = (await stats.recentWriters(c, now - 7 * 86400, TAG_MAX + 1)).filter((r) => Number(r.user_id) !== message.from.id).slice(0, TAG_MAX);
+  if (!list.length) {
+    await say('adv.tg_none');
+    return true;
+  }
+  const head = [t(lang, 'adv.tg_head', { by: iso(fullName(message.from), 32), n: num(lang, list.length) })];
+  if (note) head.push(`<blockquote>${esc(note.slice(0, 300))}</blockquote>`);
+  for (let i = 0; i < list.length; i += TAG_PER) {
+    const mentions = list.slice(i, i + TAG_PER).map((r) => `<a href="tg://user?id=${Number(r.user_id)}">${esc(short(r.first_name || (r.username ? `@${r.username}` : String(r.user_id)), 24))}</a>`);
+    const body = [...(i ? [] : head), mentions.join(' · ')].join('\n');
+    await send(ctx, c, body, null, 'tag-active', i ? {} : replyOf(message));
+  }
+  await audit.log(message.from.id, 'chat.tagall', { chatId: c, details: { n: list.length } });
+  return true;
+}
+
 export async function notesCommand(ctx, message) {
   const p = parseNoteCommand(message.text);
   if (!p) return false;
@@ -652,6 +686,7 @@ export async function notesCommand(ctx, message) {
     return true;
   }
   const text = String(message.text || '');
+  if (p.cmd === 'tagall') return tagActive(ctx, chat, message, text.slice(p.at).trim(), say);
   const isFilter = p.cmd === 'filter' || p.cmd === 'stop';
   const { key, rest } = noteArgs(text, p.at, isFilter);
   const title = iso(chat.title || '', 48);

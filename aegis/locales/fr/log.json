@@ -124,5 +124,6 @@
   "chat_preset": "a appliqué une configuration prête",
   "security_shared": "la liste noire partagée a signalé {target}",
   "chat_copy": "a copié les réglages d’une autre discussion ({key})",
-  "stats_weekly": "a envoyé le rapport hebdomadaire aux admins"
+  "stats_weekly": "a envoyé le rapport hebdomadaire aux admins",
+  "chat_tagall": "a mentionné les membres ayant écrit cette semaine"
 }

@@ -539,6 +539,27 @@ export function createMockTelegram({ botId, botUsername = 'aegis_test_bot' }) {
       msg.markup = newMarkup;
       return ok({ message_id: msg.message_id });
     },
+    answerInlineQuery: (p) => {
+      if (!p.inline_query_id || !Array.isArray(p.results)) return err(400, 'Bad Request: invalid inline query');
+      if (state.answered.has(`i${p.inline_query_id}`)) return err(400, 'Bad Request: query is too old and response timeout expired or query ID is invalid');
+      if (p.results.length > 50) return err(400, 'Bad Request: RESULTS_TOO_MUCH');
+      const ids = new Set();
+      for (const r of p.results) {
+        if (!r.id || String(r.id).length > 64 || ids.has(r.id)) return err(400, 'Bad Request: RESULT_ID_DUPLICATE');
+        ids.add(r.id);
+        if (r.type !== 'article' || !r.title || !r.input_message_content) return err(400, 'Bad Request: RESULT_TYPE_INVALID');
+        const m = r.input_message_content;
+        if (!m.message_text || m.message_text.length > 4096) return err(400, 'Bad Request: MESSAGE_TOO_LONG');
+        if (m.parse_mode === 'HTML') {
+          const h = parseHtml(m.message_text);
+          if (h.error) return err(400, `Bad Request: can't parse entities: ${h.error}`);
+        }
+      }
+      if (p.button && (!p.button.text || !/^[A-Za-z0-9_-]{1,64}$/.test(p.button.start_parameter || ''))) return err(400, 'Bad Request: invalid button');
+      state.answered.add(`i${p.inline_query_id}`);
+      state.inline = p;
+      return ok(true);
+    },
     answerCallbackQuery: (p) => {
       if (state.answered.has(p.callback_query_id)) return err(400, 'Bad Request: query is too old and response timeout expired or query ID is invalid');
       if (p.text && p.text.length > 200) return err(400, 'Bad Request: MESSAGE_TOO_LONG');

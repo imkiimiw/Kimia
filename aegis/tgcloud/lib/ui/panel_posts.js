@@ -30,7 +30,7 @@ import * as state from '../core/state.js';
 import * as admins from '../engines/admins.js';
 import * as backup from '../engines/backup.js';
 import * as chats from '../engines/chats.js';
-import * as crisis from '../engines/crisis.js';
+import { crisis } from '../engines/channels.js';
 import * as guards from '../engines/guards.js';
 import * as invites from '../engines/invites.js';
 import * as posts from '../engines/posts.js';

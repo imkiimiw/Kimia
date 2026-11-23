@@ -104,6 +104,12 @@ async function activeSince(chatId, n, now = nowSec()) {
   return Number((await db.get(sql`SELECT count(*) AS n FROM aegis_member_stats WHERE chat_id = ${chatId} AND last_day > ${today(now) - n}`)).n);
 }
 
+/* Members who wrote since `since`, the most recent first, with the name Aegis knows for them (for «tag active members»). */
+async function recentWriters(chatId, since, limit) {
+  return db.all(sql`SELECT m.user_id, u.first_name, u.username FROM aegis_member_stats m LEFT JOIN aegis_users u ON u.user_id = m.user_id
+    WHERE m.chat_id = ${chatId} AND m.last_at > ${since} ORDER BY m.last_at DESC LIMIT ${limit}`);
+}
+
 async function hours(chatId) {
   return db.all(sql`SELECT hour, messages FROM aegis_stats_hour WHERE chat_id = ${chatId} ORDER BY messages DESC LIMIT 24`);
 }
@@ -125,7 +131,7 @@ async function sweep(now) {
   return r.rowsAffected;
 }
 
-  return { today, member, count, bump, earn, adjust, thank, top, rank, members, days, sum, activeSince, hours, resetPoints, migrate, sweep };
+  return { today, member, count, bump, earn, adjust, thank, top, rank, members, days, sum, activeSince, recentWriters, hours, resetPoints, migrate, sweep };
 })();
 
 /* ========== badges (was engines/badges.js) ========== */

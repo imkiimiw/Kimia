@@ -17,7 +17,7 @@ import { iso, normalizeWord, nowSec, parseJson, short, toInt } from '../core/uti
 import * as admins from '../engines/admins.js';
 import * as channels from '../engines/channels.js';
 import * as chats from '../engines/chats.js';
-import * as crisis from '../engines/crisis.js';
+import { crisis } from '../engines/channels.js';
 import * as posts from '../engines/posts.js';
 import { num, t } from '../i18n/index.js';
 import { notifyApprovers, publishItem } from './channel.js';

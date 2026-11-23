@@ -667,5 +667,17 @@
   "d_codebreak": "Crack a code of 4 different digits: each guess shows the digits in the right place and the right digits in the wrong place.",
   "cb_start": "🔢 <b>Code hunt</b>\nI chose a code of 4 different digits. Write 4 digits:\n🎯 right digit in the right place · 🔄 right digit in the wrong place\n({time})",
   "cb_hint": "🔢 {guess} → 🎯 {a} · 🔄 {b}",
-  "cb_win": "🔓 {user} cracked the code <b>{code}</b>! Guesses: {n}."
+  "cb_win": "🔓 {user} cracked the code <b>{code}</b>! Guesses: {n}.",
+  "in_open": "🛡 Open Aegis",
+  "in_font_d": "{style} — tap to send",
+  "in_more": "🛡 More in Aegis",
+  "in_hafez_t": "🔮 Hafez reading",
+  "in_hafez_d": "A ghazal of Hafez with its interpretation",
+  "in_khayyam_t": "🍷 Khayyam quatrain",
+  "in_khayyam_d": "A quatrain of Khayyam with its interpretation",
+  "in_poem_t": "📜 A famous poem",
+  "in_poem_d": "Famous lines, the poet and the poem",
+  "in_hint_t": "✍️ Type some text to style it",
+  "in_hint_d": "e.g. @bot hello — then tap a style to send it",
+  "in_hint_msg": "✍️ Type {bot} and some text in any chat to send it in another font — or pick a Hafez reading, a Khayyam quatrain or a famous poem."
 }

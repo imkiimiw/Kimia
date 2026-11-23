@@ -21,5 +21,7 @@
   "already_off": "ℹ️ Aegis уже выключен.",
   "already_on": "ℹ️ Aegis уже работает.",
   "paused_toast": "⏸ Aegis временно приостановлен на обслуживание. Попробуйте позже.",
-  "webhook_managed": "🔗 Вебхук: управляется Telegram Serverless (сам бот не может его прочитать; его показывает npx tgcloud webhook)."
+  "webhook_managed": "🔗 Вебхук: управляется Telegram Serverless (сам бот не может его прочитать; его показывает npx tgcloud webhook).",
+  "beat": "💓 Пульс: последний {ago} назад",
+  "beat_none": "💓 Пульс: ещё не было — отложенная работа выполняется со следующим обновлением (внешний планировщик может вызывать её вовремя: aegis/ops/heartbeat.yml)"
 }
