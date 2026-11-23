@@ -53,4 +53,9 @@ end: all tests green, docs updated, the report (SPEC §15), then STOP and wait f
 - Staging: `@Wangermusic_bot` via `scripts/staging.mjs` (token in WANGER_STAGING_TGCLOUD_TOKEN or a file
   named by WANGER_STAGING_TOKEN_FILE — never in the repo). Load tests, fixtures and restores run there.
 - Ask the owner before: new dependencies, deploys, migrate warnings, anything that posts to a real
-  channel or messages real users. Destination channels (@WangerBeat, @WangerFlow) exist only once the owner adds them.
+  channel or messages real users.
+- **Userbot (the owner has one, 2026-11-23; not set up yet).** Allowed uses: tests against the staging bot
+  as a real user (inline mode, buttons, group game), and reading the owner's OWN channels' stats (views,
+  forwards) that the Bot API doesn't give. Only a separate test account, never the owner's personal one; its
+  session only as a secret (environment / GitHub secret) — never in chat, code, docs or memory. Never: reading
+  or copying channels where the bot isn't admin, mass messages, joining groups to advertise. Destination channels (@WangerBeat, @WangerFlow) exist only once the owner adds them.
