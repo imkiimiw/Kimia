@@ -1,6 +1,10 @@
 // The user dashboard (Phase 2): builds the screen for a menu target. Gates (ban, maintenance,
 // language, forced join, disclaimer) are applied by lib/router.js before anything here runs.
 import { HISTORY_MAX, HISTORY_PAGE } from './config.js';
+import * as system from './db/system.js';
+import { limitsFrom } from './policy.js';
+import * as referral from './referral.js';
+import * as vip from './vip.js';
 import * as downloads from './db/downloads.js';
 import * as users from './db/users.js';
 import { enabledPlatforms } from './download.js';
@@ -21,7 +25,7 @@ export async function build(user, target, arg = 0, custom = {}) {
       return { view: 'downloads', screen: ui.history(lang, { items, page, pages, total }) };
     }
     case 'settings':
-      return { view: 'settings', screen: ui.settings(lang, await users.getQuality(user.id)) };
+      return { view: 'settings', screen: ui.settings(lang, await users.getPrefs(user.id)) };
     case 'quality':
       return { view: 'quality', screen: ui.qualityPicker(lang, await users.getQuality(user.id)) };
     case 'help':
@@ -30,10 +34,16 @@ export async function build(user, target, arg = 0, custom = {}) {
       return { view: 'download', screen: ui.downloadInfo(lang, await enabledPlatforms()) };
     case 'about':
       return { view: 'about', screen: ui.about(lang) };
+    case 'invite':
+      return { view: 'invite', screen: referral.screen(lang, user) };
+    case 'vip': {
+      const s = await system.loadSettings([vip.SETTING, 'limits']);
+      return { view: 'vip', screen: vip.screen(lang, vip.configFrom(s[vip.SETTING] && s[vip.SETTING].value), user.row, custom.now || 0, limitsFrom(s.limits && s.limits.value)) };
+    }
     default:
-      return { view: 'home', screen: ui.home(lang, user.name, { staff: isStaff(user.actor), custom: custom.welcome || null }) };
+      return { view: 'home', screen: ui.home(lang, user.name, { staff: isStaff(user.actor), custom: custom.welcome || null, invite: !!custom.invite, vip: !!custom.vip }) };
   }
 }
 
 /** Private-chat commands → menu targets (anything else opens home). */
-export const COMMAND_TARGETS = { help: 'help', about: 'about', settings: 'settings', downloads: 'downloads', history: 'downloads', download: 'download' };
+export const COMMAND_TARGETS = { help: 'help', about: 'about', settings: 'settings', downloads: 'downloads', history: 'downloads', download: 'download', invite: 'invite', vip: 'vip' };

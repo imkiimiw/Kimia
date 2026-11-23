@@ -93,3 +93,37 @@ export function choose(item, quality, maxBytes) {
   if (!v) return { error: 'too_big', bytes: known[known.length - 1].bytes, max: upMax };
   return { variant: v, via: v.bytes <= urlMax ? 'url' : 'upload', downgraded: quality !== 'small' && known[0].bytes > upMax };
 }
+
+const limitsFor = (item, maxBytes) => {
+  const photo = item.type === 'photo';
+  const upMax = Math.min(photo ? TG_UPLOAD_PHOTO_MAX : TG_UPLOAD_MAX, maxBytes);
+  return { upMax, urlMax: Math.min(photo ? TG_URL_PHOTO_MAX : TG_URL_MAX, upMax) };
+};
+
+/** The variant the user picked in the quality question (by index), if it is still deliverable. */
+export function pickVariant(item, index, maxBytes) {
+  const v = (item.variants || [])[index];
+  if (!v || !(Number.isFinite(v.bytes) && v.bytes > 0)) return { error: 'no_variant' };
+  const { upMax, urlMax } = limitsFor(item, maxBytes);
+  if (v.bytes > upMax) return { error: 'too_big', bytes: v.bytes, max: upMax };
+  return { variant: v, via: v.bytes <= urlMax ? 'url' : 'upload', downgraded: false };
+}
+
+/** A variant's height: its own, or from "…/1280x720/…" in the URL; null if unknown. */
+export function heightOf(v) {
+  if (Number.isFinite(v.height) && v.height > 0) return v.height;
+  const m = /\/(\d{2,4})x(\d{2,4})\//.exec(String(v.url || ''));
+  return m ? Number(m[2]) : null;
+}
+
+/** The variants worth offering in the quality question: known size, deliverable, different sizes, ≤ 4. */
+export function offerable(item, maxBytes) {
+  const { upMax } = limitsFor(item, maxBytes);
+  const out = [];
+  (item.variants || []).forEach((v, index) => {
+    if (out.length < 4 && Number.isFinite(v.bytes) && v.bytes > 0 && v.bytes <= upMax && !out.some((o) => o.bytes === v.bytes)) {
+      out.push({ index, bytes: v.bytes, height: heightOf(v) });
+    }
+  });
+  return out;
+}

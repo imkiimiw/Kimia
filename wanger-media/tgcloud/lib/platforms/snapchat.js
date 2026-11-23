@@ -53,6 +53,7 @@ export function fromSpotlightHtml(html, ref, finalUrl) {
       width: Number(og['og:video:width']) || undefined,
       height: Number(og['og:video:height']) || undefined,
       variants: [{ url: video, width: Number(og['og:video:width']) || undefined, height: Number(og['og:video:height']) || undefined }],
+      thumb: og['og:image'] && /^https:\/\//.test(og['og:image']) ? og['og:image'] : undefined,
     }],
   };
 }

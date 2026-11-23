@@ -49,7 +49,7 @@ describe('access', () => {
 
   it('each role sees only its sections; staff get the 🛠 button in the main menu', async () => {
     const sections = async (user) => { await h.send(user, '/admin'); return datas(user); };
-    expect(await sections(OWNER)).toEqual(['A:o', 'A:u', 'A:c', 'A:p', 'A:s', 'A:t', 'A:b', 'A:a:0', 'A:x', 'h']);
+    expect(await sections(OWNER)).toEqual(['A:o', 'A:u', 'A:c', 'A:p', 'A:s', 'A:t', 'A:b', 'A:a:0', 'A:x', 'A:v', 'h']);
     role(ALICE, 'support');
     expect(await sections(ALICE)).toEqual(['A:o', 'A:u', 'h']);
     role(ALICE, 'moderator');

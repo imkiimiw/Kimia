@@ -40,7 +40,7 @@ export async function overviewScreen(ctx, user) {
   return { view: 'admin_overview', screen: { text: lines.join('\n'), reply_markup: ui.markup([ui.navRow(lang, 'A')]) } };
 }
 
-const SWITCHES = ['switch.maintenance', 'switch.downloads', 'switch.forced_join', 'switch.group_join', 'limits'];
+const SWITCHES = ['switch.maintenance', 'switch.downloads', 'switch.forced_join', 'switch.group_join', 'switch.daily_report', 'limits'];
 
 export async function switchesScreen(user, notice = null) {
   const lang = user.lang;
@@ -50,18 +50,20 @@ export async function switchesScreen(user, notice = null) {
   const dls = on('switch.downloads', true);
   const fj = on('switch.forced_join', true);
   const gj = on('switch.group_join', false);
+  const rep = on('switch.daily_report', true);
   const l = limitsFrom(s.limits && s.limits.value);
   const lines = [];
   if (notice) lines.push(notice, '');
   lines.push(t(lang, 'adm.sw.text', {
     maint: tp(lang, maint ? 'adm.on' : 'adm.off'), downloads: tp(lang, dls ? 'adm.on' : 'adm.off'), fj: tp(lang, fj ? 'adm.on' : 'adm.off'), gj: tp(lang, gj ? 'adm.on' : 'adm.off'),
     quota: l.quota_per_day, cooldown: l.cooldown_s, max: l.max_mb,
-  }));
+  }), t(lang, 'adm.sw.report', { v: tp(lang, rep ? 'adm.on' : 'adm.off') }));
   const kb = [
     [ui.button(tp(lang, maint ? 'adm.btn.maint_off' : 'adm.btn.maint_on'), 'A:sm')],
     [ui.button(tp(lang, dls ? 'adm.btn.dl_off' : 'adm.btn.dl_on'), 'A:sd')],
     canManageChannels(user.actor) ? [ui.button(tp(lang, fj ? 'adm.btn.fj_off' : 'adm.btn.fj_on'), 'A:sf')] : [],
     canManageChannels(user.actor) ? [ui.button(tp(lang, gj ? 'adm.btn.gj_off' : 'adm.btn.gj_on'), 'A:sg')] : [],
+    canManageChannels(user.actor) ? [ui.button(tp(lang, rep ? 'adm.btn.report_off' : 'adm.btn.report_on'), 'A:sr')] : [],
     canManageChannels(user.actor) ? [ui.button(tp(lang, 'adm.btn.profile'), 'A:sp')] : [],
     [ui.button(tp(lang, 'adm.btn.quota_limit'), 'A:sl:q'), ui.button(tp(lang, 'adm.btn.cooldown'), 'A:sl:c'), ui.button(tp(lang, 'adm.btn.max_mb'), 'A:sl:m')],
     ui.navRow(lang, 'A'),
@@ -71,10 +73,10 @@ export async function switchesScreen(user, notice = null) {
 
 /** Flips a switch; the forced-join switches are refused unless the actor is the owner (checked again here). */
 export async function toggle(ctx, user, which) {
-  const key = { m: 'switch.maintenance', d: 'switch.downloads', f: 'switch.forced_join', g: 'switch.group_join' }[which];
-  if ((which === 'f' || which === 'g') && !canManageChannels(user.actor)) return { toast: t(user.lang, 'adm.denied'), alert: true };
+  const key = { m: 'switch.maintenance', d: 'switch.downloads', f: 'switch.forced_join', g: 'switch.group_join', r: 'switch.daily_report' }[which];
+  if ((which === 'f' || which === 'g' || which === 'r') && !canManageChannels(user.actor)) return { toast: t(user.lang, 'adm.denied'), alert: true };
   const s = await system.loadSettings([key]);
-  const dflt = which === 'd' || which === 'f';
+  const dflt = which === 'd' || which === 'f' || which === 'r';
   const current = s[key] ? s[key].value === true || (s[key].value !== false && dflt) : dflt;
   await system.setSetting(key, !current, user.id, ctx.now);
   await system.audit(ctx.now, user.id, 'switch', key, { on: !current });

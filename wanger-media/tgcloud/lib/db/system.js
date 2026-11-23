@@ -41,6 +41,23 @@ export async function claimThrottle(key, now, every) {
   return r.rowsAffected === 1;
 }
 
+/**
+ * Sets a setting to `value` (JSON) only if it holds something else — one statement, so of two
+ * parallel updates exactly one wins. → true when this call changed it (e.g. "today's report").
+ */
+export async function claimValue(key, value, now) {
+  const v = JSON.stringify(value);
+  const r = await db.run(sql`INSERT INTO settings (key, value, updated_at) VALUES (${key}, ${v}, ${now})
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at WHERE settings.value IS NOT excluded.value`);
+  return r.rowsAffected === 1;
+}
+
+/** Errors logged since `since` (the error log is capped at ERROR_LOG_KEEP rows). */
+export async function errorsSince(since) {
+  const r = await db.get(sql`SELECT COUNT(*) AS n FROM error_log WHERE at >= ${since}`);
+  return r ? Number(r.n) : 0;
+}
+
 /** Adds to counters in one statement: incs = [[name, day, delta], …] (day '' = all-time). */
 export async function count(incs) {
   if (!incs.length) return;

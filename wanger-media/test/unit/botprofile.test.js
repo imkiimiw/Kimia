@@ -25,7 +25,7 @@ describe('bot profile', () => {
   });
 
   it('every listed private command is handled', () => {
-    for (const c of PRIVATE_COMMANDS) expect(['start', 'language'].includes(c) || c in COMMAND_TARGETS, c).toBe(true);
+    for (const c of PRIVATE_COMMANDS) expect(['start', 'language', 'paysupport'].includes(c) || c in COMMAND_TARGETS, c).toBe(true);
     expect(GROUP_COMMANDS).toEqual(['settings', 'status', 'platforms', 'help']);
   });
 

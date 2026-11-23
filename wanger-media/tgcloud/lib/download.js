@@ -19,12 +19,13 @@ import * as system from './db/system.js';
 import * as users from './db/users.js';
 import { deliver, DeliveryError, sendCard, sendCached } from './delivery.js';
 import * as external from './external.js';
+import { configFrom as vipConfig, isVip, SETTING as VIP_SETTING } from './vip.js';
 import { HttpError, probe, ResolveError } from './platforms/common.js';
 import * as registry from './platforms/index.js';
-import { choose, domainCandidates, limitsFrom, platformState, precheck } from './policy.js';
+import { choose, domainCandidates, limitsFrom, offerable, pickVariant, platformState, precheck } from './policy.js';
 import { isStaff } from './roles.js';
 import * as tg from './tg.js';
-import { button, caption as buildCaption, markup, plain } from './ui.js';
+import { button, caption as buildCaption, markup, pairs, plain } from './ui.js';
 import { encode } from './codec.js';
 import { t, tp } from './i18n/index.js';
 import { isAllowedFetch, parseUrl } from './url.js';
@@ -47,7 +48,7 @@ const OUTCOME = {
 const HINTS = { discord: ['unsupported_kind', 'not_found'], twitch: ['unsupported_kind'] };
 const STATUS_COUNTER = { ok: 'dl_ok', meta: 'dl_meta', failed: 'dl_failed', denied: 'dl_denied' };
 
-export const settingKeys = (platformId) => ['switch.downloads', 'limits', 'platform:' + platformId, external.SETTING];
+export const settingKeys = (platformId) => ['switch.downloads', 'limits', 'platform:' + platformId, external.SETTING, VIP_SETTING];
 
 async function sendStatus(ctx, chatId, replyTo, lang) {
   try {
@@ -171,9 +172,13 @@ async function run(ctx, user, msg, link, day, onClaim, scope, opts = {}) {
   // claimed by lib/groups.js, and the group's size limit can only lower the global one.
   const base0 = group
     ? { ...global, max_mb: Math.min(global.max_mb, Number(scope.settings.max_mb) || global.max_mb) }
-    : user.row.quota_override != null ? { ...global, quota_per_day: user.row.quota_override } : global;
-  // The answer to the GIF question: this link already passed the cooldown when it was sent.
-  const limits = opts.format ? { ...base0, cooldown_s: 0 } : base0;
+    : user.row.quota_override != null ? { ...global, quota_per_day: user.row.quota_override }
+      : { ...global, quota_per_day: global.quota_per_day + (Number(user.row.ref_bonus) || 0) }; // + invitation bonus
+  // VIP (lib/vip.js): its own quota and cooldown in private chats while it lasts.
+  const plan = vipConfig(s[VIP_SETTING] && s[VIP_SETTING].value);
+  const base1 = !group && isVip(user.row, ctx.now) ? { ...base0, quota_per_day: plan.quota, cooldown_s: plan.cooldown_s } : base0;
+  // An answer to a question, or the 2nd/3rd link of one message: the cooldown was already passed.
+  const limits = opts.format || opts.pick != null || opts.batch ? { ...base1, cooldown_s: 0 } : base1;
   const state = platformState(s['platform:' + adapter.id] && s['platform:' + adapter.id].value);
   const ext = external.configFrom(s[external.SETTING] && s[external.SETTING].value);
   const host = parseUrl(link).host;
@@ -200,11 +205,25 @@ async function run(ctx, user, msg, link, day, onClaim, scope, opts = {}) {
   base.url = ref.url;
   if (ref.key && (await downloadsDb.blockedBy({ urlKey: ref.key, account: ref.account }))) return denyOrFail('blocked', base);
 
-  const quality = await users.getQuality(user.id);
-  const variant = opts.format ? `${quality}:${opts.format}` : quality;
-  const cachedRow = await downloadsDb.cacheGet(ref.key, variant);
-  // A cached GIF post sent without a choice yet: ask first (in private chats).
-  const cached = cachedRow && !group && !opts.format && cachedRow.items.some((i) => i.type === 'gif') ? null : cachedRow;
+  // Preferences (⚙️ Settings). Groups: no questions, GIFs as GIFs, media (not files).
+  const prefs0 = await users.getPrefs(user.id);
+  const prefs = group ? { quality: prefs0.quality, gif: 'gif', delivery: 'media' } : prefs0;
+  const quality = prefs.quality === 'ask' ? 'auto' : prefs.quality;
+  const fileMode = prefs.delivery === 'file';
+  const picked = opts.pick != null;
+  // The GIF format: the user's answer, else the preference; a link that may not ask takes GIF.
+  const format = opts.format || (prefs.gif !== 'ask' ? prefs.gif : opts.noAsk ? 'gif' : null);
+  // Cache variants: "<quality>[:p<pick>][:file]" and, for GIF posts sent as media, ":gif" / ":video".
+  const baseVariant = [quality, picked ? 'p' + opts.pick : null, fileMode ? 'file' : null].filter(Boolean).join(':');
+  const gifRow = (r) => !!r && r.items.some((i) => i.type === 'gif');
+  let variant = baseVariant;
+  let cached = await downloadsDb.cacheGet(ref.key, baseVariant);
+  if (!group && !fileMode && (!cached || gifRow(cached))) {
+    if (format) {
+      variant = `${baseVariant}:${format}`;
+      cached = (await downloadsDb.cacheGet(ref.key, variant)) || null;
+    } else if (gifRow(cached)) cached = null; // ask first
+  }
   if (cached) {
     const meta = parseMeta(cached.title);
     try {
@@ -243,17 +262,33 @@ async function run(ctx, user, msg, link, day, onClaim, scope, opts = {}) {
   const allow = post.mediaHosts || adapter.mediaHosts;
   await probeAll(ctx, post, allow, post.mediaHosts ? false : adapter.headSafe === true);
   const maxBytes = limits.max_mb * 1048576;
+  // "Ask every time": a single video in several deliverable qualities → the quality question.
+  if (!group && !opts.noAsk && !picked && prefs.quality === 'ask' && post.items.length === 1 && post.items[0].type === 'video') {
+    const offers = offerable(post.items[0], maxBytes);
+    if (offers.length >= 2) return { status: 'asked', ask: 'quality', offers, ...base };
+  }
+  const pickOrChoose = (item) => {
+    const c = picked && post.items.length === 1 ? pickVariant(item, opts.pick, maxBytes) : null;
+    return c && !c.error ? c : choose(item, quality, maxBytes);
+  };
   const choices = [];
   let firstError = null;
   for (const item of post.items) {
-    const c = choose(item, quality, maxBytes);
+    let c = null;
+    if (fileMode) { // as a document: uploaded (sendDocument by URL only takes GIF/PDF/ZIP), so the size must be known
+      const d = pickOrChoose({ ...item, type: 'document' });
+      if (!d.error && !d.sizeUnknown && d.variant.bytes > 0) c = { ...d, via: 'upload', doc: true };
+    }
+    if (!c) c = pickOrChoose(item);
     if (c.error) firstError = firstError || c;
-    else choices.push({ item, ...c });
+    else choices.push({ item: c.doc ? { ...item, type: 'document', was: item.type } : item, ...c });
   }
   // A GIF the platform serves as MP4 can go as a GIF or as a video: ask (private chats), then apply.
   const asVideoToo = (c) => c.item.type === 'gif' && (c.variant.mime === 'video/mp4' || /\.mp4(\?|$)/i.test(c.variant.url));
-  if (!group && !opts.format && choices.some(asVideoToo)) return { status: 'asked', ...base };
-  if (opts.format === 'video') for (const c of choices) if (asVideoToo(c)) c.item = { ...c.item, type: 'video' };
+  const hasGif = choices.some(asVideoToo);
+  if (!group && !format && hasGif) return { status: 'asked', ask: 'gif', ...base };
+  if (format === 'video') for (const c of choices) if (asVideoToo(c)) c.item = { ...c.item, type: 'video' };
+  const storeVariant = !group && !fileMode && hasGif ? `${baseVariant}:${format}` : baseVariant;
   const relayed = group ? null : await relayBig(ctx, user, msg, adapter, post, choices[0] || null, quality, ext, base);
   if (relayed) return relayed;
   if (!choices.length) {
@@ -280,16 +315,24 @@ async function run(ctx, user, msg, link, day, onClaim, scope, opts = {}) {
     throw err;
   }
   if (sent.items.length === choices.length && sent.items.every((i) => i.file_id) && !notes.includes('partial')) {
-    await downloadsDb.cachePut(ref.key, variant, adapter.id, sent.items, JSON.stringify({ title: post.title, author: post.author, notes }), sent.bytes, ctx.now);
+    await downloadsDb.cachePut(ref.key, storeVariant, adapter.id, sent.items, JSON.stringify({ title: post.title, author: post.author, notes }), sent.bytes, ctx.now);
   }
   return { status: 'ok', ...base, bytes: sent.bytes, items: sent.items.length };
 }
 
-/** Turns the status message into the GIF question and remembers the link (one per user, ASK_TTL_S). */
+/**
+ * Turns the status message into a question — GIF or video (result.ask 'gif'), or which quality
+ * (result.ask 'quality', result.offers) — and remembers the link (one per user, ASK_TTL_S).
+ */
 async function askFormat(ctx, user, msg, link, status, result) {
   const lang = user.lang;
-  await system.setSetting(askKey(user.id), { msg: msg.message_id, url: String(link), at: ctx.now }, user.id, ctx.now);
-  const screen = {
+  const kind = result.ask === 'quality' ? 'quality' : 'gif';
+  await system.setSetting(askKey(user.id), { kind, msg: msg.message_id, url: String(link), at: ctx.now }, user.id, ctx.now);
+  const mb = (b) => (b / 1048576 >= 10 ? Math.round(b / 1048576) : (b / 1048576).toFixed(1));
+  const screen = kind === 'quality' ? {
+    text: t(lang, 'dl.ask_quality'),
+    reply_markup: markup(pairs(result.offers.map((o) => button(`${o.height ? o.height + 'p · ' : ''}${mb(o.bytes)} MB`, encode('V', o.index, msg.message_id))))),
+  } : {
     text: t(lang, 'dl.ask_gif'),
     reply_markup: markup([[button(tp(lang, 'btn.as_gif'), encode('F', 'g', msg.message_id)), button(tp(lang, 'btn.as_video'), encode('F', 'v', msg.message_id))]]),
   };
@@ -303,13 +346,22 @@ async function askFormat(ctx, user, msg, link, status, result) {
  * { expired: true } when the question is not the user's latest one or is older than ASK_TTL_S.
  */
 export async function onFormatChoice(ctx, user, message, format, linkMessageId) {
+  return answerQuestion(ctx, user, message, 'gif', linkMessageId, { format });
+}
+
+/** A press on the quality question: `index` = the variant offered. */
+export async function onPick(ctx, user, message, index, linkMessageId) {
+  return answerQuestion(ctx, user, message, 'quality', linkMessageId, { pick: index, noAsk: true });
+}
+
+async function answerQuestion(ctx, user, message, kind, linkMessageId, opts) {
   const s = await system.loadSettings([askKey(user.id)]);
   const v = s[askKey(user.id)] && s[askKey(user.id)].value;
-  if (!v || v.msg !== linkMessageId || !(v.at > ctx.now - ASK_TTL_S) || typeof v.url !== 'string') return { expired: true };
+  if (!v || (v.kind || 'gif') !== kind || v.msg !== linkMessageId || !(v.at > ctx.now - ASK_TTL_S) || typeof v.url !== 'string') return { expired: true };
   await system.deleteSetting(askKey(user.id));
   await tg.edit(ctx, 'dl_status', message, plain(user.lang, 'dl.processing'));
   const linkMsg = { chat: { id: message.chat.id }, message_id: linkMessageId };
-  return handleLink(ctx, user, linkMsg, v.url, { kind: 'private' }, { format, status: message });
+  return handleLink(ctx, user, linkMsg, v.url, { kind: 'private' }, { ...opts, status: message });
 }
 
 /**
@@ -352,6 +404,53 @@ async function infoCard(ctx, user, msg, adapter, ref, post, quality, base) {
     await downloadsDb.cachePut(ref.key, quality, adapter.id, sent.items, JSON.stringify({ title: post.title, author: post.author, details: post.details || null, notes, meta: true }), 0, ctx.now);
   }
   return { status: 'meta', ...base, items: sent.items.length };
+}
+
+/**
+ * Inline mode (lib/inline.js): the same checks as a private download except the quota (nothing is
+ * sent until the user picks a result), then the cached files or what Telegram can fetch by URL.
+ * → { error } | { adapter, ref, cached, meta } | { adapter, ref, post, choices }
+ */
+export async function resolveForInline(ctx, user, link) {
+  const id = registry.identify(link);
+  if (id.kind !== 'post') return { error: id.kind };
+  const { adapter } = id;
+  let { ref } = id;
+  const s = await system.loadSettings(settingKeys(adapter.id));
+  const limits = limitsFrom(s.limits && s.limits.value);
+  const state = platformState(s['platform:' + adapter.id] && s['platform:' + adapter.id].value);
+  const hit = await downloadsDb.blockedBy({ urlKey: ref.key, account: ref.account, domains: domainCandidates(parseUrl(link).host) });
+  const pre = precheck({
+    downloadsOn: s['switch.downloads'] ? s['switch.downloads'].value !== false : true,
+    exempt: true, user: user.row, today: tehranDay(ctx.now), now: ctx.now, limits, adapter, state, blocked: !!hit,
+  });
+  if (!pre.ok) return { error: pre.reason, platform: adapter.id };
+  try {
+    ref = await adapter.expand(ctx, ref);
+  } catch {
+    return { error: 'unavailable', platform: adapter.id };
+  }
+  if (ref.key && (await downloadsDb.blockedBy({ urlKey: ref.key, account: ref.account }))) return { error: 'blocked' };
+  const prefs = await users.getPrefs(user.id);
+  const quality = prefs.quality === 'ask' ? 'auto' : prefs.quality;
+  const cached = await downloadsDb.cacheGet(ref.key, quality);
+  if (cached) return { adapter, ref, cached, meta: parseMeta(cached.title) };
+  let post = null;
+  for (const method of pre.methods.filter((m) => m !== 'external')) {
+    try {
+      post = await adapter.resolve(ctx, ref, method);
+      break;
+    } catch (err) {
+      if (!(err instanceof ResolveError) || err.code !== 'unavailable') return { error: err instanceof ResolveError ? err.code : 'unavailable', platform: adapter.id };
+    }
+  }
+  if (!post) return { error: 'unavailable', platform: adapter.id };
+  if (post.sensitive) return { error: 'sensitive' };
+  if (post.account && (await downloadsDb.blockedBy({ account: post.account }))) return { error: 'blocked' };
+  if (post.meta) return { adapter, ref, post };
+  await probeAll(ctx, post, adapter.mediaHosts, adapter.headSafe === true);
+  const choices = post.items.map((item) => ({ item, ...choose(item, quality, limits.max_mb * MB) })).filter((c) => !c.error && c.via === 'url');
+  return { adapter, ref, post, choices };
 }
 
 function parseMeta(text) {

@@ -57,7 +57,7 @@ describe('disclaimer', () => {
 describe('main menu and navigation', () => {
   it('home offers exactly the built features; every other screen has Back and Home to the right parent', async () => {
     await h.onboard(ALICE, 'en');
-    expect(datas(screen())).toEqual(['d', 'H:0', 's', 'i', 'o']);
+    expect(datas(screen())).toEqual(['d', 'H:0', 's', 'r', 'i', 'o']);
     const expectNav = (back) => {
       const d = datas(screen());
       expect(d.slice(-2), JSON.stringify(d)).toEqual([back, 'h']);

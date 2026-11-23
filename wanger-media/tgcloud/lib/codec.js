@@ -1,6 +1,6 @@
 // callback_data codes: "<code>[:<arg>…]", at most 64 bytes (Bot API limit). Unknown or malformed data
 // decodes to null, which the router treats as an expired menu. Pure module: must not import 'sdk'.
-import { BUILT_PLATFORMS, HISTORY_MAX, HISTORY_PAGE, LANGS, METHODS, QUALITIES } from './config.js';
+import { BUILT_PLATFORMS, DELIVERY_MODES, GIF_PREFS, HISTORY_MAX, HISTORY_PAGE, LANGS, METHODS, QUALITIES } from './config.js';
 
 export const MAX_CALLBACK_BYTES = 64;
 
@@ -22,6 +22,9 @@ const CODES = {
   i: none, // help
   o: none, // about
   d: none, // how to download
+  r: none, // invite friends
+  v: none, // VIP
+  B: none, // buy VIP (sends a Stars invoice)
   // admin panel (Phase 4): A[:<section>[:args]] — see ADMIN_SECTIONS
   A: (a) => adminArgs(a),
   // group settings (Phase 5): G (refresh) · G:a|o|s toggles · G:x close · G:<field>:<value>
@@ -31,6 +34,9 @@ const CODES = {
   C: (a) => a.length === 2 && BUILT_PLATFORMS.includes(a[0]) && METHODS.includes(a[1]), // confirm enabling after the risk note
   E: (a) => a.length === 2 && BUILT_PLATFORMS.includes(a[0]) && (a[1] === '0' || a[1] === '1'), // pause (1) / resume (0)
   T: (a) => a.length === 1 && BUILT_PLATFORMS.includes(a[0]), // health check
+  g: (a) => a.length === 1 && GIF_PREFS.includes(a[0]), // set the GIF preference
+  f: (a) => a.length === 1 && DELIVERY_MODES.includes(a[0]), // send as media / as files
+  V: (a) => a.length === 2 && /^\d$/.test(a[0]) && /^\d{1,12}$/.test(a[1]), // the quality question: variant index, the link's message id
   F: (a) => a.length === 2 && (a[0] === 'g' || a[0] === 'v') && /^\d{1,12}$/.test(a[1]), // a GIF post: send as GIF (g) / video (v); arg = the link's message id
 };
 const ID = /^\d{1,15}$/;
@@ -46,11 +52,12 @@ export const ADMIN_SECTIONS = {
   ub: [[ID, /^(0|1|7|30)$/]], uu: [[ID]], uq: [[ID]], un: [[ID]], uh: [[ID, /^\d{1,2}$/]],
   c: [[], [SMALL_ID]], ca: [[]], ct: [[SMALL_ID]], cr: [[SMALL_ID]], cd: [[SMALL_ID]], cD: [[SMALL_ID]], // channels
   p: [[]], pb: [[]], pba: [[/^(url|account|domain)$/]], pbd: [[SMALL_ID]], pc: [[]], pe: [[PLATFORM]], // platforms
-  s: [[]], sm: [[]], sd: [[]], sf: [[]], sg: [[]], sp: [[]], sl: [[/^[qcm]$/]], // switches and limits
+  s: [[]], sm: [[]], sd: [[]], sf: [[]], sg: [[]], sr: [[]], sp: [[]], sl: [[/^[qcm]$/]], // switches and limits
   t: [[]], te: [[TEXT_KEY, LANG]], tr: [[TEXT_KEY, LANG]], // texts
   b: [[]], bn: [[]], bs: [[SMALL_ID]], bg: [[SMALL_ID]], bx: [[SMALL_ID]], // broadcast
   a: [[/^\d$/]], // audit log page
   x: [[], [ID]], xa: [[]], xr: [[ID, ROLE]], xf: [[ID, /^[0-7]$/]], // staff
+  v: [[]], vt: [[]], vf: [[]], vi: [[/^[pdqc]$/]], vr: [[SMALL_ID]], vR: [[SMALL_ID]], // VIP and invitations (owner)
   z: [[]], zu: [[]], zk: [[]], zm: [[]], zr: [[]], zt: [[]], zx: [[]], // the owner's external service
   i: [[]], // cancel the pending input
 };
@@ -72,6 +79,7 @@ export const CB = {
   HOME: 'h', LANG_MENU: 'l', LANG_SET: 'L', JOIN_CHECK: 'j', ACCEPT: 'a', HISTORY: 'H',
   SETTINGS: 's', QUALITY_MENU: 'q', QUALITY_SET: 'Q', HELP: 'i', ABOUT: 'o', DOWNLOAD: 'd',
   ADMIN: 'A', PLATFORM: 'P', METHOD: 'M', CONFIRM: 'C', PAUSE: 'E', HEALTH: 'T', GROUP: 'G', FORMAT: 'F',
+  GIF_PREF: 'g', DELIVERY: 'f', PICK: 'V', INVITE: 'r', VIP: 'v', BUY: 'B',
 };
 
 /** UTF-8 byte length without TextEncoder. */

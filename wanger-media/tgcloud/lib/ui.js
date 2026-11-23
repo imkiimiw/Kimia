@@ -2,7 +2,7 @@
 // here leads to something built (brief §2: no buttons for unbuilt features), and every screen except
 // home has Back and Home (brief §8). Pure module: must not import 'sdk'.
 import { CB, encode } from './codec.js';
-import { BOT_USERNAME, CAPTION_MAX, CHANNEL_USERNAME, HISTORY_MAX, LANGS, PLATFORM_NAMES, QUALITIES, VERSION } from './config.js';
+import { BOT_USERNAME, CAPTION_MAX, CHANNEL_USERNAME, GIF_PREFS, HISTORY_MAX, LANGS, PLATFORM_NAMES, QUALITIES, VERSION } from './config.js';
 import { LANG_NAMES, t, tp } from './i18n/index.js';
 import { clip, esc } from './util.js';
 
@@ -56,12 +56,13 @@ export function disclaimer(lang) {
 export const customText = (text, name) => esc(text).replace(/\{name\}/g, esc(name || ''));
 
 /** Main menu. `custom` = the staff-edited welcome text for this language (Phase 4), if any. */
-export function home(lang, name, { staff = false, custom = null } = {}) {
+export function home(lang, name, { staff = false, custom = null, invite = false, vip = false } = {}) {
   return {
     text: custom ? customText(custom, name) : t(lang, 'welcome.text', { name }),
     reply_markup: markup([
       [button(tp(lang, 'btn.download'), encode(CB.DOWNLOAD))],
       [button(tp(lang, 'btn.downloads'), encode(CB.HISTORY, 0)), button(tp(lang, 'btn.settings'), encode(CB.SETTINGS))],
+      [invite ? button(tp(lang, 'btn.invite'), encode(CB.INVITE)) : null, vip ? button(tp(lang, 'btn.vip'), encode(CB.VIP)) : null].filter(Boolean),
       [button(tp(lang, 'btn.help'), encode(CB.HELP)), button(tp(lang, 'btn.about'), encode(CB.ABOUT))],
       staff ? [button(tp(lang, 'btn.admin'), encode(CB.ADMIN))] : [],
     ]),
@@ -120,11 +121,18 @@ export function history(lang, { items, page, pages, total }) {
   return { text: lines.join('\n').trim(), reply_markup: markup([pager, navRow(lang)]) };
 }
 
-export function settings(lang, quality) {
+/** prefs = { quality, gif, delivery } (a bare quality string is accepted too). */
+export function settings(lang, prefs) {
+  const p = typeof prefs === 'string' ? { quality: prefs, gif: 'ask', delivery: 'media' } : prefs;
+  const nextGif = GIF_PREFS[(GIF_PREFS.indexOf(p.gif) + 1) % GIF_PREFS.length];
+  const nextMode = p.delivery === 'file' ? 'media' : 'file';
   return {
-    text: t(lang, 'settings.text', { lang: LANG_NAMES[lang], quality: tp(lang, 'quality.' + quality) }),
+    text: t(lang, 'settings.text', {
+      lang: LANG_NAMES[lang], quality: tp(lang, 'quality.' + p.quality), gif: tp(lang, 'gif.' + p.gif), delivery: tp(lang, 'delivery.' + p.delivery),
+    }),
     reply_markup: markup([
       [button(tp(lang, 'btn.language'), encode(CB.LANG_MENU, 's')), button(tp(lang, 'btn.quality'), encode(CB.QUALITY_MENU))],
+      [button(tp(lang, 'btn.gif_pref', { v: tp(lang, 'gif.' + p.gif) }), encode(CB.GIF_PREF, nextGif)), button(tp(lang, 'btn.delivery', { v: tp(lang, 'delivery.' + p.delivery) }), encode(CB.DELIVERY, nextMode))],
       navRow(lang),
     ]),
   };

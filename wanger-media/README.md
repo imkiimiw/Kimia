@@ -5,7 +5,7 @@ the media back, in private chats or in groups. Forced channel membership, a user
 admin panel are built in. It runs entirely on [Telegram Serverless](https://core.telegram.org/bots/serverless)
 — no server, VPS or paid service.
 
-**Status:** Phases 0–8 done and deployed (version 1.2.0). What each platform can do, honestly: [docs/PLATFORMS.md](docs/PLATFORMS.md).
+**Status:** Phases 0–8 done and deployed (version 1.3.0). What each platform can do, honestly: [docs/PLATFORMS.md](docs/PLATFORMS.md).
 Progress: [docs/PROGRESS.md](docs/PROGRESS.md) · decisions: [docs/DECISIONS.md](docs/DECISIONS.md) ·
 the original brief: [docs/BRIEF.md](docs/BRIEF.md).
 
@@ -13,8 +13,10 @@ the original brief: [docs/BRIEF.md](docs/BRIEF.md).
 
 | Where | What |
 |---|---|
-| Private chat | `/start` → language → forced join → disclaimer → menu: ⬇️ Download, 📥 My downloads, ⚙️ Settings (language, preferred quality), ❓ Help, ℹ️ About. Send a link and the media comes back with the source link. |
+| Private chat | `/start` → language → forced join → disclaimer → menu: ⬇️ Download, 📥 My downloads, ⚙️ Settings (language, quality or "ask every time", GIF or video, send as files), ❓ Help, ℹ️ About. Send up to 3 links and the media comes back with the source link. |
 | Groups | Links of switched-on platforms are answered with the media (up to 3 per message); everything else is ignored silently. `/settings` (group admins), `/status` (settings, usage, what the bot can see), `/platforms`, `/help`. |
+| Inline | `@Wanger_mediabot <link>` in any chat (switch inline mode on in @BotFather → `/setinline`). |
+| Growth | 🎁 Invite friends (+5 downloads a day per friend, up to +50) · ⭐ VIP with Telegram Stars (owner sets the price; off until then). |
 | Admin panel | `/admin` for staff: overview, users (ban, quota, note), forced-join channels, platforms (methods, health check, blocklist, cache purge), switches and limits, texts, broadcast, audit log, staff. |
 
 Platforms that send files: **X/Twitter** (photos, videos, GIFs), **Instagram** (public photos, videos,

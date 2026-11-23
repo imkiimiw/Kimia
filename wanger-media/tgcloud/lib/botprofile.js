@@ -5,7 +5,7 @@ import { LANGS, OWNER_ID } from './config.js';
 import { tp } from './i18n/index.js';
 import * as tg from './tg.js';
 
-export const PRIVATE_COMMANDS = ['start', 'download', 'downloads', 'settings', 'language', 'help', 'about'];
+export const PRIVATE_COMMANDS = ['start', 'download', 'downloads', 'settings', 'language', 'invite', 'vip', 'help', 'about', 'paysupport'];
 export const GROUP_COMMANDS = ['settings', 'status', 'platforms', 'help'];
 
 const commands = (lang, names, prefix) => names.map((c) => ({ command: c, description: tp(lang, `${prefix}.${c}`) }));

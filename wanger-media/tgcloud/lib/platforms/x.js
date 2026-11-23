@@ -97,7 +97,7 @@ export function fromSyndication(j, ref) {
     } else if (m.type === 'video' || m.type === 'animated_gif') {
       const variants = mp4Variants(m.video_info && m.video_info.variants);
       const duration = m.video_info && m.video_info.duration_millis ? Math.round(m.video_info.duration_millis / 1000) : undefined;
-      if (variants.length) items.push({ type: m.type === 'video' ? 'video' : 'gif', width: w, height: h, duration, variants });
+      if (variants.length) items.push({ type: m.type === 'video' ? 'video' : 'gif', width: w, height: h, duration, variants, thumb: m.media_url_https || undefined });
     }
   }
   if (!items.length) throw new ResolveError('no_media');
@@ -122,7 +122,7 @@ export function fromFxTwitter(j, ref) {
       if (variants.length) items.push({ type: 'photo', width: m.width, height: m.height, variants });
     } else if (m.type === 'video' || m.type === 'gif') {
       const variants = mp4Variants([...(m.variants || []), ...(m.url ? [{ url: m.url, content_type: 'video/mp4' }] : [])]);
-      if (variants.length) items.push({ type: m.type, width: m.width, height: m.height, duration: m.duration ? Math.round(m.duration) : undefined, variants });
+      if (variants.length) items.push({ type: m.type, width: m.width, height: m.height, duration: m.duration ? Math.round(m.duration) : undefined, variants, thumb: m.thumbnail_url || undefined });
     }
   }
   if (!items.length) throw new ResolveError('no_media');

@@ -57,7 +57,7 @@ describe('/start and language', () => {
     expect((await h.press(ALICE, 'a', { messageId: 901 })).view).toBe('home');
     expect(h.lastScreen(ALICE.id).text).toContain('Welcome to <b>Wanger Media</b>');
     expect(h.lastScreen(ALICE.id).text).toContain('Send me a link to a post');
-    expect(datas(h.lastScreen(ALICE.id))).toEqual(['d', 'H:0', 's', 'i', 'o']);
+    expect(datas(h.lastScreen(ALICE.id))).toEqual(['d', 'H:0', 's', 'r', 'i', 'o']);
 
     h.resetCalls();
     const again = await h.send(ALICE, '/start');

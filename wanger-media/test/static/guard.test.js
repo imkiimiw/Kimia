@@ -18,7 +18,7 @@ describe('module rules', () => {
   it('handlers and endpoints are flat; handler names are Telegram update types in use', () => {
     const handlers = files.filter((f) => f.startsWith('handlers/'));
     for (const f of handlers) expect(f.split('/').length, f).toBe(2);
-    expect(handlers).toEqual(['handlers/callback_query.js', 'handlers/message.js', 'handlers/my_chat_member.js']);
+    expect(handlers).toEqual(['handlers/callback_query.js', 'handlers/inline_query.js', 'handlers/message.js', 'handlers/my_chat_member.js', 'handlers/pre_checkout_query.js']);
   });
 
   it('imports: the SDK by name, project modules by relative path with .js, never outside tgcloud/', () => {

@@ -48,6 +48,9 @@ export function createTelegram({ channels = CHANNELS } = {}) {
       case 'editMessageText':
         return { message_id: params.message_id, chat: { id: params.chat_id, type: 'private' }, text: params.text };
       case 'answerCallbackQuery':
+      case 'answerInlineQuery':
+      case 'answerPreCheckoutQuery':
+      case 'refundStarPayment':
       case 'deleteMessage':
       case 'setMyCommands':
       case 'setMyDescription':
@@ -63,9 +66,11 @@ export function createTelegram({ channels = CHANNELS } = {}) {
       }
       case 'sendPhoto':
       case 'sendVideo':
+      case 'sendDocument':
+      case 'sendAudio':
       case 'sendAnimation': {
         if (state.unreachable.has(Number(params.chat_id))) throw state.unreachable.get(Number(params.chat_id));
-        const field = { sendPhoto: 'photo', sendVideo: 'video', sendAnimation: 'animation' }[method];
+        const field = { sendPhoto: 'photo', sendVideo: 'video', sendAnimation: 'animation', sendDocument: 'document', sendAudio: 'audio' }[method];
         const src = params[field];
         if (state.refuseUrls && typeof src === 'string' && /^https?:/.test(src)) {
           throw err(400, 'Bad Request: failed to get HTTP URL content');
@@ -84,9 +89,12 @@ export function createTelegram({ channels = CHANNELS } = {}) {
         if (params.media.some((m) => typeof m.media === 'string' && /^stale_/.test(m.media))) throw err(400, 'Bad Request: wrong file identifier/HTTP URL specified');
         return params.media.map((m) => {
           const id = `${m.type}_${++state.nextMessageId}`;
-          return { message_id: state.nextMessageId, chat: { id: params.chat_id }, ...(m.type === 'photo' ? { photo: [{ file_id: id }] } : { video: { file_id: id } }) };
+          return { message_id: state.nextMessageId, chat: { id: params.chat_id }, ...(m.type === 'photo' ? { photo: [{ file_id: id }] } : m.type === 'document' ? { document: { file_id: id } } : { video: { file_id: id } }) };
         });
       }
+      case 'sendInvoice':
+      case 'forwardMessage':
+        return { message_id: ++state.nextMessageId, chat: { id: params.chat_id, type: 'private' } };
       case 'getChat': {
         const ch = channelOf(params.chat_id);
         if (!ch) throw err(400, 'Bad Request: chat not found');

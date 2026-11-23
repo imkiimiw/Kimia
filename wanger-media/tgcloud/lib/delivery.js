@@ -22,10 +22,19 @@ export class DeliveryError extends Error {
   }
 }
 
-const EXT = { photo: 'jpg', video: 'mp4', gif: 'mp4', audio: 'mp3' };
-const MIME = { photo: 'image/jpeg', video: 'video/mp4', gif: 'video/mp4', audio: 'audio/mpeg' };
-/** Albums take photos and videos; GIFs and audio go on their own. */
+const EXT = { photo: 'jpg', video: 'mp4', gif: 'mp4', audio: 'mp3', document: 'bin' };
+const MIME = { photo: 'image/jpeg', video: 'video/mp4', gif: 'video/mp4', audio: 'audio/mpeg', document: 'application/octet-stream' };
+const EXT_OF_MIME = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'video/mp4': 'mp4', 'audio/mpeg': 'mp3' };
+/** A file name extension from the served type, else the URL, else the item type. */
+function extOf(item, variant) {
+  const byMime = EXT_OF_MIME[String(variant.mime || '').toLowerCase()];
+  if (byMime) return byMime;
+  const m = /\.(jpe?g|png|webp|gif|mp4|mp3)(?:[?#]|$)/i.exec(String(variant.url || ''));
+  return m ? m[1].toLowerCase().replace('jpeg', 'jpg') : EXT[item.type === 'document' ? item.was || 'document' : item.type] || 'bin';
+}
+/** Albums take photos and videos together, or documents together; GIFs and audio go on their own. */
 const inAlbum = (type) => type === 'photo' || type === 'video';
+const albumKind = (type) => (inAlbum(type) ? 'media' : type === 'document' ? 'document' : null);
 const uploadMax = (type, maxBytes) => Math.min(type === 'photo' ? TG_UPLOAD_PHOTO_MAX : TG_UPLOAD_MAX, maxBytes);
 
 /** The file_id of what a sent message carries. */
@@ -34,6 +43,7 @@ export function fileIdOf(message, type) {
   if (type === 'photo' && Array.isArray(message.photo) && message.photo.length) return message.photo[message.photo.length - 1].file_id;
   if (type === 'gif') return (message.animation && message.animation.file_id) || (message.document && message.document.file_id) || (message.video && message.video.file_id) || null;
   if (type === 'audio') return (message.audio && message.audio.file_id) || (message.document && message.document.file_id) || null;
+  if (type === 'document') return (message.document && message.document.file_id) || null;
   return (message.video && message.video.file_id) || (message.document && message.document.file_id) || null;
 }
 
@@ -44,13 +54,14 @@ function single(ctx, chatId, replyTo, item, media, caption) {
   const dims = { ...(item.width ? { width: item.width } : {}), ...(item.height ? { height: item.height } : {}), ...(item.duration ? { duration: item.duration } : {}) };
   if (item.type === 'photo') return tg.call(ctx, 'dl_photo', 'sendPhoto', { ...base, photo: media });
   if (item.type === 'gif') return tg.call(ctx, 'dl_gif', 'sendAnimation', { ...base, animation: media, ...dims });
+  if (item.type === 'document') return tg.call(ctx, 'dl_document', 'sendDocument', { ...base, document: media });
   if (item.type === 'audio') return tg.call(ctx, 'dl_audio', 'sendAudio', { ...base, audio: media, ...(item.duration ? { duration: item.duration } : {}) });
   return tg.call(ctx, 'dl_video', 'sendVideo', { ...base, video: media, ...dims, supports_streaming: true });
 }
 
 function group(ctx, chatId, replyTo, entries, caption) {
   const media = entries.map(({ item, media: m }, i) => ({
-    type: item.type === 'photo' ? 'photo' : 'video',
+    type: item.type === 'photo' || item.type === 'document' ? item.type : 'video',
     media: m,
     ...(i === 0 && caption ? { caption, parse_mode: 'HTML' } : {}),
     ...(item.type === 'video' ? { supports_streaming: true } : {}),
@@ -66,7 +77,7 @@ async function asUpload(ctx, choice, allow, maxBytes, name) {
   const max = uploadMax(item.type, maxBytes);
   if (!variant.bytes || variant.bytes > max) throw new DeliveryError('too_big', `${variant.bytes} > ${max}`);
   const bytes = await download(ctx, variant.url, allow, { bytes: variant.bytes, ranges: variant.ranges, max });
-  return new InputFile(bytes, `${name}.${EXT[item.type]}`, { type: variant.mime || MIME[item.type] });
+  return new InputFile(bytes, `${name}.${extOf(item, variant)}`, { type: variant.mime || MIME[item.type] });
 }
 
 const refusedUrl = (err) => !!err && err.code === 400 && URL_REFUSED.test(String(err.description || err.message || ''));
@@ -76,12 +87,12 @@ const refusedUrl = (err) => !!err && err.code === 400 && URL_REFUSED.test(String
  * → { items: [{ type, file_id }], bytes, messages }
  */
 export async function deliver(ctx, { chatId, replyTo, choices, caption, allow, maxBytes, name }) {
-  const groupable = choices.filter((c) => inAlbum(c.item.type));
-  const gifs = choices.filter((c) => !inAlbum(c.item.type));
   const sent = [];
   let captionUsed = false;
-
-  if (groupable.length >= 2) {
+  const singles = [];
+  for (const kind of ['media', 'document']) {
+    const groupable = choices.filter((c) => albumKind(c.item.type) === kind);
+    if (groupable.length < 2) { singles.push(...groupable); continue; }
     for (let start = 0; start < groupable.length; start += 10) {
       const part = groupable.slice(start, start + 10);
       const cap = captionUsed ? null : caption;
@@ -102,7 +113,7 @@ export async function deliver(ctx, { chatId, replyTo, choices, caption, allow, m
     }
   }
 
-  const singles = groupable.length === 1 ? [...groupable, ...gifs] : gifs;
+  singles.push(...choices.filter((c) => !albumKind(c.item.type)));
   for (const c of singles) {
     const cap = captionUsed ? null : caption;
     let msg;
@@ -151,16 +162,18 @@ export async function sendCard(ctx, { chatId, replyTo, cover, caption }) {
 export async function sendCached(ctx, { chatId, replyTo, items, caption }) {
   const entries = items.map((it) => ({ item: { type: it.type }, media: it.file_id }));
   try {
-    const groupable = entries.filter((e) => inAlbum(e.item.type));
-    const gifs = entries.filter((e) => !inAlbum(e.item.type));
     let captionUsed = false;
-    if (groupable.length >= 2) {
+    const singles = [];
+    for (const kind of ['media', 'document']) {
+      const groupable = entries.filter((e) => albumKind(e.item.type) === kind);
+      if (groupable.length < 2) { singles.push(...groupable); continue; }
       for (let start = 0; start < groupable.length; start += 10) {
         await group(ctx, chatId, replyTo, groupable.slice(start, start + 10), captionUsed ? null : caption);
         captionUsed = true;
       }
     }
-    for (const e of groupable.length === 1 ? [...groupable, ...gifs] : gifs) {
+    singles.push(...entries.filter((e) => !albumKind(e.item.type)));
+    for (const e of singles) {
       await single(ctx, chatId, replyTo, e.item, e.media, captionUsed ? null : caption);
       captionUsed = true;
     }

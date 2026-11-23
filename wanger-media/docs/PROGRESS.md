@@ -1,8 +1,18 @@
 # Progress
 
-**Current state: all phases (0–8) done; latest deploy: cloud revision 9, version 1.2.1
-(2026-11-19, the GIF-or-video question). Open with the owner: switching methods on in /admin → 🧩 Platforms (all are off), the
+**Current state: all phases (0–8) done; latest deploy: cloud revision 10, version 1.3.0
+(2026-11-23, the improvements). Open with the owner: switching methods on in /admin → 🧩 Platforms (all are off), the
 Telegram test of Phase 3, and — only if wanted — a server for the large-file relay (Phase 8).**
+
+## Improvements (2026-11-23) ✅ deployed (revision 10, v1.3.0)
+
+- ⚙️ Settings: send as files (original quality), GIF preference, quality "ask every time".
+- Up to 3 links per private message; automatic health checks with owner alerts; daily report.
+- 🎁 Invitations (+5 downloads a day per invited user, up to +50); ⭐ VIP with Telegram Stars (off
+  until the owner opens sales; refunds and /paysupport); inline mode (needs /setinline in BotFather).
+- Schema (additive): user_settings.gif, user_settings.delivery; users.referred_by, ref_credited,
+  ref_count, ref_bonus, vip_until; table payments.
+- Tests: **266 passing** (14 new end-to-end tests).
 
 ## After Phase 8 — GIF or video (2026-11-19) ✅ deployed (revision 9, v1.2.1)
 

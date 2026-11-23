@@ -26,9 +26,13 @@
 // ":s" = opened from Settings, so the picker returns there.
 import * as admin from './admin/index.js';
 import { ACTIVE_KEY, piggyback } from './broadcast.js';
+import * as inline from './inline.js';
+import * as monitor from './monitor.js';
+import * as referral from './referral.js';
+import * as vip from './vip.js';
 import { alertOwner } from './alerts.js';
 import { CB, decode } from './codec.js';
-import { BOT_USERNAME, DISCLAIMER_VERSION_AT, DOUBLE_TAP_MS, ERROR_ALERT_EVERY_S, HOUSEKEEP_EVERY_S } from './config.js';
+import { BOT_USERNAME, DISCLAIMER_VERSION_AT, DOUBLE_TAP_MS, ERROR_ALERT_EVERY_S, HOUSEKEEP_EVERY_S, OWNER_ID } from './config.js';
 import * as groups from './db/groups.js';
 import * as groupChat from './groups.js';
 import * as system from './db/system.js';
@@ -36,7 +40,7 @@ import * as users from './db/users.js';
 import { detectLang, LANG_NAMES, normLang, t, tp } from './i18n/index.js';
 import * as join from './join.js';
 import * as menu from './menu.js';
-import { handleLink, onFormatChoice } from './download.js';
+import { handleLink, onFormatChoice, onPick } from './download.js';
 import { extractLinks } from './url.js';
 import { actorOf, isOwnerId, isStaff } from './roles.js';
 import * as tg from './tg.js';
@@ -45,6 +49,7 @@ import { clip, displayName, errorText, nowSec, tehranDay } from './util.js';
 
 const SETTING_KEYS = [
   'seed.channels', 'switch.maintenance', 'switch.forced_join', 'switch.group_join', 'hk', ACTIVE_KEY,
+  monitor.HEALTH_TICK, monitor.REPORT_DAY, monitor.REPORT_SWITCH, referral.SWITCH, vip.SETTING,
   ...['welcome', 'join'].flatMap((k) => ['fa', 'en', 'ru'].map((l) => `text.${k}.${l}`)),
 ];
 
@@ -93,6 +98,9 @@ async function maybeHousekeep(ctx) {
   }
 }
 
+/** A message's 2nd and 3rd links start only this soon after the update arrived. */
+const MULTI_LINK_BUDGET_MS = 12000;
+
 async function boundary(source, sdkCtx, fn) {
   const ctx = newCtx(sdkCtx);
   let result;
@@ -105,7 +113,13 @@ async function boundary(source, sdkCtx, fn) {
   const housekeeping = ctx.settingsLoaded ? await maybeHousekeep(ctx) : null;
   // A few messages of a running broadcast on the side of this update (there is no scheduler).
   const broadcast = ctx.settingsLoaded && ctx.settings[ACTIVE_KEY] && !ctx.broadcastRan ? await piggyback(ctx, ctx.settings[ACTIVE_KEY]) : null;
-  return { ok: true, ...result, ...(housekeeping ? { housekeeping } : {}), ...(broadcast ? { broadcast } : {}), trace: ctx.trace };
+  // The owner's daily report and the platform health checks, also on the side of this update.
+  const report = ctx.settingsLoaded ? await monitor.reportPiggyback(ctx, ctx.settings).catch((err) => ({ error: errorText(err) })) : null;
+  const health = ctx.settingsLoaded ? await monitor.healthPiggyback(ctx, ctx.settings).catch((err) => ({ error: errorText(err) })) : null;
+  return {
+    ok: true, ...result, ...(housekeeping ? { housekeeping } : {}), ...(broadcast ? { broadcast } : {}),
+    ...(report ? { report } : {}), ...(health ? { health } : {}), trace: ctx.trace,
+  };
 }
 
 /** false if this update_id was handled before. Updates without an id (manual runs) always pass. */
@@ -224,7 +238,11 @@ async function gateway(ctx, user, message) {
 async function open(ctx, user, message, target, arg) {
   const g = await gateway(ctx, user, message);
   if (g.held) return g.held;
-  const { view, screen } = await menu.build(user, target, arg, { welcome: customText(ctx, 'welcome', user.lang) });
+  const plan = vip.configFrom(ctx.settings[vip.SETTING] && ctx.settings[vip.SETTING].value);
+  const { view, screen } = await menu.build(user, target, arg, {
+    welcome: customText(ctx, 'welcome', user.lang), now: ctx.now,
+    invite: referral.enabled(ctx.settings), vip: plan.on || vip.isVip(user.row, ctx.now),
+  });
   await show(ctx, user, message, view, screen);
   return { view, join: g.join };
 }
@@ -242,12 +260,23 @@ export const onMessage = (msg, sdkCtx) => boundary('message', sdkCtx, async (ctx
   ctx.replyChat = msg.chat.id;
   await loadState(ctx);
   const user = await prepareUser(ctx, msg.from);
+  // A Stars payment is recorded whatever else applies (the money has moved).
+  if (msg.successful_payment) return vip.onPaid(ctx, user, msg.successful_payment);
+  if (user.isNew) await referral.remember(ctx, user, msg.text);
   const gate = preGates(ctx, user);
   if (gate) {
     await reply(ctx, user, gate.view, gate.screen);
     return { view: gate.view };
   }
   const cmd = command(msg.text);
+  if (cmd === 'paysupport') {
+    // Payment questions go to the owner as they are (Telegram asks bots that take Stars for this).
+    if (String(msg.text).trim().length > '/paysupport'.length) {
+      try { await tg.call(ctx, 'paysupport', 'forwardMessage', { chat_id: OWNER_ID, from_chat_id: msg.chat.id, message_id: msg.message_id }); } catch { /* owner unreachable */ }
+      await reply(ctx, user, 'paysupport', plain(user.lang || user.preselected, 'vip.support_sent'));
+    } else await reply(ctx, user, 'paysupport', plain(user.lang || user.preselected, 'vip.support'));
+    return { view: 'paysupport' };
+  }
   if (!user.lang || cmd === 'language' || cmd === 'lang') {
     await reply(ctx, user, 'language', languagePicker({ current: user.lang, preselected: user.preselected }));
     return { view: 'language' };
@@ -279,8 +308,18 @@ export const onMessage = (msg, sdkCtx) => boundary('message', sdkCtx, async (ctx
   if (links.length) {
     const g = await gateway(ctx, user, null);
     if (g.held) return g.held;
-    const result = await handleLink(ctx, user, msg, links[0]);
-    return { view: 'download', download: { status: result.status, reason: result.reason || null, platform: result.platform || null, method: result.method || null, cached: !!result.cached } };
+    // Up to MAX_LINKS_PER_MESSAGE links: one cooldown for the message, questions only for the first,
+    // and no new link started late in the invocation (≈ 30 s wall limit).
+    const summary = (r) => ({ status: r.status, reason: r.reason || null, platform: r.platform || null, method: r.method || null, cached: !!r.cached });
+    const results = [];
+    for (let i = 0; i < links.length; i++) {
+      if (i > 0 && Date.now() - ctx.nowMs > MULTI_LINK_BUDGET_MS) {
+        await reply(ctx, user, 'download_more', plain(user.lang, 'dl.more_later', { done: i, total: links.length }));
+        break;
+      }
+      results.push(summary(await handleLink(ctx, user, msg, links[i], { kind: 'private' }, i > 0 ? { batch: true, noAsk: true } : {})));
+    }
+    return { view: 'download', download: results[0], ...(results.length > 1 ? { downloads: results } : {}) };
   }
   return open(ctx, user, null, menu.COMMAND_TARGETS[cmd] || 'home', 0);
 });
@@ -360,6 +399,7 @@ export const onCallback = (cq, sdkCtx) => boundary('callback_query', sdkCtx, asy
       const at = Math.max(ctx.now, DISCLAIMER_VERSION_AT);
       await users.setDisclaimer(user.id, at);
       user.row.disclaimer_at = at;
+      await referral.credit(ctx, user); // onboarding complete: the inviter (if any) gets the bonus
     }
     await tg.answer(ctx, cq.id, tp(lang, 'disclaimer.ok'));
     return open(ctx, user, msg, 'home');
@@ -391,10 +431,45 @@ export const onCallback = (cq, sdkCtx) => boundary('callback_query', sdkCtx, asy
     return { view: 'download', download: { status: result.status, reason: result.reason || null, platform: result.platform || null, method: result.method || null, cached: !!result.cached } };
   }
 
+  if (d.code === CB.GIF_PREF || d.code === CB.DELIVERY) {
+    await users.setPref(user.id, d.code === CB.GIF_PREF ? 'gif' : 'delivery', d.args[0], ctx.now);
+    await tg.answer(ctx, cq.id, tp(lang, 'pref.saved'));
+    return open(ctx, user, msg, 'settings');
+  }
+  if (d.code === CB.BUY) {
+    const g = await gateway(ctx, user, msg);
+    if (g.held) {
+      await tg.answer(ctx, cq.id);
+      return g.held;
+    }
+    const plan = await vip.load();
+    if (!plan.on) {
+      await tg.answer(ctx, cq.id, tp(lang, 'vip.closed_toast'), true);
+      return { view: 'vip', closed: true };
+    }
+    await tg.answer(ctx, cq.id);
+    await vip.sendInvoice(ctx, user, plan);
+    return { view: 'vip_invoice' };
+  }
+  if (d.code === CB.PICK) {
+    const g = await gateway(ctx, user, msg);
+    if (g.held) {
+      await tg.answer(ctx, cq.id);
+      return g.held;
+    }
+    const result = await onPick(ctx, user, msg, Number(d.args[0]), Number(d.args[1]));
+    if (result.expired) {
+      await tg.answer(ctx, cq.id, tp(lang, 'dl.ask_expired'), true);
+      return { view: 'dl_ask', expired: true };
+    }
+    await tg.answer(ctx, cq.id);
+    return { view: 'download', download: { status: result.status, reason: result.reason || null, platform: result.platform || null, method: result.method || null, cached: !!result.cached } };
+  }
+
   if ('APMCET'.includes(d.code)) return ownerPanel(ctx, user, cq, msg, d);
 
   await tg.answer(ctx, cq.id);
-  const targets = { [CB.HISTORY]: 'downloads', [CB.SETTINGS]: 'settings', [CB.QUALITY_MENU]: 'quality', [CB.HELP]: 'help', [CB.ABOUT]: 'about', [CB.DOWNLOAD]: 'download' };
+  const targets = { [CB.HISTORY]: 'downloads', [CB.SETTINGS]: 'settings', [CB.QUALITY_MENU]: 'quality', [CB.HELP]: 'help', [CB.ABOUT]: 'about', [CB.DOWNLOAD]: 'download', [CB.INVITE]: 'invite', [CB.VIP]: 'vip' };
   return open(ctx, user, msg, targets[d.code] || 'home', d.code === CB.HISTORY ? Number(d.args[0]) : 0);
 });
 
@@ -431,4 +506,22 @@ export const onMyChatMember = (upd, sdkCtx) => boundary('my_chat_member', sdkCtx
   }
   if (chat.type === 'channel') return { view: 'channel_status', ...(await join.onChannelStatus(ctx, chat, status)) };
   return { ignored: chat.type };
+});
+
+/** pre_checkout_query (Telegram Stars): answered at once, checked against the current VIP plan. */
+export const onPreCheckout = (q, sdkCtx) => boundary('pre_checkout_query', sdkCtx, async (ctx) => {
+  if (!q || !q.id || !q.from) return { ignored: 'malformed' };
+  if (!(await dedupe(ctx))) return { dup: true };
+  return vip.onPreCheckout(ctx, q);
+});
+
+/** inline_query: "@bot <link>" in any chat (lib/inline.js); the same gates as private chats. */
+export const onInlineQuery = (iq, sdkCtx) => boundary('inline_query', sdkCtx, async (ctx) => {
+  if (!iq || !iq.id || !iq.from || iq.from.is_bot) return { ignored: 'malformed' };
+  if (!(await dedupe(ctx))) return { dup: true };
+  await loadState(ctx);
+  const user = await prepareUser(ctx, iq.from);
+  const blocked = !!preGates(ctx, user);
+  const ready = !blocked && !!user.lang && !needsDisclaimer(user) && (await join.check(ctx, user)).pass;
+  return inline.answer(ctx, user, iq, { ready, blocked });
 });

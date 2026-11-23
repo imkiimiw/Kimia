@@ -12,6 +12,7 @@ import * as ui from '../ui.js';
 import * as platforms from './platforms.js';
 import * as bcast from './broadcast.js';
 import * as externalAdmin from './external.js';
+import * as vipAdmin from './vip.js';
 import * as channels from './channels.js';
 import * as staff from './staff.js';
 import * as sys from './system.js';
@@ -34,6 +35,7 @@ export function homeScreen(user, notice = null) {
     [can(a, P.BROADCAST), 'adm.btn.broadcast', 'A:b'],
     [can(a, P.VIEW_AUDIT), 'adm.btn.audit', 'A:a:0'],
     [can(a, P.MANAGE_ADMINS), 'adm.btn.staff', 'A:x'],
+    [canManageChannels(a), 'adm.btn.vip', 'A:v'],
   ].filter(([ok]) => ok).map(([, key, data]) => ui.button(tp(lang, key), data));
   const rows = [];
   for (let i = 0; i < items.length; i += 2) rows.push(items.slice(i, i + 2));
@@ -56,6 +58,7 @@ function allowed(actor, section) {
   if (c === 'a') return can(actor, P.VIEW_AUDIT);
   if (c === 'x') return can(actor, P.MANAGE_ADMINS);
   if (c === 'z') return canManageChannels(actor); // the owner's external service
+  if (c === 'v') return canManageChannels(actor); // VIP prices, refunds and invitations: the owner's
   return false;
 }
 
@@ -121,6 +124,7 @@ export async function onButton(ctx, user, d, message) {
     case 'sd': r = await sys.toggle(ctx, user, 'd'); break;
     case 'sf': r = await sys.toggle(ctx, user, 'f'); break;
     case 'sg': r = await sys.toggle(ctx, user, 'g'); break;
+    case 'sr': r = await sys.toggle(ctx, user, 'r'); break;
     case 'sp': r = await sys.applyBotProfile(ctx, user); break;
     case 'sl': r = sys.limitPrompt(user, x); break;
     case 't': r = await sys.textsScreen(user); break;
@@ -141,6 +145,12 @@ export async function onButton(ctx, user, d, message) {
     case 'zr': r = await externalAdmin.toggleRelay(ctx, user); break;
     case 'zt': r = await externalAdmin.test(ctx, user); break;
     case 'zx': r = await externalAdmin.clear(ctx, user); break;
+    case 'v': r = await vipAdmin.screen(user); break;
+    case 'vt': r = await vipAdmin.toggleSales(ctx, user); break;
+    case 'vf': r = await vipAdmin.toggleInvites(ctx, user); break;
+    case 'vi': r = vipAdmin.prompt(user, x); break;
+    case 'vr': r = await vipAdmin.refundAsk(user, id); break;
+    case 'vR': r = await vipAdmin.refundNow(ctx, user, id); break;
     default: return { denied: true };
   }
   return finish(ctx, user, r);
@@ -165,7 +175,7 @@ export async function pendingInput(ctx, user) {
  * `done`).
  */
 export async function onInput(ctx, user, pending, msg) {
-  const section = { us: 'u', uq: 'uq', un: 'un', ca: 'ca', pba: 'pba', pc: 'pc', sl: 'sl', te: 'te', bn: 'bn', xa: 'xa', zu: 'zu', zk: 'zk', zm: 'zm' }[pending.k];
+  const section = { us: 'u', uq: 'uq', un: 'un', ca: 'ca', pba: 'pba', pc: 'pc', sl: 'sl', te: 'te', bn: 'bn', xa: 'xa', zu: 'zu', zk: 'zk', zm: 'zm', vi: 'vi' }[pending.k];
   if (!section || !allowed(user.actor, section)) {
     await clearInput(user);
     return { error: t(user.lang, 'adm.denied') };
@@ -180,6 +190,7 @@ export async function onInput(ctx, user, pending, msg) {
   else if (pending.k === 'te') r = await sys.onTextInput(ctx, user, pending.a, text);
   else if (pending.k === 'bn') r = await bcast.onInput(ctx, user, msg);
   else if (pending.k === 'zu' || pending.k === 'zk' || pending.k === 'zm') r = await externalAdmin.onInput(ctx, user, pending.k, msg);
+  else if (pending.k === 'vi') r = await vipAdmin.onInput(ctx, user, pending.a, text);
   else r = await staff.onInput(ctx, user, text);
   if (!r.error || r.done) await clearInput(user);
   if (r.error) return r;

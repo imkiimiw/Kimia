@@ -380,7 +380,7 @@ describe('owner panel', () => {
 
   it('lists built platforms (all off), shows the risk note before switching a method on, and audit-logs changes', async () => {
     expect((await h.send(OWNER, '/admin')).view).toBe('admin');
-    expect(datas()).toEqual(['A:o', 'A:u', 'A:c', 'A:p', 'A:s', 'A:t', 'A:b', 'A:a:0', 'A:x', 'h']); // the owner sees every section
+    expect(datas()).toEqual(['A:o', 'A:u', 'A:c', 'A:p', 'A:s', 'A:t', 'A:b', 'A:a:0', 'A:x', 'A:v', 'h']); // the owner sees every section
     await h.press(OWNER, 'A:p', { messageId: 69 });
     expect(ownerScreen().text).toContain('Not supported (no public access): LinkedIn');
     expect(datas()).toEqual([...BUILT_PLATFORMS.map((p) => 'P:' + p), 'A:pb', 'A:pc', 'A:z', 'A', 'h']); // A:z: the owner's external service

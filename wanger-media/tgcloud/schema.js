@@ -20,6 +20,11 @@ export const users = table('users', {
   dlCount: integer('dl_count').notNull().default(0),
   lastDlAt: integer('last_dl_at').notNull().default(0), // cooldown between downloads
   quotaOverride: integer('quota_override'), // per-user daily quota set by staff; null = the global limit
+  referredBy: integer('referred_by'), // who invited this user (/start ref_<id>), set once on the first start
+  refCredited: integer('ref_credited').notNull().default(0), // 1 = the inviter got the bonus for this user
+  refCount: integer('ref_count').notNull().default(0), // invited users who completed onboarding
+  refBonus: integer('ref_bonus').notNull().default(0), // extra downloads per day from invitations
+  vipUntil: integer('vip_until').notNull().default(0), // VIP (paid with Telegram Stars) until this time
   note: text('note'), // staff note (never shown to the user)
   createdAt: integer('created_at').notNull(),
   lastSeenAt: integer('last_seen_at').notNull(),
@@ -30,7 +35,9 @@ export const users = table('users', {
 /** Download preferences (Phase 2). */
 export const userSettings = table('user_settings', {
   userId: integer('user_id').primaryKey(),
-  quality: text('quality').notNull().default('auto'),
+  quality: text('quality').notNull().default('auto'), // auto | best | small | ask
+  gif: text('gif').notNull().default('ask'), // GIF posts: ask | gif | video
+  delivery: text('delivery').notNull().default('media'), // media | file (documents, no compression)
   updatedAt: integer('updated_at').notNull().default(0),
 });
 
@@ -228,3 +235,19 @@ export const errorLog = table('error_log', {
   message: text('message'),
   detail: text('detail'),
 });
+
+/** Telegram Stars payments for VIP (kept for refunds and the audit; never deleted by the code). */
+export const payments = table('payments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  chargeId: text('charge_id').notNull(), // telegram_payment_charge_id (needed for refunds)
+  stars: integer('stars').notNull(),
+  days: integer('days').notNull(),
+  vipUntil: integer('vip_until').notNull(), // what the payment extended VIP to
+  refunded: integer('refunded').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  byCharge: uniqueIndex('idx_payments_charge').on(t.chargeId),
+  byUser: index('idx_payments_user').on(t.userId, t.id),
+}));
+

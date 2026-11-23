@@ -4,6 +4,7 @@
 // (URL / account / domain) and purging cached file_ids for a URL. Every change is audit-logged.
 import { BUILT_PLATFORMS } from '../config.js';
 import * as admin from '../db/admin.js';
+import { lastHealth } from '../monitor.js';
 import { isConfigured as externalConfigured } from './external.js';
 import { canManageChannels } from '../roles.js';
 import * as downloadsDb from '../db/downloads.js';
@@ -33,6 +34,10 @@ export async function listScreen(user) {
 
 export async function platformScreen(user, id, healthLine = null) {
   const adapter = registry.byId(id);
+  if (!healthLine) { // the last automatic check (lib/monitor.js), if any
+    const h = await lastHealth(id);
+    if (h && h.at) healthLine = t(user.lang, 'admin.health_last', { icon: h.ok ? '✅' : '❌', date: ui.formatTime(h.at), detail: String(h.detail || '').slice(0, 80) });
+  }
   return { view: 'admin_platform', screen: ui.adminPlatform(user.lang, adapter, await stateOf(id), healthLine) };
 }
 

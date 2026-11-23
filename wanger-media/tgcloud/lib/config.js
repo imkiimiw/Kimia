@@ -8,7 +8,7 @@ export const OWNER_ID = 5557901897;
 export const BOT_ID = 9080356648;
 export const BOT_USERNAME = 'Wanger_mediabot';
 
-export const VERSION = '1.2.1';
+export const VERSION = '1.3.0';
 export const PHASE = 8;
 
 /** The bot's own channel, shown in About. */
@@ -50,7 +50,14 @@ export const TZ_OFFSET_S = 3.5 * 3600;
 export const DISCLAIMER_VERSION_AT = 1793923200;
 
 /** Preferred-quality choices (user_settings.quality); applied by the download core (Phase 3). */
-export const QUALITIES = ['auto', 'best', 'small'];
+export const QUALITIES = ['auto', 'best', 'small', 'ask'];
+/** GIF posts: ask each time, always as a GIF, always as a video. Delivery: as media, or as files. */
+export const GIF_PREFS = ['ask', 'gif', 'video'];
+export const DELIVERY_MODES = ['media', 'file'];
+
+/** Invitations: extra downloads per day for each invited user who completes onboarding, up to a cap. */
+export const REF_BONUS = 5;
+export const REF_CAP = 50;
 
 /** "My downloads": the latest HISTORY_MAX entries, HISTORY_PAGE per page. */
 export const HISTORY_MAX = 100;

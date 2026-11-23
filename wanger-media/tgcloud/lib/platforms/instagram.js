@@ -63,7 +63,7 @@ function photoVariants(node) {
 function itemOf(node) {
   const dims = node.dimensions || {};
   if (node.is_video && typeof node.video_url === 'string' && /^https:\/\//.test(node.video_url)) {
-    return { item: { type: 'video', width: dims.width, height: dims.height, duration: node.video_duration ? Math.round(node.video_duration) : undefined, variants: [{ url: node.video_url, width: dims.width, height: dims.height }] }, cover: false };
+    return { item: { type: 'video', width: dims.width, height: dims.height, duration: node.video_duration ? Math.round(node.video_duration) : undefined, variants: [{ url: node.video_url, width: dims.width, height: dims.height }], thumb: typeof node.display_url === 'string' ? node.display_url : undefined }, cover: false };
   }
   return { item: { type: 'photo', variants: photoVariants(node) }, cover: !!node.is_video };
 }

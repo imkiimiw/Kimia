@@ -211,3 +211,33 @@ One line each: the choice — the reason. Newest phase last.
   only the latest question counts). The quota is given back while waiting; the answer skips the
   cooldown (the link already passed it). Each choice is cached on its own (variant `<quality>:gif` /
   `<quality>:video`). Version 1.2.1.
+
+## Improvements (2026-11-23, owner: "add all of them")
+
+- **Send as files:** a user setting; documents are always uploaded (sendDocument by URL only takes
+  GIF/PDF/ZIP), so only items with a known size ≤ 50 MB go as files — others fall back to media.
+  Cached apart (variant `<quality>:file`).
+- **GIF preference** (ask / always GIF / always video) and **quality "ask every time"**: the same
+  question mechanism as the GIF question ('ask:<user>', 10 minutes, latest only). The quality
+  question offers up to 4 deliverable variants of a single video, with height and size.
+- **Several links per message (private):** up to 3, one cooldown for the message, questions only
+  for the first link, no new link started after 12 s of the invocation (the rest: "send again").
+- **Health checks** piggyback on updates: one switched-on platform every 20 minutes (least recently
+  checked), only before 8 s of the invocation; two failures in a row alert the owner, recovery too.
+  The last result is shown on the platform screen.
+- **Daily report:** the first update of a Tehran day; the very first run only starts the calendar
+  (no report on deploy). Owner switch in Switches.
+- **Invitations:** `/start ref_<id>` recorded once for new users only, never oneself, only a known
+  inviter; credited when the invited user accepts the disclaimer (after forced join): +5 a day per
+  invited user up to +50, decided by a conditional update. On by default; owner switch. The bonus
+  adds to the global quota (not to a staff-set personal quota).
+- **VIP with Telegram Stars (XTR):** no provider or bank account needed. Off until the owner opens
+  sales and sets the price (default plan 100 ⭐ / 30 days / 300 a day / 3 s). pre_checkout_query
+  accepts only the current plan; successful_payment is recorded once per charge id (unique index)
+  and extends VIP; refunds via refundStarPayment from the panel take the days off. `/paysupport`
+  forwards the user's message to the owner (Telegram's requirement for Stars).
+- **Inline mode:** same gates as private chats; no quota (nothing is sent until a result is picked;
+  a 1.5 s per-user throttle instead); cached file_ids first, else what Telegram can fetch by URL
+  (photos, and videos/GIFs that have a poster: X, Instagram, Snapchat), cards as articles. The owner
+  must switch inline mode on in @BotFather (/setinline).
+- Version 1.3.0.
