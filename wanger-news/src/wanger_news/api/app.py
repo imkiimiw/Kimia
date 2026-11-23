@@ -436,9 +436,13 @@ def create_app(deps: ApiDeps) -> FastAPI:
             deps.target.role.value if deps.target else "test"
         )
         chat = main if role == "main" and main is not None else test
+        if chat is None and deps.target is not None:
+            chat = deps.target.chat
         if chat is None:
             raise HTTPException(status_code=503, detail="no target channel configured")
-        ctx.target = Target(ChannelRole.MAIN if chat == main else ChannelRole.TEST, chat)
+        ctx.target = Target(
+            ChannelRole.MAIN if main is not None and chat == main else ChannelRole.TEST, chat
+        )
         report = await weekly.report(r, ctx.target.key, deps.clock.now())
         composed = await weekly.compose(r, ctx)
         return {"report": asdict(report), "text": composed[0] if composed else None}

@@ -1,5 +1,5 @@
 // Wanger News dashboard (Phase 6). Plain JS, no build step. Every value from the API is put on
-// the page with textContent (never innerHTML): article text is untrusted input.
+// the page as text nodes (never parsed as HTML): article text is untrusted input.
 "use strict";
 
 const KEY = "wanger-news-token";

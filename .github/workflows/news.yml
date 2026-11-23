@@ -107,6 +107,9 @@ jobs:
       WANGER_NEWS_BOT_TOKEN: ${{ secrets.WANGER_NEWS_BOT_TOKEN }}
       WANGER_NEWS_DATABASE_URL: ${{ secrets.WANGER_NEWS_DATABASE_URL }}
       WANGER_NEWS_GEMINI_API_KEY: ${{ secrets.WANGER_NEWS_GEMINI_API_KEY }}
+      # Phase 6, optional: the mother bot (both empty = not connected)
+      WANGER_NEWS_MOTHER_URL: ${{ secrets.WANGER_NEWS_MOTHER_URL }}
+      WANGER_NEWS_MOTHER_SECRET: ${{ secrets.WANGER_NEWS_MOTHER_SECRET }}
       # The owner's channels (public names, not secrets). A repository variable of the same
       # name overrides them, and the bot's /panel overrides both (stored in the database).
       WANGER_NEWS_TEST_CHANNEL: ${{ vars.WANGER_NEWS_TEST_CHANNEL || '@testtt2334q' }}

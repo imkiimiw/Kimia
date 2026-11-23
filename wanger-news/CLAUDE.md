@@ -94,6 +94,13 @@ python -m wanger_news migrate | db-check | doctor | validate-config   # doctor c
   (`domain/corrections.check`). Reliability changes are suggestions only (`reliability_history`);
   an applied score is a panel setting. The API (`api/app.py`) must call the same services as
   the bot's buttons and refuse to start without `WANGER_NEWS_API_TOKEN`.
+- Phase 6: the weekly report, search and the mobile API read SENT posts only
+  (`PublishedRepo`); the weekly report adds no AI text. Editions only narrow what reached the main
+  channel (`PublishService.send_edition`, role `edition`; an edition is never a source, test or
+  main channel). English text = the verified Persian summary rendered by `localize` and passed
+  by `domain/editions.check_english`, else not posted. The mother bot gets signed reports
+  (`adapters/mother.py`), never secrets or article text, and can never fail a run. `/api/v1` has
+  its own read-only token; the dashboard inserts every value as text (never as HTML).
 - New migration per schema change (`alembic revision --autogenerate`, then freeze types: no app
   imports in migrations); upgrade AND downgrade must pass on SQLite and PostgreSQL.
 - Python 3.11+, full type hints, mypy strict, ruff. Tests never touch the network.

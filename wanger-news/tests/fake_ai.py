@@ -206,10 +206,10 @@ class FakeAI:
         )
         numbers = re.findall(r"\d+", str(verified.get("summary", "")).translate(_ASCII))
         fields: dict[str, Any] = {
-            "title": "Test English title",
-            "summary": "English summary of the verified report"
+            "title": "A test title in plain words",
+            "summary": "A faithful summary of the verified report"
             + (f" with {' and '.join(numbers)}." if numbers else "."),
-            "key_points": ["Key point in English"],
+            "key_points": ["A key point of the report"],
         }
         fields.update(self._match(self.localized, text) or {})
         return AIResult(

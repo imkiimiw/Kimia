@@ -87,6 +87,10 @@ update ─► story published? ─► AI update: other event → detached (own s
 source-channel post ─► published before? ─► duplicate (owner told) | new ─► queued ─► copied
                        (and joins its story as `human`)
 post made by hand in a target channel ─► external: a dedup reference; marks its story published
+sent in the MAIN channel ─► editions (Phase 6): matching edition channels get a copy (English:
+                         guarded rendering of the verified summary, else skipped there)
+run stages: sync → inbox → ingest → classify → cluster → ai → review → publish → editions →
+            trends → brief → weekly → operations → maintenance; then reports to the mother bot
 ```
 
 Cheap stages run before anything expensive: normalization, exact/near dedup and the
@@ -111,7 +115,7 @@ on news that will not expire). Publishing takes "publish now" first, then the im
 | 6-hour job limit / minutes | A run is ~1 minute (16 feeds concurrently, few posts). `timeout-minutes: 10`. Public repository → Actions minutes are free. |
 | Scheduled workflows | Run only from the default branch; GitHub disables them after 60 days without repository activity. |
 
-## 5. Data model (migrations `0001`–`0005`, one per phase)
+## 5. Data model (migrations `0001`–`0006`, one per phase)
 
 | Table | Purpose |
 |---|---|
@@ -195,14 +199,15 @@ no separate `translations` table: the Persian summary is the translation (ADR-02
 |---|---|
 | Another AI provider (OpenAI, Anthropic, local) | a new `AIProvider` adapter next to `ai/gemini.py`; `ai.fallback_provider` (config) is where a fallback is chosen |
 | ANN search over many stories | a fixed-dimension `vector(n)` column + HNSW index and `ORDER BY centroid <=> :q` in `StoryRepo.candidates` (ADR-031) |
-| Weekly intelligence report (Phase 6) | `BriefService.compose` + `trend_alerts` over 7 days |
+| Weekly intelligence report | built (Phase 6): `services/weekly.py`, ADR-054 |
 | Trend posts with an AI explanation | `TrendService` → a new prompt; today alerts are counts only (ADR-039) |
 | Corrections of published posts (Phase 5) | `story_clusters.post_message_id` / `published_text`, claims with versions |
 | Full rules engine (Phase 5) | `domain/editorial.route` is the single routing function to generalise |
 | Same-event check inside ingest (instant L3) | `EventMatcher` port in `DedupService.check` (kept as a no-op: L3 is the CLUSTER stage, ADR-029) |
 | Webhook instead of polling | a second inbox adapter feeding the same `InboxService.process` |
-| Other output languages | template module per language (`formatting/templates_<lang>.py`) |
-| Mother bot | `MotherBot` port (`report_run`, `report_event`), called after each run; no-op now |
+| Other output languages | built for English (Phase 6): `formatting/templates_en.py`, prompt `localize.<lang>`, `EditionConfig.language` (ADR-057); another language = a template, a prompt file and the guard's language check |
+| Mother bot | built (Phase 6): signed HTTPS reports, `adapters/mother.py` (ADR-058); commands from the mother bot: a signed inbound endpoint next to the admin API |
+| Push notifications for the mobile app | the mother-bot events (`published`, `weekly`) or a new port called where `ctx.mother_events` are collected |
 
 ## 9. Architecture Decision Records
 
@@ -611,6 +616,8 @@ expose it only behind a TLS reverse proxy. A web dashboard UI and the Telegram w
 replies) belong to option B and are not built.
 
 
+### Operations after Phase 5 (2026-11-23)
+
 **ADR-052 — the daily AI quota is spread over the day.** Gemini's free tier is a per-day quota
 (requests per day, reset at midnight Pacific time: `ai.quota_reset_timezone`). Spending it as fast
 as news arrives empties it in the morning and leaves the rest of the day without summaries. Each
@@ -634,3 +641,79 @@ GitHub's own schedule stays as an hourly fallback; the `concurrency` group keeps
 time. The token sits at a third party: it can only start workflows of this repository, has an
 expiry, and is revoked in GitHub settings if ever in doubt. Option B (a small server) remains
 the long-term home.
+
+### Phase 6 — expansion
+
+**ADR-054 — the weekly intelligence report is counts and published titles only.** Like the
+daily brief (ADR-036), `domain/weekly.build` turns what was already published in the target
+channel (stories first published in the window, update posts, 🔴 posts, corrections, trend
+alerts, the outlets of each story) into numbers and lists: top stories by importance and
+independent origins, developing stories by update posts (older stories that developed count
+too), categories, top trends, most-cited outlets, change against the previous week. No AI text,
+so it cannot add a claim. Due at `weekly_report.weekday` / `local_time` (Tehran); the first run
+after that moment sends it, a run more than `max_late_hours` late skips the week; at most once
+per ISO week and channel (`weekly:<year>-W<week>`, claim → send → record). `/weekly` and the
+panel show a preview; `/api/weekly` and `/api/v1/weekly` return the numbers.
+
+**ADR-055 — search reads published posts only; text first, then meaning.** `domain/search`
+turns a query into terms (Arabic ي/ك folded, common Persian/English words dropped, digits in
+both spellings); `PublishedRepo.search_text` requires every term (each term: one of its
+spellings) in the Persian title/summary or the original title/teaser, bounded by
+`search.window_days` and LIMIT. Semantic search embeds the query once (embedding quota, an
+`ai_runs` row with prompt version `search`) and ranks published story centroids by cosine over
+`min_similarity`. Results are always sent posts with their links, so a search can never surface
+unpublished, rejected or pending items. Admins search test + main (`/search`, `/api/search`); the
+mobile API searches the feed channel only and never exposes scores.
+
+**ADR-056 — editions: personalization narrows, it never decides.** An edition is an extra
+channel (`editions.editions`, or added in `/panel` → 🌐 / `/edition`, stored as
+`panel.editions`) with categories, minimum importance, breaking only, updates and source posts
+switches and a language. Each run, after publishing, it receives only what was sent to the MAIN
+channel in the last `window_hours` (`follow: main`; `any` would also copy test-channel posts —
+the owner's choice) through `PublishService.send_edition` (claim → send → record, role
+`edition`, the article and story untouched). Updates reply to the story's first post in the same
+edition (`PublishedRepo.first_in_chat`); an update whose story never went there is skipped. An
+edition channel is never a source (inbox: `ignored:edition_channel`) and can never be the test or
+main channel. A chat error stops that edition for the run and tells the owner.
+
+**ADR-057 — multilingual output is a guarded rendering of the verified Persian summary.** For an
+English edition the AI (`localize`, prompt `localize.en.v1`) renders the VERIFIED Persian
+summary — sources are given only to spell names and check numbers. `domain/editions.check_english`
+then requires: English text, no links/markup, length limits, every number in the Persian summary
+or the sources, every proper name in the sources or among the summary's declared originals
+(capitalised sentence starts excepted). A failing text is stored (`summaries`, language `en`,
+`valid` false) and never posted; at most two attempts per article, then the item stays Persian
+only. Conflicting stories (contradictions are shown side by side in Persian) and human-curated
+source posts are never machine-translated. Translations run inside the same paced daily quota
+(`AIStage.allowance`, ADR-052) and `editions.max_translations_per_run`.
+
+**ADR-058 — the mother bot gets signed reports, never secrets or article text.**
+`adapters/mother.HttpMotherBot` implements the `MotherBot` port: one POST per report to
+`WANGER_NEWS_MOTHER_URL` (HTTPS only; plain HTTP only to localhost), JSON
+`{bot, version, kind, sent_at, payload}`, headers `X-Wanger-Timestamp` and
+`X-Wanger-Signature: sha256=HMAC(secret, "<timestamp>.<body>")`; the receiver checks the
+signature and rejects timestamps older than 5 minutes (`verify_signature`). Kinds: `run` (the
+run summary: counters, sources, errors), `published`, `review`, `error`, `weekly` — filtered by
+`mother_bot.events` — and `ping` (`doctor`). Events are collected during the run and sent after
+the database work is committed; errors are logged and swallowed (timeout
+`mother_bot.timeout_seconds`), so the link can never fail a run. Dry runs do not report.
+Commands FROM the mother bot are not built: the admin API (token) already offers them for
+option B; a signed inbound endpoint is the next step when the mother bot exists.
+
+**ADR-059 — the mobile API is a separate read-only door.** `/api/v1` (feed with keyset cursor
+pagination, story, search, categories, weekly) is mounted only when
+`WANGER_NEWS_MOBILE_API_TOKEN` is set — a different token from the admin one, because a token
+shipped in an app can be extracted: this one can read only what was already published in the
+feed channel (`public_api.feed_channel`, main by default), never queued/pending/rejected items,
+review reasons, scores or decisions, and it has no write route. Per-client request limit
+(`requests_per_minute`, one process), CORS only for `public_api.cors_origins` and only for GET.
+`lang=en` returns the English edition text when one passed its guard.
+
+**ADR-060 — the web dashboard is a static page over the admin API.** `/dashboard` serves three
+files (`api/static`: HTML, CSS, plain JS; no build step, no third-party script). The page holds no
+data: it asks for the admin token, keeps it in `sessionStorage` (gone with the tab) and calls the
+same `/api/*` routes — so it can do exactly what the API (= the bot's buttons) can. Every value is
+inserted as a text node, never parsed as HTML (article text is untrusted); strict CSP
+(`default-src 'none'`, own script/style/connect only, `frame-ancestors 'none'`), nosniff,
+no-referrer. It runs with the API (option B), behind TLS.
+
