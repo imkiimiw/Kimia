@@ -187,3 +187,13 @@ export async function onMyChatMember(app, upd) {
 
 /** channel_post: only registered, enabled sources import; everything else is ignored. */
 export const onChannelPost = (app, post) => app.sources.handlePost(post);
+
+/**
+ * message_reaction_count (2026-11-23): a channel post's reactions changed (in channels they are
+ * anonymous totals, sent grouped, up to a few minutes late). The total goes on the publication.
+ */
+export function onReactionCount(app, upd) {
+  if (!upd || !upd.chat || !Number.isSafeInteger(upd.message_id)) return 'ignored';
+  const total = (Array.isArray(upd.reactions) ? upd.reactions : []).reduce((n, r) => n + (Number(r && r.total_count) || 0), 0);
+  return app.publisher.recordReactions(upd.chat.id, upd.message_id, total);
+}

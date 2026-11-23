@@ -93,6 +93,15 @@ export function createTelegramClient({ log, onBlocked, api = sdkApi }) {
     }, viewName),
     /** Uploads bytes as a photo (e.g. an audio thumbnail, which Telegram won't send as a photo by id). @param {Uint8Array} bytes */
     sendPhotoFile: (chatId, bytes, filename, viewName = 'photo', type = 'image/jpeg') => call('sendPhoto', { chat_id: chatId, photo: new InputFile(bytes, filename, { type }) }, viewName),
+    /**
+     * Uploads an MP3 as an audio message (≤ 50 MB), with an optional JPEG thumbnail (≤ 320 px).
+     * @param {number} chatId @param {Uint8Array} bytes @param {string} filename @param {Record<string, any>} params
+     * @param {Uint8Array|null} thumb @param {string} [viewName]
+     */
+    sendAudioFile: (chatId, bytes, filename, params, thumb, viewName = 'audio') => call('sendAudio', {
+      chat_id: chatId, audio: new InputFile(bytes, filename, { type: 'audio/mpeg' }), ...params,
+      ...(thumb ? { thumbnail: new InputFile(thumb, 'thumb.jpg', { type: 'image/jpeg' }) } : {}),
+    }, viewName),
     /** Downloads a file the bot can see (≤ 20 MB, Bot API getFile cap). @returns {Promise<Uint8Array>} */
     fileContent: (fileId) => call('getFileContent', { file_id: fileId }, 'file'),
     /** Opens a file as a stream of chunks (≤ 20 MB), to read only its start. @returns {Promise<{body: AsyncIterable<Uint8Array>}>} */

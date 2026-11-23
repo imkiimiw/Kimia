@@ -79,12 +79,12 @@ test('layering: repositories only from core/context.js; thin handlers', () => {
 });
 
 test('layout: flat handlers named after update types; valid endpoint names', () => {
-  const types = new Set(['message', 'edited_message', 'channel_post', 'edited_channel_post', 'inline_query', 'chosen_inline_result', 'callback_query', 'my_chat_member', 'chat_member', 'chat_join_request']);
+  const types = new Set(['message', 'edited_message', 'channel_post', 'edited_channel_post', 'inline_query', 'chosen_inline_result', 'callback_query', 'my_chat_member', 'chat_member', 'chat_join_request', 'message_reaction_count', 'pre_checkout_query']);
   for (const f of files.filter((x) => x.startsWith('handlers/'))) {
     assert.equal(f.split('/').length, 2, `${f} is one level deep`);
     assert.ok(types.has(path.basename(f, '.js')), `${f} is an update type`);
   }
-  assert.deepEqual(files.filter((x) => x.startsWith('handlers/')).sort(), ['handlers/callback_query.js', 'handlers/channel_post.js', 'handlers/chosen_inline_result.js', 'handlers/inline_query.js', 'handlers/message.js', 'handlers/my_chat_member.js'], 'Phase 1–4 handlers only');
+  assert.deepEqual(files.filter((x) => x.startsWith('handlers/')).sort(), ['handlers/callback_query.js', 'handlers/channel_post.js', 'handlers/chosen_inline_result.js', 'handlers/inline_query.js', 'handlers/message.js', 'handlers/message_reaction_count.js', 'handlers/my_chat_member.js'], 'Phase 1–4 handlers + reactions (2026-11-23)');
   for (const f of files.filter((x) => x.startsWith('endpoints/'))) assert.match(path.basename(f, '.js'), /^[A-Za-z_][A-Za-z0-9_]*$/);
 });
 

@@ -101,6 +101,8 @@ export function createDestinationsService({ repo, tg, settings, alerts, audit, c
     toggleApproval: async (actor, id) => change(actor, id, { approval_required: (await mustGet(id)).approval_required ? 0 : 1 }, 'destination.approval'),
     /** The 🆔 @channel line at the end of every caption (on by default). */
     toggleSignature: async (actor, id) => change(actor, id, { signature: (await mustGet(id)).signature === 0 ? 1 : 0 }, 'destination.signature'),
+    /** The open «🗳 next song» poll (null closes it). */
+    setPoll: (actor, id, poll) => change(actor, id, { poll }, 'destination.poll', { poll: poll ? 'open' : 'closed' }),
     togglePostButtons: async (actor, id) => change(actor, id, { post_buttons: (await mustGet(id)).post_buttons === 0 ? 1 : 0 }, 'destination.post_buttons'),
     /** The promo line (plain text, ≤ LIMITS.promoMax; null removes it). */
     setPromo: async (actor, id, text) => change(actor, id, { promo_text: text, promo_every: text ? ((await mustGet(id)).promo_every || 3) : 0 }, 'destination.promo'),

@@ -9,7 +9,7 @@ import { renderCaption, captionValues, DEFAULT_TEMPLATE, CAPTION_MAX, channelHan
 import { publishAction, classify } from '../telegram/errors.js';
 import { backoffSeconds, cooldownAfter429, cooldownActive } from '../telegram/limiter.js';
 import { t, tp } from '../i18n/index.js';
-import { readCover } from '../music/artwork.js';
+import { readCover, cleanMp3, thumbnailOk } from '../music/artwork.js';
 
 export const LEASE_SECONDS = 60;
 export const MAX_ATTEMPTS = 6;
@@ -61,10 +61,63 @@ export function createWorker({ pubs, channels, catalog, sources, settings, tg, a
   /** Errors that concern the channel or Telegram as a whole: the post's normal error handling decides. */
   const fatal = (e) => ['transient', 'rate_limit', 'no_rights', 'chat_gone', 'blocked'].includes(classify(e).kind);
 
-  /** Keeps the photo Telegram made of an uploaded cover as the track's cover. */
+  /** Keeps the photo Telegram made of an uploaded cover as the track's cover (and its ≤ 320 px size as the thumbnail). */
   async function keepCover(track, m, source) {
-    const best = m && m.photo && m.photo.length ? m.photo[m.photo.length - 1] : null;
-    if (best) await catalog.replaceCover(track.id, best.file_id, source);
+    const sizes = m && Array.isArray(m.photo) ? m.photo : [];
+    const best = sizes.length ? sizes[sizes.length - 1] : null;
+    const small = sizes.filter((p) => p.width && p.height && Math.max(p.width, p.height) <= 320).pop();
+    if (best) await catalog.replaceCover(track.id, best.file_id, source, small ? small.file_id : null);
+  }
+
+  /** A ≤ 320 px JPEG of the track's cover for a re-upload, or null. */
+  async function thumbnailOf(track) {
+    const id = track.thumb_file_id || (!track.cover_source ? track.cover_file_id : null);
+    if (!id) return null;
+    try {
+      const bytes = await tg.fileContent(id);
+      return thumbnailOk(bytes) ? bytes : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 🧹 The first post of a track (setting publishing.clean_files, the owner's request): the MP3 is
+   * downloaded, its tags — where other channels put their names and links — are replaced by clean
+   * ones (title, artist, album, the original cover), and it is uploaded as this post. Its new file_id
+   * becomes the track's audio, so later posts, inline results and the bot chat send the clean copy.
+   * Returns null to send by file_id as before: not an MP3, over 20 MB, or Telegram refused it.
+   */
+  async function sendCleanAudio(track, ch, params) {
+    if (track.cleaned !== 0 || !(await settings.get('publishing.clean_files'))) return null;
+    let bytes;
+    try {
+      bytes = await tg.fileContent(track.audio_file_id);
+    } catch (e) {
+      if (!fatal(e)) await catalog.markNotCleaned(track.id);
+      return null;
+    }
+    const clean = cleanMp3(bytes, { title: track.title, artist: [track.artist, track.featured_artists].filter(Boolean).join(', '), album: track.album });
+    if (!clean) {
+      await catalog.markNotCleaned(track.id);
+      return null;
+    }
+    const name = `${[track.artist, track.title].filter(Boolean).join(' - ').replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 120) || 'song'}.mp3`;
+    try {
+      const m = await tg.sendAudioFile(ch.chat_id, clean, name, {
+        ...params, title: track.title || undefined, performer: track.artist || undefined, duration: track.duration || undefined,
+      }, await thumbnailOf(track), 'publish');
+      if (m && m.audio && m.audio.file_id) await catalog.replaceAudio(track.id, m.audio.file_id);
+      return m;
+    } catch (e) {
+      const kind = classify(e).kind;
+      log.warn('clean_upload_failed', { track_id: track.id, error: kind });
+      // a failed or timed-out upload is never tried again: the retry (or this post) goes by file_id,
+      // so publishing can't get stuck on a file the platform won't upload
+      if (kind !== 'rate_limit') await catalog.markNotCleaned(track.id);
+      if (fatal(e)) throw e;
+      return null;
+    }
   }
 
   /**
@@ -145,7 +198,8 @@ export function createWorker({ pubs, channels, catalog, sources, settings, tg, a
     try {
       if (ch.post_format === 'cover_then_audio' && (track.cover_file_id || !track.cover_source)) coverId = await sendCover(track, ch.chat_id);
       const keyboard = postButtons(track, ch);
-      const m = await tg.call('sendAudio', { chat_id: ch.chat_id, audio: track.audio_file_id, caption, parse_mode: 'HTML', ...(keyboard ? { reply_markup: keyboard } : {}) }, 'publish');
+      const params = { caption, parse_mode: 'HTML', ...(keyboard ? { reply_markup: keyboard } : {}) };
+      const m = (await sendCleanAudio(track, ch, params)) || (await tg.call('sendAudio', { chat_id: ch.chat_id, audio: track.audio_file_id, ...params }, 'publish'));
       const now = clock.now();
       await pubs.markPublished(pub.id, m.message_id, coverId, now);
       await channels.setLastPublished(ch.id, now, promo);

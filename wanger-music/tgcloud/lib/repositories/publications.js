@@ -13,6 +13,21 @@ const LIST = sql`p.*, t.title AS track_title, t.artist AS track_artist, t.public
 
 export function createPublicationsRepo() {
   return {
+    // ---- 2026-11-23: reactions, polls
+    /** A channel post's reaction total (from message_reaction_count). @returns {Promise<boolean>} */
+    setReactions: (channelId, messageId, total, now) => db.run(sql`
+      UPDATE publications SET reactions = ${total}, reactions_at = ${now}
+      WHERE channel_id = ${channelId} AND telegram_message_id = ${messageId} AND status = 'published'`).then((r) => r.rowsAffected > 0),
+    /** A channel's most liked posts since a time. */
+    topReacted: (channelId, since, limit) => db.all(sql`
+      SELECT p.id, p.reactions, p.published_at, p.telegram_message_id, t.id AS track_id, t.public_id, t.title, t.artist, t.status AS track_status
+      FROM publications p JOIN tracks t ON t.id = p.track_id
+      WHERE p.channel_id = ${channelId} AND p.status = 'published' AND p.published_at >= ${since} AND p.reactions > 0
+      ORDER BY p.reactions DESC, p.id DESC LIMIT ${limit}`),
+    /** The channel's oldest queued posts (the «🗳 next song» poll's options). */
+    queuedOf: (channelId, limit) => db.all(sql`
+      SELECT p.id, t.title, t.artist FROM publications p JOIN tracks t ON t.id = p.track_id
+      WHERE p.channel_id = ${channelId} AND p.status = 'queued' ORDER BY p.id LIMIT ${limit}`),
     get: (id) => db.get(sql`SELECT * FROM publications WHERE id = ${id}`),
     getFull: (id) => db.get(sql`SELECT ${LIST} FROM publications p JOIN tracks t ON t.id = p.track_id JOIN destination_channels d ON d.id = p.channel_id WHERE p.id = ${id}`),
 

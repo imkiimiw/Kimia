@@ -149,11 +149,17 @@ export const tracks = table('tracks', {
   // addition: where cover_file_id came from — NULL = the audio's small thumbnail (not checked yet),
   // 'file' = the full picture inside the audio file, 'thumb' = checked, the file has no bigger one, 'manual' = a person
   coverSource: text('cover_source'),
+  // addition: a ≤ 320 px JPEG of the cover (Telegram's audio thumbnail, or the small size of the uploaded
+  // cover photo): the thumbnail of a cleaned re-upload (audio thumbnails must be that small)
+  thumbFileId: text('thumb_file_id'),
   // addition: "320kbps" / "FLAC" / "AAC 256kbps" from the file's size, length and header; '' = unknown, NULL = not checked
   quality: text('quality'),
   // addition: mood for 🎭 browsing (sad / happy / romantic / energetic / chill; checked in code: an added
   // column can't get a table CHECK without a rebuild)
   mood: text('mood'),
+  // 🧹 the file re-uploaded without other channels' tags: 0 = not yet, 1 = audio_file_id is the clean copy,
+  // 2 = not cleaned (not an MP3, over 20 MB, or Telegram refused it)
+  cleaned: integer('cleaned').notNull().default(0),
   normalizedTitle: text('normalized_title').notNull().default(''),
   normalizedArtist: text('normalized_artist').notNull().default(''),
   dupKey: text('dup_key').notNull(),
@@ -299,6 +305,8 @@ export const destinationChannels = table('destination_channels', {
   promoText: text('promo_text'),
   promoEvery: integer('promo_every').notNull().default(0),
   postsSincePromo: integer('posts_since_promo').notNull().default(0),
+  // the open «🗳 next song» poll: {message_id, pubs: [publication ids in option order], at}
+  poll: text('poll'),
 }, (t) => ({
   formatChk: check('dest_post_format_chk', sql`${t.postFormat} IN ('audio', 'cover_then_audio')`),
   flagsChk: check('dest_flags_chk', sql`${t.enabled} IN (0, 1) AND ${t.autoPublish} IN (0, 1) AND ${t.approvalRequired} IN (0, 1) AND ${t.botRightsOk} IN (0, 1)`),
@@ -330,6 +338,9 @@ export const publications = table('publications', {
   publishedAt: integer('published_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  // 2026-11-23: the post's reactions (message_reaction_count: channels' reactions are anonymous totals)
+  reactions: integer('reactions').notNull().default(0),
+  reactionsAt: integer('reactions_at'),
 }, (t) => ({
   statusChk: check('pub_status_chk', sql`${t.status} IN ('pending_approval', 'queued', 'sending', 'published', 'failed', 'rejected', 'uncertain', 'cancelled')`),
   pair: uniqueIndex('uidx_pub_track_channel').on(t.trackId, t.channelId),
@@ -338,6 +349,8 @@ export const publications = table('publications', {
   dailyIdx: index('idx_pub_channel_published').on(t.channelId, t.publishedAt).where(sql`${t.status} = 'published'`),
   // Phase 8 (query review): a channel's history, newest first, without sorting all its rows
   historyIdx: index('idx_pub_channel_id').on(t.channelId, t.id),
+  // a reaction update names the channel and the message
+  messageIdx: index('idx_pub_channel_message').on(t.channelId, t.telegramMessageId).where(sql`${t.telegramMessageId} IS NOT NULL`),
 }));
 
 /**

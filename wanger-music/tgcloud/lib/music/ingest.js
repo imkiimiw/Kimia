@@ -61,6 +61,7 @@ export function createIngestService({ repo, catalog, audit, clock, log }) {
         file_size: Number.isSafeInteger(a.file_size) ? a.file_size : null,
         file_name: a.file_name ? String(a.file_name).slice(0, 200) : null,
         cover_file_id: a.thumbnail ? a.thumbnail.file_id : null,
+        thumb_file_id: a.thumbnail ? a.thumbnail.file_id : null,
         normalized_title: n.normalizedTitle,
         normalized_artist: n.normalizedArtist,
         dup_key: dupKey(n.normalizedArtist, n.normalizedTitle, n.versionKey),

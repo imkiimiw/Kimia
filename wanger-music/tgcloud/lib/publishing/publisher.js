@@ -68,6 +68,14 @@ export function createPublisher({ repo, channels, tg, users, settings, alerts, a
     cancelForChannel: (channelId) => repo.cancelForChannel(channelId, clock.now()),
 
     get: (id) => repo.getFull(id),
+    /** Reactions on a channel post (message_reaction_count). @returns {Promise<'saved'|'unknown_channel'|'unknown_post'>} */
+    async recordReactions(chatId, messageId, total) {
+      const ch = await channels.getByChatId(chatId);
+      if (!ch || ch.removed_at) return 'unknown_channel';
+      return (await repo.setReactions(ch.id, messageId, total, clock.now())) ? 'saved' : 'unknown_post';
+    },
+    topReacted: (channelId, since, limit = 10) => repo.topReacted(channelId, since, limit),
+    queuedOf: (channelId, limit = 4) => repo.queuedOf(channelId, limit),
     counts: () => repo.counts(),
     countPending: () => repo.countPending(),
     nextPending: (afterId) => repo.nextPending(afterId),

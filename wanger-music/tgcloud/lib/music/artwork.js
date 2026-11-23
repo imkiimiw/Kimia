@@ -300,3 +300,91 @@ export async function readQuality(chunks, fileSize, duration) {
   const r = await readScan(chunks, (b) => scanQuality(b, fileSize, duration), 4 * 1024 * 1024);
   return r ? r.label : '';
 }
+
+// ---------------------------------------------------------------- 🧹 clean tags (owner's idea, 2026-11-23)
+// Files from other channels carry their names and links in the ID3 tags (title, comment, album…),
+// which players show. cleanMp3 keeps the audio frames as they are and replaces every tag with a
+// fresh ID3v2.3 one: title, artist, album, and the original cover picture.
+
+/** A plausible MPEG audio frame header at `i` (sync, a real layer, bitrate and sample rate). */
+const mpegFrameAt = (b, i) => b[i] === 0xff && (b[i + 1] & 0xe0) === 0xe0 && ((b[i + 1] >> 1) & 3) !== 0
+  && (b[i + 2] >> 4) !== 15 && (b[i + 2] >> 4) !== 0 && ((b[i + 2] >> 2) & 3) !== 3;
+
+/** ID3v2.3 frame: 4-letter id, plain size, no flags. */
+function id3Frame(id, body) {
+  const out = new Uint8Array(10 + body.length);
+  for (let i = 0; i < 4; i++) out[i] = id.charCodeAt(i);
+  out.set([(body.length >>> 24) & 0xff, (body.length >>> 16) & 0xff, (body.length >>> 8) & 0xff, body.length & 0xff], 4);
+  out.set(body, 10);
+  return out;
+}
+
+/** A text frame in UTF-16 with a BOM (Persian titles survive every player). */
+function id3Text(id, text) {
+  const s = String(text);
+  const body = new Uint8Array(3 + s.length * 2);
+  body.set([1, 0xff, 0xfe]);
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    body[3 + 2 * i] = c & 0xff;
+    body[4 + 2 * i] = c >> 8;
+  }
+  return id3Frame(id, body);
+}
+
+/** APIC: latin-1 MIME type, front cover, empty description. @param {Picture} pic */
+function apicFrame(pic) {
+  const mime = pic.mime;
+  const body = new Uint8Array(1 + mime.length + 1 + 1 + 1 + pic.bytes.length);
+  let o = 1;
+  for (let i = 0; i < mime.length; i++) body[o++] = mime.charCodeAt(i);
+  body[o++] = 0;
+  body[o++] = 3;
+  body[o++] = 0;
+  body.set(pic.bytes, o);
+  return id3Frame('APIC', body);
+}
+
+/**
+ * The MP3 with its tags replaced (pure). null when the bytes don't look like an MP3 we can safely
+ * rewrite (then the file is sent as it is).
+ * @param {Uint8Array} b the whole file @param {{title?: string|null, artist?: string|null, album?: string|null}} meta
+ * @returns {Uint8Array|null}
+ */
+export function cleanMp3(b, meta) {
+  if (!b || b.length < 1024) return null;
+  let start = 0;
+  while (start + 10 <= b.length && ascii(b, start, 3) === 'ID3') start += 10 + syncsafe(b, start + 6) + (b[start + 5] & 0x10 ? 10 : 0);
+  // a few bytes of padding or junk may sit between the tag and the first frame
+  let audio = -1;
+  for (let i = start; i < Math.min(b.length - 4, start + 65536); i++) {
+    if (mpegFrameAt(b, i)) { audio = i; break; }
+  }
+  if (audio < 0) return null;
+  let end = b.length;
+  if (end - 128 > audio && ascii(b, end - 128, 3) === 'TAG') end -= 128; // ID3v1
+  if (end - 32 > audio && ascii(b, end - 32, 8) === 'APETAGEX') {
+    const size = b[end - 20] | (b[end - 19] << 8) | (b[end - 18] << 16) | (b[end - 17] << 24); // APEv2 footer: tag size without the header
+    const withHeader = size + ((b[end - 9] & 0x80) ? 32 : 0);
+    if (withHeader > 0 && end - withHeader > audio) end -= withHeader;
+  }
+  const cover = scanCover(b);
+  const frames = [];
+  if (meta.title) frames.push(id3Text('TIT2', meta.title));
+  if (meta.artist) frames.push(id3Text('TPE1', meta.artist));
+  if (meta.album) frames.push(id3Text('TALB', meta.album));
+  if (cover && 'picture' in cover && cover.picture) frames.push(apicFrame(cover.picture));
+  const tagSize = frames.reduce((n, f) => n + f.length, 0);
+  const out = new Uint8Array(10 + tagSize + (end - audio));
+  out.set([0x49, 0x44, 0x33, 3, 0, 0, (tagSize >> 21) & 0x7f, (tagSize >> 14) & 0x7f, (tagSize >> 7) & 0x7f, tagSize & 0x7f]);
+  let o = 10;
+  for (const f of frames) { out.set(f, o); o += f.length; }
+  out.set(b.subarray(audio, end), o);
+  return out;
+}
+
+/** A JPEG Telegram accepts as an audio thumbnail (≤ 320 px, ≤ 200 kB)? */
+export function thumbnailOk(bytes) {
+  const info = bytes && bytes.length <= 200 * 1024 ? imageInfo(bytes) : null;
+  return Boolean(info && info.mime === 'image/jpeg' && Math.max(info.width, info.height) <= THUMBNAIL_SIDE);
+}

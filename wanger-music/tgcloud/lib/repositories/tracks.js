@@ -12,7 +12,7 @@ const inList = (list) => commaJoin(list.map((v) => sql`${v}`));
 
 /** Columns a metadata update may touch (identifiers come only from this list). */
 const EDITABLE = ['title', 'artist', 'featured_artists', 'album', 'version', 'genre', 'language', 'language_confidence', 'language_source',
-  'cover_file_id', 'cover_source', 'quality', 'mood', 'normalized_title', 'normalized_artist', 'dup_key', 'duplicate_of', 'audio_file_id'];
+  'cover_file_id', 'cover_source', 'thumb_file_id', 'quality', 'mood', 'cleaned', 'normalized_title', 'normalized_artist', 'dup_key', 'duplicate_of', 'audio_file_id'];
 
 /** Language nobody decided: unknown, or a low-confidence script guess (same text as idx_tracks_undecided_language). */
 const UNDECIDED = sql`language_source = 'heuristic' AND (language = 'unknown' OR language_confidence = 'low')`;
@@ -65,11 +65,11 @@ export function createTracksRepo() {
     insert: (t) => db.run(sql`
       INSERT INTO tracks (public_id, title, artist, featured_artists, album, version, duration, genre,
         language, language_confidence, language_source, audio_file_id, audio_file_unique_id, mime_type, file_size,
-        file_name, cover_file_id, normalized_title, normalized_artist, dup_key, duplicate_of, source_type, source_id,
+        file_name, cover_file_id, thumb_file_id, normalized_title, normalized_artist, dup_key, duplicate_of, source_type, source_id,
         origin_chat_id, origin_message_id, status, added_by, play_count, created_at, updated_at)
       VALUES (${t.public_id}, ${t.title}, ${t.artist}, ${t.featured_artists}, ${t.album}, ${t.version}, ${t.duration}, ${t.genre},
         ${t.language}, ${t.language_confidence}, ${t.language_source}, ${t.audio_file_id}, ${t.audio_file_unique_id}, ${t.mime_type}, ${t.file_size},
-        ${t.file_name}, ${t.cover_file_id}, ${t.normalized_title}, ${t.normalized_artist}, ${t.dup_key}, ${t.duplicate_of}, ${t.source_type}, ${t.source_id},
+        ${t.file_name}, ${t.cover_file_id}, ${t.thumb_file_id ?? null}, ${t.normalized_title}, ${t.normalized_artist}, ${t.dup_key}, ${t.duplicate_of}, ${t.source_type}, ${t.source_id},
         ${t.origin_chat_id}, ${t.origin_message_id}, ${t.status}, ${t.added_by}, 0, ${t.now}, ${t.now})
       ON CONFLICT DO NOTHING RETURNING *`).then(first),
 

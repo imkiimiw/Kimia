@@ -101,6 +101,8 @@ export const SETTINGS = Object.freeze({
   // the owner asked (2026-11-08): no automatic sending — the queue goes out when they press «📤 ارسال صف»;
   // on = the tick also sends (one post per channel per tick, interval / hours / daily limit apply)
   'publishing.auto_send': { type: 'bool', default: false },
+  // 🧹 a track's first post re-uploads its MP3 with clean tags (no other channel's name / link inside the file)
+  'publishing.clean_files': { type: 'bool', default: true },
   // a message to the owner and admins as soon as a source brings a new song (with action buttons)
   'notify.new_tracks': { type: 'bool', default: true },
   time_zone: { type: 'tz', default: 'Asia/Tehran' },

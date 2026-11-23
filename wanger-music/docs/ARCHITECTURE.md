@@ -143,6 +143,20 @@ followers; a cursor over follower ids, like a broadcast). user_id is the Telegra
 - Moods (`tracks.mood`, `MOODS`) are set on the admin track card; listeners browse 🎭 moods and genres
   (indexes `idx_tracks_mood`, `idx_tracks_genre`); 🎲 picks one of the 100 most played.
 
+## Channel engagement (owner's ideas, 2026-11-23)
+
+- **Clean files** (`worker.sendCleanAudio`, `music/artwork.js#cleanMp3`): the first post of a track
+  re-uploads its MP3 with only clean tags; every later send uses the new file_id. The audio frames are
+  copied as they are. The thumbnail is `tracks.thumb_file_id` (Telegram's ≤ 320 px audio thumbnail, or
+  the small size of the uploaded cover photo).
+- **Reactions**: `handlers/message_reaction_count` (no dedupe row: it carries totals) →
+  `publisher.recordReactions` → `publications.reactions` (index `idx_pub_channel_message`).
+- **🔥 Weekly chart** (`admin/engage_ui.js`): plays in the bot over 7 days (stats) + the channel's
+  reactions; a preview to the owner, then one tap posts it (claimed once an hour).
+- **🗳 Poll**: the channel's oldest queued posts (2–4) as an anonymous poll; `destination_channels.poll`
+  keeps the message id and the publication ids; closing it (`stopPoll`) sends the winner with
+  `worker.sendPublicationNow`.
+
 ## Source channels (Phase 4)
 
 `handlers/channel_post` → `publishing/sources.handlePost`: a post counts only if its channel is a

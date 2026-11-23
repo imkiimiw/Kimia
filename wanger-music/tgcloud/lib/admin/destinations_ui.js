@@ -14,6 +14,7 @@ import { storedRights } from '../publishing/destinations.js';
 import { renderCaption, captionValues, unknownVariables, DEFAULT_TEMPLATE, CAPTION_VARS, CAPTION_MAX, channelHandle, channelSignature } from '../publishing/captions.js';
 import { classify } from '../telegram/errors.js';
 import { postButtons } from '../publishing/worker.js';
+import { cardRows as engageRows, pollOf } from './engage_ui.js';
 
 const PERM = 'destinations.manage';
 const title = (d) => d.title || (d.username ? '@' + d.username : String(d.chat_id));
@@ -64,6 +65,7 @@ async function cardView(app, d) {
   if (!d.bot_rights_ok) lines.push(t(lang, 'dst.warn_rights'));
   else if (!rights.edit || !rights.delete) lines.push(t(lang, 'dst.warn_edit_delete'));
   if (d.promo_text) lines.push(t(lang, 'dst.card_promo', { text: d.promo_text, n: digits(d.promo_every, lang) }));
+  if (pollOf(d)) lines.push(t(lang, 'eng.card_poll'));
   if (!normalizeRules(d.rules).any_language && !normalizeRules(d.rules).languages.length) lines.push(t(lang, 'dst.warn_languages'));
   const id = d.id;
   return {
@@ -78,6 +80,7 @@ async function cardView(app, d) {
         ? [btn(tp(lang, 'dst.btn_promo_edit'), 'dst', 'promo', id), btn(tp(lang, 'dst.btn_promo_every', { n: digits(d.promo_every, lang) }), 'dst', 'pev', id)]
         : [btn(tp(lang, 'dst.btn_promo_add'), 'dst', 'promo', id)],
       [btn(tp(lang, 'dst.btn_sendq', { n: digits(queue.queued, lang) }), 'dst', 'sendq', id), btn(tp(lang, 'dst.btn_send_now'), 'dst', 'now', id)],
+      ...engageRows(lang, d),
       [btn(tp(lang, 'dst.btn_interval_v', { v: digits(Math.round(d.min_interval_seconds / 60), lang) }), 'dst', 'int', id), btn(tp(lang, 'dst.btn_daily_v', { v: d.daily_limit ? digits(d.daily_limit, lang) : tp(lang, 'dst.no_limit') }), 'dst', 'daily', id)],
       [btn(tp(lang, 'dst.btn_hours_v', { v: hoursText(lang, d) }), 'dst', 'hours', id)],
       [btn(tp(lang, 'dst.btn_tz', { tz: d.time_zone }), 'dst', 'tz', id), btn(tp(lang, 'dst.btn_check'), 'dst', 'check', id)],

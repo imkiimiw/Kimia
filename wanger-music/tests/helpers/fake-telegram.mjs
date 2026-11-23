@@ -37,6 +37,8 @@ export function createFakeTelegram() {
     }
     if (stack.length) fail(400, `Bad Request: can't parse entities: can't find end tag corresponding to start tag "${stack.at(-1)}"`, method);
   };
+  /** @type {number[]} */
+  let pollVotes = [];
   const store = (chatId, msg) => {
     if (!messages.has(chatId)) messages.set(chatId, new Map());
     messages.get(chatId).set(msg.message_id, msg);
@@ -67,6 +69,26 @@ export function createFakeTelegram() {
       if (JSON.stringify(msg.reply_markup) === JSON.stringify(p.reply_markup || null)) fail(400, 'Bad Request: message is not modified: specified new message content and reply markup are exactly the same', m);
       msg.reply_markup = p.reply_markup || null;
       return msg;
+    },
+    sendPoll(p, m) {
+      if (p.chat_id < 0) {
+        const c = channels.get(p.chat_id);
+        if (!c) fail(400, 'Bad Request: chat not found', m);
+        if (c.bot.status !== 'administrator' || !c.bot.can_post_messages) fail(403, 'Forbidden: bot is not a member of the channel chat', m);
+      }
+      if (!Array.isArray(p.options) || p.options.length < 2 || p.options.length > 10) fail(400, 'Bad Request: poll must have 2-10 options', m);
+      if (p.options.some((o) => !o || typeof o.text !== 'string' || !o.text || o.text.length > 100)) fail(400, 'Bad Request: poll options must be 1-100 characters', m);
+      const id = ++nextMessageId;
+      return store(p.chat_id, { message_id: id, chat: { id: p.chat_id }, poll: { id: `P${id}`, question: p.question, options: p.options.map((o) => ({ text: o.text, voter_count: 0 })), is_closed: false } });
+    },
+    /** Votes come from `pollVotes` (a test sets them) when the poll is stopped. */
+    stopPoll(p, m) {
+      const msg = messages.get(p.chat_id) && messages.get(p.chat_id).get(p.message_id);
+      if (!msg || !msg.poll) fail(400, 'Bad Request: message with poll to stop not found', m);
+      if (msg.poll.is_closed) fail(400, 'Bad Request: poll has already been closed', m);
+      msg.poll.is_closed = true;
+      msg.poll.options = msg.poll.options.map((o, i) => ({ ...o, voter_count: pollVotes[i] || 0 }));
+      return msg.poll;
     },
     answerCallbackQuery: () => true,
     answerInlineQuery(p, m) {
@@ -104,8 +126,14 @@ export function createFakeTelegram() {
         if (!c) fail(400, 'Bad Request: chat not found', m);
         if (c.bot.status !== 'administrator' || !c.bot.can_post_messages) fail(403, 'Forbidden: bot is not a member of the channel chat', m);
       } else if (blocked.has(p.chat_id)) fail(403, 'Forbidden: bot was blocked by the user', m);
-      if (typeof p.audio !== 'string' || !p.audio) fail(400, 'Bad Request: wrong file identifier/HTTP URL specified', m);
       if (p.caption && p.caption.length > 1024) fail(400, 'Bad Request: message caption is too long', m);
+      if (p.audio && p.audio.bytes instanceof Uint8Array) { // an upload: a new file the bot can download again
+        if (p.audio.bytes.length > 50 * 1024 * 1024) fail(413, 'Request Entity Too Large', m);
+        const id = ++nextMessageId;
+        files.set(`AUDc${id}`, p.audio.bytes);
+        return store(p.chat_id, { message_id: id, chat: { id: p.chat_id }, audio: { file_id: `AUDc${id}`, file_unique_id: `AUDcU${id}`, title: p.title, performer: p.performer, file_name: p.audio.name }, caption: p.caption || null, reply_markup: p.reply_markup || null, thumbnail_uploaded: Boolean(p.thumbnail) });
+      }
+      if (typeof p.audio !== 'string' || !p.audio) fail(400, 'Bad Request: wrong file identifier/HTTP URL specified', m);
       return store(p.chat_id, { message_id: ++nextMessageId, chat: { id: p.chat_id }, audio: { file_id: p.audio }, caption: p.caption || null, reply_markup: p.reply_markup || null });
     },
     sendPhoto(p, m) {
@@ -166,6 +194,8 @@ export function createFakeTelegram() {
 
   return {
     handler,
+    /** The votes stopPoll reports, per option. @param {number[]} v */
+    setPollVotes(v) { pollVotes = v; },
     calls,
     files,
     channels,

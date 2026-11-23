@@ -11,6 +11,7 @@ import opsTick from '../../tgcloud/endpoints/opsTick.js';
 import inlineHandler from '../../tgcloud/handlers/inline_query.js';
 import chosenHandler from '../../tgcloud/handlers/chosen_inline_result.js';
 import channelPostHandler from '../../tgcloud/handlers/channel_post.js';
+import reactionHandler from '../../tgcloud/handlers/message_reaction_count.js';
 
 export const OWNER = 5557901897;
 export const SEED = [-1002407928564, -1001816009903, -1001910797391];
@@ -105,6 +106,11 @@ export function setup({ seedChannels = true, botAdminIn = SEED, autoSend = true,
     channelPost(chat, extra = {}, { messageId, updateId: uid } = {}) {
       const post = { message_id: messageId ?? msgId++, date: Math.floor(Date.now() / 1000), chat: { type: 'channel', ...chat }, ...extra };
       return channelPostHandler(post, { update: { update_id: uid ?? updateId++, channel_post: post } });
+    },
+    /** Reactions on a channel post changed (totals, as Telegram reports anonymous reactions). */
+    reaction: (chat, messageId, counts) => {
+      const upd = { chat: { type: 'channel', ...chat }, message_id: messageId, date: 0, reactions: Object.entries(counts).map(([emoji, total_count]) => ({ type: { type: 'emoji', emoji }, total_count })) };
+      return reactionHandler(upd, { update: { update_id: updateId++, message_reaction_count: upd } });
     },
     chosen: (fromId, resultId, updateIdOverride) => {
       const r = { result_id: resultId, from: person(fromId), query: 'x' };

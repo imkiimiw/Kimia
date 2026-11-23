@@ -290,8 +290,16 @@ export function createCatalogService({ repo, tg, settings, audit, alerts, clock,
      * picture inside the audio file), 'thumb' (the audio's thumbnail; the file has no bigger one) or
      * null (the thumbnail, but the file couldn't be read this time: it is tried again).
      * @param {number} id @param {string|null} fileId null keeps the current cover @param {'file'|'thumb'|null} source
+     * @param {string|null} [thumbId] a ≤ 320 px size of the uploaded photo (the thumbnail of a cleaned re-upload)
      */
-    replaceCover: (id, fileId, source) => repo.update(id, fileId ? { cover_file_id: fileId, cover_source: source } : { cover_source: source }, clock.now()),
+    replaceCover: (id, fileId, source, thumbId = null) => repo.update(id, {
+      ...(fileId ? { cover_file_id: fileId } : {}), cover_source: source, ...(thumbId ? { thumb_file_id: thumbId } : {}),
+    }, clock.now()),
+
+    /** 🧹 The clean re-upload's file_id becomes the track's audio (every later send uses it). */
+    replaceAudio: (id, fileId) => repo.update(id, { audio_file_id: fileId, cleaned: 1 }, clock.now()),
+    /** 🧹 Not cleaned: not an MP3, over 20 MB, or Telegram refused the upload (sent as it is from now on). */
+    markNotCleaned: (id) => repo.update(id, { cleaned: 2 }, clock.now()),
 
     /**
      * The file's quality ("320kbps", "FLAC", "AAC 256kbps"; '' unknown), read once from the start of the
