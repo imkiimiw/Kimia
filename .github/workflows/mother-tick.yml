@@ -1,0 +1,61 @@
+name: Mother bot tick
+
+# Optional clock for the Wanger mother bot (mother_bot/). Telegram Serverless has no cron; the bot does
+# its due work on the side of updates (and wakes itself for broadcasts), so this only matters when it
+# is quiet: every 30 minutes it runs the DEPLOYED code's endpoints/tick with `tgcloud run` — health
+# checks of every child bot, ends of maintenance windows, the monthly club gift, queued broadcasts.
+# Does nothing until the repository secret MOTHER_TGCLOUD_TOKEN (the CLI access token) exists.
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: mother-tick
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TGCLOUD_TOKEN: ${{ secrets.MOTHER_TGCLOUD_TOKEN }}
+    steps:
+      - name: Skip until the secret exists
+        id: gate
+        run: |
+          if [ -z "$TGCLOUD_TOKEN" ]; then
+            echo "MOTHER_TGCLOUD_TOKEN is not set: skipping."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@v4
+      - if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mother_bot/package-lock.json
+      - if: steps.gate.outputs.run == 'true'
+        name: Install the tgcloud CLI
+        working-directory: mother_bot
+        run: npm ci
+      - if: steps.gate.outputs.run == 'true'
+        name: Use the deployed modules, not the checkout
+        working-directory: mother_bot
+        run: |
+          rm -rf tgcloud .tgcloud
+          mkdir .tgcloud
+          npx tgcloud pull --force
+      - if: steps.gate.outputs.run == 'true'
+        name: Run the tick
+        working-directory: mother_bot
+        run: |
+          npx tgcloud run endpoints/tick '{}' --ctx '{ initData: { user: { id: 5557901897 } } }' | tee tick.log
+          grep -q 'ok:true' tick.log

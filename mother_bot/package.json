@@ -1,0 +1,17 @@
+{
+  "name": "mother_bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Wanger mother bot: one place for every Wanger bot (catalog, help assistant, error reports, status, maintenance, news, club, moderation, central forced join, broadcasts), on Telegram Serverless (tgcloud)",
+  "scripts": {
+    "deploy": "tgcloud push && tgcloud migrate --safe",
+    "status": "tgcloud status",
+    "run": "tgcloud run",
+    "test": "node --no-warnings test/static.mjs && node --no-warnings --import ./test/sdk/register.mjs test/e2e.mjs"
+  },
+  "devDependencies": {
+    "@tgcloud/cli": "^0.2.0",
+    "json5": "^2.2.3"
+  }
+}

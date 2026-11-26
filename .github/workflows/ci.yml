@@ -49,3 +49,18 @@ jobs:
       - run: npm test
       # Phase 8: every full scan of a growing table must be on the reviewed list
       - run: npm run query-review
+
+  mother_bot:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mother_bot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mother_bot/package-lock.json
+      - run: npm ci
+      - run: npm test
