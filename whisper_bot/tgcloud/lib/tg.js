@@ -11,6 +11,8 @@ export function createCtx({ userId = null, chatId = null, messageId = null, call
 }
 
 function keyboardSummary(markup) {
+  if (markup && markup.keyboard) return markup.keyboard.map((row) => row.map((b) => `${b.text} <key>`));
+  if (markup && markup.remove_keyboard) return [['<remove keyboard>']];
   const rows = markup && markup.inline_keyboard;
   if (!rows) return undefined;
   return rows.map((row) => row.map((b) => {
@@ -81,13 +83,14 @@ export async function send(ctx, view, text, kb, chatId = ctx.chatId, opts = {}) 
   try {
     const extra = {};
     if (opts.silent) extra.disable_notification = true;
+    if (opts.protect) extra.protect_content = true; // no forwarding or saving
     if (opts.replyTo) extra.reply_parameters = { message_id: opts.replyTo, allow_sending_without_reply: true };
     return await call(ctx, 'sendMessage', {
       chat_id: chatId,
       text,
       parse_mode: 'HTML',
       link_preview_options: { is_disabled: true },
-      ...markup(kb),
+      ...(opts.replyMarkup ? { reply_markup: opts.replyMarkup } : markup(kb)), // a reply keyboard, or its removal
       ...extra,
     }, view, opts);
   } catch (err) {
@@ -125,6 +128,7 @@ export async function sendMedia(ctx, view, kind, fileId, caption, kb, chatId = c
       params.parse_mode = 'HTML';
     }
     if (opts.silent) params.disable_notification = true;
+    if (opts.protect) params.protect_content = true;
     return await call(ctx, method, params, view, opts);
   } catch (err) {
     console.warn(`${method}(${view}) failed: ${describeError(err)}`);

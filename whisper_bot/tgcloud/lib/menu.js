@@ -37,18 +37,24 @@ export async function chooseLang(ctx, user, kv, lang, next) {
 
 // ---------- main menu and the whisper section ----------
 
-export function mainKeyboard(ctx) {
-  return [
+const confessionsOpen = (kv) => !!kv && kv.cf_on === '1' && !!kv.cf_chat;
+
+export function mainKeyboard(ctx, kv = null) {
+  const kb = [
     [btn(T(ctx, 'main.btn_whisper'), 'ws'), btn(T(ctx, 'main.btn_anon'), 'an')],
-    [btn(T(ctx, 'main.btn_lang'), 'lg'), btn(T(ctx, 'main.btn_help'), 'hp')],
-    [btn(T(ctx, 'main.btn_privacy'), 'pv')],
+    [btn(T(ctx, 'main.btn_random'), 'rc')],
   ];
+  if (confessionsOpen(kv)) kb[1].push(btn(T(ctx, 'main.btn_confess'), 'cf'));
+  kb.push([btn(T(ctx, 'main.btn_lang'), 'lg'), btn(T(ctx, 'main.btn_help'), 'hp')]);
+  kb.push([btn(T(ctx, 'main.btn_privacy'), 'pv')]);
+  return kb;
 }
 
 export async function showMain(ctx, user, kv, note = '') {
   const bot = await botInfo(ctx, kv);
   const name = esc(user.pName || user.firstName || '');
-  return show(ctx, 'main', `${note ? `${note}\n\n` : ''}${T(ctx, 'main.text', { name, bot: esc(bot.username || 'bot') })}`, mainKeyboard(ctx));
+  const text = T(ctx, 'main.text', { name, bot: esc(bot.username || 'bot') }) + (confessionsOpen(kv) ? T(ctx, 'main.line_confess') : '');
+  return show(ctx, 'main', `${note ? `${note}\n\n` : ''}${text}`, mainKeyboard(ctx, kv));
 }
 
 export async function showWhisperSection(ctx, kv) {

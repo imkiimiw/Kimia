@@ -89,6 +89,7 @@ export async function showMessage(ctx, user, kv, id) {
   if (await markRead(m.id, user.id)) user.anonUnread = Math.max(0, user.anonUnread - 1);
   const lines = [];
   if (m.anon) lines.push(T(ctx, 'in.msg_anon', { cat: catLabel(ctx.lang, m.cat), t: ago(ctx.lang, m.createdAt) }));
+  else if (m.cf) lines.push(T(ctx, 'cf.in_reply', { id: N(ctx, m.cf), t: ago(ctx.lang, m.createdAt) })); // never the author's name
   else {
     const from = await getUser(m.fromId);
     lines.push(T(ctx, 'in.msg_reply', { name: esc(from ? displayNameOf(from, ctx.lang) : '?'), t: ago(ctx.lang, m.createdAt) }));

@@ -1,6 +1,13 @@
 // The bot's single owner, by numeric Telegram id. Usernames are never trusted for this.
 export const OWNER_ID = 5557901897;
 
+// Admins the owner adds (lib/staff.js), each with some of these permissions; the owner has them all,
+// and alone manages admins, the scheduler, the confession channel and the health page.
+//   cf review confessions · rp review reports · ban ban/unban · st stats · bc broadcasts · ch forced-join channels
+export const ADMIN_PERMS = ['cf', 'rp', 'ban', 'st', 'bc', 'ch'];
+export const DEFAULT_ADMIN_PERMS = ['cf', 'rp', 'ban', 'st'];
+export const MAX_ADMINS = 20;
+
 // Seeded into the channels table once, and only while the table is empty.
 export const DEFAULT_CHANNELS = ['HIDE_i_SEEK', 'Nepenthw_ir', 'wangerBots'];
 export const MAX_CHANNELS = 10;
@@ -62,6 +69,27 @@ export const BC_BATCH = 25;
 export const BC_CHUNK = 5;
 export const BC_LOCK_SEC = 180; // a batch takes seconds; this only outlives a crashed one, with room for clock skew
 export const BC_PROGRESS_EVERY_SEC = 20;
+
+// Confessions (lib/confess.js).
+export const CONFESSION_MAX = 3000; // characters; the post adds a short header
+export const CF_COMMENT_MAX = 500;
+export const CF_COMMENTS_PAGE = 10;
+export const CF_PER_DAY = 3; // confessions one person may send for review per day
+export const CF_COMMENT_GAP_SEC = 20; // between two comments by the same person
+
+// Random anonymous chat (lib/rchat.js).
+export const RC_QUEUE_TTL_SEC = 10 * 60; // a wait older than this is forgotten (they may have left)
+export const RC_IDLE_SEC = 30 * 60; // a chat quiet this long ends when either side starts a new one
+export const RC_MIN_GAP_SEC = 1; // between two messages in a chat
+export const RC_MAX_LEN = 2000;
+
+// Reactions to anonymous messages: shown to the sender on their own message (setMessageReaction takes
+// only Telegram's reaction emoji, so these are from that list).
+export const REACTIONS = ['❤', '🔥', '🤣', '😱', '😢'];
+
+// The question of the day sent to those who asked for it, from this local hour on.
+export const DAILY_QUESTION_HOUR = 10;
+export const DAILY_BATCH = 25;
 
 // The bot waking itself up between steps of long work (lib/wake.js).
 export const WAKE_MAX_PER_HOUR = 600; // a runaway loop stops here; work then goes on with other updates

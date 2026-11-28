@@ -261,7 +261,9 @@ export async function startReply(ctx, user, id) {
   await setState(user.id, 'anon_reply', { ref: row.id });
   await answer(ctx);
   ctx.messageId = null; // never replace the message being answered: send a new prompt
-  return send(ctx, 'anon_reply_prompt', T(ctx, row.anon ? 'a.reply_prompt_owner' : 'a.reply_prompt_visitor'), [[btn(T(ctx, 'btn.cancel'), 'm')]]);
+  let prompt = row.anon ? 'a.reply_prompt_owner' : 'a.reply_prompt_visitor';
+  if (row.cf && row.anon) prompt = 'cf.reply_prompt_author'; // the confession's author: anonymous too
+  return send(ctx, 'anon_reply_prompt', T(ctx, prompt), [[btn(T(ctx, 'btn.cancel'), 'm')]]);
 }
 
 /** The buttons under a delivered message, in the recipient's language. */
@@ -354,7 +356,9 @@ async function deliver(ctx, message, c, target, id, header, replyTo) {
   }
 }
 
-function deliveryHeader(lang, anon, cat, q, sender) {
+function deliveryHeader(lang, anon, cat, q, sender, cf = null) {
+  // A confession's author answering: never their name (lib/confess.js)
+  if (!anon && cf) return t(lang, 'cf.reply_header', { id: num(lang, cf) });
   if (!anon) return t(lang, 'a.reply_header', { name: esc(displayNameOf(sender, lang)) });
   const head = t(lang, 'a.new_header', { cat: catLabel(lang, cat) });
   return q ? `${head}\n${t(lang, 'a.answering', { q: esc(q) })}` : head;
@@ -371,6 +375,7 @@ export async function onAnonMessage(ctx, user, message, st) {
   let replyTo = null;
   let cat = 'g';
   let q = null;
+  let cf = null; // a chat with a confession's author: anonymous both ways
   if (st.state === 'anon_send') {
     target = await getUser(Number(st.data.to));
     if (!target || !target.anonOn || target.banned) {
@@ -380,6 +385,7 @@ export async function onAnonMessage(ctx, user, message, st) {
     anon = true;
     cat = st.data.cat || 'g';
     q = st.data.q || null;
+    cf = st.data.via === 'cf' ? Number(st.data.cf) || null : null;
   } else {
     const prev = await getAnonMsg(String(st.data.ref || ''));
     if (!prev || prev.toId !== user.id) {
@@ -390,6 +396,7 @@ export async function onAnonMessage(ctx, user, message, st) {
     anon = !prev.anon; // the anonymous side stays anonymous in both directions
     replyTo = prev.fromMsg;
     cat = prev.cat;
+    cf = prev.cf;
   }
   if (!target) return send(ctx, 'anon_gone', T(ctx, 'a.gone'));
   if (await refuses(target.id, user.id)) {
@@ -411,14 +418,14 @@ export async function onAnonMessage(ctx, user, message, st) {
   const reason = filterReason(target, words, c.body, c.entities);
   const id = randomId(10);
   await createAnonMsg({
-    id, fromId: user.id, toId: target.id, anon, fromMsg: Number(message.message_id) || null, kind: c.kind, body: c.body, norm, fileId: c.fileId, cat, q, hash, folder: reason ? 2 : 0,
+    id, fromId: user.id, toId: target.id, anon, fromMsg: Number(message.message_id) || null, kind: c.kind, body: c.body, norm, fileId: c.fileId, cat, q, cf, hash, folder: reason ? 2 : 0,
   });
   await touchSent(user.id);
   ctx.filtered = reason || undefined;
   if (!reason) {
     const lang = langOf(target);
     try {
-      const delivered = await deliver(ctx, message, c, target, id, deliveryHeader(lang, anon, cat, q, user), replyTo);
+      const delivered = await deliver(ctx, message, c, target, id, deliveryHeader(lang, anon, cat, q, user, cf), replyTo);
       if (delivered) await setDelivered(id, delivered);
     } catch (err) {
       if (isApiError(err) && err.code === 403) {
@@ -434,8 +441,10 @@ export async function onAnonMessage(ctx, user, message, st) {
   }
   await clearState(user.id);
   const code = st.state === 'anon_send' ? st.data.code : null;
-  const kb = code
+  let kb = code
     ? [[btn(T(ctx, 'a.btn_again'), `aw:${code}`), btn(T(ctx, 'a.btn_rate'), `rt:${code}`)], [btn(T(ctx, 'a.btn_own_link'), 'al')]]
     : [[btn(T(ctx, 'btn.home'), 'm')]];
-  return send(ctx, 'anon_sent', T(ctx, st.state === 'anon_send' ? 'a.sent' : (anon ? 'a.reply_sent_anon' : 'a.reply_sent')), kb);
+  // To a confession's author (lib/confess.js): no button that would lead to their profile.
+  if (st.data && st.data.via === 'cf') kb = [[btn(T(ctx, 'cf.btn_dm_again'), `cxw:${st.data.cf}`)], [btn(T(ctx, 'btn.home'), 'm')]];
+  return send(ctx, 'anon_sent', T(ctx, st.state === 'anon_send' ? 'a.sent' : (anon || cf ? 'a.reply_sent_anon' : 'a.reply_sent')), kb);
 }

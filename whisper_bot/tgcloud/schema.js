@@ -18,6 +18,7 @@ export const users = table('users', {
   lang: text('lang'), // fa / en / ru once chosen; NULL = not chosen yet (detected from language_code)
   tgLang: text('tg_lang'), // fa / en / ru from their Telegram app's language: for messages they get from
   // someone else's update (a reply, a notification) while they haven't chosen a language
+  blang: text('blang').notNull().default('fa'), // lang, else tg_lang, else fa: kept in step, for broadcasts by language
   receipts: integer('receipts').notNull().default(1), // whisper open notifications in PM, on/off
   defExpiry: integer('def_expiry').notNull().default(0), // default whisper lifetime in seconds, 0 = none
   recent: text('recent'), // JSON: the 3 most recent recipients, for quick inline results
@@ -34,6 +35,7 @@ export const users = table('users', {
   aLinks: integer('a_links').notNull().default(0), // hide messages with links / @mentions
   aText: integer('a_text').notNull().default(0), // accept text only (no media)
   aSilent: integer('a_silent').notNull().default(0), // deliver without a notification sound
+  aPhone: integer('a_phone').notNull().default(1), // hide messages with a phone number (someone else's, often)
   qMode: integer('q_mode').notNull().default(0), // question on the link: 0 none, 1 question of the day, 2 own
   qText: text('q_text'), // the user's own question
   // the limited public profile, shown when someone opens the link
@@ -48,12 +50,26 @@ export const users = table('users', {
   strikes: integer('strikes').notNull().default(0), // blocks/reports received as an anonymous sender
   strikeAt: integer('strike_at').notNull().default(0),
   restrictedUntil: integer('restricted_until').notNull().default(0), // may not send anonymously until then
+  // link visitors: distinct people per day (link_visits), today's count and the total
+  lvDay: integer('lv_day').notNull().default(0), // local day (YYYYMMDD) lv_today counts
+  lvToday: integer('lv_today').notNull().default(0),
+  lvTotal: integer('lv_total').notNull().default(0),
+  joinMissing: text('join_missing'), // JSON: channel ids missing at the join screen (joins via the bot)
+  // random anonymous chat
+  rcPartner: integer('rc_partner').notNull().default(0), // the current partner, 0 = none
+  rcSince: integer('rc_since').notNull().default(0),
+  rcLast: integer('rc_last').notNull().default(0), // their last message in the chat (flood gap, idle)
+  rcMedia: integer('rc_media').notNull().default(0), // accepts photos, videos and files from partners
+  qdPush: integer('qd_push').notNull().default(0), // gets the question of the day every morning
 }, (t) => ({
   byUsername: index('idx_users_username').on(t.usernameLc),
   byAnonCode: uniqueIndex('uq_users_anon_code').on(t.anonCode),
   // The broadcast queue walks this index in user_id order, so a batch reads only its own rows.
   reachable: index('idx_users_reachable').on(t.userId).where(sql`started = 1 AND active = 1 AND banned = 0`),
   banned: index('idx_users_banned').on(t.userId).where(sql`banned = 1`),
+  // a broadcast to one language walks this one instead
+  reachableByLang: index('idx_users_reach_lang').on(t.blang, t.userId).where(sql`started = 1 AND active = 1 AND banned = 0`),
+  dailyQuestion: index('idx_users_qd').on(t.userId).where(sql`qd_push = 1 AND started = 1 AND active = 1 AND banned = 0`),
 }));
 
 // Bot-wide values: join (1/0), chv (channel-list version), seeded, bot_id, bot_username, bc (running
@@ -71,6 +87,7 @@ export const channels = table('channels', {
   chatId: integer('chat_id'), // numeric id, once known
   title: text('title'),
   warnedAt: integer('warned_at').notNull().default(0), // last "membership check failed" warning to the owner
+  joins: integer('joins').notNull().default(0), // people who joined after the bot's join screen showed it
   createdAt: integer('created_at').notNull(),
 });
 
@@ -99,6 +116,9 @@ export const whispers = table('whispers', {
   snoops: integer('snoops').notNull().default(0), // distinct "curious" non-recipients who pressed the button
   inlineId: text('inline_id'), // inline_message_id of the posted message, for status edits
   lang: text('lang').notNull().default('fa'), // the sender's language: the posted message is in it
+  kind: text('kind').notNull().default('text'), // text, or a media whisper: photo / video / voice / ...
+  fileId: text('file_id'), // the media, opened in the bot's chat (protect_content)
+  opensAt: integer('opens_at').notNull().default(0), // a time capsule: not before this time (0 = any time)
   createdAt: integer('created_at').notNull(),
 }, (t) => ({
   bySender: index('idx_whispers_sender').on(t.senderId, t.createdAt),
@@ -164,6 +184,8 @@ export const anonMsgs = table('anon_msgs', {
   hash: integer('hash').notNull().default(0), // of the text, for duplicate detection
   folder: integer('folder').notNull().default(0), // 0 inbox, 1 archive, 2 filtered (hidden by a filter)
   unread: integer('unread').notNull().default(1),
+  reaction: text('reaction'), // the recipient's emoji reaction (also set on the sender's own message)
+  cf: integer('cf'), // a chat with a confession's author (lib/confess.js): its id — both sides stay anonymous
   createdAt: integer('created_at').notNull(),
 }, (t) => ({
   byFolder: index('idx_anon_msgs_folder').on(t.toId, t.folder, t.createdAt), // inbox pages, search
@@ -260,8 +282,85 @@ export const broadcasts = table('broadcasts', {
   progressChat: integer('progress_chat'),
   progressMsg: integer('progress_msg'),
   progressAt: integer('progress_at').notNull().default(0),
+  lang: text('lang'), // only users of this language (users.blang); NULL = everyone
+  btnText: text('btn_text'), // an optional link button under every copy
+  btnUrl: text('btn_url'),
   createdAt: integer('created_at').notNull(),
   finishedAt: integer('finished_at').notNull().default(0),
 }, (t) => ({
   byStatus: index('idx_broadcasts_status').on(t.status),
+}));
+
+// Distinct visitors of a personal link per local day: a visit counts once per person per day.
+// Rows older than yesterday are cleaned lazily (lib/store.js gcBatch).
+export const linkVisits = table('link_visits', {
+  ownerId: integer('owner_id').notNull(),
+  visitorId: integer('visitor_id').notNull(),
+  day: integer('day').notNull(), // YYYYMMDD, local time
+}, (t) => ({
+  once: uniqueIndex('uq_link_visits').on(t.ownerId, t.visitorId, t.day),
+  byDay: index('idx_link_visits_day').on(t.day),
+}));
+
+// The bot's admins, added and removed by the owner, with what each one may do (lib/staff.js). The
+// owner (lib/config.js OWNER_ID) is not a row here: they may do everything.
+export const admins = table('admins', {
+  userId: integer('user_id').primaryKey(),
+  perms: text('perms').notNull().default(''), // comma-separated, see lib/config.js ADMIN_PERMS
+  addedAt: integer('added_at').notNull(),
+});
+
+// Confessions for the confession channel (lib/confess.js): written by users, reviewed by the owner or an
+// admin, posted to the channel when approved. The author chose before review whether people may comment
+// (in the bot) and whether they may message the author anonymously; the author is never shown to anyone.
+export const confessions = table('confessions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  authorId: integer('author_id').notNull(),
+  body: text('body').notNull(),
+  allowComments: integer('allow_comments').notNull().default(1),
+  allowDm: integer('allow_dm').notNull().default(0),
+  flags: text('flags'), // what the filters noticed, for the reviewer: offensive / link / phone
+  status: text('status').notNull().default('pending'), // pending / approved / rejected
+  lang: text('lang').notNull().default('fa'), // the author's language, for their notices
+  channelId: integer('channel_id'), // where it was posted
+  channelMsg: integer('channel_msg'),
+  comments: integer('comments').notNull().default(0),
+  decidedAt: integer('decided_at').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  byStatus: index('idx_confessions_status').on(t.status, t.id),
+  byAuthor: index('idx_confessions_author').on(t.authorId, t.id),
+}));
+
+// Comments on a posted confession, written and read in the bot (the post's "💬" button). Anonymous to
+// everyone; hidden = removed by a reviewer.
+export const cfComments = table('cf_comments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  confessionId: integer('confession_id').notNull(),
+  authorId: integer('author_id').notNull(),
+  body: text('body').notNull(),
+  hidden: integer('hidden').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  byConfession: index('idx_cf_comments').on(t.confessionId, t.hidden, t.id),
+  byAuthor: index('idx_cf_comments_author').on(t.authorId, t.createdAt),
+}));
+
+// Random anonymous chat (lib/rchat.js): people waiting for a partner, by language. The pair being
+// chatted with is users.rc_partner on both rows.
+export const rcQueue = table('rc_queue', {
+  userId: integer('user_id').primaryKey(),
+  lang: text('lang').notNull(),
+  since: integer('since').notNull(),
+}, (t) => ({
+  byLang: index('idx_rc_queue_lang').on(t.lang, t.since),
+}));
+
+// user_id is never matched with blocked_id again in random chat (after a report or a block).
+export const rcBlocks = table('rc_blocks', {
+  userId: integer('user_id').notNull(),
+  blockedId: integer('blocked_id').notNull(),
+  at: integer('at').notNull(),
+}, (t) => ({
+  pair: uniqueIndex('uq_rc_blocks').on(t.userId, t.blockedId),
 }));

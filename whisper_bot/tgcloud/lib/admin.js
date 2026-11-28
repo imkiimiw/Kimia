@@ -1,8 +1,10 @@
-// Owner panel. The router calls these only after checking from.id === OWNER_ID in a private chat,
-// for every command and every button. Stats are counts only: no whisper or anonymous content is shown
-// here, except a message a user chose to report — and even then never who sent it.
+// The panel (/admin) for the owner and the admins. The router calls these only after checking, in a
+// private chat, that the numeric from.id is the owner or an admin with the permission the action needs
+// (lib/staff.js) — for every command and every button. Stats are counts only: no whisper or anonymous
+// content is shown here, except a message a user chose to report or a confession sent for review —
+// and even then never who wrote it.
 import {
-  BC_BATCH, MAX_CHANNELS, OWNER_ID, RESTRICT_LONG_SEC,
+  ADMIN_PERMS, BC_BATCH, MAX_ADMINS, MAX_CHANNELS, OWNER_ID, RESTRICT_LONG_SEC,
 } from './config.js';
 import {
   getReport, listReports, restrict, setReportStatus,
@@ -11,11 +13,15 @@ import { botInfo } from './bot.js';
 import {
   finalReport, keepGoing, processBatch, progressView,
 } from './broadcast.js';
-import { ago, num, t } from './i18n.js';
+import {
+  ago, langOf, num, t,
+} from './i18n.js';
+import { confessionChannelStatus } from './confess.js';
+import { countPendingConfessions } from './cstore.js';
 import { channelRef } from './join.js';
 import {
   addChannel, bumpChannelVersion, clearState, countChannels, createBroadcast, getBroadcast, getChannel,
-  getChannels, getUser, removeChannel, runningBroadcast, setBanned, setBroadcastStatus, setKv,
+  getChannels, getUser, getUserByUsername, removeChannel, runningBroadcast, setBanned, setBroadcastStatus, setKv,
   setBroadcastProgressMessage, setState, startBroadcast, stats,
 } from './store.js';
 import {
@@ -24,30 +30,46 @@ import {
 import {
   esc, nowSec, toAsciiDigits, truncate,
 } from './util.js';
+import {
+  addAdmin, can, getStaff, listAdmins, removeAdmin, togglePerm,
+} from './staff.js';
 import { setWakeChat, wakeStatus } from './wake.js';
 
 const T = (ctx, k, v) => t(ctx.lang, k, v);
 const N = (ctx, n) => num(ctx.lang, n);
 const toPanel = (ctx) => [btn(T(ctx, 'adm.btn_panel'), 'a')];
 
-export async function showPanel(ctx, kv) {
+/** The panel: only the buttons the owner or this admin may use (lib/staff.js). */
+export async function showPanel(ctx, kv, staff) {
   const n = await countChannels();
   const joinOn = kv.join !== '0';
   const running = kv.bc ? await getBroadcast(Number(kv.bc)) : null;
   const s = await stats();
-  const kb = [
-    [btn(T(ctx, 'adm.btn_channels'), 'a:ch'), btn(T(ctx, 'adm.btn_add_channel'), 'a:add')],
-    [btn(T(ctx, joinOn ? 'adm.btn_join_on' : 'adm.btn_join_off'), 'a:j')],
-    [btn(T(ctx, 'adm.btn_ban'), 'a:ban'), btn(T(ctx, 'adm.btn_unban'), 'a:unban')],
-    [btn(T(ctx, 'adm.btn_stats'), 'a:st'), btn(T(ctx, 'adm.btn_reports', { n: N(ctx, s.reports) }), 'a:rp')],
-    [running && running.status === 'running'
+  const pending = can(staff, 'cf') ? await countPendingConfessions() : 0;
+  const kb = [];
+  if (can(staff, 'ch')) {
+    kb.push([btn(T(ctx, 'adm.btn_channels'), 'a:ch'), btn(T(ctx, 'adm.btn_add_channel'), 'a:add')]);
+    kb.push([btn(T(ctx, joinOn ? 'adm.btn_join_on' : 'adm.btn_join_off'), 'a:j')]);
+  }
+  if (can(staff, 'ban')) kb.push([btn(T(ctx, 'adm.btn_ban'), 'a:ban'), btn(T(ctx, 'adm.btn_unban'), 'a:unban')]);
+  const row = [];
+  if (can(staff, 'st')) row.push(btn(T(ctx, 'adm.btn_stats'), 'a:st'));
+  if (can(staff, 'rp')) row.push(btn(T(ctx, 'adm.btn_reports', { n: N(ctx, s.reports) }), 'a:rp'));
+  if (row.length) kb.push(row);
+  if (can(staff, 'cf')) kb.push([btn(T(ctx, 'adm.btn_confessions', { n: N(ctx, pending) }), 'a:cf')]);
+  if (can(staff, 'bc')) {
+    kb.push([running && running.status === 'running'
       ? btn(T(ctx, 'adm.btn_bc_running', { id: N(ctx, running.id) }), `a:bcp:${running.id}`)
-      : btn(T(ctx, 'adm.btn_broadcast'), 'a:bc')],
-    [btn(T(ctx, 'adm.btn_clock'), 'a:wk')],
-  ];
-  return show(ctx, 'admin_panel', T(ctx, 'adm.panel', {
+      : btn(T(ctx, 'adm.btn_broadcast'), 'a:bc')]);
+  }
+  if (staff.owner) {
+    kb.push([btn(T(ctx, 'adm.btn_admins'), 'a:ad'), btn(T(ctx, 'adm.btn_cf_settings'), 'a:cfs')]);
+    kb.push([btn(T(ctx, 'adm.btn_clock'), 'a:wk'), btn(T(ctx, 'adm.btn_health'), 'a:hl')]);
+  }
+  const title = staff.owner ? T(ctx, 'adm.title_owner') : T(ctx, 'adm.title_admin', { perms: permNames(ctx, [...staff.perms]) });
+  return show(ctx, 'admin_panel', `${title}\n\n${T(ctx, 'adm.panel', {
     join: T(ctx, joinOn ? 'common.on' : 'common.off'), n: N(ctx, n), max: N(ctx, MAX_CHANNELS), reports: N(ctx, s.reports),
-  }), kb);
+  })}`, kb);
 }
 
 // ---------- channels ----------
@@ -133,12 +155,12 @@ export async function doRemove(ctx, kv, id) {
   return showChannels(ctx, kv, ok ? T(ctx, 'adm.ch_removed', { name: esc(ch.username) }) : '');
 }
 
-export async function toggleJoin(ctx, kv) {
+export async function toggleJoin(ctx, kv, staff) {
   const on = kv.join === '0';
   await setKv('join', on ? '1' : '0');
   kv.join = on ? '1' : '0';
   await answer(ctx, T(ctx, on ? 'adm.join_turned_on' : 'adm.join_turned_off'));
-  return showPanel(ctx, kv);
+  return showPanel(ctx, kv, staff);
 }
 
 // ---------- ban / unban ----------
@@ -155,6 +177,8 @@ export async function onBanInput(ctx, user, text, ban) {
   const id = Number(s);
   await clearState(user.id);
   if (id === OWNER_ID) return send(ctx, 'admin_ban_owner', T(ctx, 'adm.ban_owner'), [toPanel(ctx)]);
+  // An admin is the owner's to remove, not another admin's to ban.
+  if (user.id !== OWNER_ID && (await getStaff(id))) return send(ctx, 'admin_ban_owner', T(ctx, 'adm.ban_staff'), [toPanel(ctx)]);
   await setBanned(id, ban);
   const u = await getUser(id);
   const who = u && u.username ? ` (@${esc(u.username)})` : '';
@@ -381,4 +405,144 @@ export async function showClockGuide(ctx) {
   const kb = [[btn(T(ctx, 'btn.back'), 'a:wk')]];
   if (!w.chatId) return show(ctx, 'admin_clock_guide', T(ctx, 'wk.guide_need_channel'), kb);
   return show(ctx, 'admin_clock_guide', T(ctx, 'wk.guide', { chat: String(w.chatId) }), kb);
+}
+
+// ---------- admins (the owner only) ----------
+
+const sep = (ctx) => (ctx.lang === 'fa' ? '، ' : ', ');
+
+/** "confessions، reports" — what these permissions are called, in the reader's language. */
+export function permNames(ctx, perms) {
+  const names = ADMIN_PERMS.filter((p) => perms.includes(p)).map((p) => T(ctx, `ad.perm_${p}`));
+  return names.length ? names.join(sep(ctx)) : T(ctx, 'ad.perm_none');
+}
+
+async function personLabel(id, { html = true } = {}) {
+  const u = await getUser(id);
+  const name = u && u.username ? `@${u.username}` : u && u.firstName ? u.firstName : '';
+  if (!html) return truncate(name || String(id), 30);
+  return name ? `${esc(name)} (<code>${id}</code>)` : `<code>${id}</code>`;
+}
+
+export async function showAdmins(ctx, note = '') {
+  const admins = await listAdmins();
+  const lines = [T(ctx, 'ad.title', { n: N(ctx, admins.length), max: N(ctx, MAX_ADMINS) }), ''];
+  const kb = [];
+  for (const a of admins) {
+    lines.push(`• ${await personLabel(a.id)} — ${permNames(ctx, a.perms)}`);
+    kb.push([btn(`✏️ ${await personLabel(a.id, { html: false })}`, `a:adv:${a.id}`)]);
+  }
+  if (!admins.length) lines.push(T(ctx, 'ad.none'));
+  if (admins.length < MAX_ADMINS) kb.push([btn(T(ctx, 'ad.btn_add'), 'a:adn')]);
+  kb.push(toPanel(ctx));
+  return show(ctx, 'admin_admins', `${note ? `${note}\n\n` : ''}${lines.join('\n')}`, kb);
+}
+
+export async function askAdmin(ctx, user) {
+  await setState(user.id, 'admin_add');
+  await answer(ctx);
+  return show(ctx, 'admin_admin_ask', T(ctx, 'ad.ask'), [[btn(T(ctx, 'btn.cancel'), 'a:ad')]]);
+}
+
+/** A forwarded message from the person, their numeric id, or the @username of someone the bot knows. */
+export async function onAdminInput(ctx, user, message) {
+  const origin = message.forward_origin || {};
+  if (origin.type === 'hidden_user') return send(ctx, 'admin_admin_invalid', T(ctx, 'ad.hidden'));
+  let id = null;
+  if (origin.type === 'user' && origin.sender_user) id = Number(origin.sender_user.id);
+  else if (message.forward_from) id = Number(message.forward_from.id);
+  else {
+    const text = toAsciiDigits(String(message.text || '').trim());
+    if (/^[1-9][0-9]{4,15}$/.test(text)) id = Number(text);
+    else if (/^@?[A-Za-z][A-Za-z0-9_]{3,31}$/.test(text)) {
+      const u = await getUserByUsername(text.replace(/^@/, '').toLowerCase());
+      if (u) id = u.id;
+    }
+  }
+  if (!id) return send(ctx, 'admin_admin_invalid', T(ctx, 'ad.invalid'));
+  const r = await addAdmin(id);
+  await clearState(user.id);
+  ctx.messageId = null;
+  if (r === 'owner') return showAdmins(ctx, T(ctx, 'ad.is_owner'));
+  if (r === 'full') return showAdmins(ctx, T(ctx, 'ad.full', { max: N(ctx, MAX_ADMINS) }));
+  const who = await personLabel(id);
+  if (r === 'dup') return showAdmin(ctx, id, T(ctx, 'ad.already', { who }));
+  const u = await getUser(id);
+  if (u && u.started && u.active) {
+    const lang = langOf(u);
+    try {
+      await send(ctx, 'admin_welcome', t(lang, 'ad.welcome'), [[btn(t(lang, 'ad.btn_open_panel'), 'a')]], id);
+    } catch (err) {
+      // they'll find /admin when they come
+    }
+  }
+  return showAdmin(ctx, id, T(ctx, 'ad.added', { who }));
+}
+
+/** One admin: what they may do (toggles), and removing them. */
+export async function showAdmin(ctx, id, note = '') {
+  const staff = await getStaff(id);
+  if (!staff || staff.owner) return showAdmins(ctx, T(ctx, 'ad.gone'));
+  const kb = ADMIN_PERMS.map((p) => [btn(`${staff.perms.has(p) ? '✅' : '▫️'} ${T(ctx, `ad.perm_${p}`)}`, `a:adp:${staff.id}:${p}`)]);
+  kb.push([btn(T(ctx, 'ad.btn_remove'), `a:adx:${staff.id}`)]);
+  kb.push([btn(T(ctx, 'btn.back'), 'a:ad')]);
+  const text = `${note ? `${note}\n\n` : ''}${T(ctx, 'ad.edit', { who: await personLabel(staff.id) })}`;
+  return show(ctx, 'admin_admin', text, kb);
+}
+
+export async function toggleAdminPerm(ctx, id, perm) {
+  const perms = await togglePerm(Number(id), perm);
+  if (!perms) return answer(ctx, T(ctx, 'ad.gone'), { alert: true });
+  await answer(ctx, T(ctx, perms.includes(perm) ? 'ad.perm_on' : 'ad.perm_off', { p: T(ctx, `ad.perm_${perm}`) }));
+  return showAdmin(ctx, Number(id));
+}
+
+export async function askRemoveAdmin(ctx, id) {
+  if (!(await getStaff(id))) return answer(ctx, T(ctx, 'ad.gone'), { alert: true });
+  await answer(ctx);
+  return show(ctx, 'admin_admin_remove', T(ctx, 'ad.remove_ask', { who: await personLabel(Number(id)) }),
+    [[btn(T(ctx, 'ad.btn_remove_yes'), `a:adxy:${id}`), btn(T(ctx, 'btn.no'), `a:adv:${id}`)]]);
+}
+
+export async function doRemoveAdmin(ctx, id) {
+  const who = await personLabel(Number(id));
+  const ok = await removeAdmin(Number(id));
+  await answer(ctx, T(ctx, ok ? 'ad.removed_short' : 'ad.gone'));
+  return showAdmins(ctx, ok ? T(ctx, 'ad.removed', { who }) : '');
+}
+
+// ---------- health (the owner only) ----------
+
+/** What the bot needs from Telegram and the channels, checked now: the 🩺 page. */
+export async function showHealth(ctx, kv) {
+  const bot = await botInfo(ctx, kv);
+  const lines = [T(ctx, 'hl.title'), ''];
+  let me = null;
+  try {
+    me = await call(ctx, 'getMe', {}, 'health_me');
+  } catch (err) {
+    console.warn(`getMe failed: ${describeError(err)}`);
+  }
+  lines.push(T(ctx, me && me.supports_inline_queries ? 'hl.inline_on' : 'hl.inline_off'));
+  const channels = await getChannels(kv);
+  const checks = await Promise.all(channels.map(async (ch) => {
+    if (!bot.id) return false;
+    try {
+      const m = await call(ctx, 'getChatMember', { chat_id: channelRef(ch), user_id: bot.id }, 'admin_check');
+      return m.status === 'administrator' || m.status === 'creator';
+    } catch (err) {
+      return false;
+    }
+  }));
+  lines.push('', T(ctx, 'hl.channels', { ok: N(ctx, checks.filter(Boolean).length), n: N(ctx, channels.length) }));
+  channels.forEach((ch, i) => lines.push(`${checks[i] ? '✅' : '❌'} @${esc(ch.username)} · ${T(ctx, 'hl.joins', { n: N(ctx, ch.joins || 0) })}`));
+  if (kv.join === '0') lines.push(T(ctx, 'adm.ch_join_off'));
+  else if (channels.length && checks.some((x) => !x)) lines.push(T(ctx, 'hl.need_admin'));
+  const cf = await confessionChannelStatus(ctx, kv, bot);
+  lines.push('', cf);
+  const w = await wakeStatus();
+  lines.push('', T(ctx, 'hl.wake', { ago: w.lastWake ? ago(ctx.lang, w.lastWake, nowSec()) : T(ctx, 'wk.never') }));
+  const s = await stats();
+  lines.push(T(ctx, 'hl.users', { users: N(ctx, s.users), active: N(ctx, s.active) }));
+  return show(ctx, 'admin_health', lines.join('\n'), [[btn(T(ctx, 'hl.btn_refresh'), 'a:hl')], toPanel(ctx)]);
 }

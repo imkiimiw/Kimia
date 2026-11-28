@@ -33,6 +33,7 @@ import { OWNER_ID } from './config.js';
 import * as admin from './admin.js';
 import * as anon from './anon.js';
 import * as anonset from './anonset.js';
+import * as confess from './confess.js';
 import { showCards } from './card.js';
 import { langOf, t } from './i18n.js';
 import * as inbox from './inbox.js';
@@ -40,6 +41,8 @@ import { afterUpdate } from './maint.js';
 import * as menu from './menu.js';
 import * as profile from './profile.js';
 import * as qotd from './qotd.js';
+import * as rchat from './rchat.js';
+import { can, getStaff } from './staff.js';
 import { isOurWake, isTickPost } from './wake.js';
 import {
   clearState, getState, getUser, loadKv, touchUser,
@@ -52,7 +55,24 @@ import {
 } from './whisper.js';
 import * as wpm from './wpm.js';
 
-const OWNER_STATES = new Set(['add_channel', 'ban', 'unban', 'bc_wait', 'wake_chat']);
+// What a staff member's pending input needs (lib/staff.js): checked again when the input arrives.
+const STAFF_STATES = {
+  add_channel: 'ch', ban: 'ban', unban: 'ban', bc_wait: 'bc', bc_btn: 'bc', wake_chat: 'owner', admin_add: 'owner', cf_chat: 'owner',
+};
+// What each panel button needs: 'any' = any staff member, 'owner' = the owner alone.
+const ADMIN_ACTIONS = {
+  '': 'any', x: 'any',
+  ch: 'ch', add: 'ch', rm: 'ch', rmy: 'ch', j: 'ch',
+  ban: 'ban', unban: 'ban',
+  st: 'st',
+  rp: 'rp', rv: 'rp', rb: 'rp', rr: 'rp', rd: 'rp',
+  bc: 'bc', bcy: 'bc', bcn: 'bc', bcc: 'bc', bcs: 'bc', bcp: 'bc', bca: 'bc', bcb: 'bc', bcbx: 'bc',
+  cf: 'cf', cfv: 'cf', cfa: 'cf', cfr: 'cf', cfb: 'cf', cfh: 'cf',
+  cfs: 'owner', cfsc: 'owner', cfst: 'owner', cfsx: 'owner',
+  ad: 'owner', adn: 'owner', adv: 'owner', adp: 'owner', adx: 'owner', adxy: 'owner',
+  wk: 'owner', wkc: 'owner', wkp: 'owner', wkg: 'owner',
+  hl: 'owner',
+};
 const PROFILE_STATES = new Set(['profile_name', 'profile_bio', 'profile_photo']);
 
 function result(ctx) {
@@ -98,6 +118,7 @@ async function continueOrMain(ctx, user, kv, note = '') {
   if (user.id !== OWNER_ID && !(await menu.requireJoin(ctx, user, kv))) return null;
   const st = await getState(user.id);
   if (st && st.state === 'anon_send') {
+    if (st.data.via === 'cf') return confess.showDmCard(ctx, st.data.cf); // to a confession's author: no profile
     const owner = await getUser(Number(st.data.to));
     if (owner && owner.anonOn) return anon.showProfileCard(ctx, owner, st.data);
   }
@@ -106,10 +127,17 @@ async function continueOrMain(ctx, user, kv, note = '') {
 
 async function routeState(ctx, message, user, kv, st) {
   const isOwner = user.id === OWNER_ID;
-  if (isOwner && OWNER_STATES.has(st.state)) {
+  if (STAFF_STATES[st.state]) {
+    if (!can(await getStaff(user.id), STAFF_STATES[st.state])) { // no longer staff, or lost the permission
+      await clearState(user.id);
+      return menu.showHint(ctx);
+    }
     if (st.state === 'bc_wait') return admin.onBroadcastMessage(ctx, user, message);
+    if (st.state === 'bc_btn') return admin.onBroadcastButton(ctx, user, message.text, st.data);
     if (st.state === 'add_channel') return admin.onChannelInput(ctx, user, kv, message.text);
     if (st.state === 'wake_chat') return admin.onWakeChatInput(ctx, user, kv, message);
+    if (st.state === 'admin_add') return admin.onAdminInput(ctx, user, message);
+    if (st.state === 'cf_chat') return confess.onChannelInput(ctx, user, kv, message);
     return admin.onBanInput(ctx, user, message.text, st.state === 'ban');
   }
   if (user.banned && !isOwner) return send(ctx, 'banned', t(ctx.lang, 'e.banned'));
@@ -126,6 +154,11 @@ async function routeState(ctx, message, user, kv, st) {
       return anonset.onWordInput(ctx, user, message.text);
     case 'qotd_custom':
       return qotd.onCustomQuestion(ctx, user, message.text);
+    case 'cf_write':
+    case 'cf_options': // new text replaces the draft
+      return confess.onText(ctx, user, message);
+    case 'cf_comment':
+      return confess.onComment(ctx, user, kv, message, st);
     default:
       if (PROFILE_STATES.has(st.state)) return profile.onProfileInput(ctx, user, message, st.state);
       await clearState(user.id);
@@ -144,6 +177,9 @@ async function routeMessage(ctx, message, user, kv) {
     return send(ctx, 'cancelled', t(ctx.lang, 'e.cancelled'), menu.mainKeyboard(ctx));
   }
 
+  // The random chat's controls end the chat whatever else the user was in the middle of.
+  if (user.rcPartner && rchat.isControl(message)) return rchat.onMessage(ctx, user, message);
+
   const st = await getState(user.id);
   if (st) {
     if (!c) return routeState(ctx, message, user, kv, st);
@@ -151,6 +187,15 @@ async function routeMessage(ctx, message, user, kv) {
   }
 
   if (user.banned && !isOwner) return send(ctx, 'banned', t(ctx.lang, 'e.banned'));
+
+  // In a random chat, everything that isn't a command goes to the partner (lib/rchat.js).
+  if (user.rcPartner && !c) return rchat.onMessage(ctx, user, message);
+
+  if (c && c.cmd === 'start' && /^cx_\d+$/.test(c.arg)) { // an anonymous message to a confession's author
+    if (!(await confess.prepareDm(ctx, user, Number(c.arg.slice(3))))) return null;
+    if (!isOwner && !(await menu.requireJoin(ctx, user, kv))) return null; // the target waits in user_state
+    return confess.showDmCard(ctx, Number(c.arg.slice(3)));
+  }
 
   if (c && c.cmd === 'start' && /^a_/.test(c.arg)) {
     const target = await anon.openLink(ctx, user, c.arg.slice(2));
@@ -160,8 +205,9 @@ async function routeMessage(ctx, message, user, kv) {
   }
 
   if (c && c.cmd === 'admin') {
-    if (!isOwner) return send(ctx, 'admin_refused', t(ctx.lang, 'e.owner_only'));
-    return admin.showPanel(ctx, kv);
+    const staff = await getStaff(user.id);
+    if (!staff) return send(ctx, 'admin_refused', t(ctx.lang, 'e.owner_only'));
+    return admin.showPanel(ctx, kv, staff);
   }
 
   if ((c && c.cmd === 'lang') || (!user.lang && c && c.cmd === 'start')) return menu.showLangPicker(ctx);
@@ -170,6 +216,8 @@ async function routeMessage(ctx, message, user, kv) {
 
   switch (c && c.cmd) {
     case 'start':
+      if (/^cm_\d+$/.test(c.arg)) return confess.showComments(ctx, user, Number(c.arg.slice(3))); // a post's 💬
+      if (c.arg === 'cf') return confess.showHome(ctx, user, kv); // a post's "✍️ yours"
       return menu.showMain(ctx, user, kv, c.arg === 'join' ? t(ctx.lang, 'join.welcome_back') : '');
     case 'help':
       return menu.showHelp(ctx, kv);
@@ -238,8 +286,9 @@ async function routeCallback(ctx, data, user, kv, isPrivate) {
   const isOwner = user.id === OWNER_ID;
 
   if (head === 'a') {
-    if (!isOwner || !isPrivate) return answer(ctx, t(ctx.lang, 'e.owner_only'), { alert: true });
-    return routeAdmin(ctx, user, kv, a1 || '', a2);
+    const staff = isPrivate ? await getStaff(user.id) : null;
+    if (!staff) return answer(ctx, t(ctx.lang, 'e.owner_only'), { alert: true });
+    return routeAdmin(ctx, user, kv, staff, a1 || '', a2, parts[3]);
   }
   if (!isPrivate) return answer(ctx, t(ctx.lang, 'e.private_only'));
   if (head === 'L') return menu.chooseLang(ctx, user, kv, a1, (c, u, k) => continueOrMain(c, u, k));
@@ -284,6 +333,36 @@ async function routeCallback(ctx, data, user, kv, isPrivate) {
     case 'uba':
       await anon.unblockByRef(ctx, user, a1);
       return wpm.showBlocks(ctx, user);
+    // ----- random chat -----
+    case 'rc':
+      if (!a1) return rchat.showHome(ctx, user);
+      if (a1 === 'go') return rchat.find(ctx, user);
+      if (a1 === 'x') return rchat.cancelSearch(ctx, user);
+      if (a1 === 'm') return rchat.toggleMedia(ctx, user);
+      if (a1 === 'e') return rchat.end(ctx, user);
+      if (a1 === 'n') return rchat.end(ctx, user, { next: true });
+      if (a1 === 'r') return rchat.askReport(ctx, user);
+      if (a1 === 'ry') return rchat.end(ctx, user, { report: true });
+      return answer(ctx, t(ctx.lang, 'rc.report_cancelled'));
+    // ----- confessions -----
+    case 'cf':
+      await clearState(user.id);
+      return confess.showHome(ctx, user, kv);
+    case 'cw':
+      return confess.startWrite(ctx, user, kv);
+    case 'co':
+      return confess.toggleOption(ctx, user, a1);
+    case 'cs':
+      return confess.submit(ctx, user, kv);
+    case 'cm':
+      await clearState(user.id);
+      return confess.showComments(ctx, user, Number(a1), Number(a2) || 0);
+    case 'cc':
+      return confess.startComment(ctx, user, Number(a1));
+    case 'cr':
+      return confess.reportComment(ctx, user, Number(a1));
+    case 'cxw':
+      return confess.openDm(ctx, user, Number(a1));
     // ----- anonymous: section, link, visiting -----
     case 'an':
       await clearState(user.id);
@@ -357,12 +436,16 @@ async function routeCallback(ctx, data, user, kv, isPrivate) {
   }
 }
 
-async function routeAdmin(ctx, user, kv, action, arg) {
+async function routeAdmin(ctx, user, kv, staff, action, arg, arg2) {
+  const need = ADMIN_ACTIONS[action];
+  if (!need) return answer(ctx, t(ctx.lang, 'e.old_button'));
+  if (need !== 'any' && !can(staff, need)) return answer(ctx, t(ctx.lang, 'e.no_permission'), { alert: true });
+  if (action === 'rb' && !can(staff, 'ban')) return answer(ctx, t(ctx.lang, 'e.no_permission'), { alert: true });
   switch (action) {
     case '':
     case 'x':
       await clearState(user.id);
-      return admin.showPanel(ctx, kv);
+      return admin.showPanel(ctx, kv, staff);
     case 'ch':
       return admin.showChannels(ctx, kv);
     case 'add':
@@ -372,7 +455,7 @@ async function routeAdmin(ctx, user, kv, action, arg) {
     case 'rmy':
       return admin.doRemove(ctx, kv, arg);
     case 'j':
-      return admin.toggleJoin(ctx, kv);
+      return admin.toggleJoin(ctx, kv, staff);
     case 'ban':
       return admin.askBan(ctx, user, true);
     case 'unban':
@@ -410,6 +493,50 @@ async function routeAdmin(ctx, user, kv, action, arg) {
       return admin.resetWakeChat(ctx);
     case 'wkg':
       return admin.showClockGuide(ctx);
+    case 'ad':
+      await clearState(user.id);
+      return admin.showAdmins(ctx);
+    case 'adn':
+      return admin.askAdmin(ctx, user);
+    case 'adv':
+      return admin.showAdmin(ctx, Number(arg));
+    case 'adp':
+      return admin.toggleAdminPerm(ctx, Number(arg), arg2);
+    case 'adx':
+      return admin.askRemoveAdmin(ctx, Number(arg));
+    case 'adxy':
+      return admin.doRemoveAdmin(ctx, Number(arg));
+    case 'hl':
+      await answer(ctx);
+      return admin.showHealth(ctx, kv);
+    case 'bca':
+      return admin.setBroadcastAudience(ctx, arg, arg2);
+    case 'bcb':
+      return admin.askBroadcastButton(ctx, user, arg);
+    case 'bcbx':
+      return admin.removeBroadcastButton(ctx, arg);
+    case 'cf':
+      await clearState(user.id);
+      return confess.showQueue(ctx, staff);
+    case 'cfv':
+      return confess.showForReview(ctx, staff, arg);
+    case 'cfa':
+      return confess.approve(ctx, staff, arg, kv);
+    case 'cfr':
+      return confess.reject(ctx, staff, arg);
+    case 'cfb':
+      return confess.rejectAndBan(ctx, staff, arg);
+    case 'cfh':
+      return confess.hideComment(ctx, staff, arg, kv);
+    case 'cfs':
+      await clearState(user.id);
+      return confess.showSettings(ctx, kv);
+    case 'cfsc':
+      return confess.askChannel(ctx, user);
+    case 'cfst':
+      return confess.toggleOn(ctx, kv);
+    case 'cfsx':
+      return confess.removeChannel(ctx, kv);
     default:
       return answer(ctx, t(ctx.lang, 'e.old_button'));
   }

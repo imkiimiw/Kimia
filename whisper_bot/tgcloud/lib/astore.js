@@ -42,13 +42,14 @@ function toMsg(r) {
     fileId: r.file_id || null,
     cat: r.cat || 'g',
     q: r.q || null,
+    cf: r.cf == null ? null : num(r.cf),
     folder: num(r.folder),
     unread: num(r.unread) === 1,
     createdAt: num(r.created_at),
   };
 }
 
-const M_COLS = sql`id, from_id, to_id, anon, from_msg, to_msg, kind, body, file_id, cat, q, folder, unread, created_at`;
+const M_COLS = sql`id, from_id, to_id, anon, from_msg, to_msg, kind, body, file_id, cat, q, cf, folder, unread, created_at`;
 
 /**
  * Stores a message for the recipient's inbox (or filtered folder) and updates their counters.
@@ -57,9 +58,9 @@ const M_COLS = sql`id, from_id, to_id, anon, from_msg, to_msg, kind, body, file_
 export async function createAnonMsg(m) {
   const now = nowSec();
   await db.run(sql`
-    INSERT INTO anon_msgs (id, from_id, to_id, anon, from_msg, to_msg, kind, body, norm, file_id, cat, q, hash, folder, unread, created_at)
+    INSERT INTO anon_msgs (id, from_id, to_id, anon, from_msg, to_msg, kind, body, norm, file_id, cat, q, cf, hash, folder, unread, created_at)
     VALUES (${m.id}, ${m.fromId}, ${m.toId}, ${m.anon ? 1 : 0}, ${m.fromMsg ?? null}, ${m.toMsg ?? null}, ${m.kind},
-      ${m.body || null}, ${m.norm || null}, ${m.fileId || null}, ${m.cat || 'g'}, ${m.q || null}, ${m.hash || 0},
+      ${m.body || null}, ${m.norm || null}, ${m.fileId || null}, ${m.cat || 'g'}, ${m.q || null}, ${m.cf || null}, ${m.hash || 0},
       ${m.folder || 0}, 1, ${now})`);
   const unread = (m.folder || 0) === FOLDER.inbox ? 1 : 0;
   const r = await db.run(sql`

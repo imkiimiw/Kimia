@@ -20,7 +20,8 @@ export const num = (v) => Number(v || 0);
 
 // ---------- kv: settings and counters ----------
 
-export const KV_KEYS = ['join', 'chv', 'seeded', 'bot_id', 'bot_username', 'bc', 'gc_at', 'cmds'];
+export const KV_KEYS = ['join', 'chv', 'seeded', 'bot_id', 'bot_username', 'bc', 'gc_at', 'cmds',
+  'cf_on', 'cf_chat', 'cf_chat_title', 'cf_username', 'cf_lang', 'qd_day'];
 
 export async function getKv(keys = KV_KEYS) {
   const rows = await db.all(sql`SELECT key, value FROM kv WHERE key IN (${list(keys)})`);
@@ -91,6 +92,7 @@ function toUser(r) {
     joinVer: num(r.join_ver),
     lang: r.lang || null,
     tgLang: r.tg_lang || null,
+    blang: r.blang || 'fa',
     anonCode: r.anon_code || null,
     anonOn: num(r.anon_on) === 1,
     anonCount: num(r.anon_count),
@@ -112,13 +114,24 @@ function toUser(r) {
     strikes: num(r.strikes),
     strikeAt: num(r.strike_at),
     restrictedUntil: num(r.restricted_until),
+    aPhone: num(r.a_phone) === 1,
+    lvDay: num(r.lv_day),
+    lvToday: num(r.lv_today),
+    lvTotal: num(r.lv_total),
+    joinMissing: parseJson(r.join_missing, []),
+    rcPartner: num(r.rc_partner),
+    rcSince: num(r.rc_since),
+    rcLast: num(r.rc_last),
+    rcMedia: num(r.rc_media) === 1,
+    qdPush: num(r.qd_push) === 1,
   };
 }
 
 export const USER_COLS = sql`user_id, username, username_lc, first_name, first_seen, last_seen, active, started, banned,
-  lang, tg_lang, receipts, def_expiry, recent, join_until, join_ok, join_ver, anon_code, anon_on, anon_count, anon_unread,
-  inbox_size, a_filter, a_links, a_text, a_silent, q_mode, q_text, p_name, p_bio, p_photo, show_rating, rating_sum,
-  rating_count, last_anon_at, strikes, strike_at, restricted_until`;
+  lang, tg_lang, blang, receipts, def_expiry, recent, join_until, join_ok, join_ver, anon_code, anon_on, anon_count,
+  anon_unread, inbox_size, a_filter, a_links, a_text, a_silent, a_phone, q_mode, q_text, p_name, p_bio, p_photo,
+  show_rating, rating_sum, rating_count, last_anon_at, strikes, strike_at, restricted_until, lv_day, lv_today,
+  lv_total, join_missing, rc_partner, rc_since, rc_last, rc_media, qd_push`;
 export { toUser };
 
 export async function getUser(id) {
@@ -147,8 +160,8 @@ export async function touchUser(from, { started = false } = {}) {
 
   if (!u) {
     const r = await db.run(sql`
-      INSERT INTO users (user_id, username, username_lc, first_name, tg_lang, first_seen, last_seen, active, started)
-      VALUES (${id}, ${username}, ${lc}, ${name}, ${tgLang}, ${now}, ${now}, 1, ${started ? 1 : 0})
+      INSERT INTO users (user_id, username, username_lc, first_name, tg_lang, blang, first_seen, last_seen, active, started)
+      VALUES (${id}, ${username}, ${lc}, ${name}, ${tgLang}, ${tgLang || 'fa'}, ${now}, ${now}, 1, ${started ? 1 : 0})
       ON CONFLICT(user_id) DO NOTHING`);
     if (r.rowsAffected > 0) {
       await bump('n_users', 1);
@@ -174,7 +187,7 @@ export async function touchUser(from, { started = false } = {}) {
   if (u.username !== username || u.firstName !== name || (tgLang && u.tgLang !== tgLang) || now - u.lastSeen >= 60) {
     await db.run(sql`
       UPDATE users SET username = ${username}, username_lc = ${lc}, first_name = ${name}, last_seen = ${now},
-        tg_lang = COALESCE(${tgLang}, tg_lang)
+        tg_lang = COALESCE(${tgLang}, tg_lang), blang = COALESCE(lang, ${tgLang}, tg_lang, 'fa')
       WHERE user_id = ${id}`);
     if (tgLang) u.tgLang = tgLang;
     if (lc && u.usernameLc !== lc) await releaseUsername(lc, id);
@@ -203,13 +216,13 @@ export async function markInactive(id) {
 }
 
 export async function setLang(id, lang) {
-  await db.run(sql`UPDATE users SET lang = ${lang} WHERE user_id = ${id}`);
+  await db.run(sql`UPDATE users SET lang = ${lang}, blang = ${lang} WHERE user_id = ${id}`);
 }
 
 // Per-user settings that are a single column; the name is checked against this list before it goes
 // into the SQL text (values are always bound parameters).
-const SETTING_COLUMNS = new Set(['anon_on', 'a_filter', 'a_links', 'a_text', 'a_silent', 'show_rating', 'q_mode', 'q_text',
-  'p_name', 'p_bio', 'p_photo', 'receipts', 'def_expiry']);
+const SETTING_COLUMNS = new Set(['anon_on', 'a_filter', 'a_links', 'a_text', 'a_silent', 'a_phone', 'show_rating', 'q_mode',
+  'q_text', 'p_name', 'p_bio', 'p_photo', 'receipts', 'def_expiry', 'rc_media', 'qd_push']);
 
 export async function setUserField(id, column, value) {
   if (!SETTING_COLUMNS.has(column)) throw new Error(`not a settings column: ${column}`);
@@ -602,7 +615,28 @@ export async function gcBatch(draftTtlSec) {
       await db.run(sql`UPDATE users SET inbox_size = max(0, inbox_size - 1) WHERE user_id = ${m.to_id}`);
     }
   }
-  return { drafts: d.rowsAffected, states: s.rowsAffected, anon };
+  // link visits count once per person per day: yesterday's are still needed to start today right
+  const v = await db.run(sql`
+    DELETE FROM link_visits WHERE rowid IN (
+      SELECT rowid FROM link_visits WHERE day < ${Number(localDay(now - 86400))} ORDER BY day LIMIT ${GC_BATCH * 5})`);
+  await backfillBlang();
+  return { drafts: d.rowsAffected, states: s.rowsAffected, anon, visits: v.rowsAffected };
+}
+
+/** One-time fill of users.blang for rows from before the column existed, 500 a time (kv mig_blang). */
+async function backfillBlang() {
+  const kv = await getKv(['mig_blang']);
+  if (kv.mig_blang === 'done') return;
+  const cursor = Number(kv.mig_blang || 0);
+  const rows = await db.all(sql`SELECT user_id FROM users WHERE user_id > ${cursor} ORDER BY user_id LIMIT 500`);
+  if (!rows.length) {
+    await setKv('mig_blang', 'done');
+    return;
+  }
+  const last = num(rows[rows.length - 1].user_id);
+  await db.run(sql`
+    UPDATE users SET blang = COALESCE(lang, tg_lang, 'fa') WHERE user_id > ${cursor} AND user_id <= ${last}`);
+  await setKv('mig_blang', last);
 }
 
 // ---------- broadcasts ----------

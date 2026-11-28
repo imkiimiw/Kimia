@@ -19,6 +19,7 @@ for (let i = 1; i <= 9; i += 1) mock.addChat(`extra_chan${i}`);
 mock.addChat('not_admin_chan', { admin: false });
 mock.addChat('some_person', { type: 'private' });
 mock.addChat('wake_room', { title: 'Wake room' }); // the owner's private channel for the bot's wakes
+mock.addChat('confess_room', { title: 'Confessions' }); // the confession channel
 process.env.TG_MOCK_URL = `http://127.0.0.1:${await mock.listen()}`;
 setupDatabase(schema); // what `npx tgcloud migrate` does on the platform
 
@@ -232,21 +233,21 @@ await scenario('first /start shows the language picker; each language leads to t
   assert.equal(count('SELECT count(*) AS n FROM channels'), 3, 'channels seeded on the first update');
   assert.ok(pick.calls.some((c) => c.method === 'setMyCommands' && c.params.language_code === 'ru'), 'localized commands set');
   const fa = await press(U.owner, 'L:fa');
-  assert.match(fa.text, /دو بخش داریم/);
+  assert.match(fa.text, /🎲 <b>چت تصادفی<\/b>/);
   assert.deepEqual(dataOf(fa.kb).slice(0, 2), ['ws', 'an']);
   assert.equal(userRow(U.owner).lang, 'fa');
   await say(U.ivan, '/start');
   const ru = await press(U.ivan, 'L:ru');
-  assert.match(ru.text, /Здесь два раздела/);
+  assert.match(ru.text, /Случайный чат/);
   assert.equal(buttons(ru.kb)[0].text, '🤫 Шёпот');
   await say(U.ann, '/start');
   const en = await press(U.ann, 'L:en');
-  assert.match(en.text, /There are two sections/);
+  assert.match(en.text, /Random chat/);
   const again = await say(U.ann, '/lang');
   assert.deepEqual(dataOf(again.kb), ['L:fa', 'L:en', 'L:ru']);
   for (const u of [U.ali, U.reza, U.sara, U.mina]) await onboard(u);
   const second = await say(U.ali, '/start');
-  assert.match(second.text, /دو بخش داریم/, 'no picker once chosen');
+  assert.match(second.text, /🎲 <b>چت تصادفی<\/b>/, 'no picker once chosen');
   assert.equal(mock.state.calls.filter((c) => c.method === 'setMyCommands').length, 4, 'bot texts set once (default + 3 languages)');
 });
 
@@ -291,7 +292,7 @@ await scenario('forced join inline: non-member gets NO whispers, only the join b
   mock.setMember('Nepenthw_ir', U.joe.id, { status: 'restricted', is_member: true });
   mock.setMember('wangerBots', U.joe.id, { status: 'administrator' });
   const ok = await press(U.joe, 'j');
-  assert.match(ok.text, /دو بخش داریم/);
+  assert.match(ok.text, /🎲 <b>چت تصادفی<\/b>/);
   const inl2 = await inline(U.joe, 'سلام @Sara_T');
   assert.equal(inl2.results.length, 1);
   assert.equal(inl2.calls.filter((c) => c.method === 'getChatMember').length, 0, 'cached while typing');
@@ -535,7 +536,7 @@ await scenario('input validation and the no-feedback fallback', async () => {
 await scenario('/admin: only numeric id 5557901897; everyone else refused', async () => {
   const p = await say(U.owner, '/admin');
   assert.match(p.text, /پنل مالک/);
-  assert.deepEqual(dataOf(p.kb), ['a:ch', 'a:add', 'a:j', 'a:ban', 'a:unban', 'a:st', 'a:rp', 'a:bc', 'a:wk']);
+  assert.deepEqual(dataOf(p.kb), ['a:ch', 'a:add', 'a:j', 'a:ban', 'a:unban', 'a:st', 'a:rp', 'a:cf', 'a:bc', 'a:ad', 'a:cfs', 'a:wk', 'a:hl']);
   assert.match((await say(U.ali, '/admin')).text, /فقط برای مالک/);
   for (const d of ['a', 'a:ch', 'a:bc', 'a:rp', 'a:rb:1']) assert.match((await press(U.ali, d)).answer.text, /فقط برای مالک/);
   assert.match((await say(person(710004242, 'owner_t'), '/admin')).text, /فقط برای مالک|Choose|عضو/);
@@ -1130,6 +1131,347 @@ await scenario('delete my data: inbox, profile, photo, words, ratings erased; a 
   assert.deepEqual([u.p_name, u.p_bio, u.p_photo, u.inbox_size, u.anon_unread, u.rating_count], [null, null, null, 0, 0, 0]);
   assert.notEqual(u.anon_code, code);
   assert.match((await say(U.ali, `/start a_${code}`)).text, /معتبر نیست/);
+});
+
+// =====================================================================================
+// Admins (lib/staff.js)
+// =====================================================================================
+
+const permsOf = (u) => (row('SELECT perms FROM admins WHERE user_id = ?', u.id) || {}).perms;
+const fwdFrom = (u) => ({ forward_origin: { type: 'user', sender_user: { id: u.id, is_bot: false, first_name: u.first_name }, date: nowSec() } });
+
+await scenario('admins: the owner adds one from a forwarded message; the admin sees and may use only what they were given', async () => {
+  assert.match((await press(U.owner, 'a:ad')).text, /ادمین‌ها<\/b> \(۰ از ۲۰\)/);
+  await press(U.owner, 'a:adn');
+  assert.match((await say(U.owner, 'hello there')).text, /نشناختم/);
+  const added = await say(U.owner, 'fwd', fwdFrom(U.reza));
+  assert.match(added.text, /ادمین شد/);
+  assert.ok(sentTo(added.calls, U.reza.id).some((c) => /تو را ادمین کرد/.test(c.params.text)), 'the new admin is told');
+  assert.equal(permsOf(U.reza), 'cf,rp,ban,st');
+  const panel = await say(U.reza, '/admin');
+  assert.match(panel.text, /پنل ادمین/);
+  assert.deepEqual(dataOf(panel.kb), ['a:ban', 'a:unban', 'a:st', 'a:rp', 'a:cf']);
+  for (const d of ['a:ch', 'a:add', 'a:j', 'a:bc', 'a:ad', 'a:adn', 'a:wk', 'a:hl', 'a:cfs', `a:adp:${U.reza.id}:bc`]) {
+    assert.match((await press(U.reza, d)).answer.text, /دسترسی‌های تو نیست/, d);
+  }
+  assert.match((await press(U.reza, 'a:st')).text, /آمار/);
+  await press(U.owner, `a:adp:${U.reza.id}:bc`);
+  assert.equal(permsOf(U.reza), 'cf,rp,ban,st,bc');
+  assert.ok(dataOf((await say(U.reza, '/admin')).kb).includes('a:bc'));
+  await press(U.owner, `a:adp:${U.reza.id}:ban`);
+  assert.match((await press(U.reza, 'a:ban')).answer.text, /دسترسی‌های تو نیست/, 'turned off');
+  await press(U.owner, `a:adp:${U.reza.id}:ban`);
+  // a second admin, by numeric id; admins can't ban each other or the owner
+  await press(U.owner, 'a:adn');
+  assert.match((await say(U.owner, String(U.mina.id))).text, /ادمین شد/);
+  await press(U.owner, `a:adp:${U.mina.id}:ban`);
+  assert.equal(permsOf(U.mina), 'cf,rp,st');
+  await press(U.reza, 'a:ban');
+  assert.match((await say(U.reza, String(U.mina.id))).text, /فقط مالک/);
+  await press(U.reza, 'a:ban');
+  assert.match((await say(U.reza, String(OWNER))).text, /مالک را نمی‌شود بن کرد/);
+  await press(U.owner, 'a:adn');
+  assert.match((await say(U.owner, String(U.reza.id))).text, /از قبل ادمین است/);
+  // removing: the panel closes for them, and a pending admin input of theirs does nothing
+  await press(U.reza, 'a:ban');
+  await press(U.owner, `a:adx:${U.reza.id}`);
+  assert.match((await press(U.owner, `a:adxy:${U.reza.id}`)).text, /دیگر ادمین نیست/);
+  assert.match((await say(U.reza, String(U.nima.id))).text, /یکی از بخش‌ها را انتخاب کن/, 'the stale state is dropped');
+  assert.equal(userRow(U.nima).banned, 0);
+  assert.match((await say(U.reza, '/admin')).text, /فقط برای مالک و ادمین‌های/);
+  assert.match((await press(U.reza, 'a:st')).answer.text, /فقط برای مالک/);
+});
+
+// =====================================================================================
+// Confession channel (lib/confess.js)
+// =====================================================================================
+
+const confessRoom = mock.state.chats.get('@confess_room').id;
+const fwdChannel = (chat) => ({ forward_origin: { type: 'channel', chat: { id: chat.id, type: 'channel', title: chat.title }, message_id: 7, date: nowSec() } });
+const confession = (id) => row('SELECT * FROM confessions WHERE id = ?', id);
+let confId;
+let confPostId;
+
+await scenario('confession channel: the owner sets it from a forwarded post (the bot must be an admin); it appears in the menu', async () => {
+  const s = await press(U.owner, 'a:cfs');
+  assert.match(s.text, /کانال اعتراف<\/b>[\s\S]*کانال: تنظیم نشده/);
+  assert.match((await press(U.ali, 'cf')).text, /فعلاً فعال نیست/);
+  assert.ok(!dataOf((await say(U.ali, '/start')).kb).includes('cf'), 'not in the menu while closed');
+  await press(U.owner, 'a:cfsc');
+  assert.match((await say(U.owner, 'what')).text, /پیدا نکردم/);
+  assert.match((await say(U.owner, 'fwd', fwdChannel(mock.state.chats.get('@not_admin_chan')))).text, /ادمین نیست/);
+  const ok = await say(U.owner, 'fwd', fwdChannel(mock.state.chats.get('@confess_room')));
+  assert.match(ok.text, /کانال اعتراف «Confessions» شد/);
+  assert.equal(row("SELECT value FROM kv WHERE key = 'cf_on'").value, '1');
+  const menuKb = dataOf((await say(U.ali, '/start')).kb);
+  assert.ok(menuKb.includes('cf') && menuKb.includes('rc'), 'confessions and random chat in the menu');
+});
+
+await scenario('a confession: written, the author chooses comments and anonymous messages; reviewers see the choices and flags — never the author', async () => {
+  const home = await press(U.mina, 'cf');
+  assert.deepEqual(dataOf(home.kb), ['cw', 'm']);
+  await press(U.mina, 'cw');
+  const text = 'راستش هیچ‌وقت به کسی نگفتم که ترسیدم؛ بیا 09121234567';
+  ANON_SECRETS.add(text);
+  const opts = await say(U.mina, text);
+  assert.match(opts.text, /پیش‌نمایش/);
+  assert.match(opts.text, /شماره تلفن/, 'the author is warned');
+  assert.deepEqual(dataOf(opts.kb), ['co:c', 'co:d', 'cs', 'cw', 'cf']);
+  assert.match(buttons(opts.kb)[0].text, /نظر گذاشتن زیر اعتراف: ✅ مجاز/);
+  assert.match(buttons(opts.kb)[1].text, /پیام ناشناس به من: ❌ غیرمجاز/);
+  assert.match(buttons((await press(U.mina, 'co:d')).kb)[1].text, /✅ مجاز/);
+  assert.match(buttons((await press(U.mina, 'co:c')).kb)[0].text, /❌ غیرمجاز/);
+  await press(U.mina, 'co:c');
+  const sent = await press(U.mina, 'cs');
+  assert.match(sent.text, /اعتراف #۱ برای بررسی فرستاده شد/);
+  confId = 1;
+  assert.deepEqual([confession(1).status, confession(1).allow_comments, confession(1).allow_dm, confession(1).flags], ['pending', 1, 1, 'phone']);
+  const review = sentTo(sent.calls, OWNER).find((c) => /برای بررسی/.test(c.params.text));
+  assert.ok(review, 'the owner gets the review card');
+  assert.ok(review.params.text.includes('هیچ‌وقت به کسی نگفتم'));
+  assert.match(review.params.text, /نظر گذاشتن زیر اعتراف: ✅ مجاز/);
+  assert.match(review.params.text, /پیام ناشناس به نویسنده: ✅ مجاز/);
+  assert.match(review.params.text, /فیلترها: شماره تلفن/);
+  assert.deepEqual(dataOf(review.params.reply_markup.inline_keyboard), ['a:cfa:1', 'a:cfr:1', 'a:cfb:1', 'a:cf']);
+  assert.ok(sentTo(sent.calls, U.mina.id).some((c) => /برای بررسی/.test(c.params.text)), 'mina is an admin with cf, so she reviews too');
+  noTrace(sent.calls, OWNER, U.mina);
+  assert.match((await press(U.owner, 'a:cf')).text, /در انتظار بررسی:<\/b> ۱/);
+});
+
+await scenario('approve: posted to the channel with the author\'s buttons; the author is told; a second press changes nothing', async () => {
+  const r = await press(U.owner, `a:cfa:${confId}`);
+  assert.match(r.answer.text, /منتشر شد/);
+  const post = r.calls.find((c) => c.method === 'sendMessage' && Number(c.params.chat_id) === confessRoom);
+  assert.ok(post, 'posted to the channel');
+  assert.match(post.params.text, /^📝 <b>اعتراف #۱<\/b>/);
+  confPostId = post.result.result.message_id;
+  assert.deepEqual(buttons(post.params.reply_markup.inline_keyboard).map((b) => b.url), [
+    `https://t.me/${BOT}?start=cm_1`, `https://t.me/${BOT}?start=cx_1`, `https://t.me/${BOT}?start=cf`]);
+  noTrace(r.calls, confessRoom, U.mina);
+  assert.match(textsTo(r.calls, U.mina.id), /اعتراف #۱ تو منتشر شد/);
+  assert.equal(confession(confId).status, 'approved');
+  assert.equal(confession(confId).channel_msg, confPostId);
+  assert.match((await press(U.owner, `a:cfa:${confId}`)).answer.text, /قبلاً بررسی شده/);
+  assert.match((await press(U.mina, `a:cfr:${confId}`)).answer.text, /قبلاً بررسی شده/);
+});
+
+let commentId;
+await scenario('comments in the bot: refused with bad words or links (they are public); counted on the post; the author is told', async () => {
+  const page = await say(U.ali, `/start cm_${confId}`);
+  assert.match(page.text, /اعتراف #۱<\/b>[\s\S]*نظرها \(۰\)[\s\S]*اولین نفر باش/);
+  await press(U.ali, `cc:${confId}`);
+  assert.match((await say(U.ali, 'تو یه kos هستی')).text, /کلمه‌ی نامناسب/);
+  assert.match((await say(U.ali, 'ببین t.me/spam')).text, /لینک/);
+  const ok = await say(U.ali, 'خیلی شجاعانه بود 👏');
+  assert.match(ok.text, /نظرت ثبت شد[\s\S]*نظرها \(۱\)[\s\S]*خیلی شجاعانه بود/);
+  commentId = row('SELECT id FROM cf_comments WHERE confession_id = ?', confId).id;
+  const edit = ok.calls.find((c) => c.method === 'editMessageReplyMarkup' && Number(c.params.chat_id) === confessRoom);
+  assert.equal(edit.params.reply_markup.inline_keyboard[0][0].text, '💬 نظرها (۱)');
+  assert.match(textsTo(ok.calls, U.mina.id), /یک نظر تازه زیر اعتراف #۱ تو/);
+  noTrace(ok.calls, U.mina.id, U.ali);
+  assert.match((await press(U.ali, `cc:${confId}`)).answer.text, /ثانیه‌ی دیگر/, 'a gap between comments');
+  advance(25);
+});
+
+await scenario('a reported comment reaches the reviewers once; a reviewer removes it and the post\'s count goes down', async () => {
+  const r1 = await press(U.nima, `cr:${commentId}`);
+  assert.match(r1.answer.text, /گزارش شد/);
+  const toOwner = sentTo(r1.calls, OWNER).find((c) => /گزارش یک نظر/.test(c.params.text));
+  assert.ok(toOwner && toOwner.params.text.includes('خیلی شجاعانه بود'));
+  assert.deepEqual(dataOf(toOwner.params.reply_markup.inline_keyboard), [`a:cfh:${commentId}`]);
+  noTrace(r1.calls, OWNER, U.ali);
+  assert.equal(sentTo((await press(U.reza, `cr:${commentId}`)).calls, OWNER).length, 0, 'once');
+  const h = await press(U.owner, `a:cfh:${commentId}`);
+  assert.match(h.answer.text, /حذف شد/);
+  assert.equal(h.calls.find((c) => c.method === 'editMessageReplyMarkup').params.reply_markup.inline_keyboard[0][0].text, '💬 نظرها (۰)');
+  assert.match((await say(U.ali, `/start cm_${confId}`)).text, /نظرها \(۰\)/);
+});
+
+await scenario('an anonymous message to the author from the post: into their inbox, no profile shown, no button that leads to it', async () => {
+  advance(10);
+  const card = await say(U.ivan, `/start cx_${confId}`);
+  assert.match(card.text, /Анонимное сообщение автору признания #1/);
+  assert.ok(!card.calls.some((c) => c.method === 'sendPhoto'), 'no profile card');
+  noTrace(card.calls, U.ivan.id, U.mina);
+  const msg = 'Ты очень смелая, спасибо';
+  ANON_SECRETS.add(msg);
+  const sent = await say(U.ivan, msg);
+  const delivered = sentTo(sent.calls, U.mina.id)[0];
+  assert.match(delivered.params.text, /پیام ناشناس جدید<\/b> · 💌 اعتراف\n❓ در جواب: «اعتراف #۱»/);
+  noTrace(sent.calls, U.mina.id, U.ivan);
+  assert.deepEqual(dataOf(sent.kb), [`cxw:${confId}`, 'm'], 'no aw:/rt: buttons with the author\'s link code');
+  assert.equal(row("SELECT cat FROM anon_msgs WHERE to_id = ? ORDER BY created_at DESC LIMIT 1", U.mina.id).cat, 'c');
+  assert.match((await say(U.mina, `/start cx_${confId}`)).text, /خودت است/);
+  // the author answers: anonymous too — "the author of confession #1", never a name
+  const ref = delivered.params.reply_markup.inline_keyboard[0][0].callback_data.slice(3);
+  assert.match((await press(U.mina, `ar:${ref}`)).text, /نمی‌فهمد نویسنده‌ی اعتراف تو هستی/);
+  const answerText = 'ممنونم که نوشتی';
+  ANON_SECRETS.add(answerText);
+  const back = await say(U.mina, answerText);
+  assert.match(back.text, /ناشناس فرستاده شد/);
+  const toIvan = sentTo(back.calls, U.ivan.id)[0];
+  assert.match(toIvan.params.text, /^↩️ <b>Ответ автора признания #1<\/b>/);
+  noTrace(back.calls, U.ivan.id, U.mina);
+  const backRef = toIvan.params.reply_markup.inline_keyboard[0][0].callback_data.slice(3);
+  const inInbox = await press(U.ivan, `iv:${backRef}`);
+  assert.match(inInbox.text, /Ответ автора признания #1/);
+  noTrace(inInbox.calls, U.ivan.id, U.mina);
+  assert.equal(row('SELECT cf FROM anon_msgs WHERE id = ?', backRef).cf, confId);
+});
+
+await scenario('reject, and reject-and-ban: the author is told or banned — nobody sees who it was', async () => {
+  await press(U.ann, 'cf');
+  await press(U.ann, 'cw');
+  await say(U.ann, 'An English confession for the test');
+  const s = await press(U.ann, 'cs');
+  const id = Number(/#(\d+)/.exec(s.text)[1]);
+  const r = await press(U.owner, `a:cfr:${id}`);
+  assert.match(r.answer.text, /رد شد/);
+  assert.match(textsTo(r.calls, U.ann.id), /wasn't posted/);
+  assert.equal(confession(id).status, 'rejected');
+  const bad = person(790000001, 'cf_bad');
+  join(bad);
+  await onboard(bad);
+  await press(bad, 'cf');
+  await press(bad, 'cw');
+  await say(bad, 'یه اعتراف که بنش می‌کنیم');
+  const s2 = await press(bad, 'cs');
+  const id2 = Number(/#([۰-۹0-9]+)/.exec(s2.text)[1].replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
+  const b = await press(U.owner, `a:cfb:${id2}`);
+  assert.match(b.answer.text, /بن شد/);
+  noTrace(b.calls, OWNER, bad);
+  assert.equal(userRow(bad).banned, 1);
+  assert.equal(confession(id2).status, 'rejected');
+  assert.match((await press(U.mina, `a:cfb:${id2}`)).answer.text, /دسترسی‌های تو نیست/, 'mina may review but not ban');
+});
+
+await scenario('confession limits: three a day per person; text only; closed when the owner turns it off', async () => {
+  for (let i = 0; i < 2; i += 1) {
+    await press(U.mina, 'cw');
+    await say(U.mina, `اعتراف شماره ${i + 2}`);
+    await press(U.mina, 'cs');
+  }
+  assert.match((await press(U.mina, 'cw')).answer.text, /حداکثر ۳ اعتراف/);
+  await press(U.ali, 'cw');
+  assert.match((await say(U.ali, undefined, { photo: [{ file_id: 'AgACcf', file_unique_id: 'cf1', width: 9, height: 9 }] })).text, /فقط متن/);
+  await say(U.ali, '/cancel');
+  await press(U.owner, 'a:cfst');
+  assert.match((await press(U.ali, 'cw')).answer.text, /فعال نیست/);
+  await press(U.owner, 'a:cfst');
+});
+
+// =====================================================================================
+// Random anonymous chat (lib/rchat.js)
+// =====================================================================================
+
+const partnerOf = (u) => userRow(u).rc_partner;
+const queued = (u) => !!row('SELECT 1 AS x FROM rc_queue WHERE user_id = ?', u.id);
+const keyText = (k) => ({ next: '⏭ بعدی', end: '❌ پایان چت', report: '🚩 گزارش' }[k]);
+
+await scenario('random chat: matched with someone of the same language; messages go across anonymous and protected', async () => {
+  const home = await press(U.ali, 'rc');
+  assert.deepEqual(dataOf(home.kb), ['rc:go', 'rc:m', 'm']);
+  assert.match((await press(U.ali, 'rc:go')).text, /دنبال یک نفر می‌گردم/);
+  assert.ok(queued(U.ali));
+  assert.match((await press(U.ivan, 'rc:go')).text, /Ищу собеседника/, 'another language: not matched');
+  const c = await press(U.nima, 'rc:go');
+  assert.equal(partnerOf(U.nima), U.ali.id);
+  assert.equal(partnerOf(U.ali), U.nima.id);
+  assert.ok(!queued(U.ali) && !queued(U.nima));
+  const toAli = sentTo(c.calls, U.ali.id).find((m) => /وصل شدی/.test(m.params.text));
+  assert.deepEqual(toAli.params.reply_markup.keyboard.flat().map((b) => b.text), ['⏭ بعدی', '❌ پایان چت', '🚩 گزارش']);
+  assert.ok(c.calls.some((m) => Number(m.params.chat_id) === U.nima.id && m.params.reply_markup && m.params.reply_markup.keyboard));
+  advance(2);
+  const hi = await say(U.nima, 'سلام، خوبی؟ <b>تست</b>');
+  const relay = sentTo(hi.calls, U.ali.id)[0];
+  assert.equal(relay.params.text, 'سلام، خوبی؟ &lt;b&gt;تست&lt;/b&gt;');
+  assert.equal(relay.params.protect_content, true);
+  noTrace(hi.calls, U.ali.id, U.nima);
+  advance(2);
+  const back = await say(U.ali, 'مرسی تو چطوری');
+  assert.equal(sentTo(back.calls, U.nima.id)[0].params.text, 'مرسی تو چطوری');
+  noTrace(back.calls, U.nima.id, U.ali);
+  assert.match((await press(U.ali, 'rc:go')).answer.text, /الان در یک چت هستی/);
+  assert.match((await say(U.ali, '/start')).text, /🎲 <b>چت تصادفی/, 'commands still work; the chat stays');
+  assert.equal(partnerOf(U.ali), U.nima.id);
+});
+
+await scenario('random chat filters: links never; bad words and phone numbers by the receiver\'s settings; photos only if accepted', async () => {
+  advance(2);
+  assert.match((await say(U.nima, 'بیا اینجا t.me/xyz')).text, /لینک فرستاده نمی‌شود/);
+  advance(2);
+  assert.match((await say(U.nima, 'kir')).text, /کلمه‌ی نامناسب/);
+  advance(2);
+  assert.match((await say(U.nima, 'شماره‌ام ۰۹۱۲۳۴۵۶۷۸۹')).text, /شماره تلفن دریافت نمی‌کند/);
+  advance(2);
+  const photo = { photo: [{ file_id: 'AgACrc', file_unique_id: 'rc1', width: 9, height: 9 }] };
+  assert.match((await say(U.nima, undefined, photo)).text, /عکس، ویدیو و فایل دریافت نمی‌کند/);
+  await press(U.ali, 'rc:m');
+  assert.equal(userRow(U.ali).rc_media, 1);
+  advance(2);
+  const ok = await say(U.nima, undefined, photo);
+  const copy = ok.calls.find((m) => m.method === 'copyMessage' && Number(m.params.chat_id) === U.ali.id);
+  assert.ok(copy && copy.params.protect_content === true, 'copied, protected');
+  advance(2);
+  assert.ok((await say(U.nima, undefined, { sticker: { file_id: 'CAACrc', file_unique_id: 'rs1' } })).calls.some((m) => m.method === 'copyMessage'), 'stickers always pass');
+  assert.match((await say(U.nima, 'زود زود')).text, /کمی آرام‌تر/, 'a gap between messages');
+});
+
+await scenario('random chat controls: next, end, report (a strike; the two are never matched again)', async () => {
+  advance(2);
+  const next = await say(U.nima, keyText('next'));
+  assert.ok(sentTo(next.calls, U.ali.id).some((m) => /طرف مقابل چت را تمام کرد/.test(m.params.text) && m.params.reply_markup.remove_keyboard));
+  assert.equal(partnerOf(U.ali), 0);
+  assert.ok(queued(U.nima), 'next: looking again');
+  const again = await press(U.ali, 'rc:go');
+  assert.equal(partnerOf(U.ali), U.nima.id, 'matched with the one waiting');
+  assert.ok(again.calls.some((m) => Number(m.params.chat_id) === U.nima.id && /وصل شدی/.test(m.params.text)));
+  const ask = await say(U.ali, keyText('report'));
+  assert.match(ask.text, /گزارش کنم/);
+  assert.equal(partnerOf(U.ali), U.nima.id, 'not until confirmed');
+  const rep = await press(U.ali, 'rc:ry');
+  assert.match(rep.answer.text, /گزارش شد/);
+  assert.equal(partnerOf(U.ali) + partnerOf(U.nima), 0);
+  assert.equal(count(`SELECT count(*) AS n FROM strikes WHERE sender_id = ${U.nima.id} AND by_id = ${U.ali.id}`), 1);
+  assert.equal(count(`SELECT count(*) AS n FROM rc_blocks WHERE user_id = ${U.ali.id} AND blocked_id = ${U.nima.id}`), 1);
+  await press(U.nima, 'rc:go');
+  await press(U.ali, 'rc:go');
+  assert.ok(queued(U.ali) && queued(U.nima) && partnerOf(U.ali) === 0, 'never matched again');
+  await press(U.ali, 'rc:x');
+  await press(U.nima, 'rc:x');
+  await press(U.ivan, 'rc:x');
+  assert.ok(!queued(U.ali) && !queued(U.nima) && !queued(U.ivan));
+});
+
+await scenario('random chat: a partner who blocked the bot ends the chat; restricted people can\'t search; a long-quiet chat gives way', async () => {
+  const a = person(791000001, 'rc_a', 'en', 'Amy');
+  const b = person(791000002, 'rc_b', 'en', 'Bob');
+  for (const u of [a, b]) {
+    join(u);
+    await onboard(u, 'en');
+  }
+  await press(a, 'rc:go');
+  await press(b, 'rc:go');
+  assert.equal(partnerOf(a), b.id);
+  mock.state.blocked.add(b.id);
+  advance(2);
+  const gone = await say(a, 'hello?');
+  assert.match(gone.calls.map((m) => m.params.text || '').join('\n'), /isn't reachable/);
+  assert.equal(partnerOf(a), 0);
+  assert.equal(userRow(b).active, 0);
+  mock.state.blocked.delete(b.id);
+  rawDatabase().prepare('UPDATE users SET restricted_until = ? WHERE user_id = ?').run(nowSec() + 3600, a.id);
+  assert.match((await press(a, 'rc:go')).answer.text, /Because of reports/);
+  rawDatabase().prepare('UPDATE users SET restricted_until = 0 WHERE user_id = ?').run(a.id);
+  await say(b, '/start'); // b is back
+  await press(a, 'rc:go');
+  await press(b, 'rc:go');
+  assert.equal(partnerOf(a), b.id);
+  advance(31 * 60);
+  await press(a, 'rc:go');
+  assert.equal(userRow(a).rc_partner, 0, 'the quiet chat ended');
+  assert.ok(queued(a));
+  await press(a, 'rc:x');
 });
 
 // =====================================================================================

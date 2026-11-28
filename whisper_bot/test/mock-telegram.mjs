@@ -46,6 +46,15 @@ export function parseHtml(text) {
 
 function checkMarkup(markup) {
   if (!markup) return null;
+  if (markup.remove_keyboard === true) return null;
+  if (Array.isArray(markup.keyboard)) { // a reply keyboard (the random chat's controls)
+    for (const row of markup.keyboard) {
+      if (!Array.isArray(row) || !row.length) return 'keyboard row is empty';
+      if (row.some((b) => !b || typeof b.text !== 'string' || !b.text)) return 'keyboard button text is empty';
+    }
+    if (String(markup.input_field_placeholder || '').length > 64) return 'input field placeholder is too long';
+    return null;
+  }
   const rows = markup.inline_keyboard;
   if (!Array.isArray(rows)) return 'reply markup is not an inline keyboard';
   for (const row of rows) {
