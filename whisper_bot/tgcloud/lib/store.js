@@ -246,6 +246,24 @@ export async function setJoinCache(id, ok, until, ver) {
     UPDATE users SET join_ok = ${ok ? 1 : 0}, join_until = ${until}, join_ver = ${ver} WHERE user_id = ${id}`);
 }
 
+/**
+ * users.join_missing (the channel ids the join screen showed as missing) from `prev` to `next`, only
+ * if it is still `prev`: of two updates at once, one counts the joins.
+ */
+export async function setJoinMissing(userId, prev, next) {
+  const p = prev.length ? JSON.stringify(prev) : null;
+  const n = next.length ? JSON.stringify(next) : null;
+  const r = await db.run(p === null
+    ? sql`UPDATE users SET join_missing = ${n} WHERE user_id = ${userId} AND join_missing IS NULL`
+    : sql`UPDATE users SET join_missing = ${n} WHERE user_id = ${userId} AND join_missing = ${p}`);
+  return r.rowsAffected > 0;
+}
+
+/** +1 joined-via-the-bot for each of these channels. */
+export async function addJoins(channelIds) {
+  for (const id of channelIds) await db.run(sql`UPDATE channels SET joins = joins + 1 WHERE id = ${id}`);
+}
+
 /** Bans or unbans by numeric id; a user the bot has never seen gets a placeholder row. */
 export async function setBanned(id, banned) {
   const now = nowSec();
@@ -264,6 +282,7 @@ function toChannel(r) {
     chatId: r.chat_id == null ? null : Number(r.chat_id),
     title: r.title || r.username,
     warnedAt: num(r.warned_at),
+    joins: num(r.joins), // people who joined it after the bot's join screen showed it to them
   };
 }
 
@@ -284,12 +303,12 @@ export async function getChannels(kv) {
     kv.seeded = '1';
   }
   const rows = await db.all(sql`
-    SELECT id, uname, username, chat_id, title, warned_at FROM channels ORDER BY id LIMIT ${MAX_CHANNELS}`);
+    SELECT id, uname, username, chat_id, title, warned_at, joins FROM channels ORDER BY id LIMIT ${MAX_CHANNELS}`);
   return rows.map(toChannel);
 }
 
 export async function getChannel(id) {
-  const r = await db.get(sql`SELECT id, uname, username, chat_id, title, warned_at FROM channels WHERE id = ${id}`);
+  const r = await db.get(sql`SELECT id, uname, username, chat_id, title, warned_at, joins FROM channels WHERE id = ${id}`);
   return r ? toChannel(r) : null;
 }
 
@@ -623,20 +642,24 @@ export async function gcBatch(draftTtlSec) {
   return { drafts: d.rowsAffected, states: s.rowsAffected, anon, visits: v.rowsAffected };
 }
 
-/** One-time fill of users.blang for rows from before the column existed, 500 a time (kv mig_blang). */
-async function backfillBlang() {
+/**
+ * One-time fill of users.blang for rows from before the column existed, 500 a time (kv mig_blang):
+ * on the side of the lazy cleanup, and at once before a broadcast to one language. True when done.
+ */
+export async function backfillBlang() {
   const kv = await getKv(['mig_blang']);
-  if (kv.mig_blang === 'done') return;
+  if (kv.mig_blang === 'done') return true;
   const cursor = Number(kv.mig_blang || 0);
   const rows = await db.all(sql`SELECT user_id FROM users WHERE user_id > ${cursor} ORDER BY user_id LIMIT 500`);
   if (!rows.length) {
     await setKv('mig_blang', 'done');
-    return;
+    return true;
   }
   const last = num(rows[rows.length - 1].user_id);
   await db.run(sql`
     UPDATE users SET blang = COALESCE(lang, tg_lang, 'fa') WHERE user_id > ${cursor} AND user_id <= ${last}`);
   await setKv('mig_blang', last);
+  return false;
 }
 
 // ---------- broadcasts ----------
@@ -658,19 +681,34 @@ function toBroadcast(r) {
     progressChat: r.progress_chat == null ? null : Number(r.progress_chat),
     progressMsg: r.progress_msg == null ? null : num(r.progress_msg),
     progressAt: num(r.progress_at),
+    lang: r.lang || null, // only users whose blang is this; null = everyone
+    btnText: r.btn_text || null, // a link button under every copy
+    btnUrl: r.btn_url || null,
     createdAt: num(r.created_at),
     finishedAt: num(r.finished_at),
   };
 }
 
 const BC_COLS = sql`id, from_chat, message_id, status, total, last_user, sent, failed, blocked, next_at, locked_until,
-  progress_chat, progress_msg, progress_at, created_at, finished_at`;
+  progress_chat, progress_msg, progress_at, lang, btn_text, btn_url, created_at, finished_at`;
 
 export async function createBroadcast(fromChat, messageId) {
   const r = await db.run(sql`
     INSERT INTO broadcasts (from_chat, message_id, status, created_at) VALUES (${fromChat}, ${messageId}, 'draft', ${nowSec()})
     RETURNING id`);
   return num((r.rows && r.rows[0] && r.rows[0].id) || r.lastInsertRowid);
+}
+
+/** Who a draft goes to: one language (users.blang) or everyone (null). */
+export async function setBroadcastAudience(id, lang) {
+  const r = await db.run(sql`UPDATE broadcasts SET lang = ${lang} WHERE id = ${id} AND status = 'draft'`);
+  return r.rowsAffected > 0;
+}
+
+/** The link button under every copy of a draft (null, null = none). */
+export async function setBroadcastButton(id, text, url) {
+  const r = await db.run(sql`UPDATE broadcasts SET btn_text = ${text}, btn_url = ${url} WHERE id = ${id} AND status = 'draft'`);
+  return r.rowsAffected > 0;
 }
 
 export async function getBroadcast(id) {
@@ -724,12 +762,30 @@ export async function touchBroadcastProgress(id) {
   await db.run(sql`UPDATE broadcasts SET progress_at = ${nowSec()} WHERE id = ${id}`);
 }
 
-/** The next reachable users after `afterId`, in id order (served by idx_users_reachable). */
-export async function reachableAfter(afterId, limit) {
-  const rows = await db.all(sql`
-    SELECT user_id FROM users WHERE started = 1 AND active = 1 AND banned = 0 AND user_id > ${afterId}
-    ORDER BY user_id LIMIT ${limit}`);
+/**
+ * The next reachable users after `afterId`, in id order — everyone (idx_users_reachable) or the users
+ * of one language (idx_users_reach_lang).
+ */
+export async function reachableAfter(afterId, limit, lang = null) {
+  const rows = lang
+    ? await db.all(sql`
+      SELECT user_id FROM users WHERE blang = ${lang} AND started = 1 AND active = 1 AND banned = 0 AND user_id > ${afterId}
+      ORDER BY user_id LIMIT ${limit}`)
+    : await db.all(sql`
+      SELECT user_id FROM users WHERE started = 1 AND active = 1 AND banned = 0 AND user_id > ${afterId}
+      ORDER BY user_id LIMIT ${limit}`);
   return rows.map((r) => num(r.user_id));
+}
+
+/**
+ * Reachable users of one language, for a broadcast draft's "about N users": a capped scan of
+ * idx_users_reach_lang (the all-users total is the kv counter n_active).
+ */
+export async function countReachable(lang) {
+  const r = await db.get(sql`
+    SELECT count(*) AS n FROM (
+      SELECT 1 FROM users WHERE blang = ${lang} AND started = 1 AND active = 1 AND banned = 0 LIMIT 200000)`);
+  return num(r && r.n);
 }
 
 // ---------- stats ----------

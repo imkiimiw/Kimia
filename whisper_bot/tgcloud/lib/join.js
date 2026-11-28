@@ -8,7 +8,7 @@ import {
 import { langOf, t } from './i18n.js';
 import { call, describeError, isApiError, send } from './tg.js';
 import {
-  claimChannelWarning, getChannels, getUser, setJoinCache,
+  addJoins, claimChannelWarning, getChannels, getUser, setJoinCache, setJoinMissing,
 } from './store.js';
 import { esc, nowSec } from './util.js';
 
@@ -73,11 +73,27 @@ export async function checkJoin(ctx, user, kv, { inline = false, fresh = false }
   const skipped = channels.filter((_, i) => results[i] === 'skipped');
   if (skipped.length) await warnOwner(ctx, skipped);
   const ok = missing.length === 0;
+  await countJoins(user, channels, results);
   await setJoinCache(user.id, ok, now + (ok ? JOIN_CACHE_SEC : JOIN_NEG_CACHE_SEC), ver);
   user.joinOk = ok;
   user.joinUntil = now + (ok ? JOIN_CACHE_SEC : JOIN_NEG_CACHE_SEC);
   user.joinVer = ver;
   return { ok, missing };
+}
+
+/**
+ * Join stats: the channels a check found missing are remembered on the user's row (join_missing); one
+ * they're in at a later check counts once as joined via the bot (channels.joins, the 🩺 page).
+ */
+async function countJoins(user, channels, results) {
+  const prev = (Array.isArray(user.joinMissing) ? user.joinMissing : []).map(Number).filter(Number.isInteger);
+  const joined = channels.filter((ch, i) => results[i] === 'joined' && prev.includes(ch.id)).map((ch) => ch.id);
+  const next = channels.filter((ch, i) => results[i] === 'missing' || (results[i] === 'skipped' && prev.includes(ch.id)))
+    .map((ch) => ch.id).sort((a, b) => a - b);
+  if (!joined.length && prev.length === next.length && prev.every((id, i) => id === next[i])) return;
+  if (!(await setJoinMissing(user.id, prev, next))) return; // another update got there first
+  user.joinMissing = next;
+  if (joined.length) await addJoins(joined);
 }
 
 /** Tells the owner which channels can't be checked, at most once per WARN_INTERVAL_SEC per channel. */

@@ -11,11 +11,12 @@
 // instead of delivering them; per-sender rate limits and duplicate detection; senders blocked or
 // reported by several people are restricted automatically; a link can be paused or replaced at once.
 import {
-  ANON_CODE_LEN, ANON_MAX_LEN, CATEGORIES, OWNER_ID, PICKABLE_CATEGORIES,
+  ANON_CODE_LEN, ANON_MAX_LEN, CATEGORIES, OWNER_ID, PICKABLE_CATEGORIES, REACTIONS,
 } from './config.js';
 import {
   addAnonBlock, addStrike, createAnonMsg, createReport, deleteMsg, getAnonMsg, getRating, getUserByAnonCode,
-  isAnonBlocked, listWords, removeAnonBlock, removeAnonBlockByRef, setAnonCode, setDelivered, setRating, touchSent,
+  isAnonBlocked, listWords, recordLinkVisit, removeAnonBlock, removeAnonBlockByRef, setAnonCode, setDelivered, setRating,
+  setReaction, touchSent,
 } from './astore.js';
 import { botInfo, startLink } from './bot.js';
 import { filterReason, normalize } from './filter.js';
@@ -24,6 +25,7 @@ import {
 } from './i18n.js';
 import { questionOf } from './qotd.js';
 import { spamCheck } from './spam.js';
+import { staffWith } from './staff.js';
 import {
   clearState, getState, getUser, isBlocked, markInactive, setState, setUserField,
 } from './store.js';
@@ -31,7 +33,7 @@ import {
   answer, btn, call, describeError, editMarkup, isApiError, send, sendMedia, show, urlBtn,
 } from './tg.js';
 import {
-  esc, hash32, nowSec, randomId,
+  esc, hash32, localDay, nowSec, randomId,
 } from './util.js';
 
 const T = (ctx, k, v) => t(ctx.lang, k, v);
@@ -69,6 +71,12 @@ export function ratingLine(lang, u) {
 
 // ---------- the section and the link ----------
 
+/** "👀 N people opened your link today · M in all" (link_visits: once per person per day). */
+function viewsLine(ctx, user) {
+  const today = user.lvDay === Number(localDay()) ? user.lvToday : 0;
+  return T(ctx, 'a.views_line', { today: N(ctx, today), total: N(ctx, user.lvTotal) });
+}
+
 export async function showSection(ctx, user, kv) {
   const bot = await botInfo(ctx, kv);
   const code = await ensureAnonCode(user);
@@ -78,6 +86,7 @@ export async function showSection(ctx, user, kv) {
     '',
     T(ctx, 'a.your_link', { link: linkOf(bot.username, code) }),
     T(ctx, 'a.inbox_line', { unread: N(ctx, user.anonUnread), total: N(ctx, user.inboxSize) }),
+    viewsLine(ctx, user),
     ratingLine(ctx.lang, user),
   ];
   if (q) lines.push(T(ctx, 'a.question_line', { q: esc(q) }));
@@ -105,6 +114,7 @@ export async function showAnonLink(ctx, user, kv, note = '') {
   return show(ctx, 'anon_link', `${note ? `${note}\n\n` : ''}${T(ctx, 'a.link_text', {
     link,
     count: N(ctx, user.anonCount),
+    views: viewsLine(ctx, user),
     state: T(ctx, user.anonOn ? 'a.state_on' : 'a.state_off'),
   })}`, kb);
 }
@@ -183,6 +193,7 @@ export async function openLink(ctx, user, code) {
     await send(ctx, 'anon_refused', T(ctx, 'a.refused'), [[btn(T(ctx, 'btn.home'), 'm')]]);
     return null;
   }
+  await recordLinkVisit(owner.id, user.id); // "👀 N people opened your link today"
   const q = questionOf(owner);
   await setState(user.id, 'anon_send', { to: owner.id, code, cat: q ? 'd' : 'g', q: q || null });
   return owner;
@@ -266,12 +277,68 @@ export async function startReply(ctx, user, id) {
   return send(ctx, 'anon_reply_prompt', T(ctx, prompt), [[btn(T(ctx, 'btn.cancel'), 'm')]]);
 }
 
+/** The reactions under a received message, the chosen one marked; `inbox` = in the inbox view. */
+export function reactionRow(id, reaction = null, inbox = false) {
+  return REACTIONS.map((e, i) => btn(e === reaction ? `${e}✓` : e, `ae:${id}:${i}${inbox ? ':i' : ''}`));
+}
+
 /** The buttons under a delivered message, in the recipient's language. */
-export function deliveredButtons(lang, id, blocked = false) {
+export function deliveredButtons(lang, id, blocked = false, reaction = null) {
   return [
     [btn(t(lang, 'a.btn_reply'), `ar:${id}`), btn(t(lang, blocked ? 'a.btn_unblock' : 'a.btn_block'), `ab:${id}`)],
     [btn(t(lang, 'a.btn_report'), `ap:${id}`), btn(t(lang, 'a.btn_more'), `iv:${id}`)],
+    reactionRow(id, reaction),
   ];
+}
+
+/**
+ * "ae:<ref>:<i>[:i]": the recipient reacts to a message they got (the same emoji again takes it back).
+ * The sender sees the reaction on their own message in their chat with the bot; if that message is
+ * gone, the first reaction is told to them in a line instead. Neither learns more about the other.
+ * Returns true when it was set (the router then shows the inbox view again for ":i").
+ */
+export async function react(ctx, user, id, index, { inbox = false } = {}) {
+  const row = isRef(id) ? await getAnonMsg(id) : null;
+  if (!row || row.toId !== user.id) {
+    await answer(ctx, T(ctx, 'a.gone'), { alert: true });
+    return false;
+  }
+  const emoji = REACTIONS[Number(index)];
+  if (!emoji) {
+    await answer(ctx, T(ctx, 'e.old_button'));
+    return false;
+  }
+  const next = row.reaction === emoji ? null : emoji;
+  await setReaction(row.id, user.id, next);
+  await answer(ctx, next ? T(ctx, 'a.reacted', { emoji: next }) : T(ctx, 'a.reaction_removed'));
+  await tellReaction(ctx, row, next);
+  if (!inbox && ctx.messageId) {
+    const blocked = await isAnonBlocked(user.id, row.fromId);
+    await editMarkup(ctx, 'anon_buttons', ctx.chatId, ctx.messageId, deliveredButtons(ctx.lang, row.id, blocked, next));
+  }
+  return true;
+}
+
+async function tellReaction(ctx, row, emoji) {
+  const sender = await getUser(row.fromId);
+  if (!sender || !sender.active) return;
+  if (row.fromMsg) {
+    try {
+      await call(ctx, 'setMessageReaction', {
+        chat_id: row.fromId, message_id: row.fromMsg, reaction: emoji ? [{ type: 'emoji', emoji }] : [],
+      }, 'anon_reaction');
+      return;
+    } catch (err) {
+      if (isApiError(err) && err.code === 403) {
+        await markInactive(row.fromId);
+        return;
+      }
+      console.warn(`reaction not set: ${describeError(err)}`); // their message is gone: a line instead
+    }
+  }
+  if (!emoji || row.reaction) return; // only the first reaction, so changing it can't flood them
+  const lang = langOf(sender);
+  await send(ctx, 'anon_reaction_note', t(lang, 'a.reaction_note', { emoji }), null, row.fromId, { silent: true });
 }
 
 /** "🚫 بلاک" / "🔓 آنبلاک" under a message: toggles, without revealing who it was. */
@@ -281,13 +348,13 @@ export async function toggleBlock(ctx, user, id, { fromInbox = false } = {}) {
   if (await isAnonBlocked(user.id, row.fromId)) {
     await removeAnonBlock(user.id, row.fromId);
     await answer(ctx, T(ctx, 'a.unblocked'), { alert: true });
-    return fromInbox ? null : editMarkup(ctx, 'anon_buttons', ctx.chatId, ctx.messageId, deliveredButtons(ctx.lang, row.id, false));
+    return fromInbox ? null : editMarkup(ctx, 'anon_buttons', ctx.chatId, ctx.messageId, deliveredButtons(ctx.lang, row.id, false, row.reaction));
   }
   const r = await addAnonBlock(user.id, row.fromId);
   if (r === 'full') return answer(ctx, T(ctx, 'a.block_full'), { alert: true });
   if (r === 'ok' && row.anon) await addStrike(row.fromId, user.id);
   await answer(ctx, T(ctx, 'a.blocked'), { alert: true });
-  return fromInbox ? null : editMarkup(ctx, 'anon_buttons', ctx.chatId, ctx.messageId, deliveredButtons(ctx.lang, row.id, true));
+  return fromInbox ? null : editMarkup(ctx, 'anon_buttons', ctx.chatId, ctx.messageId, deliveredButtons(ctx.lang, row.id, true, row.reaction));
 }
 
 /** "🚩 گزارش": asks first — the report shares this message's content with the bot's owner. */
@@ -306,9 +373,12 @@ export async function confirmReport(ctx, user, id) {
   if (r === 'ok') {
     await addAnonBlock(user.id, row.fromId);
     if (row.anon) await addStrike(row.fromId, user.id);
-    const owner = await getUser(OWNER_ID);
-    const lang = langOf(owner);
-    await send(ctx, 'owner_report', t(lang, 'adm.report_new'), [[btn(t(lang, 'adm.btn_review'), 'a:rp')]], OWNER_ID);
+    for (const sid of await staffWith('rp')) { // the owner, and the admins who review reports
+      const s = await getUser(sid);
+      if (sid !== OWNER_ID && (!s || !s.started || !s.active)) continue;
+      const lang = langOf(s);
+      await send(ctx, 'staff_report', t(lang, 'adm.report_new'), [[btn(t(lang, 'adm.btn_review'), 'a:rp')]], sid);
+    }
   }
   await answer(ctx, T(ctx, r === 'ok' ? 'a.reported' : 'a.report_dup'), { alert: true });
   return show(ctx, 'anon_reported', T(ctx, r === 'ok' ? 'a.reported_text' : 'a.report_dup'), [[btn(T(ctx, 'btn.back'), 'an')]]);

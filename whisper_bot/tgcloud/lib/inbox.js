@@ -7,7 +7,7 @@ import { CATEGORIES, INBOX_PAGE } from './config.js';
 import {
   deleteMsg, FOLDER, getAnonMsg, isAnonBlocked, listFolder, markRead, searchFolder, setCat, setFolder,
 } from './astore.js';
-import { catLabel, displayNameOf } from './anon.js';
+import { catLabel, displayNameOf, reactionRow } from './anon.js';
 import { botInfo } from './bot.js';
 import { cardUrl } from './card.js';
 import { normalize } from './filter.js';
@@ -69,6 +69,7 @@ async function messageKeyboard(ctx, user, m, kv) {
   if (bot.id && (m.body || m.q)) third.push(webAppBtn(T(ctx, 'in.btn_card'), cardUrl(bot.id, { k: 'msg', id: m.id, l: ctx.lang })));
   third.push(btn(T(ctx, 'a.btn_report'), `ap:${m.id}`));
   rows.push(third);
+  rows.push(reactionRow(m.id, m.reaction, true));
   rows.push([btn(T(ctx, 'in.btn_delete'), `ix:${m.id}`), btn(T(ctx, 'btn.back'), back)]);
   return rows;
 }

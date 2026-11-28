@@ -16,13 +16,16 @@ const T = (ctx, k, v) => t(ctx.lang, k, v);
 const N = (ctx, n) => num(ctx.lang, n);
 const onOff = (ctx, v) => T(ctx, v ? 'common.on' : 'common.off');
 
-const TOGGLES = { o: ['a_filter', 'aFilter'], l: ['a_links', 'aLinks'], t: ['a_text', 'aText'], s: ['a_silent', 'aSilent'] };
+const TOGGLES = {
+  o: ['a_filter', 'aFilter'], l: ['a_links', 'aLinks'], p: ['a_phone', 'aPhone'], t: ['a_text', 'aText'], s: ['a_silent', 'aSilent'],
+};
 
 export async function showFilters(ctx, user, note = '') {
   const words = await listWords(user.id);
   const kb = [
     [btn(`${T(ctx, 'fs.btn_offensive')}: ${onOff(ctx, user.aFilter)}`, 'fs:o')],
     [btn(`${T(ctx, 'fs.btn_links')}: ${onOff(ctx, user.aLinks)}`, 'fs:l')],
+    [btn(`${T(ctx, 'fs.btn_phone')}: ${onOff(ctx, user.aPhone)}`, 'fs:p')],
     [btn(`${T(ctx, 'fs.btn_text')}: ${onOff(ctx, user.aText)}`, 'fs:t')],
     [btn(`${T(ctx, 'fs.btn_silent')}: ${onOff(ctx, user.aSilent)}`, 'fs:s')],
     [btn(T(ctx, 'fs.btn_words', { n: N(ctx, words.length) }), 'fw'), btn(T(ctx, 'fs.btn_blocks'), 'bl:a')],

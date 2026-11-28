@@ -386,6 +386,9 @@ async function routeCallback(ctx, data, user, kv, isPrivate) {
     // ----- anonymous: inbox -----
     case 'ib':
       return inbox.showInbox(ctx, user, a1, a2, parts[3]);
+    case 'ae': // a reaction to a received message (under it, or in the inbox view)
+      if ((await anon.react(ctx, user, a1, a2, { inbox: parts[3] === 'i' })) && parts[3] === 'i') return inbox.showMessage(ctx, user, kv, a1);
+      return null;
     case 'iv':
       return inbox.showMessage(ctx, user, kv, a1);
     case 'ia':
@@ -483,6 +486,7 @@ async function routeAdmin(ctx, user, kv, staff, action, arg, arg2) {
     case 'bcs':
       return admin.stopBroadcast(ctx, arg);
     case 'bcp':
+      await clearState(user.id); // also "cancel" while asked for the button
       return admin.showBroadcast(ctx, arg);
     case 'wk':
       await clearState(user.id);

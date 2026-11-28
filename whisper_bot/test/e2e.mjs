@@ -821,7 +821,8 @@ await scenario('opening a link: the photo + "در حال ارسال پیام ب�
   const delivered = sentTo(sent.calls, U.sara.id)[0];
   assert.equal(delivered.params.text, `📨 <b>پیام ناشناس جدید</b> · 💌 اعتراف\n\n${text}`);
   firstRef = delivered.params.reply_markup.inline_keyboard[0][0].callback_data.slice(3);
-  assert.deepEqual(dataOf(delivered.params.reply_markup.inline_keyboard), [`ar:${firstRef}`, `ab:${firstRef}`, `ap:${firstRef}`, `iv:${firstRef}`]);
+  assert.deepEqual(dataOf(delivered.params.reply_markup.inline_keyboard), [`ar:${firstRef}`, `ab:${firstRef}`, `ap:${firstRef}`, `iv:${firstRef}`,
+    ...[0, 1, 2, 3, 4].map((i) => `ae:${firstRef}:${i}`)]);
   noTrace(sent.calls, U.sara.id, U.ali);
   assert.match(sent.text, /پیامت ناشناس فرستاده شد/);
   assert.deepEqual({ ...row('SELECT from_id, to_id, cat, folder, unread FROM anon_msgs WHERE id = ?', firstRef) }, { from_id: U.ali.id, to_id: U.sara.id, cat: 'c', folder: 0, unread: 1 });
@@ -954,6 +955,20 @@ await scenario('filters: offensive words, links, own words → "filtered" folder
   const filtered = await press(U.sara, 'ib:2:-:0');
   assert.match(filtered.text, /فیلترشده/);
   assert.equal(filtered.r.trace.find((e) => e.view === 'inbox').meta.ids.length, 3);
+  // phone numbers (someone else's, often): hidden by default, and the receiver can turn it off
+  advance(5);
+  await say(U.ann, `/start a_${code}`);
+  assert.equal((await say(U.ann, 'call me 0912 345 6789')).r.filtered, 'phone');
+  const fs = await press(U.sara, 'fs');
+  assert.ok(buttons(fs.kb).some((b) => b.callback_data === 'fs:p' && /فیلتر شماره تلفن: روشن/.test(b.text)));
+  await press(U.sara, 'fs:p');
+  assert.equal(userRow(U.sara).a_phone, 0);
+  advance(5);
+  await say(U.ann, `/start a_${code}`);
+  const ph = await say(U.ann, 'my number is +7 912 345 67 89');
+  assert.equal(ph.r.filtered, undefined);
+  assert.equal(sentTo(ph.calls, U.sara.id).length, 1, 'delivered');
+  await press(U.sara, 'fs:p');
 });
 
 await scenario('blocking without learning who; 3 people blocking the same sender restrict them automatically', async () => {
@@ -1182,6 +1197,138 @@ await scenario('admins: the owner adds one from a forwarded message; the admin s
   assert.match((await press(U.reza, 'a:st')).answer.text, /فقط برای مالک/);
 });
 
+await scenario('broadcast by an admin, to one language, with a link button: only those users get it; the report goes to the admin', async () => {
+  const { parseButton } = await import('../tgcloud/lib/admin.js');
+  assert.deepEqual(parseButton('Site | example.com/x'), { text: 'Site', url: 'https://example.com/x' });
+  assert.deepEqual(parseButton('کانال ما\nt.me/wangerBots'), { text: 'کانال ما', url: 'https://t.me/wangerBots' });
+  for (const bad of ['no link here', 'x | javascript:alert(1)', 'x | ftp://a.b', ' | https://a.b', `${'x'.repeat(65)} | https://a.b`]) assert.equal(parseButton(bad), null, bad);
+  await deliverWakes();
+  advance(61);
+  const faNum = (n) => String(n).replace(/[0-9]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
+  assert.match((await press(U.mina, 'a:bc')).answer.text, /دسترسی‌های تو نیست/);
+  await press(U.owner, `a:adp:${U.mina.id}:bc`);
+  await press(U.mina, 'a:bc');
+  const draft = await say(U.mina, 'Hello, English speakers!');
+  const id = Number(dataOf(draft.kb)[0].split(':')[2]);
+  assert.deepEqual(dataOf(draft.kb), ['all', 'fa', 'en', 'ru'].map((a) => `a:bca:${id}:${a}`).concat([`a:bcb:${id}`, `a:bcy:${id}`, `a:bcn:${id}`]));
+  assert.match(draft.text, /مخاطب‌ها: 👥 همه\n🔗 دکمه: ندارد/);
+  const en = rows("SELECT user_id FROM users WHERE blang = 'en' AND started = 1 AND active = 1 AND banned = 0").map((r) => r.user_id);
+  assert.ok(en.length >= 1 && !en.includes(U.mina.id));
+  const pick = await press(U.mina, `a:bca:${id}:en`);
+  assert.match(pick.text, new RegExp(`حدود <b>${faNum(en.length)}</b> کاربر[\\s\\S]*مخاطب‌ها: 🇬🇧 English`));
+  assert.equal(buttons(pick.kb)[2].text, '✅ 🇬🇧 English');
+  assert.equal(row('SELECT lang FROM broadcasts WHERE id = ?', id).lang, 'en');
+  await press(U.mina, `a:bcb:${id}`);
+  assert.match((await say(U.mina, 'no link here')).text, /این‌طور بفرست/);
+  const withBtn = await say(U.mina, 'Our channel | @wangerBots');
+  const preview = withBtn.calls.find((c) => c.method === 'copyMessage');
+  assert.deepEqual(preview.params.reply_markup.inline_keyboard, [[{ text: 'Our channel', url: 'https://t.me/wangerBots' }]]);
+  assert.match(withBtn.text, /دکمه اضافه شد[\s\S]*«Our channel» ← https:\/\/t\.me\/wangerBots/);
+  assert.ok(dataOf(withBtn.kb).includes(`a:bcbx:${id}`));
+  const go = await press(U.mina, `a:bcy:${id}`);
+  const wakes = await deliverWakes();
+  assert.equal(row('SELECT status FROM broadcasts WHERE id = ?', id).status, 'done');
+  const got = mock.state.copied.filter((c) => c.from_chat_id === U.mina.id && c.message_id === draft.message.message_id && c.chat_id !== U.mina.id);
+  assert.deepEqual(got.map((c) => c.chat_id).sort((x, y) => x - y), [...en].sort((x, y) => x - y), 'the English speakers, once each');
+  assert.ok(got.every((c) => c.reply_markup.inline_keyboard[0][0].url === 'https://t.me/wangerBots'), 'with the button');
+  const all = [...go.calls, ...wakes.calls];
+  assert.ok(sentTo(all, U.mina.id).some((c) => /گزارش نهایی/.test(c.params.text)), 'the report goes to whoever started it');
+  assert.ok(!sentTo(all, OWNER).some((c) => /گزارش نهایی/.test(c.params.text)));
+  await press(U.owner, `a:adp:${U.mina.id}:bc`);
+});
+
+await scenario('join stats: a channel the join screen showed as missing counts once when the person joins it', async () => {
+  const chans = rows('SELECT id, username, joins FROM channels ORDER BY id');
+  const checked = chans.filter((c) => mock.state.botAdmin.has(`@${c.username.toLowerCase()}`));
+  assert.ok(checked.length >= 2, 'channels the bot can check');
+  const joinsOf = () => Object.fromEntries(rows('SELECT id, joins FROM channels').map((c) => [c.id, c.joins]));
+  const before = joinsOf();
+  const u = person(793000001, 'jn_t');
+  await say(u, '/start');
+  const lock = await press(u, 'L:fa');
+  assert.ok(dataOf(lock.kb).includes('j'), 'the join screen');
+  assert.deepEqual(JSON.parse(userRow(u).join_missing), checked.map((c) => c.id));
+  mock.setMember(checked[0].username, u.id, { status: 'member' });
+  assert.match((await press(u, 'j')).answer.text, /هنوز/);
+  assert.deepEqual(JSON.parse(userRow(u).join_missing), checked.slice(1).map((c) => c.id));
+  for (const c of checked.slice(1)) mock.setMember(c.username, u.id, { status: 'member' });
+  await press(u, 'j');
+  assert.equal(userRow(u).join_missing, null);
+  await press(u, 'j');
+  advance(3600);
+  await say(u, '/start');
+  const after = joinsOf();
+  for (const c of chans) assert.equal(after[c.id] - before[c.id], checked.some((x) => x.id === c.id) ? 1 : 0, `@${c.username}`);
+  const health = await press(U.owner, 'a:hl');
+  assert.match(health.text, new RegExp(`@${checked[0].username} · ${String(after[checked[0].id]).replace(/[0-9]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d])} عضو از طریق ربات`));
+  assert.match((await press(U.owner, 'a:ch')).text, /عضو از طریق ربات/);
+});
+
+await scenario('link views: "👀 N people opened your link today", once per person per day; the owner\'s own visits don\'t count', async () => {
+  const host = person(794000001, 'lv_host');
+  join(host);
+  await onboard(host);
+  const code = /start=a_(\w+)/.exec((await say(host, '/link')).text)[1];
+  assert.match((await say(host, '/link')).text, /👀 امروز ۰ نفر لینکت را باز کردند · در کل ۰/);
+  await say(host, `/start a_${code}`); // their own link: not a visit
+  for (const u of [U.ali, U.reza, U.ali]) {
+    await say(u, `/start a_${code}`);
+    await say(u, '/cancel');
+  }
+  assert.deepEqual([userRow(host).lv_today, userRow(host).lv_total], [2, 2], 'ali twice = once');
+  assert.match((await press(host, 'an')).text, /👀 امروز ۲ نفر لینکت را باز کردند · در کل ۲/);
+  advance(86400);
+  await say(U.ali, `/start a_${code}`);
+  await say(U.ali, '/cancel');
+  assert.match((await say(host, '/link')).text, /👀 امروز ۱ نفر لینکت را باز کردند · در کل ۳/, 'a new day');
+  advance(86400);
+  assert.match((await press(host, 'an')).text, /👀 امروز ۰ نفر لینکت را باز کردند · در کل ۳/, 'nobody yet today');
+  assert.equal(count(`SELECT count(*) AS n FROM link_visits WHERE owner_id = ${host.id}`), 1, 'the lazy cleanup keeps only yesterday\'s and today\'s rows');
+});
+
+await scenario('reactions: the recipient reacts under the message or in the inbox; the sender sees it on their own message', async () => {
+  const host = person(795000001, 'rx_host');
+  join(host);
+  await onboard(host);
+  const code = /start=a_(\w+)/.exec((await say(host, '/link')).text)[1];
+  advance(5);
+  await say(U.reza, `/start a_${code}`);
+  const text = 'یک پیام برای واکنش';
+  ANON_SECRETS.add(text);
+  const sent = await say(U.reza, text);
+  const delivered = sentTo(sent.calls, host.id)[0];
+  const mid = delivered.result.result.message_id;
+  const kb = delivered.params.reply_markup.inline_keyboard;
+  const ref = kb[0][0].callback_data.slice(3);
+  assert.deepEqual(kb[2].map((b) => b.text), ['❤', '🔥', '🤣', '😱', '😢']);
+  const r1 = await press(host, `ae:${ref}:0`, { messageId: mid });
+  assert.match(r1.answer.text, /❤/);
+  const rx = r1.calls.find((c) => c.method === 'setMessageReaction');
+  assert.deepEqual([Number(rx.params.chat_id), rx.params.message_id, rx.params.reaction], [U.reza.id, sent.message.message_id, [{ type: 'emoji', emoji: '❤' }]]);
+  assert.ok(rx.result.ok);
+  noTrace(r1.calls, U.reza.id, host);
+  assert.equal(r1.calls.find((c) => c.method === 'editMessageReplyMarkup').params.reply_markup.inline_keyboard[2][0].text, '❤✓');
+  assert.equal(row('SELECT reaction FROM anon_msgs WHERE id = ?', ref).reaction, '❤');
+  // in the inbox view: another one replaces it; the same again takes it back
+  const v = await press(host, `iv:${ref}`, { messageId: mid });
+  assert.ok(dataOf(v.kb).includes(`ae:${ref}:1:i`));
+  assert.ok(buttons(v.kb).some((b) => b.text === '❤✓'));
+  const r2 = await press(host, `ae:${ref}:1:i`, { messageId: mid });
+  assert.deepEqual(r2.calls.find((c) => c.method === 'setMessageReaction').params.reaction, [{ type: 'emoji', emoji: '🔥' }]);
+  assert.ok(buttons(r2.kb).some((b) => b.text === '🔥✓'), 'the inbox view, again');
+  const r3 = await press(host, `ae:${ref}:1:i`, { messageId: mid });
+  assert.deepEqual(r3.calls.find((c) => c.method === 'setMessageReaction').params.reaction, []);
+  assert.equal(row('SELECT reaction FROM anon_msgs WHERE id = ?', ref).reaction, null);
+  // the sender deleted their message: the first reaction is told in a line instead, once
+  mock.state.goneMessages.add(`${U.reza.id}:${sent.message.message_id}`);
+  const r4 = await press(host, `ae:${ref}:3`, { messageId: mid });
+  assert.match(textsTo(r4.calls, U.reza.id), /😱 یک واکنش به پیامی که فرستادی/);
+  noTrace(r4.calls, U.reza.id, host);
+  const r5 = await press(host, `ae:${ref}:4`, { messageId: mid });
+  assert.equal(sentTo(r5.calls, U.reza.id).length, 0, 'changing it doesn\'t notify again');
+  assert.match((await press(U.ali, `ae:${ref}:0`)).answer.text, /دیگر در دسترس نیست/, 'only the recipient');
+});
+
 // =====================================================================================
 // Confession channel (lib/confess.js)
 // =====================================================================================
@@ -1317,6 +1464,11 @@ await scenario('an anonymous message to the author from the post: into their inb
   assert.match(inInbox.text, /Ответ автора признания #1/);
   noTrace(inInbox.calls, U.ivan.id, U.mina);
   assert.equal(row('SELECT cf FROM anon_msgs WHERE id = ?', backRef).cf, confId);
+  // a report reaches the owner and every admin who reviews reports (mina has rp)
+  await press(U.ivan, `ap:${backRef}`);
+  const rep = await press(U.ivan, `apy:${backRef}`);
+  for (const id of [OWNER, U.mina.id]) assert.match(textsTo(rep.calls, id), /یک گزارش تازه برای بررسی/, String(id));
+  noTrace(rep.calls, OWNER, U.ivan);
 });
 
 await scenario('reject, and reject-and-ban: the author is told or banned — nobody sees who it was', async () => {
@@ -1532,7 +1684,7 @@ await scenario('security: whisper and anonymous texts never in callback_data or 
   assert.deepEqual(leaks, []);
   const rejected = mock.state.calls.filter((c) => !c.result.ok
     && !['getChatMember', 'copyMessage', 'sendMessage', 'answerCallbackQuery', 'getChat'].includes(c.method)
-    && !/message is not modified/.test(c.result.description));
+    && !/message is not modified|message to react not found/.test(c.result.description));
   assert.deepEqual(rejected.map((c) => `${c.method}: ${c.result.description}`), []);
   const badSends = mock.state.calls.filter((c) => ['sendMessage', 'copyMessage', 'sendPhoto'].includes(c.method) && !c.result.ok && c.result.error_code === 400 && !/can't be copied|chat not found/.test(c.result.description));
   assert.deepEqual(badSends.map((c) => `${c.method}: ${c.result.description}`), []);

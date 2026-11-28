@@ -1,13 +1,15 @@
-// Owner broadcasts as a database queue (there is no scheduler): the users after broadcasts.last_user
-// in idx_users_reachable order are still to do. A batch that leaves users to do wakes the bot for
+// Broadcasts (the owner, or an admin with the bc permission) as a database queue (there is no
+// scheduler): the users after broadcasts.last_user in idx_users_reachable order — or, for one
+// language, idx_users_reach_lang — are still to do. A batch that leaves users to do wakes the bot for
 // the next one (lib/wake.js), so a broadcast runs to the end by itself; "▶️ ادامه ارسال" sends a
 // batch at once, and every other update also sends a chunk of BC_CHUNK on the side (and restarts
-// the waking if it stopped). A lock row field keeps concurrent runs from sending twice.
+// the waking if it stopped). A lock row field keeps concurrent runs from sending twice. Progress and
+// the final report go to whoever started it (broadcasts.from_chat, their private chat).
 //   403 → the user blocked the bot: marked inactive, never retried.
 //   429 → stop this batch, wait parameters.retry_after seconds; that user is retried later.
 //   anything else → counted as failed.
 import {
-  BC_CHUNK, BC_LOCK_SEC, BC_PROGRESS_EVERY_SEC, OWNER_ID, WAKE_MAX_WAIT_SEC,
+  BC_CHUNK, BC_LOCK_SEC, BC_PROGRESS_EVERY_SEC, WAKE_MAX_WAIT_SEC,
 } from './config.js';
 import { dur, langOf, num, t } from './i18n.js';
 import {
@@ -44,7 +46,11 @@ export function progressView(b, lang) {
   return { text: lines.join('\n'), kb };
 }
 
-const ownerLang = async () => langOf(await getUser(OWNER_ID));
+/** The language of whoever started it (they sent the message from their private chat). */
+const creatorLang = async (b) => langOf(await getUser(b.fromChat));
+
+/** The link button under every copy, if the broadcast has one. */
+export const buttonMarkup = (b) => (b.btnText && b.btnUrl ? { inline_keyboard: [[{ text: b.btnText, url: b.btnUrl }]] } : undefined);
 
 /**
  * Sends up to `limit` messages of a running broadcast. Returns
@@ -62,14 +68,17 @@ export async function processBatch(ctx, id, limit) {
   let limited = false;
   let done = false;
   try {
-    const ids = await reachableAfter(b.lastUser, limit);
+    const ids = await reachableAfter(b.lastUser, limit, b.lang);
+    const markup = buttonMarkup(b);
     for (const uid of ids) {
-      if (uid === OWNER_ID) {
-        b.lastUser = uid; // the owner saw the preview; not a recipient
+      if (uid === b.fromChat) {
+        b.lastUser = uid; // whoever started it saw the preview; not a recipient
         continue;
       }
       try {
-        await call(ctx, 'copyMessage', { chat_id: uid, from_chat_id: b.fromChat, message_id: b.messageId }, 'broadcast');
+        await call(ctx, 'copyMessage', {
+          chat_id: uid, from_chat_id: b.fromChat, message_id: b.messageId, ...(markup ? { reply_markup: markup } : {}),
+        }, 'broadcast');
         b.sent += 1;
       } catch (err) {
         if (isApiError(err) && err.code === 429) {
@@ -105,7 +114,7 @@ export async function processBatch(ctx, id, limit) {
 /** Edits the progress message (the one with the ▶️/⛔ buttons). */
 export async function updateProgress(ctx, b) {
   if (!b.progressChat || !b.progressMsg) return;
-  const { text, kb } = progressView(b, await ownerLang());
+  const { text, kb } = progressView(b, await creatorLang(b));
   try {
     await call(ctx, 'editMessageText', {
       chat_id: b.progressChat,
@@ -122,14 +131,14 @@ export async function updateProgress(ctx, b) {
   await touchBroadcastProgress(b.id);
 }
 
-/** The final report, as a new message so the owner is notified. */
+/** The final report, as a new message so whoever started it is notified. */
 export async function finalReport(ctx, b) {
-  const lang = await ownerLang();
+  const lang = await creatorLang(b);
   const N = (n) => num(lang, n);
   const took = b.finishedAt && b.createdAt ? `\n${t(lang, 'bc.r_took', { d: dur(lang, b.finishedAt - b.createdAt) })}` : '';
   await send(ctx, 'broadcast_report', t(lang, 'bc.report', {
     id: N(b.id), s: t(lang, `bc.s_${b.status}`), sent: N(b.sent), failed: N(b.failed), blocked: N(b.blocked),
-  }) + took, [[btn(t(lang, 'adm.btn_panel'), 'a')]], OWNER_ID);
+  }) + took, [[btn(t(lang, 'adm.btn_panel'), 'a')]], b.fromChat);
 }
 
 /**

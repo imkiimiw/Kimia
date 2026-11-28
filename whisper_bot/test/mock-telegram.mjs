@@ -44,6 +44,12 @@ export function parseHtml(text) {
   return { plain };
 }
 
+// The emoji Telegram accepts in setMessageReaction (ReactionTypeEmoji), as of Bot API 9.
+const ALLOWED_REACTIONS = new Set(['👍', '👎', '❤', '🔥', '🥰', '👏', '😁', '🤔', '🤯', '😱', '🤬', '😢', '🎉', '🤩', '🤮', '💩', '🙏',
+  '👌', '🕊', '🤡', '🥱', '🥴', '😍', '🐳', '❤‍🔥', '🌚', '🌭', '💯', '🤣', '⚡', '🍌', '🏆', '💔', '🤨', '😐', '🍓', '🍾', '💋', '🖕',
+  '😈', '😴', '😭', '🤓', '👻', '👨‍💻', '👀', '🎃', '🙈', '😇', '😨', '🤝', '✍', '🤗', '🫡', '🎅', '🎄', '☃', '💅', '🤪', '🗿', '🆒',
+  '💘', '🙉', '🦄', '😘', '💊', '🙊', '😎', '👾', '🤷‍♂', '🤷', '🤷‍♀', '😡']);
+
 function checkMarkup(markup) {
   if (!markup) return null;
   if (markup.remove_keyboard === true) return null;
@@ -65,7 +71,7 @@ function checkMarkup(markup) {
       if (kinds.length !== 1) return `button "${b.text}" must have exactly one action`;
       if (b.web_app && !/^https:\/\//.test(String(b.web_app.url || ''))) return 'BUTTON_URL_INVALID: web_app url must be https';
       if (b.callback_data !== undefined && (Buffer.byteLength(b.callback_data, 'utf8') > 64 || !b.callback_data)) return 'BUTTON_DATA_INVALID';
-      if (b.url !== undefined && !/^(https:\/\/t\.me\/|tg:\/\/)\S+$/.test(b.url)) return `bad button url ${b.url}`;
+      if (b.url !== undefined && !/^(https?:\/\/[^\s/?#@]+\.[^\s/?#@]+(?:[/?#]\S*)?|tg:\/\/\S+)$/.test(b.url)) return `BUTTON_URL_INVALID: ${b.url}`;
     }
   }
   return null;
@@ -88,6 +94,8 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
     answeredInline: new Set(),
     copied: [], // { chat_id, from_chat_id, message_id, reply_markup, new_id }
     uncopyable: new Set(), // `${chat}:${message_id}` that copyMessage refuses (like a service message)
+    goneMessages: new Set(), // `${chat}:${message_id}` of users' messages they deleted (setMessageReaction fails)
+    reactions: new Map(), // `${chat}:${message_id}` -> the emoji the bot set on it
     forbidden: new Set(), // chats the bot isn't a member of (403)
     deleted: [],
     media: [], // { chat_id, field, file, caption, upload: { filename, type, size, head } }
@@ -291,6 +299,17 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
       state.copied.push({ chat_id: chat, from_chat_id: p.from_chat_id, message_id: p.message_id, reply_markup: p.reply_markup, new_id: message_id });
       state.messages.set(`${chat}:${message_id}`, { text: `<copy of ${p.from_chat_id}:${p.message_id}>`, markup: JSON.stringify(p.reply_markup || null) });
       return ok({ message_id });
+    },
+    setMessageReaction: (p) => {
+      const r = reachable(p.chat_id);
+      if (r) return r;
+      if (!Number.isInteger(Number(p.message_id)) || Number(p.message_id) <= 0) return err(400, 'Bad Request: MESSAGE_ID_INVALID');
+      if (state.goneMessages.has(`${p.chat_id}:${p.message_id}`)) return err(400, 'Bad Request: message to react not found');
+      const list = Array.isArray(p.reaction) ? p.reaction : [];
+      if (list.length > 1) return err(400, 'Bad Request: REACTIONS_TOO_MANY');
+      if (list.some((x) => !x || x.type !== 'emoji' || !ALLOWED_REACTIONS.has(x.emoji))) return err(400, 'Bad Request: REACTION_INVALID');
+      state.reactions.set(`${p.chat_id}:${p.message_id}`, list.map((x) => x.emoji));
+      return ok(true);
     },
     editMessageReplyMarkup: (p) => {
       const k = `${p.chat_id}:${p.message_id}`;

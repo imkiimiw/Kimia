@@ -10,7 +10,7 @@ import {
 import {
   bump, num, toUser, USER_COLS,
 } from './store.js';
-import { nowSec, randomId } from './util.js';
+import { localDay, nowSec, randomId } from './util.js';
 
 export const FOLDER = { inbox: 0, archive: 1, filtered: 2 };
 
@@ -28,6 +28,18 @@ export async function setAnonCode(id, code) {
 
 // ---------- messages ----------
 
+/** A visitor opened `ownerId`'s link: counted once per person per local day (link_visits). */
+export async function recordLinkVisit(ownerId, visitorId) {
+  const day = Number(localDay());
+  const r = await db.run(sql`
+    INSERT INTO link_visits (owner_id, visitor_id, day) VALUES (${ownerId}, ${visitorId}, ${day}) ON CONFLICT DO NOTHING`);
+  if (!r.rowsAffected) return false;
+  await db.run(sql`
+    UPDATE users SET lv_today = CASE WHEN lv_day = ${day} THEN lv_today + 1 ELSE 1 END, lv_day = ${day}, lv_total = lv_total + 1
+    WHERE user_id = ${ownerId}`);
+  return true;
+}
+
 function toMsg(r) {
   if (!r) return null;
   return {
@@ -43,13 +55,14 @@ function toMsg(r) {
     cat: r.cat || 'g',
     q: r.q || null,
     cf: r.cf == null ? null : num(r.cf),
+    reaction: r.reaction || null, // the recipient's emoji reaction
     folder: num(r.folder),
     unread: num(r.unread) === 1,
     createdAt: num(r.created_at),
   };
 }
 
-const M_COLS = sql`id, from_id, to_id, anon, from_msg, to_msg, kind, body, file_id, cat, q, cf, folder, unread, created_at`;
+const M_COLS = sql`id, from_id, to_id, anon, from_msg, to_msg, kind, body, file_id, cat, q, cf, reaction, folder, unread, created_at`;
 
 /**
  * Stores a message for the recipient's inbox (or filtered folder) and updates their counters.
@@ -80,6 +93,11 @@ async function pruneOldest(userId, n) {
 
 export async function setDelivered(id, toMsg) {
   await db.run(sql`UPDATE anon_msgs SET to_msg = ${toMsg} WHERE id = ${id}`);
+}
+
+/** The recipient's reaction to a message (null takes it back). */
+export async function setReaction(id, toId, emoji) {
+  await db.run(sql`UPDATE anon_msgs SET reaction = ${emoji} WHERE id = ${id} AND to_id = ${toId}`);
 }
 
 export async function getAnonMsg(id) {

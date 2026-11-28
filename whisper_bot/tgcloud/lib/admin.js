@@ -4,7 +4,7 @@
 // content is shown here, except a message a user chose to report or a confession sent for review —
 // and even then never who wrote it.
 import {
-  ADMIN_PERMS, BC_BATCH, MAX_ADMINS, MAX_CHANNELS, OWNER_ID, RESTRICT_LONG_SEC,
+  ADMIN_PERMS, BC_BATCH, LANGS, MAX_ADMINS, MAX_CHANNELS, OWNER_ID, RESTRICT_LONG_SEC,
 } from './config.js';
 import {
   getReport, listReports, restrict, setReportStatus,
@@ -20,8 +20,9 @@ import { confessionChannelStatus } from './confess.js';
 import { countPendingConfessions } from './cstore.js';
 import { channelRef } from './join.js';
 import {
-  addChannel, bumpChannelVersion, clearState, countChannels, createBroadcast, getBroadcast, getChannel,
-  getChannels, getUser, getUserByUsername, removeChannel, runningBroadcast, setBanned, setBroadcastStatus, setKv,
+  addChannel, backfillBlang, bumpChannelVersion, clearState, countChannels, countReachable, createBroadcast, getBroadcast,
+  getChannel, getChannels, getUser, getUserByUsername, removeChannel, runningBroadcast, setBanned,
+  setBroadcastAudience as saveAudience, setBroadcastButton as saveButton, setBroadcastStatus, setKv,
   setBroadcastProgressMessage, setState, startBroadcast, stats,
 } from './store.js';
 import {
@@ -87,7 +88,7 @@ export async function showChannels(ctx, kv, note = '') {
       return `⚠️ ${esc(truncate(isApiError(err) ? err.description : describeError(err), 60))}`;
     }
   }));
-  const lines = channels.map((ch, i) => `${N(ctx, i + 1)}. @${esc(ch.username)} — ${esc(truncate(ch.title, 40))}\n     ${status[i]}`);
+  const lines = channels.map((ch, i) => `${N(ctx, i + 1)}. @${esc(ch.username)} — ${esc(truncate(ch.title, 40))}\n     ${status[i]} · ${T(ctx, 'hl.joins', { n: N(ctx, ch.joins) })}`);
   const kb = channels.map((ch) => [btn(`❌ @${ch.username}`.slice(0, 60), `a:rm:${ch.id}`)]);
   if (channels.length < MAX_CHANNELS) kb.push([btn(T(ctx, 'adm.btn_add_channel'), 'a:add')]);
   kb.push(toPanel(ctx));
@@ -240,10 +241,15 @@ export async function actOnReport(ctx, id, action) {
 
 // ---------- broadcast ----------
 
-async function recipientsCount() {
-  const s = await stats();
-  const owner = await getUser(OWNER_ID);
-  return Math.max(0, s.active - (owner && owner.started && owner.active && !owner.banned ? 1 : 0));
+const AUDIENCES = ['all', ...LANGS];
+const LANG_NAMES = { fa: '🇮🇷 فارسی', en: '🇬🇧 English', ru: '🇷🇺 Русский' };
+
+/** How many a draft would reach: the reachable users (of its language), minus whoever started it. */
+async function recipientsCount(lang, creatorId) {
+  const creator = await getUser(creatorId);
+  const counted = !!(creator && creator.started && creator.active && !creator.banned && (!lang || creator.blang === lang));
+  const n = lang ? await countReachable(lang) : (await stats()).active;
+  return Math.max(0, n - (counted ? 1 : 0));
 }
 
 export async function askBroadcast(ctx, user) {
@@ -258,7 +264,23 @@ export async function askBroadcast(ctx, user) {
   return show(ctx, 'broadcast_ask', T(ctx, 'bc.ask'), [[btn(T(ctx, 'btn.cancel'), 'a:x')]]);
 }
 
-/** The owner sent the message to broadcast: show a preview and ask for confirmation. */
+/** The draft's screen: who it goes to, the link button, and confirm / cancel. */
+async function confirmView(ctx, b, note = '') {
+  const n = await recipientsCount(b.lang, b.fromChat);
+  const lines = [T(ctx, 'bc.confirm', { id: N(ctx, b.id), n: N(ctx, n) }), ''];
+  lines.push(T(ctx, 'bc.audience', { who: b.lang ? LANG_NAMES[b.lang] : T(ctx, 'bc.aud_all') }));
+  lines.push(b.btnText ? T(ctx, 'bc.button_line', { text: esc(b.btnText), url: esc(b.btnUrl) }) : T(ctx, 'bc.no_button'));
+  const aud = (a) => btn(`${(b.lang || 'all') === a ? '✅ ' : ''}${a === 'all' ? T(ctx, 'bc.aud_all') : LANG_NAMES[a]}`, `a:bca:${b.id}:${a}`);
+  const kb = [
+    [aud('all'), aud('fa')],
+    [aud('en'), aud('ru')],
+    [b.btnText ? btn(T(ctx, 'bc.btn_remove_button'), `a:bcbx:${b.id}`) : btn(T(ctx, 'bc.btn_add_button'), `a:bcb:${b.id}`)],
+    [btn(T(ctx, 'bc.btn_confirm'), `a:bcy:${b.id}`), btn(T(ctx, 'btn.cancel'), `a:bcn:${b.id}`)],
+  ];
+  return { text: `${note ? `${note}\n\n` : ''}${lines.join('\n')}`, kb };
+}
+
+/** The message to broadcast arrived: a preview (an exact copy) and the draft's screen. */
 export async function onBroadcastMessage(ctx, user, message) {
   await clearState(user.id);
   try {
@@ -267,10 +289,86 @@ export async function onBroadcastMessage(ctx, user, message) {
     return send(ctx, 'broadcast_uncopyable', T(ctx, 'bc.uncopyable', { err: esc(describeError(err)) }), [toPanel(ctx)]);
   }
   const id = await createBroadcast(Number(message.chat.id), Number(message.message_id));
-  const n = await recipientsCount();
-  const album = message.media_group_id ? `\n${T(ctx, 'bc.album')}` : '';
-  return send(ctx, 'broadcast_confirm', `${T(ctx, 'bc.confirm', { id: N(ctx, id), n: N(ctx, n) })}${album}`,
-    [[btn(T(ctx, 'bc.btn_confirm'), `a:bcy:${id}`), btn(T(ctx, 'btn.cancel'), `a:bcn:${id}`)]]);
+  const { text, kb } = await confirmView(ctx, await getBroadcast(id));
+  const album = message.media_group_id ? `\n\n${T(ctx, 'bc.album')}` : '';
+  return send(ctx, 'broadcast_confirm', `${text}${album}`, kb);
+}
+
+async function draftOrRefuse(ctx, id) {
+  const b = await getBroadcast(Number(id));
+  if (b && b.status === 'draft') return b;
+  await answer(ctx, T(ctx, 'bc.not_startable'), { alert: true });
+  return null;
+}
+
+/** "a:bca:<id>:<all|fa|en|ru>": everyone, or only the users of one language. */
+export async function setBroadcastAudience(ctx, id, audience) {
+  const b = await draftOrRefuse(ctx, id);
+  if (!b) return null;
+  if (!AUDIENCES.includes(audience)) return answer(ctx, T(ctx, 'e.old_button'));
+  const lang = audience === 'all' ? null : audience;
+  if (lang) { // every user's language must be known first (rows from before users.blang)
+    let done = false;
+    for (let i = 0; i < 20 && !done; i += 1) done = await backfillBlang();
+  }
+  await saveAudience(b.id, lang);
+  await answer(ctx);
+  const { text, kb } = await confirmView(ctx, { ...b, lang });
+  return show(ctx, 'broadcast_confirm', text, kb);
+}
+
+export async function askBroadcastButton(ctx, user, id) {
+  const b = await draftOrRefuse(ctx, id);
+  if (!b) return null;
+  await setState(user.id, 'bc_btn', { id: b.id });
+  await answer(ctx);
+  return show(ctx, 'broadcast_button_ask', T(ctx, 'bc.button_ask'), [[btn(T(ctx, 'btn.cancel'), `a:bcp:${b.id}`)]]);
+}
+
+/** "Text | link" (or the text, then the link on the next line). A t.me/… link or @channel gets https://. */
+export function parseButton(input) {
+  const m = /^([^|\n]+?)\s*(?:\||\n)\s*(\S+)\s*$/.exec(String(input || '').trim());
+  if (!m) return null;
+  const text = m[1].trim();
+  let url = m[2];
+  if (/^@[A-Za-z][A-Za-z0-9_]{3,31}$/.test(url)) url = `https://t.me/${url.slice(1)}`;
+  else if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) url = `https://${url}`;
+  if (!text || text.length > 64 || url.length > 512) return null;
+  if (!/^(https?:\/\/[^\s/?#@]+\.[^\s/?#@]+(?:[/?#]\S*)?|tg:\/\/\S+)$/i.test(url)) return null;
+  return { text, url };
+}
+
+/** The button arrived (state bc_btn): a preview with it — Telegram checks the link here — then the draft. */
+export async function onBroadcastButton(ctx, user, input, data) {
+  const b = await getBroadcast(Number(data && data.id));
+  if (!b || b.status !== 'draft') {
+    await clearState(user.id);
+    return send(ctx, 'broadcast_not_draft', T(ctx, 'bc.not_startable'), [toPanel(ctx)]);
+  }
+  const parsed = parseButton(input);
+  if (!parsed) return send(ctx, 'broadcast_button_invalid', T(ctx, 'bc.button_invalid'));
+  try {
+    await call(ctx, 'copyMessage', {
+      chat_id: user.id, from_chat_id: b.fromChat, message_id: b.messageId,
+      reply_markup: { inline_keyboard: [[{ text: parsed.text, url: parsed.url }]] },
+    }, 'broadcast_preview');
+  } catch (err) {
+    if (isApiError(err) && err.code === 400) return send(ctx, 'broadcast_button_invalid', T(ctx, 'bc.button_invalid'));
+    throw err;
+  }
+  await saveButton(b.id, parsed.text, parsed.url);
+  await clearState(user.id);
+  const { text, kb } = await confirmView(ctx, { ...b, btnText: parsed.text, btnUrl: parsed.url }, T(ctx, 'bc.button_saved'));
+  return send(ctx, 'broadcast_confirm', text, kb);
+}
+
+export async function removeBroadcastButton(ctx, id) {
+  const b = await draftOrRefuse(ctx, id);
+  if (!b) return null;
+  await saveButton(b.id, null, null);
+  await answer(ctx, T(ctx, 'bc.button_removed'));
+  const { text, kb } = await confirmView(ctx, { ...b, btnText: null, btnUrl: null });
+  return show(ctx, 'broadcast_confirm', text, kb);
 }
 
 async function showProgress(ctx, b) {
@@ -284,7 +382,7 @@ export async function confirmBroadcast(ctx, id) {
     await answer(ctx, T(ctx, 'bc.not_startable'), { alert: true });
     return b ? showProgress(ctx, b) : null;
   }
-  const total = await recipientsCount();
+  const total = await recipientsCount(b.lang, b.fromChat);
   if (!(await startBroadcast(b.id, total, ctx.chatId, ctx.messageId))) return answer(ctx, T(ctx, 'bc.one_at_a_time'), { alert: true });
   await setKv('bc', b.id);
   await answer(ctx, T(ctx, 'bc.started'));
@@ -332,6 +430,10 @@ export async function cancelBroadcast(ctx, id) {
 export async function showBroadcast(ctx, id) {
   const b = await getBroadcast(Number(id));
   await answer(ctx);
+  if (b && b.status === 'draft') {
+    const { text, kb } = await confirmView(ctx, b);
+    return show(ctx, 'broadcast_confirm', text, kb);
+  }
   return b ? showProgress(ctx, b) : null;
 }
 

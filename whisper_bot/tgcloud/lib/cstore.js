@@ -3,7 +3,7 @@
 // once can't both post a confession.
 import { db } from 'sdk';
 import { sql } from 'sdk/db';
-import { bump, num } from './store.js';
+import { bump, getKv, num } from './store.js';
 import { nowSec } from './util.js';
 
 const C_COLS = sql`id, author_id, body, allow_comments, allow_dm, flags, status, lang, channel_id, channel_msg, comments,
@@ -76,11 +76,12 @@ export async function undecide(id) {
 
 export async function setPosted(id, channelId, channelMsg) {
   await db.run(sql`UPDATE confessions SET channel_id = ${channelId}, channel_msg = ${channelMsg} WHERE id = ${id}`);
+  await bump('n_cf_posted', 1);
 }
 
+/** Confessions posted to the channel so far (a kv counter). */
 export async function countPublished() {
-  const r = await db.get(sql`SELECT count(*) AS n FROM (SELECT 1 FROM confessions WHERE status = 'approved' LIMIT 100000)`);
-  return num(r && r.n);
+  return num((await getKv(['n_cf_posted'])).n_cf_posted);
 }
 
 // ---------- comments ----------
