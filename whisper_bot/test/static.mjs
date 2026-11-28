@@ -102,10 +102,10 @@ const DYNAMIC = {
 };
 const used = new Set();
 for (const [prefix, names] of Object.entries(DYNAMIC)) for (const n of names) used.add(prefix.endsWith('_') ? `${prefix}${n}` : `${prefix}.${n}`);
-for (const code of ['no_recipient', 'no_text', 'too_many', 'bad_expiry', 'self', 'bot', 'blocked']) for (const part of ['title', 'desc']) used.add(`w.err.${code}.${part}`);
+for (const code of ['no_recipient', 'no_text', 'too_many', 'bad_expiry', 'bad_capsule', 'self', 'bot', 'blocked', 'media_gone', 'media_posted']) for (const part of ['title', 'desc']) used.add(`w.err.${code}.${part}`);
 for (const file of files.filter((f) => !f.includes(`${path.sep}i18n${path.sep}`))) {
   const code = stripComments(fs.readFileSync(file, 'utf8'));
-  for (const m of code.matchAll(/'((?:w|wh|wd|wc|wst|wk|bl|a|in|q|cd|fs|fw|as|dd|pf|adm|bc|main|ws|help|privacy|join|lang|btn|common|e|time|cat|kind|cmd|bot|ad|hl|cf|rc)\.[a-z_][\w.]*)'/g)) used.add(m[1]);
+  for (const m of code.matchAll(/'((?:w|wh|wd|wc|wst|wk|bl|a|in|q|cd|fs|fw|as|dd|pf|adm|bc|main|ws|help|privacy|join|lang|btn|common|e|time|cat|kind|cmd|bot|ad|hl|cf|rc|wm|qd)\.[a-z_][\w.]*)'/g)) used.add(m[1]);
 }
 for (const k of used) if (!(k in dicts.fa)) fail(i18nFile, `key "${k}" is used but missing from the dictionaries`);
 if (dicts.fa.qotd.length < 30) fail(i18nFile, 'the question-of-the-day pool is too small');
@@ -115,4 +115,5 @@ if (failures) {
   console.log(`\nstatic checks: ${failures} problem(s) in ${count} modules`);
   process.exit(1);
 }
+if (process.env.SHOW_UNUSED) console.log(keysOf(dicts.fa).filter((k) => !used.has(k)).join('\n'));
 console.log(`✔ static checks: ${count} modules — syntax, imports, isolate globals, layout; i18n: ${keysOf(dicts.fa).length} keys × 3 languages, ${used.size} used`);

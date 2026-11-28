@@ -66,6 +66,25 @@ export function localDay(sec = nowSec()) {
   return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}`;
 }
 
+/** The next time it is h:m in Tehran, at least a minute from now (a time capsule's opening). */
+export function nextLocalTime(h, m, now = nowSec()) {
+  const off = TZ_OFFSET_MIN * 60;
+  let at = Math.floor((now + off) / 86400) * 86400 + h * 3600 + m * 60 - off;
+  if (at <= now + 60) at += 86400;
+  return at;
+}
+
+/** "20:05", Tehran time. */
+export function localClock(sec) {
+  const d = new Date((sec + TZ_OFFSET_MIN * 60) * 1000);
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+}
+
+/** The hour (0-23) in Tehran now. */
+export function localHour(sec = nowSec()) {
+  return new Date((sec + TZ_OFFSET_MIN * 60) * 1000).getUTCHours();
+}
+
 /** Days since 1970-01-01 in Tehran time: the question of the day changes at local midnight. */
 export function localDayIndex(sec = nowSec()) {
   return Math.floor((sec + TZ_OFFSET_MIN * 60) / 86400);

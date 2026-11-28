@@ -2,8 +2,10 @@
 // every language (lib/i18n/*.js "qotd"), one per Tehran calendar day, so nothing has to be scheduled —
 // mode 2 the user's own question, mode 0 none. Visitors of the link see it, and their messages are
 // filed as answers to it.
-import { QUESTION_MAX } from './config.js';
-import { langOf, list, t } from './i18n.js';
+import { DAILY_QUESTION_HOUR, QUESTION_MAX } from './config.js';
+import {
+  langOf, list, num, t,
+} from './i18n.js';
 import { clearState, setState, setUserField } from './store.js';
 import {
   answer, btn, send, show,
@@ -31,6 +33,7 @@ export async function showQotd(ctx, user, note = '') {
   const kb = [
     [btn(`${mode === 1 ? '✅ ' : ''}${T(ctx, 'q.btn_daily')}`, 'qd:d')],
     [btn(`${mode === 2 ? '✅ ' : ''}${T(ctx, 'q.btn_own')}`, 'qd:c'), btn(`${mode === 0 ? '✅ ' : ''}${T(ctx, 'q.btn_none')}`, 'qd:0')],
+    [btn(T(ctx, user.qdPush ? 'q.btn_push_on' : 'q.btn_push_off', { h: num(ctx.lang, DAILY_QUESTION_HOUR) }), 'qd:p')],
     [btn(T(ctx, 'q.btn_card'), 'cd'), btn(T(ctx, 'btn.back'), 'an')],
   ];
   const text = T(ctx, 'q.text', {
@@ -49,6 +52,14 @@ export async function setMode(ctx, user, mode) {
   user.qMode = mode === 'd' ? 1 : 0;
   await setUserField(user.id, 'q_mode', user.qMode);
   await answer(ctx, T(ctx, user.qMode ? 'q.set_daily' : 'q.set_none'));
+  return showQotd(ctx, user);
+}
+
+/** "🔔": the question of the day in their chat every day at DAILY_QUESTION_HOUR (lib/daily.js). */
+export async function togglePush(ctx, user) {
+  user.qdPush = !user.qdPush;
+  await setUserField(user.id, 'qd_push', user.qdPush ? 1 : 0);
+  await answer(ctx, T(ctx, user.qdPush ? 'q.push_on' : 'q.push_off', { h: num(ctx.lang, DAILY_QUESTION_HOUR) }), { alert: !user.qdPush });
   return showQotd(ctx, user);
 }
 

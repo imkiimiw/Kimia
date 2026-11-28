@@ -21,7 +21,7 @@ export const num = (v) => Number(v || 0);
 // ---------- kv: settings and counters ----------
 
 export const KV_KEYS = ['join', 'chv', 'seeded', 'bot_id', 'bot_username', 'bc', 'gc_at', 'cmds',
-  'cf_on', 'cf_chat', 'cf_chat_title', 'cf_username', 'cf_lang', 'qd_day'];
+  'cf_on', 'cf_chat', 'cf_chat_title', 'cf_username', 'cf_lang', 'qd_day', 'qd_cursor'];
 
 export async function getKv(keys = KV_KEYS) {
   const rows = await db.all(sql`SELECT key, value FROM kv WHERE key IN (${list(keys)})`);
@@ -394,6 +394,9 @@ function toWhisper(r) {
     snoops: num(r.snoops),
     inlineId: r.inline_id || null,
     lang: r.lang || 'fa',
+    kind: r.kind || 'text', // or a media whisper: photo / video / voice / ...
+    fileId: r.file_id || null,
+    opensAt: num(r.opens_at), // a time capsule: recipients can't open it before then
     createdAt: num(r.created_at),
   };
 }
@@ -410,17 +413,20 @@ function toRcpt(r) {
   };
 }
 
-const W_COLS = sql`id, sender_id, body, once, expires_at, state, rcount, snoops, inline_id, lang, created_at`;
+const W_COLS = sql`id, sender_id, body, once, expires_at, state, rcount, snoops, inline_id, lang, kind, file_id, opens_at, created_at`;
 
 /**
  * Creates a whisper and its recipients. Idempotent: if the id exists (the update came twice, or a
  * button press finalized it first) nothing is created and false is returned.
  */
-export async function createWhisper({ id, senderId, body, once, expiresAt, recipients, inlineId, lang = 'fa' }) {
+export async function createWhisper({
+  id, senderId, body, once, expiresAt, recipients, inlineId, lang = 'fa', kind = 'text', fileId = null, opensAt = 0,
+}) {
   const now = nowSec();
   const r = await db.run(sql`
-    INSERT INTO whispers (id, sender_id, body, once, expires_at, state, rcount, snoops, inline_id, lang, created_at)
-    VALUES (${id}, ${senderId}, ${body}, ${once ? 1 : 0}, ${expiresAt}, 0, ${recipients.length}, 0, ${inlineId}, ${lang}, ${now})
+    INSERT INTO whispers (id, sender_id, body, once, expires_at, state, rcount, snoops, inline_id, lang, kind, file_id, opens_at, created_at)
+    VALUES (${id}, ${senderId}, ${body}, ${once ? 1 : 0}, ${expiresAt}, 0, ${recipients.length}, 0, ${inlineId}, ${lang}, ${kind},
+      ${fileId}, ${opensAt || 0}, ${now})
     ON CONFLICT(id) DO NOTHING`);
   if (r.rowsAffected === 0) {
     if (inlineId) await setInlineId(id, inlineId);
@@ -475,12 +481,12 @@ export async function addOpen(whisperId, slot) {
 
 /** Deletes the content of a one-time whisper. True if this call burned it. */
 export async function burnWhisper(id) {
-  return (await db.run(sql`UPDATE whispers SET body = NULL, state = 1 WHERE id = ${id} AND state = 0`)).rowsAffected > 0;
+  return (await db.run(sql`UPDATE whispers SET body = NULL, file_id = NULL, state = 1 WHERE id = ${id} AND state = 0`)).rowsAffected > 0;
 }
 
 /** Deletes the content of an expired whisper. True if this call expired it. */
 export async function expireWhisper(id) {
-  return (await db.run(sql`UPDATE whispers SET body = NULL, state = 2 WHERE id = ${id} AND state = 0`)).rowsAffected > 0;
+  return (await db.run(sql`UPDATE whispers SET body = NULL, file_id = NULL, state = 2 WHERE id = ${id} AND state = 0`)).rowsAffected > 0;
 }
 
 /** Records a snooper once per whisper; returns the new count, or null if they were already counted. */

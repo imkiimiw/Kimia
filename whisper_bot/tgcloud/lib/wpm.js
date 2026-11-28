@@ -12,7 +12,7 @@ import {
 } from './store.js';
 import { answer, btn, send, show } from './tg.js';
 import {
-  joinNames, personHtml, rcptHtml, roleOf,
+  clockOf, joinNames, personHtml, rcptHtml, roleOf,
 } from './whisper.js';
 import {
   esc, isId, nowSec, toAsciiDigits,
@@ -30,7 +30,20 @@ function statusKey(w, now) {
 }
 
 function flagsOf(w) {
-  return `${w.once ? '🔥' : ''}${w.expiresAt ? '⏳' : ''}`;
+  return `${w.once ? '🔥' : ''}${w.expiresAt ? '⏳' : ''}${w.opensAt ? '⏰' : ''}`;
+}
+
+const isMedia = (w) => !!w.kind && w.kind !== 'text';
+
+/** A whisper's content as a history line: the text, or "🖼 Photo — caption" for a media whisper. */
+function contentLine(ctx, w) {
+  if (!isMedia(w)) return esc(w.body || '');
+  return `${T(ctx, `kind.${w.kind}`)}${w.body ? ` — ${esc(w.body)}` : ''}`;
+}
+
+/** A time capsule its recipient can't open yet: "⏰ opens at 20:00" instead of the content. */
+function sealed(ctx, w, now) {
+  return w.opensAt && now < w.opensAt ? `<i>${T(ctx, 'w.capsule_line', { at: clockOf(ctx.lang, w.opensAt) })}</i>` : null;
 }
 
 /** Sent (kind 's') or received ('r') whispers, newest first, 10 per page, at most the last 20. */
@@ -51,7 +64,7 @@ export async function showHistory(ctx, user, kind, page) {
       const seen = rcpts.filter((r) => r.seenAt).length;
       const opens = rcpts.reduce((a, r) => a + r.opens, 0);
       const status = statusKey(w, now);
-      const body = w.body != null && w.state === 0 ? esc(w.body) : `<i>${T(ctx, status || 'wh.removed')}</i>`;
+      const body = w.body != null && w.state === 0 ? contentLine(ctx, w) : `<i>${T(ctx, status || 'wh.removed')}</i>`;
       const meta = [`👁 ${N(ctx, seen)}/${N(ctx, rcpts.length)}`, T(ctx, 'wh.opens', { n: N(ctx, opens) })];
       if (w.snoops) meta.push(`👀 ${N(ctx, w.snoops)}`);
       if (status && w.body != null) meta.push(T(ctx, status));
@@ -66,8 +79,9 @@ export async function showHistory(ctx, user, kind, page) {
       const status = statusKey(w, now);
       let body;
       if (status) body = `<i>${T(ctx, status)}</i>`;
+      else if (sealed(ctx, w, now)) body = sealed(ctx, w, now);
       else if (w.once) body = `<i>${T(ctx, 'wh.once_hidden')}</i>`;
-      else body = esc(w.body || '');
+      else body = contentLine(ctx, w);
       const from = sender ? personHtml(sender) : esc(w.senderId);
       lines.push(`<b>${N(ctx, n)}.</b> ${flagsOf(w)} ${T(ctx, 'wh.from', { who: from })} — ${ago(ctx.lang, w.createdAt, now)}\n${body}`);
       pick.push(btn(N(ctx, n), `d:${w.id}`));
@@ -109,7 +123,8 @@ export async function showDetails(ctx, user, wid) {
   const kb = [];
   if (role.kind === 'sender') {
     lines.push(`${T(ctx, 'wd.own')} — ${ago(ctx.lang, w.createdAt, now)}`);
-    lines.push(w.body != null && w.state === 0 ? `\n${esc(w.body)}\n` : `\n<i>${T(ctx, status || 'wh.removed')}</i>\n`);
+    lines.push(w.body != null && w.state === 0 ? `\n${contentLine(ctx, w)}\n` : `\n<i>${T(ctx, status || 'wh.removed')}</i>\n`);
+    if (w.opensAt) lines.push(T(ctx, 'w.capsule_line', { at: clockOf(ctx.lang, w.opensAt) }));
     lines.push(T(ctx, 'wd.recipients'));
     for (const r of rcpts) {
       const state = r.seenAt ? T(ctx, 'wd.seen', { t: ago(ctx.lang, r.seenAt, now), n: N(ctx, r.opens) }) : T(ctx, 'wd.not_seen');
@@ -121,12 +136,14 @@ export async function showDetails(ctx, user, wid) {
     const sender = await getUser(w.senderId);
     lines.push(`${T(ctx, 'wd.from', { who: sender ? personHtml(sender) : esc(w.senderId) })} — ${ago(ctx.lang, w.createdAt, now)}`);
     if (status) lines.push(`\n<i>${T(ctx, status)}</i>`);
+    else if (sealed(ctx, w, now)) lines.push(`\n${sealed(ctx, w, now)}`);
     else if (w.once) lines.push(`\n<i>${T(ctx, 'wh.once_hidden')}</i>`);
-    else lines.push(`\n${esc(w.body || '')}`);
+    else lines.push(`\n${contentLine(ctx, w)}`);
     kb.push([btn(T(ctx, 'w.btn_block_sender'), `bk:${w.senderId}`)]);
   }
   lines.push(T(ctx, 'wd.curious', { n: N(ctx, w.snoops) }));
   if (w.snoops) kb.unshift([btn(T(ctx, 'wd.btn_curious', { n: N(ctx, w.snoops) }), `n:${w.id}`)]);
+  if (isMedia(w) && w.state === 0 && w.fileId) kb.unshift([btn(T(ctx, 'w.btn_open_media', { kind: T(ctx, `kind.${w.kind}`) }), `wo:${w.id}`)]);
   kb.push([btn(T(ctx, 'wd.btn_history'), role.kind === 'sender' ? 'h:s:0' : 'h:r:0')]);
   const meta = { id: w.id, role: role.kind, state: w.state, seen: rcpts.filter((r) => r.seenAt).length, rcpts: rcpts.length, snoops: w.snoops, opens: rcpts.map((r) => r.opens) };
   return show(ctx, 'whisper_details', lines.join('\n'), kb, { secret: true, meta });

@@ -61,6 +61,7 @@ export async function showWhisperSection(ctx, kv) {
   const bot = await botInfo(ctx, kv);
   const kb = [
     [inlineBtn(T(ctx, 'ws.btn_send'))],
+    [btn(T(ctx, 'ws.btn_media'), 'wm')],
     [btn(T(ctx, 'ws.btn_sent'), 'h:s:0'), btn(T(ctx, 'ws.btn_received'), 'h:r:0')],
     [btn(T(ctx, 'ws.btn_settings'), 'st'), btn(T(ctx, 'ws.btn_blocks'), 'bl')],
     [btn(T(ctx, 'ws.btn_help'), 'hp:w'), backBtn(ctx)],

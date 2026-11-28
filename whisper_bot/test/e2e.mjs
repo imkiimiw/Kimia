@@ -1329,6 +1329,150 @@ await scenario('reactions: the recipient reacts under the message or in the inbo
   assert.match((await press(U.ali, `ae:${ref}:0`)).answer.text, /دیگر در دسترس نیست/, 'only the recipient');
 });
 
+const faDigits = (s) => String(s).replace(/[0-9]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
+
+await scenario('time capsule: ">HH:MM" — the recipient can\'t open it before then (Tehran time); the sender can; history keeps it sealed', async () => {
+  const s = person(796000001, 'cap_s');
+  const r = person(796000002, 'cap_r');
+  for (const u of [s, r]) {
+    join(u);
+    await onboard(u);
+  }
+  const now = nowSec();
+  const h = (new Date((now + 210 * 60) * 1000).getUTCHours() + 2) % 24; // about two hours from now
+  const at = `${String(h).padStart(2, '0')}:00`;
+  const text = 'کپسول زمان برای بعد';
+  SECRETS.add(text);
+  const inl = await inline(s, `${text} @cap_r >${at}`);
+  const res = mainResult(inl);
+  assert.match(res.input_message_content.message_text, new RegExp(`⏰ باز می‌شود ساعت ${faDigits(at)} \\(به وقت تهران\\)`));
+  assert.match(res.description, new RegExp(`⏰ ${faDigits(at)}`));
+  const { inlineId } = await post(s, inl, res.id);
+  const wid = widOf(res.id);
+  const opensAt = row('SELECT opens_at FROM whispers WHERE id = ?', wid).opens_at;
+  assert.ok(opensAt > now + 3600 && opensAt <= now + 2 * 3600, `${opensAt - now}`);
+  const early = await press(r, `s:${wid}`, { inlineId });
+  assert.match(early.answer.text, new RegExp(`ساعت ${faDigits(at)} باز می‌شود — .+ دیگر`));
+  assert.equal(row('SELECT seen_at FROM whisper_rcpts WHERE whisper_id = ?', wid).seen_at, 0, 'not opened');
+  assert.match((await say(r, `/start w_${wid}`)).text, /باز می‌شود/, 'nor through the deep link');
+  assert.equal((await press(s, `s:${wid}`, { inlineId })).answer.text, text, 'the sender can');
+  const hist = await press(r, 'h:r:0');
+  assert.match(hist.text, /⏰ باز می‌شود ساعت/);
+  assert.ok(!hist.text.includes(text));
+  assert.ok(!(await press(r, `d:${wid}`)).text.includes(text), 'details too');
+  advance(opensAt - nowSec() + 30);
+  assert.equal((await press(r, `s:${wid}`, { inlineId })).answer.text, text);
+  assert.ok((await press(r, 'h:r:0')).text.includes(text));
+  assert.equal((await inline(s, 'سلام @cap_r >25:00')).results[0].id, 'h.bad_capsule');
+  const plain = mainResult(await inline(s, 'بیشتر از >5 نفر @cap_r'));
+  assert.ok(!plain.input_message_content.message_text.includes('⏰'), '">5" stays text');
+  assert.match(mainResult(await inline(s, 'باشه @cap_r ⏰۲۱')).input_message_content.message_text, /⏰ باز می‌شود ساعت ۲۱:۰۰/, 'Persian digits, ⏰');
+});
+
+await scenario('media whisper: made in the bot, posted with the inline query; opens in the bot, protected, for the recipients only', async () => {
+  const s = person(797000001, 'mw_s');
+  const r = person(797000002, 'mw_r');
+  const x = person(797000003, 'mw_x');
+  for (const u of [s, r, x]) {
+    join(u);
+    await onboard(u);
+  }
+  assert.ok(dataOf((await press(s, 'ws')).kb).includes('wm'));
+  await press(s, 'wm');
+  assert.match((await say(s, 'just text')).text, /یک عکس، ویدیو، ویس یا فایل بفرست/);
+  const voice = { voice: { file_id: 'AwACvoice1', file_unique_id: 'v1', duration: 3 } };
+  assert.match((await say(s, undefined, voice)).text, /برای چه کسی است/);
+  assert.match((await say(s, 'no one here')).text, /گیرنده را ننوشتی/);
+  const body = 'گوش کن 🎧';
+  SECRETS.add(body);
+  const ready = await say(s, `!${body} @mw_r`);
+  assert.match(ready.text, /آماده است: 🎤 ویس برای @mw_r\n🔥 یک‌بار مصرف/);
+  const wid = ready.r.trace.find((e) => e.view === 'wmedia_ready').meta.id;
+  assert.equal(buttons(ready.kb).find((b) => b.switch_inline_query !== undefined).switch_inline_query, `mw_${wid}`);
+  const w = row('SELECT kind, file_id, body, once, inline_id FROM whispers WHERE id = ?', wid);
+  assert.deepEqual([w.kind, w.file_id, w.body, w.once, w.inline_id], ['voice', 'AwACvoice1', body, 1, null]);
+  // posting: one result for the sender; nobody else can post it
+  const inl = await inline(s, `mw_${wid}`);
+  assert.deepEqual(inl.results.map((x0) => x0.id), [`m.${wid}`]);
+  const posted = inl.results[0].input_message_content.message_text;
+  assert.match(posted, /یک نجوا برای @mw_r\n🎤 ویس — در ربات باز می‌شود\n🔥 یک‌بار مصرف/);
+  assert.deepEqual(buttons(inl.results[0].reply_markup.inline_keyboard).map((b) => b.callback_data || b.url), [`s:${wid}`, `https://t.me/${BOT}?start=w_${wid}`]);
+  assert.equal((await inline(x, `mw_${wid}`)).results[0].id, 'h.media_gone');
+  const { inlineId } = await post(s, inl, `m.${wid}`);
+  assert.equal(row('SELECT inline_id FROM whispers WHERE id = ?', wid).inline_id, inlineId);
+  assert.equal((await inline(s, `mw_${wid}`)).results[0].id, 'h.media_posted', 'posted once');
+  // a stranger is curious; the recipient's press opens the bot
+  assert.match((await press(x, `s:${wid}`, { inlineId })).answer.text, /مال تو نیست/);
+  assert.equal((await press(r, `s:${wid}`, { inlineId })).answer.url, `https://t.me/${BOT}?start=w_${wid}`);
+  assert.match((await say(x, `/start w_${wid}`)).text, /مال تو نیست/);
+  const open = await say(r, `/start w_${wid}`);
+  const v = open.calls.find((c) => c.method === 'sendVoice');
+  assert.ok(v && v.params.voice === 'AwACvoice1' && v.params.protect_content === true, 'sent protected');
+  assert.ok(v.params.caption.includes(body));
+  assert.match(textsTo(open.calls, s.id), /@mw_r نجوای شما را باز کرد/);
+  assert.equal(row('SELECT state, file_id FROM whispers WHERE id = ?', wid).state, 1, 'one-time: burned');
+  assert.equal(row('SELECT file_id FROM whispers WHERE id = ?', wid).file_id, null);
+  assert.match((await say(r, `/start w_${wid}`)).text, /سوزانده شده/);
+  // a photo with everything in the caption; the sender opens it from the details
+  await press(s, 'wm');
+  const photo = await say(s, undefined, { photo: [{ file_id: 'AgACmw', file_unique_id: 'mw1', width: 9, height: 9 }], caption: 'برای تو @mw_r 1h' });
+  const wid2 = photo.r.trace.find((e) => e.view === 'wmedia_ready').meta.id;
+  assert.match(photo.text, /🖼 عکس برای @mw_r\n⏳ مهلت باز کردن: ۱ ساعت/);
+  const det = await press(s, `d:${wid2}`);
+  assert.ok(dataOf(det.kb).includes(`wo:${wid2}`));
+  assert.match(det.text, /🖼 عکس — برای تو/);
+  const mine = await press(s, `wo:${wid2}`);
+  assert.equal(mine.calls.find((c) => c.method === 'sendPhoto').params.protect_content, true);
+  assert.match((await press(x, `wo:${wid2}`)).text, /مال تو نیست/);
+});
+
+await scenario('daily question: opt-in; from 10:00 Tehran the first update starts it, in chunks that wake the bot; once a day', async () => {
+  const subs = [];
+  for (let i = 0; i < 7; i += 1) {
+    const u = person(798000001 + i, `qd${i}`);
+    join(u);
+    await onboard(u);
+    subs.push(u);
+  }
+  const q = await press(subs[0], 'qd');
+  assert.ok(buttons(q.kb).some((b) => b.callback_data === 'qd:p' && /هر روز ساعت ۱۰ برایم بیاید: ❌/.test(b.text)));
+  for (const u of subs) await press(u, 'qd:p');
+  assert.equal(count('SELECT count(*) AS n FROM users WHERE qd_push = 1'), 7);
+  const daily = (calls) => calls.filter((c) => c.method === 'sendMessage' && /سؤال امروز<\/b>/.test(c.params.text || ''));
+  const nextLocal = (hh) => { // the next hh:00 in Tehran
+    const off = 210 * 60;
+    let at = Math.floor((nowSec() + off) / 86400) * 86400 + hh * 3600 - off;
+    if (at <= nowSec()) at += 86400;
+    return at;
+  };
+  await deliverWakes();
+  advance(nextLocal(9) - nowSec() + 60);
+  assert.equal(daily((await say(U.ali, '/help')).calls).length, 0, 'not before 10:00');
+  advance(3600);
+  const first = await say(U.ali, '/help');
+  assert.equal(daily(first.calls).length, 5, 'a chunk on the side of an update');
+  assert.ok(first.calls.some((c) => c.method === 'sendPoll'), 'and a wake for the rest');
+  const rest = await deliverWakes();
+  const got = [...daily(first.calls), ...daily(rest.calls)];
+  assert.deepEqual(got.map((c) => Number(c.params.chat_id)).sort((a, b) => a - b), subs.map((u) => u.id), 'each once');
+  const kb = got[0].params.reply_markup.inline_keyboard;
+  assert.deepEqual(buttons(kb).map((b) => b.callback_data ?? `inline:${b.switch_inline_query}`), ['qd:d', 'inline:', 'qd:p']);
+  advance(3 * 3600);
+  assert.equal(daily((await say(U.ali, '/help')).calls).length, 0, 'once a day');
+  const stop = await press(subs[0], 'qd:p', { messageId: got.find((c) => Number(c.params.chat_id) === subs[0].id).result.result.message_id });
+  assert.match(stop.answer.text, /دیگر برایت فرستاده نمی‌شود/);
+  assert.equal(userRow(subs[0]).qd_push, 0);
+  mock.state.blocked.add(subs[1].id);
+  advance(nextLocal(10) - nowSec() + 120);
+  const day2 = await say(U.ali, '/help');
+  const rest2 = await deliverWakes();
+  const got2 = [...daily(day2.calls), ...daily(rest2.calls)];
+  assert.equal(got2.filter((c) => c.result.ok).length, 5, 'the next day: those still subscribed');
+  assert.equal(userRow(subs[1]).active, 0, 'blocked the bot: inactive, never retried');
+  mock.state.blocked.delete(subs[1].id);
+  rawDatabase().prepare('UPDATE users SET qd_push = 0').run(); // nobody gets them in the scenarios after this
+});
+
 // =====================================================================================
 // Confession channel (lib/confess.js)
 // =====================================================================================

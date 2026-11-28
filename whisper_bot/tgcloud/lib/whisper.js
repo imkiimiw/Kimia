@@ -7,6 +7,10 @@
 //
 // Ids: a draft has an 8-character id. The main inline result is that whisper; quick results (recent
 // recipients) are the same id plus a digit 1-3. callback_data is "s:<id>", the deep link "w_<id>".
+//
+// A time capsule (">20:00") can't be opened by its recipients before whispers.opens_at. A media whisper
+// (lib/wmedia.js) is made in the bot's chat and posted with the inline query "mw_<id>" (result "m.<id>");
+// it opens in the bot's chat, protected from forwarding and saving.
 import { ALERT_MAX, MAX_RECIPIENTS } from './config.js';
 import { anonArticle } from './anon.js';
 import { botInfo, startLink } from './bot.js';
@@ -21,10 +25,10 @@ import {
   saveDraft, setInlineId, setRecent,
 } from './store.js';
 import {
-  answer, btn, call, describeError, editInline, isApiError, send, urlBtn,
+  answer, btn, call, describeError, editInline, isApiError, send, sendMedia, urlBtn,
 } from './tg.js';
 import {
-  esc, isId, nowSec, randomId, truncate,
+  esc, isId, localClock, nextLocalTime, nowSec, randomId, truncate,
 } from './util.js';
 
 const T = (ctx, k, v) => t(ctx.lang, k, v);
@@ -49,6 +53,10 @@ export function personHtml(p) {
 export const joinNames = (lang, parts) => parts.join(t(lang, 'w.sep'));
 
 const isLong = (body) => typeof body === 'string' && body.length > ALERT_MAX;
+const isMedia = (w) => !!w.kind && w.kind !== 'text';
+
+/** "20:00" in the language's digits. */
+export const clockOf = (lang, sec) => num(lang, localClock(sec));
 
 /**
  * Text and keyboard of the message in the chat — status only, never the content.
@@ -61,13 +69,17 @@ export function renderPosted(w, rcpts, botUsername) {
   if (w.state === 1) return { text: `${t(l, 'w.burned_title')}\n${t(l, 'w.for', { who })}${curious}`, kb: null };
   if (w.state === 2) return { text: `${t(l, 'w.expired_title')}\n${t(l, 'w.for', { who })}${curious}`, kb: null };
   const lines = [t(l, 'w.posted', { who })];
+  if (isMedia(w)) lines.push(t(l, 'w.media_line', { kind: t(l, `kind.${w.kind}`) }));
+  if (w.opensAt) lines.push(t(l, 'w.capsule_line', { at: clockOf(l, w.opensAt) }));
   if (w.once) lines.push(t(l, 'w.once_line'));
-  const expirySec = w.expirySec || (w.expiresAt ? w.expiresAt - w.createdAt : 0);
+  const expirySec = w.expirySec || (w.expiresAt ? w.expiresAt - Math.max(w.createdAt, w.opensAt || 0) : 0);
   if (expirySec) lines.push(t(l, 'w.expiry_line', { d: dur(l, expirySec) }));
   const seen = rcpts.filter((r) => r.seenAt);
   if (seen.length) lines.push(rcpts.length === 1 ? t(l, 'w.seen') : t(l, 'w.seen_by', { who: joinNames(l, seen.map(rcptHtml)) }));
   const kb = [[btn(t(l, 'w.btn_show'), `s:${w.id}`)]];
-  if (isLong(w.body) && botUsername) kb.push([urlBtn(t(l, 'w.btn_read_bot'), startLink(botUsername, `w_${w.id}`))]);
+  if ((isLong(w.body) || isMedia(w)) && botUsername) {
+    kb.push([urlBtn(t(l, isMedia(w) ? 'w.btn_open_bot' : 'w.btn_read_bot'), startLink(botUsername, `w_${w.id}`))]);
+  }
   return { text: lines.join('\n') + curious, kb };
 }
 
@@ -83,7 +95,7 @@ async function editPosted(ctx, w, rcpts, bot) {
  * click time, and the bot's users table is used only to check blocks and duplicates.
  * Returns { rcpts: [{ rid, runame, label, hint }] } or { error, who }.
  */
-async function resolveRecipients(sender, parsed, botUsername, lang) {
+export async function resolveRecipients(sender, parsed, botUsername, lang) {
   const rcpts = [];
   for (const r of parsed) {
     if (r.id) {
@@ -121,17 +133,18 @@ export async function compose(user, query, botUsername, lang) {
   if (p.empty) return { error: 'empty' };
   if (p.error) return { error: p.error };
   const expiry = p.expiry != null ? p.expiry : user.defExpiry;
+  const opensAt = p.capsule ? nextLocalTime(p.capsule.h, p.capsule.m) : 0;
   if (p.recipients.length) {
     const res = await resolveRecipients(user, p.recipients, botUsername, lang);
     if (res.error) return res;
-    return { data: { t: p.text, o: p.once, e: expiry, r: res.rcpts.map(stored), k: [], l: lang } };
+    return { data: { t: p.text, o: p.once, e: expiry, a: opensAt, r: res.rcpts.map(stored), k: [], l: lang } };
   }
   // Text only: offer the recent recipients who still accept whispers from this user.
   const recent = (Array.isArray(user.recent) ? user.recent : []).slice(0, 3);
   const blockers = await blockersOf(user.id, recent.map((r) => r.hint).filter(Boolean));
   const quick = recent.filter((r) => !(r.hint && blockers.includes(r.hint)));
   if (!quick.length) return { error: 'no_recipient' };
-  return { data: { t: p.text, o: p.once, e: expiry, r: null, k: quick.map(stored), l: lang } };
+  return { data: { t: p.text, o: p.once, e: expiry, a: opensAt, r: null, k: quick.map(stored), l: lang } };
 }
 
 // ---------- inline query ----------
@@ -149,9 +162,12 @@ function article(id, title, description, messageText, kb) {
 }
 
 function whisperArticle(ctx, resultId, wid, data, rcpts, botUsername, title) {
-  const draftView = { id: wid, once: data.o, expirySec: data.e, body: data.t, state: 0, snoops: 0, lang: data.l };
+  const draftView = {
+    id: wid, once: data.o, expirySec: data.e, body: data.t, state: 0, snoops: 0, lang: data.l, opensAt: data.a || 0,
+  };
   const { text, kb } = renderPosted(draftView, rcpts.map((r) => ({ ...r, seenAt: 0 })), botUsername);
   const flags = [];
+  if (data.a) flags.push(`⏰ ${clockOf(ctx.lang, data.a)}`);
   if (data.o) flags.push(T(ctx, 'w.flag_once'));
   if (data.e) flags.push(`⏳ ${dur(ctx.lang, data.e)}`);
   if (isLong(data.t)) flags.push(T(ctx, 'w.flag_long'));
@@ -171,7 +187,7 @@ async function answerInline(ctx, q, results, button) {
   }
 }
 
-const INLINE_ERRORS = ['no_recipient', 'no_text', 'too_many', 'bad_expiry', 'self', 'bot', 'blocked'];
+const INLINE_ERRORS = ['no_recipient', 'no_text', 'too_many', 'bad_expiry', 'bad_capsule', 'self', 'bot', 'blocked'];
 
 /** Handles an inline query: the whisper being typed, or why it can't be sent yet. */
 export async function handleInline(ctx, q, user, kv) {
@@ -181,6 +197,8 @@ export async function handleInline(ctx, q, user, kv) {
   const bot = await botInfo(ctx, kv);
   const b = bot.username ? `@${esc(bot.username)}` : '@bot';
   const query = String(q.query || '');
+  const media = /^mw_([0-9A-Za-z]{8})$/.exec(query.trim());
+  if (media) return answerInline(ctx, q, [await mediaArticle(ctx, user, media[1], bot.username, b)]);
   const help = article('h.format', T(ctx, 'w.help_title'), T(ctx, 'w.help_desc'), T(ctx, 'w.format', { b }));
   const c = await compose(user, query, bot.username, ctx.lang);
   if (c.error) {
@@ -212,13 +230,26 @@ export async function handleInline(ctx, q, user, kv) {
   return answerInline(ctx, q, results);
 }
 
+/** "mw_<id>": the media whisper this sender made in the bot's chat, ready to post (once). */
+async function mediaArticle(ctx, user, wid, botUsername, b) {
+  const w = await getWhisper(wid);
+  const fail = (key) => article(`h.${key}`, T(ctx, `w.err.${key}.title`), T(ctx, `w.err.${key}.desc`), T(ctx, 'w.format', { b }));
+  if (!w || w.senderId !== user.id || !isMedia(w) || w.state !== 0) return fail('media_gone');
+  if (w.inlineId) return fail('media_posted');
+  const rcpts = await getRcpts(w.id);
+  const { text, kb } = renderPosted(w, rcpts, botUsername);
+  const kind = T(ctx, `kind.${w.kind}`);
+  return article(`m.${w.id}`, T(ctx, 'w.title_media', { kind, who: labels(ctx.lang, rcpts) }), T(ctx, 'w.tap_to_send', { flags: kind }), text, kb);
+}
+
 // ---------- finalizing ----------
 
-/** "w.<id>" → { wid, base, k: 0 }; "q.<id>.<k>" → { wid: id+k, base, k }; else null. */
+/** "w.<id>" → { wid, base, k: 0 }; "q.<id>.<k>" → { wid: id+k, base, k }; "m.<id>" → { wid, media }; else null. */
 export function parseResultId(resultId) {
-  const m = /^(w)\.([0-9A-Za-z]{8})$|^(q)\.([0-9A-Za-z]{8})\.([1-3])$/.exec(String(resultId || ''));
+  const m = /^(w)\.([0-9A-Za-z]{8})$|^(q)\.([0-9A-Za-z]{8})\.([1-3])$|^(m)\.([0-9A-Za-z]{8})$/.exec(String(resultId || ''));
   if (!m) return null;
   if (m[1]) return { wid: m[2], base: m[2], k: 0 };
+  if (m[6]) return { wid: m[7], base: m[7], k: 0, media: true };
   return { wid: `${m[4]}${m[5]}`, base: m[4], k: Number(m[5]) };
 }
 
@@ -237,12 +268,15 @@ async function updateRecent(user, rcpts) {
 async function finalize(user, wid, data, k, inlineId) {
   const rcpts = recipientsOf(data, k);
   if (!rcpts || !rcpts.length || !data.t) return false;
+  const now = nowSec();
+  const opensAt = data.a && data.a > now ? data.a : 0;
   const created = await createWhisper({
     id: wid,
     senderId: user.id,
     body: data.t,
     once: !!data.o,
-    expiresAt: data.e ? nowSec() + data.e : 0,
+    expiresAt: data.e ? (opensAt || now) + data.e : 0, // a time capsule's countdown starts when it opens
+    opensAt,
     recipients: rcpts.map((r) => ({ rid: r.rid, runame: r.runame, label: r.label })),
     inlineId: inlineId || null,
     lang: data.l || langOf(user),
@@ -255,6 +289,11 @@ async function finalize(user, wid, data, k, inlineId) {
 export async function handleChosen(ctx, c, user, kv) {
   const rid = parseResultId(c.result_id);
   if (!rid || user.banned) return { created: false };
+  if (rid.media) { // made in the bot's chat already: just remember where it was posted
+    const w = await getWhisper(rid.wid);
+    if (w && w.senderId === user.id && c.inline_message_id) await setInlineId(w.id, c.inline_message_id);
+    return { created: false, id: rid.wid };
+  }
   const draft = await getDraft(user.id);
   let data = draft && draft.id === rid.base ? draft.data : null;
   if (!data) {
@@ -363,6 +402,13 @@ async function recordCurious(ctx, w, rcpts, from, bot) {
   await notifySender(ctx, w, 'curious_notice', (lang) => t(lang, 'w.n_curious', { who: personHtml(from) }));
 }
 
+/** A recipient pressing before a time capsule opens: what to tell them (null when it's open). */
+function capsuleWait(ctx, w, role) {
+  const now = nowSec();
+  if (role.kind !== 'recipient' || !w.opensAt || now >= w.opensAt) return null;
+  return T(ctx, 'w.capsule_wait', { at: clockOf(ctx.lang, w.opensAt), d: dur(ctx.lang, w.opensAt - now) });
+}
+
 /** Refusal key shared by the button and the deep link; null when the user may see the content. */
 async function refusal(w, role, from) {
   if (role.kind === 'curious') return 'w.not_yours';
@@ -407,10 +453,13 @@ export async function handleShowButton(ctx, cq, wid) {
     return null;
   }
 
-  if (isLong(w.body)) {
-    // Too long for the popup: open the bot with the deep link; the view is counted there.
+  const wait = capsuleWait(ctx, w, role);
+  if (wait) return answer(ctx, wait, { alert: true });
+
+  if (isLong(w.body) || isMedia(w)) {
+    // Too long for the popup, or media: open the bot with the deep link; the view is counted there.
     if (!bot.username) return answer(ctx, T(ctx, 'w.long_no_bot'), { alert: true });
-    return answer(ctx, T(ctx, 'w.long_open'), { alert: true, url: startLink(bot.username, `w_${w.id}`) });
+    return answer(ctx, T(ctx, isMedia(w) ? 'w.media_open' : 'w.long_open'), { alert: true, url: startLink(bot.username, `w_${w.id}`) });
   }
 
   const view = await claimView(w, role, cq.from);
@@ -431,6 +480,8 @@ export async function handleDeepRead(ctx, message, wid) {
   const role = roleOf(w, rcpts, message.from);
   const no = await refusal(w, role, message.from);
   if (no) return send(ctx, role.kind === 'curious' ? 'whisper_stranger' : 'whisper_refused', `⛔ ${T(ctx, no)}`);
+  const wait = capsuleWait(ctx, w, role);
+  if (wait) return send(ctx, 'whisper_capsule', wait);
 
   const view = await claimView(w, role, message.from);
   if (!view.ok) return send(ctx, 'whisper_refused', `⛔ ${T(ctx, 'w.already_seen')}`);
@@ -447,7 +498,14 @@ export async function handleDeepRead(ctx, message, wid) {
     head = T(ctx, 'w.read_from', { who: sender ? personHtml(sender) : esc(w.senderId) });
     kb = [[btn(T(ctx, 'w.btn_block_sender'), `bk:${w.senderId}`), btn(T(ctx, 'w.btn_details'), `d:${w.id}`)]];
   }
-  await send(ctx, 'whisper_read', `${head}\n\n${esc(body)}${burnNote}`, kb, ctx.chatId, { secret: true, meta: { id: w.id, role: role.kind, length: body.length } });
+  const meta = { id: w.id, role: role.kind, length: (body || '').length, kind: w.kind };
+  if (isMedia(w)) {
+    // protected: it can't be forwarded or saved from the chat
+    const caption = `${head}${body ? `\n\n${esc(body)}` : ''}${burnNote}`;
+    await sendMedia(ctx, 'whisper_read', w.kind, w.fileId, caption, kb, ctx.chatId, { secret: true, protect: true, meta });
+  } else {
+    await send(ctx, 'whisper_read', `${head}\n\n${esc(body)}${burnNote}`, kb, ctx.chatId, { secret: true, meta });
+  }
   if (role.kind === 'recipient') await afterView(ctx, w, role.rcpt, view.first, bot);
   return null;
 }

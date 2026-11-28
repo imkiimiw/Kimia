@@ -87,6 +87,9 @@ export const RC_MAX_LEN = 2000;
 // only Telegram's reaction emoji, so these are from that list).
 export const REACTIONS = ['❤', '🔥', '🤣', '😱', '😢'];
 
+// A media whisper's caption (the posted message never shows it; it opens in the bot's chat).
+export const MEDIA_WHISPER_MAX = 800;
+
 // The question of the day sent to those who asked for it, from this local hour on.
 export const DAILY_QUESTION_HOUR = 10;
 export const DAILY_BATCH = 25;

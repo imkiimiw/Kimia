@@ -53,6 +53,7 @@ import {
 import {
   handleChosen, handleDeepRead, handleInline, handleShowButton,
 } from './whisper.js';
+import * as wmedia from './wmedia.js';
 import * as wpm from './wpm.js';
 
 // What a staff member's pending input needs (lib/staff.js): checked again when the input arrives.
@@ -159,6 +160,10 @@ async function routeState(ctx, message, user, kv, st) {
       return confess.onText(ctx, user, message);
     case 'cf_comment':
       return confess.onComment(ctx, user, kv, message, st);
+    case 'wm_wait':
+      return wmedia.onMedia(ctx, user, kv, message);
+    case 'wm_to':
+      return wmedia.onRecipients(ctx, user, kv, message, st);
     default:
       if (PROFILE_STATES.has(st.state)) return profile.onProfileInput(ctx, user, message, st.state);
       await clearState(user.id);
@@ -316,6 +321,11 @@ async function routeCallback(ctx, data, user, kv, isPrivate) {
       return menu.showWhisperSection(ctx, kv);
     case 'h':
       return wpm.showHistory(ctx, user, a1 === 'r' ? 'r' : 's', a2);
+    case 'wm': // a media whisper: made here, posted with the inline query mw_<id>
+      return wmedia.ask(ctx, user);
+    case 'wo': // open a media whisper from its details (same checks as the deep link)
+      await answer(ctx);
+      return handleDeepRead(ctx, { from: { id: user.id, username: user.username, first_name: user.firstName } }, a1);
     case 'd':
       return wpm.showDetails(ctx, user, a1);
     case 'n':
@@ -406,6 +416,7 @@ async function routeCallback(ctx, data, user, kv, isPrivate) {
       return inbox.askSearch(ctx, user, a1);
     // ----- anonymous: question, cards, filters, settings, profile -----
     case 'qd':
+      if (a1 === 'p') return qotd.togglePush(ctx, user);
       if (a1) return qotd.setMode(ctx, user, a1 === 'd' ? 'd' : a1 === 'c' ? 'c' : '0');
       return qotd.showQotd(ctx, user);
     case 'cd':

@@ -1,14 +1,17 @@
 // Parses an inline query into a whisper:
-//   [!]text @user [@user2 @user3] [30m|1h|2d]   — recipients/expiry at the end (any order), or
-//   @user [...] text                             — recipients at the start.
-// Recipients are @usernames or numeric ids; "!" at the start makes it one-time.
-// Returns { empty } | { error, ... } | { text, once, expiry, recipients: [{ id } | { username }] }.
+//   [!]text @user [@user2 @user3] [30m|1h|2d] [>20:00]   — recipients/expiry/opening time at the end
+//   @user [...] text                                       (any order), or recipients at the start.
+// Recipients are @usernames or numeric ids; "!" at the start makes it one-time; ">20:00" (or "⏰20",
+// Tehran time) makes it a time capsule that opens at the next 20:00.
+// Returns { empty } | { error, ... } | { text, once, expiry, capsule, recipients: [{ id } | { username }] }.
 import { MAX_EXPIRY_SEC, MAX_RECIPIENTS } from './config.js';
 import { toAsciiDigits } from './util.js';
 
 const USERNAME = /^@([A-Za-z][A-Za-z0-9_]{3,31})$/;
 const NUMERIC_ID = /^[1-9][0-9]{4,15}$/;
 const EXPIRY = /^([0-9]{1,5})(m|min|h|d)$/i;
+// ">20:00" / ">8:30" (a colon, so "x >5" stays text) or "⏰20" / "⏰20:00"
+const CAPSULE = /^(?:>([0-9]{1,2})[:.٫：]([0-9]{2})|⏰\uFE0F?([0-9]{1,2})(?:[:.٫：]([0-9]{2}))?)$/u;
 const UNIT_SEC = { m: 60, min: 60, h: 3600, d: 86400 };
 
 function recipientOf(token) {
@@ -27,6 +30,15 @@ export function expiryOf(token) {
   return sec >= 60 && sec <= MAX_EXPIRY_SEC ? sec : -1;
 }
 
+/** Opening-time token → { h, m } (Tehran time); null if it isn't one; -1 if out of range. */
+export function capsuleOf(token) {
+  const c = CAPSULE.exec(toAsciiDigits(token));
+  if (!c) return null;
+  const h = Number(c[1] ?? c[3]);
+  const m = Number(c[2] ?? c[4] ?? 0);
+  return h <= 23 && m <= 59 ? { h, m } : -1;
+}
+
 const key = (r) => (r.id ? `#${r.id}` : `@${r.username.toLowerCase()}`);
 
 export function parseQuery(raw) {
@@ -41,6 +53,7 @@ export function parseQuery(raw) {
   let last = tokens.length - 1;
   const recipients = [];
   let expiry = null;
+  let capsule = null;
 
   // Trailing recipients / expiry, in any order.
   while (last >= first) {
@@ -55,6 +68,13 @@ export function parseQuery(raw) {
     if (e !== null && expiry === null) {
       if (e < 0) return { error: 'bad_expiry' };
       expiry = e;
+      last -= 1;
+      continue;
+    }
+    const c = capsuleOf(tok);
+    if (c !== null && capsule === null) {
+      if (c === -1) return { error: 'bad_capsule' };
+      capsule = c;
       last -= 1;
       continue;
     }
@@ -85,6 +105,6 @@ export function parseQuery(raw) {
     unique.push(r);
   }
   if (unique.length > MAX_RECIPIENTS) return { error: 'too_many', count: unique.length };
-  if (!text) return { error: 'no_text', recipients: unique, once, expiry };
-  return { text, once, expiry, recipients: unique };
+  if (!text) return { error: 'no_text', recipients: unique, once, expiry, capsule };
+  return { text, once, expiry, capsule, recipients: unique };
 }
