@@ -17,7 +17,7 @@ const OWNER_ID = 5557901897;
 const TARGET_403 = -1001005640892; // @telegram
 const TABLES = ['users', 'kv', 'channels', 'drafts', 'whispers', 'whisper_rcpts', 'snoops', 'blocks', 'user_state', 'broadcasts',
   'anon_msgs', 'anon_blocks', 'anon_words', 'ratings', 'reports', 'strikes', 'link_visits', 'admins', 'confessions', 'cf_comments',
-  'rc_queue', 'rc_blocks'];
+  'rc_queue', 'rc_blocks', 'qboxes', 'qbox_questions'];
 const CF_KEYS = ['cf_on', 'cf_chat', 'cf_chat_title', 'cf_username', 'cf_lang'];
 // The owner's own anonymous-section fields: saved before the run, restored after it.
 const OWNER_FIELDS = ['anon_code', 'anon_on', 'a_filter', 'a_links', 'a_text', 'a_silent', 'q_mode', 'q_text'];
@@ -223,6 +223,21 @@ export default async function (input) {
       return db.all(sql`
         SELECT id, status, allow_comments, allow_dm, flags, channel_msg FROM confessions WHERE author_id = ${testUser(input.user)}
         ORDER BY id DESC LIMIT 10`);
+    case 'qbox_seed': { // a test user's question box for the @telegram channel: posting there fails for real (403)
+      const owner = testUser(input.owner);
+      await db.run(sql`DELETE FROM qboxes WHERE chat_id = ${TARGET_403} AND owner_id BETWEEN 990000001 AND 990000999`);
+      const r = await db.run(sql`
+        INSERT INTO qboxes (owner_id, chat_id, title, username, code, open, lang, created_at)
+        VALUES (${owner}, ${TARGET_403}, 'zz cloud box', NULL, 'zzCloudBx1', 1, 'fa', ${now})
+        ON CONFLICT(chat_id) DO NOTHING RETURNING id`);
+      return r.rows && r.rows[0] ? Number(r.rows[0].id) : null;
+    }
+    case 'qbox_questions': {
+      const box = await db.get(sql`SELECT id, owner_id FROM qboxes WHERE id = ${Number(input.box)}`);
+      if (!box) return [];
+      testUser(box.owner_id);
+      return db.all(sql`SELECT id, status, answer FROM qbox_questions WHERE box_id = ${box.id} ORDER BY id LIMIT 20`);
+    }
     case 'visits': // who opened a test user's link today
       return (await db.all(sql`
         SELECT visitor_id FROM link_visits WHERE owner_id = ${testUser(input.owner)} AND day = ${Number(localDay())} LIMIT 50`)).map((r) => Number(r.visitor_id));
@@ -345,6 +360,19 @@ export default async function (input) {
       }
       if (cfs.length) await bump('n_confessions', -cfs.length);
       await db.run(sql`DELETE FROM cf_comments WHERE author_id IN (${list(users)})`);
+      // question boxes of test users (with their questions), and test users' questions to real boxes
+      const boxes = (await db.all(sql`SELECT id FROM qboxes WHERE owner_id IN (${list(users)}) LIMIT 50`)).map((r) => r.id);
+      let questions = 0;
+      for (const id of boxes) {
+        questions += (await db.run(sql`DELETE FROM qbox_questions WHERE box_id = ${id}`)).rowsAffected;
+        await db.run(sql`DELETE FROM qboxes WHERE id = ${id}`);
+        await db.run(sql`DELETE FROM kv WHERE key = ${`qbn:${id}`}`);
+      }
+      const asked = await db.all(sql`
+        SELECT box_id, count(*) AS n FROM qbox_questions WHERE from_id IN (${list(users)}) AND status = 'new' GROUP BY box_id LIMIT 50`);
+      for (const a of asked) await db.run(sql`UPDATE qboxes SET asked = max(0, asked - ${Number(a.n)}) WHERE id = ${a.box_id}`);
+      questions += (await db.run(sql`DELETE FROM qbox_questions WHERE from_id IN (${list(users)})`)).rowsAffected;
+      if (questions) await bump('n_qbq', -questions);
       let removed = 0;
       let reachable = 0;
       for (const id of users) {

@@ -220,7 +220,8 @@ function analyse(r) {
 }
 // Messages to someone else than the person acting (notifications, deliveries), not their screen.
 const NOT_SCREENS = ['owner_warning', 'read_receipt', 'curious_notice', 'owner_report', 'staff_report', 'anon_deliver', 'anon_header', 'card_photo',
-  'cf_review', 'cf_author', 'cf_new_comment', 'cf_comment_report', 'admin_welcome', 'rc_partner_left', 'daily_question', 'anon_reaction_note'];
+  'cf_review', 'cf_author', 'cf_new_comment', 'cf_comment_report', 'admin_welcome', 'rc_partner_left', 'daily_question', 'anon_reaction_note',
+  'qbox_notice', 'qbox_asker', 'qbox_post', 'qbox_invite'];
 
 const byView = (res, view) => res.trace.filter((t) => t.view === view);
 
@@ -917,6 +918,64 @@ async function main() {
       expect(set && set.chat === T.byId, `tried on the sender's own message: ${JSON.stringify(rx.trace.map((t) => [t.m, t.view, t.chat, t.ok]))}`);
       expect(devtools({ op: 'anon_msgs_to', user: T.rcpt })[0].reaction === '🔥', 'stored');
       return { detail: `views ${before.lv_total} → ${after.lv_total}; reaction 🔥 → setMessageReaction ${set.ok ? 'ok' : set.err}` };
+    });
+
+    await scenario('14n. question box on the real database: a channel the bot cannot post in is refused; asking, limits, the owner\'s list; a post the channel refuses keeps the question', () => {
+      devtools({ op: 'join_cache', users: [T.byId, T.snoop, T.third] });
+      ok(pressPm(T.byId, 'qb'), { view: 'qbox_list', callback: true });
+      ok(pressPm(T.byId, 'qb:n'), { view: 'qbox_channel_ask', callback: true });
+      ok(sendText(T.byId, '@telegram'), { view: 'qbox_bot_not_admin' });
+      ok(sendText(T.byId, '/cancel'));
+      const box = devtools({ op: 'qbox_seed', owner: T.byId });
+      expect(box > 0, `seeded box ${box}`);
+      devtools({ op: 'unflood', users: [T.third] });
+      ok(sendText(T.third, '/start q_zzCloudBx1'), { view: 'qbox_ask' });
+      const sent = ok(sendText(T.third, 'zz cloud question?'), { view: 'qbox_sent' });
+      expect(byView(sent, 'qbox_notice').some((t) => t.chat === T.byId), 'the owner is told');
+      ok(sendText(T.third, '/start q_zzCloudBx1'), { view: 'qbox_ask' });
+      ok(sendText(T.third, 'zz again'), { view: 'qbox_limit_gap' });
+      ok(sendText(T.third, '/cancel'));
+      const list = ok(pressPm(T.byId, `qb:l:${box}:0`), { view: 'qbox_question', callback: true });
+      expect(/hidden/.test(list.text) && list.last.meta.total === 1, `the owner's list ${JSON.stringify(list.last)}`);
+      ok(pressPm(T.snoop, `qb:v:${box}`), { callback: true }); // someone else's box
+      const qid = list.last.meta.id;
+      ok(pressPm(T.byId, `qb:a:${qid}`), { view: 'qbox_answer_ask', callback: true });
+      const ans = ok(sendText(T.byId, 'zz cloud answer'), { view: 'qbox_post_failed' });
+      const post = byView(ans, 'qbox_post')[0];
+      expect(post && post.ok === false, `the post to @telegram: ${JSON.stringify(post)}`);
+      const qs = devtools({ op: 'qbox_questions', box });
+      expect(qs.length === 1 && qs[0].status === 'new' && !qs[0].answer, `kept unanswered ${JSON.stringify(qs)}`);
+      ok(pressPm(T.byId, `qb:xy:${box}`), { view: 'qbox_list', callback: true });
+      expect(devtools({ op: 'qbox_questions', box }).length === 0, 'deleted with the box');
+      return { detail: `box ${box}; question asked, the gap enforced; the post refused (${post.err}); deleted` };
+    });
+
+    await scenario('14o. the Mini App inbox endpoint on the platform: list, read, react, archive, reply — only the caller\'s own messages', () => {
+      const call = (uid, input) => tgcloudRun('endpoints/inbox', input, { initData: { user: { id: uid, first_name: 'T' } } });
+      const list = call(T.rcpt, { op: 'list', folder: 1 });
+      expect(list.exitOk && list.value && Array.isArray(list.value.items), `list: ${list.out.slice(-500)}`);
+      const m = devtools({ op: 'anon_msgs_to', user: T.rcpt }).find((x) => x.folder === 1) || devtools({ op: 'anon_msgs_to', user: T.rcpt })[0];
+      if (!m) return { status: 'INFO', detail: 'no message in the test user\'s inbox to work with (14c/14m skipped?)' };
+      const got = call(T.rcpt, { op: 'get', id: m.id });
+      expect(got.exitOk && got.value && got.value.id === m.id && !got.value.unread, `get: ${got.out.slice(-400)}`);
+      const stranger = call(T.sender, { op: 'get', id: m.id });
+      expect(!stranger.exitOk || !stranger.value || !stranger.value.id, `someone else got it: ${stranger.out.slice(-300)}`);
+      const rx = call(T.rcpt, { op: 'act', id: m.id, act: 'react', arg: 4 });
+      expect(rx.exitOk && rx.value && rx.value.reaction === '😢', `react: ${rx.out.slice(-300)}`);
+      const ar = call(T.rcpt, { op: 'act', id: m.id, act: 'archive' });
+      expect(ar.exitOk && ar.value && ar.value.folder !== m.folder, `archive: ${ar.out.slice(-300)}`);
+      devtools({ op: 'join_cache', users: [T.rcpt] });
+      const rep = call(T.rcpt, { op: 'reply', id: m.id, text: 'zz reply from the Mini App' });
+      expect(rep.exitOk && rep.value && rep.value.ok === true, `reply: ${rep.out.slice(-400)}`);
+      return { detail: `list ${list.value.items.length}; read, 😢, moved to folder ${ar.value.folder}, replied; a stranger refused` };
+    });
+
+    await scenario('14p. the smart filter page is the owner\'s alone; without a key nothing is sent anywhere', () => {
+      const page = ok(pressPm(OWNER, 'a:ai', PANEL_MID), { view: 'admin_ai', callback: true });
+      expect(/Gemini/.test(page.text), page.text);
+      const r = ok(pressPm(T.sender, 'a:ai'), { callback: true });
+      expect(alertIs(r, /فقط برای مالک/), JSON.stringify(r.answer));
+      return { detail: /ثبت نشده/.test(page.text) ? 'no key yet: the filter is off' : 'a key is set (the owner configured it)' };
     });
 
     await scenario('15. lazy cleanup: an unsent draft older than 24h is deleted on a later update', () => {

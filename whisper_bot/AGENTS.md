@@ -175,6 +175,14 @@ The handlers delegate to `lib/router.js`, which documents the order of checks an
 - **Media whispers** (`lib/wmedia.js`) are made in the bot's chat and posted with the inline query
   `mw_<id>`; **time capsules** (`>20:00`) have `whispers.opens_at`. The opt-in **daily question**
   (`lib/daily.js`) goes out from 10:00 Tehran time in chunks that wake the bot.
+- **Channel question boxes** (`lib/qbox.js`, `lib/qstore.js`): only an admin of the channel can connect
+  it; questions are anonymous like anonymous messages (asker never shown, filters shadowed, blocks via
+  anon_blocks); answers are posted to the channel (text, or a Mini App card: `card.js` kind `qb`).
+- **Smart filter** (`lib/ai.js`, Gemini through `sdk` fetch): the owner's key lives in kv `ai_key` (entered
+  in the bot, the message deleted, never shown or traced). Only the text is sent. It fails open (no key,
+  off, daily cap, a pause after errors or slow answers) and never hides self-harm.
+- **Mini App inbox** (`webapp/inbox.html`, endpoint `inbox`, `lib/miniinbox.js`): every message must be
+  the verified caller's; replies use `relayAnon` (lib/anon.js), the same path as the chat.
 - **Whisper content lives only in the db** (`whispers.body`): never in callback_data, the posted message,
   or the handler trace (`secret: true` in `lib/tg.js`). The owner's stats are counts only. Every open by
   a recipient is announced to the sender with its count; people who press without being a recipient
@@ -184,8 +192,9 @@ The handlers delegate to `lib/router.js`, which documents the order of checks an
   to anyone — not the recipient, not in block lists, not in the owner's report review. Buttons carry
   only an opaque 10-character ref. Filtered messages (`lib/filter.js`) go to folder 2 undelivered and the
   sender sees the usual confirmation. Limits are in `lib/config.js`, the checks in `lib/spam.js`.
-- **Mini App** (`webapp/`, served as static files; endpoints `cardData` / `cardSend` via `lib/card.js`)
-  draws image cards in the user's client and posts the JPEG to the caller's own chat.
+- **Mini App** (`webapp/`, served as static files): the card maker (endpoints `cardData` / `cardSend` via
+  `lib/card.js`) draws cards in the user's client and posts the JPEG to their chat (or a question box's
+  channel); `inbox.html` is the inbox. Page text from messages is always set as text, never HTML.
 - **One draft row per sender** (`drafts`), overwritten on every inline keystroke; its id changes when
   the query changes. `chosen_inline_result` (needs BotFather `/setinlinefeedback`) turns it into a
   whisper; the first button press does it if that update never came.

@@ -4,28 +4,39 @@
 //
 // Order of checks for a private message:
 //   1. /start w_<id> (read a whisper)   — no forced join, no ban check: reading is always allowed
-//   2. /cancel, then a pending state     — owner: add_channel / ban / unban / bc_wait / wake_chat; users: block_add,
-//      anon_send / anon_reply, inbox_search, word_add, qotd_custom, profile_name / _bio / _photo
-//   3. banned users stop here            — the owner can't be banned
-//   4. /start a_<code> (anonymous link)  — remembers the target first, so it survives the join screen
-//   5. /admin                            — owner only (numeric id), private chat only
-//   6. first /start, or /lang            — the language picker, before anything else
-//   7. forced join                       — everyone but the owner
-//   8. /start /help /whisper /anon /link /inbox /profile /privacy /history /settings /blocks
+//   2. /cancel; random-chat controls (⏭ ❌ 🚩) end the chat whatever else was pending
+//   3. a pending state                   — staff (STAFF_STATES, permission checked again): add_channel, ban,
+//      unban, bc_wait, bc_btn, wake_chat, admin_add, cf_chat, ai_key, ai_model; users: block_add,
+//      anon_send / anon_reply, inbox_search, word_add, qotd_custom, profile_*, cf_write / cf_options /
+//      cf_comment, qb_chat / qb_ask / qb_answer, wm_wait / wm_to
+//   4. banned users stop here            — the owner can't be banned
+//   5. in a random chat, anything that isn't a command goes to the partner (lib/rchat.js)
+//   6. /start cx_<id> (message a confession's author), /start q_<code> (a channel's question box),
+//      /start a_<code> (anonymous link)  — the target is remembered first, so it survives the join screen
+//   7. /admin                            — the owner or an admin (lib/staff.js), private chat only
+//   8. first /start, or /lang            — the language picker, before anything else
+//   9. forced join                       — everyone but the owner
+//  10. /start [cm_<id> | cf | join] /help /whisper /anon /link /inbox /profile /privacy /history /settings /blocks
 //
 // callback_data (all ASCII, ≤ 64 bytes):
 //   L:<lang> language · m main menu · hp[:w|:a] help · pv privacy · lg language picker · j re-check join
 //   whispers:  s:<id> show (inline message) · ws section · h:s|r:<page> history · d:<id> details
 //              n:<id> curious list · st, st:r, st:e:<sec> settings · bl, bl:add, bl:a, bk:<uid>, ub:<uid>
+//              wm media whisper · wo:<id> open a media whisper in the chat
 //   anonymous: an section · al, al:t, al:new link · ac:<cat> category · rt:<code>[:<n>] rating
 //              aw:<code> write again · ar:<id> reply · ab:<id> (un)block · ap:<id>, apy:<id> report
-//              ib:<folder>:<cat|->:<page> inbox · iv:<id> view · ia archive · ic:<id>[:<cat>] category
-//              ix, ixy delete · ibb:<id> (un)block from the inbox · is:<folder> search · uba:<ref> unblock
-//              qd, qd:d, qd:c, qd:0 question · cd cards · fs, fs:o|l|t|s filters · fw, fw:add, fw:rm:<i>
-//              as, as:t, as:new, as:r settings · dd, ddy delete my data · pf, pf:n|b|p|px|r|v profile
-//   owner:     a, a:x, a:ch, a:add, a:rm:<id>, a:rmy:<id>, a:j, a:ban, a:unban, a:st, a:rp, a:rv:<id>,
-//              a:rb|rr|rd:<id>, a:bc, a:bcy:<id>, a:bcn:<id>, a:bcc:<id>, a:bcs:<id>, a:bcp:<id>,
-//              a:wk scheduler · a:wkc pick the wake channel · a:wkp back to the private chat · a:wkg guide
+//              ae:<id>:<i>[:i] reaction · ib:<folder>:<cat|->:<page> inbox · iv:<id> view · ia archive
+//              ic:<id>[:<cat>] category · ix, ixy delete · ibb:<id> (un)block from the inbox · is:<folder> search
+//              uba:<ref> unblock · qd, qd:d, qd:c, qd:0, qd:p question · cd cards · fs, fs:o|l|p|t|s|i filters
+//              fw, fw:add, fw:rm:<i> · as, as:t, as:new, as:r settings · dd, ddy delete my data · pf… profile
+//   question boxes: qb list · qb:n connect · qb:v|l|p|t|r|x|xy:<box>[:<i>] · qb:a|d|b:<question> · qba:<code>
+//   random chat: rc home · rc:go, rc:x, rc:m, rc:e, rc:n, rc:r, rc:ry, rc:rn
+//   confessions: cf, cw, co:c|d, cs · cm:<id>:<offset> comments · cc:<id> comment · cr:<cid> report · cxw:<id>
+//   staff (a:*, ADMIN_ACTIONS gives the permission each needs): channels ch, add, rm, rmy, j · ban, unban
+//              st · reports rp, rv, rb, rr, rd · confessions cf, cfv, cfa, cfr, cfb, cfh · broadcast bc, bcy,
+//              bcn, bcc, bcs, bcp, bca, bcb, bcbx · owner only: admins ad, adn, adv, adp, adx, adxy ·
+//              confession channel cfs, cfsc, cfst, cfsx · scheduler wk, wkc, wkp, wkg · health hl ·
+//              smart filter ai, aik, aio, ait, aim, aims, aimc, aix
 //
 // poll: the bot's own wake (lib/wake.js) → a step of the due work. channel_post: a post in the wake
 // channel ticks the outside clock → the due work; posts elsewhere only carry the usual side work.

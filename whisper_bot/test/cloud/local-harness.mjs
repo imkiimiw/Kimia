@@ -16,6 +16,7 @@ for (const name of ['HIDE_i_SEEK', 'Nepenthw_ir', 'wangerBots']) mock.addChat(na
 // Fake test ids are unknown to Telegram: "chat not found" for messages, "user not found" for members.
 for (let id = 990000001; id <= 990000009; id += 1) mock.state.unknownUsers.add(id);
 mock.state.forbidden.add(-1001005640892); // @telegram: "bot is not a member of the channel chat" (403)
+mock.addChat('telegram', { title: 'Telegram News', admin: false }); // public, and the bot isn't an admin there
 mock.state.privateChats.add(OWNER);
 const port = await mock.listen();
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tgcloud-local-'));
