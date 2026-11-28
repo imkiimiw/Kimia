@@ -9,10 +9,12 @@ import {
 } from './astore.js';
 import { catLabel, displayNameOf, reactionRow } from './anon.js';
 import { botInfo } from './bot.js';
-import { cardUrl } from './card.js';
+import { cardUrl, inboxUrl } from './card.js';
 import { normalize } from './filter.js';
 import { ago, num, t } from './i18n.js';
-import { clearState, getUser, setState } from './store.js';
+import {
+  clearState, getKv, getUser, setState,
+} from './store.js';
 import {
   answer, btn, send, sendMedia, show, webAppBtn,
 } from './tg.js';
@@ -50,6 +52,8 @@ export async function showInbox(ctx, user, folderArg, catArg, pageArg) {
   if (more) nav.push(btn(T(ctx, 'btn.next'), `ib:${folder}:${c}:${page + 1}`));
   if (nav.length) kb.push(nav);
   kb.push([btn(T(ctx, 'in.btn_search'), `is:${folder}`), btn(T(ctx, 'btn.back'), 'an')]);
+  const bot = await botInfo(ctx, await getKv(['bot_id', 'bot_username']));
+  if (bot.id) kb.unshift([webAppBtn(T(ctx, 'in.btn_miniapp'), inboxUrl(bot.id, ctx.lang))]); // the same inbox on a real page
   const head = T(ctx, 'in.title', { folder: T(ctx, FOLDER_KEYS[folder]), cat: cat ? ` · ${catLabel(ctx.lang, cat)}` : '' });
   const note = folder === FOLDER.filtered ? `\n${T(ctx, 'in.filtered_note')}` : '';
   const body = items.length ? items.map((m, i) => itemLine(ctx, m, page * INBOX_PAGE + i + 1)).join('\n') : T(ctx, 'in.empty');

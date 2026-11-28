@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Inbox</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="inbox.css">
+</head>
+<body>
+  <main id="app">
+    <header>
+      <h1 id="title">…</h1>
+      <nav id="folders" class="tabs" aria-label="folders"></nav>
+      <div id="cats" class="chips" aria-label="categories"></div>
+      <input id="search" type="search" autocomplete="off" enterkeyhint="search">
+    </header>
+    <ul id="list"></ul>
+    <p id="empty" hidden></p>
+    <button id="more" class="wide" type="button" hidden></button>
+    <p id="status" role="status"></p>
+  </main>
+  <section id="view" hidden>
+    <button id="back" class="link" type="button"></button>
+    <p id="vfrom" class="meta"></p>
+    <p id="vq" class="question" hidden></p>
+    <div id="vbody" class="body"></div>
+    <p id="vnote" class="note" hidden></p>
+    <div id="vreact" class="chips"></div>
+    <div id="vreply">
+      <textarea id="rtext" rows="3" maxlength="3500"></textarea>
+      <button id="rsend" class="wide primary" type="button"></button>
+    </div>
+    <div id="vactions" class="actions"></div>
+    <div id="vcats" class="chips" hidden></div>
+    <p id="vstatus" role="status"></p>
+  </section>
+  <script src="inbox.js"></script>
+</body>
+</html>

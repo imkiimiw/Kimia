@@ -368,9 +368,11 @@ export async function askReport(ctx, user, id) {
   return send(ctx, 'anon_report_ask', T(ctx, 'a.report_ask'), [[btn(T(ctx, 'a.btn_report_yes'), `apy:${row.id}`), btn(T(ctx, 'btn.cancel'), 'm')]]);
 }
 
-export async function confirmReport(ctx, user, id) {
-  const row = isRef(id) ? await getAnonMsg(id) : null;
-  if (!row || row.toId !== user.id) return answer(ctx, T(ctx, 'a.gone'), { alert: true });
+/**
+ * Files a report about a message the user received: the sender is blocked for them (and struck, if
+ * they were anonymous) and the owner and the admins who review reports are told. 'ok' | 'dup'.
+ */
+export async function fileReport(ctx, user, row) {
   const r = await createReport(row, user.id);
   if (r === 'ok') {
     await addAnonBlock(user.id, row.fromId);
@@ -382,6 +384,13 @@ export async function confirmReport(ctx, user, id) {
       await send(ctx, 'staff_report', t(lang, 'adm.report_new'), [[btn(t(lang, 'adm.btn_review'), 'a:rp')]], sid);
     }
   }
+  return r;
+}
+
+export async function confirmReport(ctx, user, id) {
+  const row = isRef(id) ? await getAnonMsg(id) : null;
+  if (!row || row.toId !== user.id) return answer(ctx, T(ctx, 'a.gone'), { alert: true });
+  const r = await fileReport(ctx, user, row);
   await answer(ctx, T(ctx, r === 'ok' ? 'a.reported' : 'a.report_dup'), { alert: true });
   return show(ctx, 'anon_reported', T(ctx, r === 'ok' ? 'a.reported_text' : 'a.report_dup'), [[btn(T(ctx, 'btn.back'), 'an')]]);
 }
@@ -436,11 +445,17 @@ function deliveryHeader(lang, anon, cat, q, sender, cf = null) {
   return q ? `${head}\n${t(lang, 'a.answering', { q: esc(q) })}` : head;
 }
 
-/** The visitor's (or a replier's) message, while user_state is anon_send / anon_reply. */
-export async function onAnonMessage(ctx, user, message, st) {
+/**
+ * Relays an anonymous message or a reply (st: anon_send / anon_reply) with every check — target,
+ * blocks, text-only, anti-spam, the recipient's filters and smart filter — and delivers it unless a
+ * filter holds it (folder 2; the sender is never told). Returns { ok, anon, cf } or
+ * { error: { view, key, vars, home, clear } } for the caller to show (the chat, or the Mini App).
+ */
+export async function relayAnon(ctx, user, message, st) {
+  const fail = (view, key, extra = {}) => ({ error: { view, key, vars: extra.vars || {}, home: !!extra.home, clear: !!extra.clear } });
   const c = contentOf(message);
-  if (!c) return send(ctx, 'anon_unsupported', T(ctx, 'a.unsupported'));
-  if (c.body.length > ANON_MAX_LEN) return send(ctx, 'anon_too_long', T(ctx, 'a.too_long', { max: N(ctx, ANON_MAX_LEN) }));
+  if (!c) return fail('anon_unsupported', 'a.unsupported');
+  if (c.body.length > ANON_MAX_LEN) return fail('anon_too_long', 'a.too_long', { vars: { max: N(ctx, ANON_MAX_LEN) } });
 
   let target;
   let anon;
@@ -450,40 +465,28 @@ export async function onAnonMessage(ctx, user, message, st) {
   let cf = null; // a chat with a confession's author: anonymous both ways
   if (st.state === 'anon_send') {
     target = await getUser(Number(st.data.to));
-    if (!target || !target.anonOn || target.banned) {
-      await clearState(user.id);
-      return send(ctx, 'anon_link_invalid', T(ctx, 'a.link_invalid'), [[btn(T(ctx, 'btn.home'), 'm')]]);
-    }
+    if (!target || !target.anonOn || target.banned) return fail('anon_link_invalid', 'a.link_invalid', { home: true, clear: true });
     anon = true;
     cat = st.data.cat || 'g';
     q = st.data.q || null;
     cf = st.data.via === 'cf' ? Number(st.data.cf) || null : null;
   } else {
     const prev = await getAnonMsg(String(st.data.ref || ''));
-    if (!prev || prev.toId !== user.id) {
-      await clearState(user.id);
-      return send(ctx, 'anon_gone', T(ctx, 'a.gone'), [[btn(T(ctx, 'btn.home'), 'm')]]);
-    }
+    if (!prev || prev.toId !== user.id) return fail('anon_gone', 'a.gone', { home: true, clear: true });
     target = await getUser(prev.fromId);
     anon = !prev.anon; // the anonymous side stays anonymous in both directions
     replyTo = prev.fromMsg;
     cat = prev.cat;
     cf = prev.cf;
   }
-  if (!target) return send(ctx, 'anon_gone', T(ctx, 'a.gone'));
-  if (await refuses(target.id, user.id)) {
-    await clearState(user.id);
-    return send(ctx, 'anon_refused', T(ctx, 'a.refused'), [[btn(T(ctx, 'btn.home'), 'm')]]);
-  }
-  if (anon && target.aText && c.kind !== 'text') return send(ctx, 'anon_text_only', T(ctx, 'a.text_only'));
+  if (!target) return fail('anon_gone', 'a.gone');
+  if (await refuses(target.id, user.id)) return fail('anon_refused', 'a.refused', { home: true, clear: true });
+  if (anon && target.aText && c.kind !== 'text') return fail('anon_text_only', 'a.text_only');
 
   const norm = normalize(c.body);
   const hash = norm ? hash32(norm) : 0;
   const spam = await spamCheck(user, target.id, hash);
-  if (spam) {
-    const left = spam.until ? dur(ctx.lang, spam.until - nowSec()) : '';
-    return send(ctx, `anon_spam_${spam.code}`, T(ctx, `a.spam.${spam.code}`, { t: left }));
-  }
+  if (spam) return fail(`anon_spam_${spam.code}`, `a.spam.${spam.code}`, { vars: { t: spam.until ? dur(ctx.lang, spam.until - nowSec()) : '' } });
 
   // The recipient's filters: a filtered message is kept (folder 2) but not delivered.
   const words = await listWords(target.id);
@@ -506,12 +509,22 @@ export async function onAnonMessage(ctx, user, message, st) {
         await markInactive(target.id);
       } else if (isApiError(err) && err.code === 400 && /can't be copied|message to copy not found|MESSAGE_ID_INVALID/i.test(err.description)) {
         await deleteMsg(id, target.id);
-        return send(ctx, 'anon_unsupported', T(ctx, 'a.unsupported'));
+        return fail('anon_unsupported', 'a.unsupported');
       } else {
         console.warn(`anonymous delivery failed: ${describeError(err)}`);
       }
       // Kept in their inbox either way: they see it when they come back.
     }
+  }
+  return { ok: true, anon, cf };
+}
+
+/** The visitor's (or a replier's) message, while user_state is anon_send / anon_reply. */
+export async function onAnonMessage(ctx, user, message, st) {
+  const r = await relayAnon(ctx, user, message, st);
+  if (r.error) {
+    if (r.error.clear) await clearState(user.id);
+    return send(ctx, r.error.view, T(ctx, r.error.key, r.error.vars), r.error.home ? [[btn(T(ctx, 'btn.home'), 'm')]] : undefined);
   }
   await clearState(user.id);
   const code = st.state === 'anon_send' ? st.data.code : null;
@@ -520,5 +533,5 @@ export async function onAnonMessage(ctx, user, message, st) {
     : [[btn(T(ctx, 'btn.home'), 'm')]];
   // To a confession's author (lib/confess.js): no button that would lead to their profile.
   if (st.data && st.data.via === 'cf') kb = [[btn(T(ctx, 'cf.btn_dm_again'), `cxw:${st.data.cf}`)], [btn(T(ctx, 'btn.home'), 'm')]];
-  return send(ctx, 'anon_sent', T(ctx, st.state === 'anon_send' ? 'a.sent' : (anon || cf ? 'a.reply_sent_anon' : 'a.reply_sent')), kb);
+  return send(ctx, 'anon_sent', T(ctx, st.state === 'anon_send' ? 'a.sent' : (r.anon || r.cf ? 'a.reply_sent_anon' : 'a.reply_sent')), kb);
 }

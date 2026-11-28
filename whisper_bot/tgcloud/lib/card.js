@@ -29,6 +29,9 @@ export function cardUrl(botId, params) {
   return `https://app${botId}.tgcloud.ai/?${q}`;
 }
 
+/** The inbox page of the Mini App (webapp/inbox.html, lib/miniinbox.js). */
+export const inboxUrl = (botId, lang) => `https://app${botId}.tgcloud.ai/inbox.html?l=${encodeURIComponent(lang)}`;
+
 export async function showCards(ctx, user, kv) {
   const bot = await botInfo(ctx, kv);
   const kb = [];

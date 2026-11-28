@@ -39,6 +39,7 @@ const { default: onInline } = await import('../tgcloud/handlers/inline_query.js'
 const { default: onChosen } = await import('../tgcloud/handlers/chosen_inline_result.js');
 const { default: cardDataEndpoint } = await import('../tgcloud/endpoints/cardData.js');
 const { default: cardSendEndpoint } = await import('../tgcloud/endpoints/cardSend.js');
+const { default: inboxEndpoint } = await import('../tgcloud/endpoints/inbox.js');
 const { default: onPoll } = await import('../tgcloud/handlers/poll.js');
 const { default: onChannelPost } = await import('../tgcloud/handlers/channel_post.js');
 const { wakeSoon } = await import('../tgcloud/lib/wake.js');
@@ -2048,6 +2049,72 @@ await scenario('smart filter: fails open — over Google\'s quota it pauses, wit
   assert.equal(gemini.requests.length, n1, 'no key: nothing sent');
   assert.match((await press(U.reza, 'a:ai')).answer.text, /فقط برای مالک/);
   geminiServer.close();
+});
+
+// =====================================================================================
+// The inbox in the Mini App (endpoint inbox, lib/miniinbox.js)
+// =====================================================================================
+
+await scenario('Mini App inbox: list, read, react, reply through the same relay, archive, category, block, open in chat, report, delete — only your own', async () => {
+  const host = person(801000001, 'mi_host');
+  const vis = person(801000002, 'mi_vis', 'fa', 'Mi Visitor');
+  for (const u of [host, vis]) {
+    join(u);
+    await onboard(u);
+  }
+  const code = /start=a_(\w{10})/.exec((await say(host, '/link')).text)[1];
+  advance(5);
+  await say(vis, `/start a_${code}`);
+  const text = 'یک پیام برای صندوق مینی‌اپ';
+  const sent = await say(vis, text);
+  const ref = sentTo(sent.calls, host.id)[0].params.reply_markup.inline_keyboard[0][0].callback_data.slice(3);
+  const box = await say(host, '/inbox');
+  assert.ok(buttons(box.kb).some((b) => b.web_app && b.web_app.url === `https://app${BOT_ID}.tgcloud.ai/inbox.html?l=fa`), 'the button that opens it');
+  const H = { initData: { user: { id: host.id } } };
+  const V = { initData: { user: { id: vis.id } } };
+  const list = await inboxEndpoint({ op: 'list', folder: 0 }, H);
+  assert.deepEqual([list.labels.title, list.folder, list.cat], ['📥 صندوق پیام ناشناس', 0, '-']);
+  const item = list.items.find((x) => x.id === ref);
+  assert.ok(item && item.unread && item.preview === text && /💌|📝|❓|💬|😂|❤️/.test(item.from));
+  const blob = JSON.stringify(list);
+  for (const s of [String(vis.id), vis.username, vis.first_name]) assert.ok(!blob.includes(s), `"${s}" in the inbox page`);
+  const unreadBefore = userRow(host).anon_unread;
+  const got = await inboxEndpoint({ op: 'get', id: ref }, H);
+  assert.deepEqual([got.body, got.unread, got.blocked], [text, false, false]);
+  assert.equal(userRow(host).anon_unread, unreadBefore - 1, 'read');
+  await assert.rejects(() => inboxEndpoint({ op: 'get', id: ref }, V), /دیگر در دسترس نیست/, 'not the sender');
+  await assert.rejects(() => inboxEndpoint({ op: 'act', id: ref, act: 'delete' }, V), /دیگر در دسترس نیست/);
+  assert.equal((await inboxEndpoint({ op: 'list', folder: 0, q: 'مینی‌اپ' }, H)).items.length, 1, 'search');
+  assert.equal((await inboxEndpoint({ op: 'act', id: ref, act: 'react', arg: 1 }, H)).reaction, '🔥');
+  since();
+  assert.equal((await inboxEndpoint({ op: 'reply', id: ref, text: 'جواب از مینی‌اپ' }, H)).ok, true);
+  const back = sentTo(since(), vis.id)[0];
+  assert.match(back.params.text, /جواب از مینی‌اپ/, 'delivered like a reply from the chat');
+  assert.equal(row('SELECT count(*) AS n FROM anon_msgs WHERE to_id = ? AND from_id = ?', vis.id, host.id).n, 1);
+  await assert.rejects(() => inboxEndpoint({ op: 'reply', id: ref, text: '   ' }, H), /جوابت را بنویس/);
+  assert.equal((await inboxEndpoint({ op: 'act', id: ref, act: 'archive' }, H)).folder, 1);
+  assert.equal((await inboxEndpoint({ op: 'act', id: ref, act: 'cat', arg: 'q' }, H)).cat, 'q');
+  await assert.rejects(() => inboxEndpoint({ op: 'act', id: ref, act: 'cat', arg: 'zz' }, H), /نشد/);
+  assert.equal((await inboxEndpoint({ op: 'act', id: ref, act: 'block' }, H)).blocked, true);
+  advance(5);
+  assert.match((await say(vis, `/start a_${code}`)).text, /پیام‌های تو را نمی‌پذیرد/, 'blocked from the page');
+  assert.equal((await inboxEndpoint({ op: 'act', id: ref, act: 'block' }, H)).blocked, false);
+  since();
+  assert.equal((await inboxEndpoint({ op: 'act', id: ref, act: 'open' }, H)).opened, true);
+  assert.ok(sentTo(since(), host.id).some((c) => (c.params.text || '').includes(text)), 'the bot sends it into the chat');
+  since();
+  assert.equal((await inboxEndpoint({ op: 'act', id: ref, act: 'report' }, H)).reported, true);
+  assert.match(textsTo(since(), OWNER), /یک گزارش تازه برای بررسی/);
+  // replying needs the channels, like in the chat
+  mock.setMember(CHANNELS[0], host.id, { status: 'left' });
+  rawDatabase().prepare('UPDATE users SET join_until = 0 WHERE user_id = ?').run(host.id);
+  await assert.rejects(() => inboxEndpoint({ op: 'reply', id: ref, text: 'بدون عضویت' }, H), /عضو/);
+  join(host);
+  assert.equal((await inboxEndpoint({ op: 'act', id: ref, act: 'delete' }, H)).deleted, true);
+  await assert.rejects(() => inboxEndpoint({ op: 'get', id: ref }, H), /دیگر در دسترس نیست/);
+  await assert.rejects(() => inboxEndpoint({ op: 'list' }, { initData: { user: { id: 801000999 } } }), /Open the bot first/);
+  await assert.rejects(() => inboxEndpoint({ op: 'drop_tables' }, H), /Unknown operation/);
+  await assert.rejects(() => inboxEndpoint({ op: 'list' }, {}), /Open this from the bot/);
 });
 
 // =====================================================================================
