@@ -4,8 +4,9 @@
 // content is shown here, except a message a user chose to report or a confession sent for review —
 // and even then never who wrote it.
 import {
-  ADMIN_PERMS, BC_BATCH, LANGS, MAX_ADMINS, MAX_CHANNELS, OWNER_ID, RESTRICT_LONG_SEC,
+  ADMIN_PERMS, AI_MODELS, BC_BATCH, LANGS, MAX_ADMINS, MAX_CHANNELS, OWNER_ID, RESTRICT_LONG_SEC,
 } from './config.js';
+import { aiCheck, aiStatus } from './ai.js';
 import {
   getReport, listReports, restrict, setReportStatus,
 } from './astore.js';
@@ -14,7 +15,7 @@ import {
   finalReport, keepGoing, processBatch, progressView,
 } from './broadcast.js';
 import {
-  ago, langOf, num, t,
+  ago, dur, langOf, num, t,
 } from './i18n.js';
 import { confessionChannelStatus } from './confess.js';
 import { countPendingConfessions } from './cstore.js';
@@ -66,6 +67,7 @@ export async function showPanel(ctx, kv, staff) {
   if (staff.owner) {
     kb.push([btn(T(ctx, 'adm.btn_admins'), 'a:ad'), btn(T(ctx, 'adm.btn_cf_settings'), 'a:cfs')]);
     kb.push([btn(T(ctx, 'adm.btn_clock'), 'a:wk'), btn(T(ctx, 'adm.btn_health'), 'a:hl')]);
+    kb.push([btn(T(ctx, 'adm.btn_ai'), 'a:ai')]);
   }
   const title = staff.owner ? T(ctx, 'adm.title_owner') : T(ctx, 'adm.title_admin', { perms: permNames(ctx, [...staff.perms]) });
   return show(ctx, 'admin_panel', `${title}\n\n${T(ctx, 'adm.panel', {
@@ -650,4 +652,118 @@ export async function showHealth(ctx, kv) {
   const s = await stats();
   lines.push(T(ctx, 'hl.users', { users: N(ctx, s.users), active: N(ctx, s.active) }));
   return show(ctx, 'admin_health', lines.join('\n'), [[btn(T(ctx, 'hl.btn_refresh'), 'a:hl')], toPanel(ctx)]);
+}
+
+// ---------- the smart filter (the owner only; lib/ai.js) ----------
+
+/** 🤖: the key (masked), on/off, the model, today's use, the last error. */
+export async function showAi(ctx, note = '') {
+  await answer(ctx);
+  const s = await aiStatus();
+  const now = nowSec();
+  const lines = [T(ctx, 'ai.title'), '', T(ctx, 'ai.what'), ''];
+  lines.push(T(ctx, 'ai.key_line', { key: s.hasKey ? `<code>${esc(s.masked)}</code>` : T(ctx, 'ai.key_none') }));
+  lines.push(T(ctx, 'ai.state_line', { state: T(ctx, s.hasKey && s.on ? 'common.on' : 'common.off') }));
+  lines.push(T(ctx, 'ai.model_line', { model: esc(s.model) }));
+  lines.push(T(ctx, 'ai.use_line', { n: N(ctx, s.today), cap: N(ctx, s.cap) }));
+  if (s.coolUntil > now) lines.push(T(ctx, 'ai.paused_line', { d: dur(ctx.lang, s.coolUntil - now) }));
+  if (s.err && s.errAt) lines.push(T(ctx, 'ai.err_line', { err: esc(s.err), ago: ago(ctx.lang, s.errAt, now) }));
+  lines.push('', T(ctx, 'ai.privacy_note'));
+  const kb = [[btn(T(ctx, s.hasKey ? 'ai.btn_change_key' : 'ai.btn_set_key'), 'a:aik')]];
+  if (s.hasKey) {
+    kb.push([btn(T(ctx, s.on ? 'ai.btn_off' : 'ai.btn_on'), 'a:aio'), btn(T(ctx, 'ai.btn_test'), 'a:ait')]);
+    kb.push([btn(T(ctx, 'ai.btn_model'), 'a:aim'), btn(T(ctx, 'ai.btn_remove'), 'a:aix')]);
+  }
+  kb.push(toPanel(ctx));
+  return show(ctx, 'admin_ai', `${note ? `${note}\n\n` : ''}${lines.join('\n')}`, kb);
+}
+
+export async function askAiKey(ctx, user) {
+  await setState(user.id, 'ai_key');
+  await answer(ctx);
+  return show(ctx, 'admin_ai_key_ask', T(ctx, 'ai.key_ask'), [[btn(T(ctx, 'btn.cancel'), 'a:ai')]]);
+}
+
+/** The key arrived (state ai_key): the message is deleted first, then the key is saved and tried. */
+export async function onAiKey(ctx, user, message) {
+  try {
+    await call(ctx, 'deleteMessage', { chat_id: ctx.chatId, message_id: message.message_id }, 'admin_ai_key_delete');
+  } catch (err) {
+    console.warn(`the key's message was not deleted: ${describeError(err)}`);
+  }
+  const key = String(message.text || '').trim();
+  if (!/^[A-Za-z0-9_-]{20,200}$/.test(key)) return send(ctx, 'admin_ai_key_invalid', T(ctx, 'ai.key_invalid'));
+  await setKv('ai_key', key);
+  await setKv('ai_cool', '0');
+  await setKv('ai_err', '');
+  await clearState(user.id);
+  const v = await aiCheck(ctx, T(ctx, 'ai.sample_ok'), { force: true });
+  ctx.messageId = null;
+  return showAi(ctx, T(ctx, v ? 'ai.key_saved_ok' : 'ai.key_saved_bad'));
+}
+
+export async function toggleAi(ctx) {
+  const s = await aiStatus();
+  if (!s.hasKey) return answer(ctx, T(ctx, 'ai.need_key'), { alert: true });
+  await setKv('ai_on', s.on ? '0' : '1');
+  if (!s.on) await setKv('ai_cool', '0');
+  return showAi(ctx, T(ctx, s.on ? 'ai.turned_off' : 'ai.turned_on'));
+}
+
+/** 🧪: a friendly text and a hurtful one (no swear words), with what Gemini said about each. */
+export async function testAi(ctx) {
+  const s = await aiStatus();
+  if (!s.hasKey) return answer(ctx, T(ctx, 'ai.need_key'), { alert: true });
+  await answer(ctx, T(ctx, 'ai.testing'));
+  const verdict = (v) => {
+    if (!v) return T(ctx, 'ai.test_none');
+    return v.harmful ? T(ctx, 'ai.test_harmful', { cat: T(ctx, `ai.cat_${v.category}`), p: N(ctx, v.confidence) }) : T(ctx, 'ai.test_clean', { p: N(ctx, v.confidence) });
+  };
+  const ok = await aiCheck(ctx, T(ctx, 'ai.sample_ok'), { force: true });
+  const bad = await aiCheck(ctx, T(ctx, 'ai.sample_bad'), { force: true });
+  const lines = [T(ctx, 'ai.test_title'), '', `1️⃣ «${esc(T(ctx, 'ai.sample_ok'))}»`, verdict(ok), '', `2️⃣ «${esc(T(ctx, 'ai.sample_bad'))}»`, verdict(bad)];
+  if (!ok && !bad) {
+    const after = await aiStatus();
+    if (after.err) lines.push('', T(ctx, 'ai.err_line', { err: esc(after.err), ago: ago(ctx.lang, after.errAt, nowSec()) }));
+  }
+  return show(ctx, 'admin_ai_test', lines.join('\n'), [[btn(T(ctx, 'btn.back'), 'a:ai')]]);
+}
+
+export async function showAiModels(ctx) {
+  const s = await aiStatus();
+  await answer(ctx);
+  const kb = AI_MODELS.map((m, i) => [btn(`${m === s.model ? '✅ ' : ''}${m}`, `a:aims:${i}`)]);
+  kb.push([btn(T(ctx, 'ai.btn_model_other'), 'a:aimc')]);
+  kb.push([btn(T(ctx, 'btn.back'), 'a:ai')]);
+  return show(ctx, 'admin_ai_models', T(ctx, 'ai.models', { model: esc(s.model) }), kb);
+}
+
+export async function setAiModel(ctx, index) {
+  const m = AI_MODELS[Number(index)];
+  if (!m) return answer(ctx, T(ctx, 'e.old_button'));
+  await setKv('ai_model', m);
+  await setKv('ai_cool', '0');
+  return showAi(ctx, T(ctx, 'ai.model_set', { model: esc(m) }));
+}
+
+export async function askAiModel(ctx, user) {
+  await setState(user.id, 'ai_model');
+  await answer(ctx);
+  return show(ctx, 'admin_ai_model_ask', T(ctx, 'ai.model_ask'), [[btn(T(ctx, 'btn.cancel'), 'a:aim')]]);
+}
+
+export async function onAiModel(ctx, user, message) {
+  const m = String(message.text || '').trim().replace(/^models\//, '');
+  if (!/^[a-z0-9][a-z0-9.\-]{2,60}$/.test(m)) return send(ctx, 'admin_ai_model_invalid', T(ctx, 'ai.model_invalid'));
+  await setKv('ai_model', m);
+  await setKv('ai_cool', '0');
+  await clearState(user.id);
+  ctx.messageId = null;
+  return showAi(ctx, T(ctx, 'ai.model_set', { model: esc(m) }));
+}
+
+export async function removeAiKey(ctx) {
+  await setKv('ai_key', null);
+  await setKv('ai_on', '0');
+  return showAi(ctx, T(ctx, 'ai.key_removed'));
 }

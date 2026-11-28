@@ -40,7 +40,9 @@ import * as inbox from './inbox.js';
 import { afterUpdate } from './maint.js';
 import * as menu from './menu.js';
 import * as profile from './profile.js';
+import * as qbox from './qbox.js';
 import * as qotd from './qotd.js';
+import { getBox } from './qstore.js';
 import * as rchat from './rchat.js';
 import { can, getStaff } from './staff.js';
 import { isOurWake, isTickPost } from './wake.js';
@@ -59,6 +61,7 @@ import * as wpm from './wpm.js';
 // What a staff member's pending input needs (lib/staff.js): checked again when the input arrives.
 const STAFF_STATES = {
   add_channel: 'ch', ban: 'ban', unban: 'ban', bc_wait: 'bc', bc_btn: 'bc', wake_chat: 'owner', admin_add: 'owner', cf_chat: 'owner',
+  ai_key: 'owner', ai_model: 'owner',
 };
 // What each panel button needs: 'any' = any staff member, 'owner' = the owner alone.
 const ADMIN_ACTIONS = {
@@ -73,6 +76,7 @@ const ADMIN_ACTIONS = {
   ad: 'owner', adn: 'owner', adv: 'owner', adp: 'owner', adx: 'owner', adxy: 'owner',
   wk: 'owner', wkc: 'owner', wkp: 'owner', wkg: 'owner',
   hl: 'owner',
+  ai: 'owner', aik: 'owner', aio: 'owner', ait: 'owner', aim: 'owner', aims: 'owner', aimc: 'owner', aix: 'owner',
 };
 const PROFILE_STATES = new Set(['profile_name', 'profile_bio', 'profile_photo']);
 
@@ -83,6 +87,7 @@ function result(ctx) {
   if (ctx.filtered) out.filtered = ctx.filtered;
   if (ctx.woke) out.woke = ctx.woke;
   if (ctx.wake) out.wake = ctx.wake;
+  if (ctx.ai) out.ai = ctx.ai; // what the smart filter said (lib/ai.js), never the text
   return out;
 }
 
@@ -118,6 +123,10 @@ export async function onMessage(message) {
 async function continueOrMain(ctx, user, kv, note = '') {
   if (user.id !== OWNER_ID && !(await menu.requireJoin(ctx, user, kv))) return null;
   const st = await getState(user.id);
+  if (st && st.state === 'qb_ask') { // a question box's link was opened before the language or join screen
+    const box = await getBox(st.data.box);
+    if (box && box.open) return qbox.showAsk(ctx, box);
+  }
   if (st && st.state === 'anon_send') {
     if (st.data.via === 'cf') return confess.showDmCard(ctx, st.data.cf); // to a confession's author: no profile
     const owner = await getUser(Number(st.data.to));
@@ -139,6 +148,8 @@ async function routeState(ctx, message, user, kv, st) {
     if (st.state === 'wake_chat') return admin.onWakeChatInput(ctx, user, kv, message);
     if (st.state === 'admin_add') return admin.onAdminInput(ctx, user, message);
     if (st.state === 'cf_chat') return confess.onChannelInput(ctx, user, kv, message);
+    if (st.state === 'ai_key') return admin.onAiKey(ctx, user, message);
+    if (st.state === 'ai_model') return admin.onAiModel(ctx, user, message);
     return admin.onBanInput(ctx, user, message.text, st.state === 'ban');
   }
   if (user.banned && !isOwner) return send(ctx, 'banned', t(ctx.lang, 'e.banned'));
@@ -160,6 +171,12 @@ async function routeState(ctx, message, user, kv, st) {
       return confess.onText(ctx, user, message);
     case 'cf_comment':
       return confess.onComment(ctx, user, kv, message, st);
+    case 'qb_chat':
+      return qbox.onChannelInput(ctx, user, kv, message);
+    case 'qb_ask':
+      return qbox.onQuestion(ctx, user, kv, message, st);
+    case 'qb_answer':
+      return qbox.onAnswer(ctx, user, kv, message, st);
     case 'wm_wait':
       return wmedia.onMedia(ctx, user, kv, message);
     case 'wm_to':
@@ -188,7 +205,7 @@ async function routeMessage(ctx, message, user, kv) {
   const st = await getState(user.id);
   if (st) {
     if (!c) return routeState(ctx, message, user, kv, st);
-    if (!(c.cmd === 'start' && /^a_/.test(c.arg))) await clearState(user.id); // a command replaces the state
+    if (!(c.cmd === 'start' && /^[aq]_/.test(c.arg))) await clearState(user.id); // a command replaces the state
   }
 
   if (user.banned && !isOwner) return send(ctx, 'banned', t(ctx.lang, 'e.banned'));
@@ -200,6 +217,13 @@ async function routeMessage(ctx, message, user, kv) {
     if (!(await confess.prepareDm(ctx, user, Number(c.arg.slice(3))))) return null;
     if (!isOwner && !(await menu.requireJoin(ctx, user, kv))) return null; // the target waits in user_state
     return confess.showDmCard(ctx, Number(c.arg.slice(3)));
+  }
+
+  if (c && c.cmd === 'start' && /^q_[0-9A-Za-z]{10}$/.test(c.arg)) { // a channel's question box
+    const box = await qbox.openBox(ctx, user, c.arg.slice(2));
+    if (!box) return null;
+    if (!isOwner && !(await menu.requireJoin(ctx, user, kv))) return null; // the box waits in user_state
+    return qbox.showAsk(ctx, box);
   }
 
   if (c && c.cmd === 'start' && /^a_/.test(c.arg)) {
@@ -354,6 +378,11 @@ async function routeCallback(ctx, data, user, kv, isPrivate) {
       if (a1 === 'r') return rchat.askReport(ctx, user);
       if (a1 === 'ry') return rchat.end(ctx, user, { report: true });
       return answer(ctx, t(ctx.lang, 'rc.report_cancelled'));
+    // ----- channel question boxes -----
+    case 'qb':
+      return qbox.route(ctx, user, kv, a1, a2, parts[3]);
+    case 'qba':
+      return qbox.askAgain(ctx, user, a1);
     // ----- confessions -----
     case 'cf':
       await clearState(user.id);
@@ -524,6 +553,23 @@ async function routeAdmin(ctx, user, kv, staff, action, arg, arg2) {
     case 'hl':
       await answer(ctx);
       return admin.showHealth(ctx, kv);
+    case 'ai':
+      await clearState(user.id);
+      return admin.showAi(ctx);
+    case 'aik':
+      return admin.askAiKey(ctx, user);
+    case 'aio':
+      return admin.toggleAi(ctx);
+    case 'ait':
+      return admin.testAi(ctx);
+    case 'aim':
+      return admin.showAiModels(ctx);
+    case 'aims':
+      return admin.setAiModel(ctx, arg);
+    case 'aimc':
+      return admin.askAiModel(ctx, user);
+    case 'aix':
+      return admin.removeAiKey(ctx);
     case 'bca':
       return admin.setBroadcastAudience(ctx, arg, arg2);
     case 'bcb':

@@ -18,6 +18,7 @@ import {
   isAnonBlocked, listWords, recordLinkVisit, removeAnonBlock, removeAnonBlockByRef, setAnonCode, setDelivered, setRating,
   setReaction, touchSent,
 } from './astore.js';
+import { aiCheck, aiFlagged } from './ai.js';
 import { botInfo, startLink } from './bot.js';
 import { filterReason, normalize } from './filter.js';
 import {
@@ -96,6 +97,7 @@ export async function showSection(ctx, user, kv) {
     [btn(T(ctx, 'a.btn_link'), 'al'), btn(`${T(ctx, 'a.btn_inbox')}${unread}`, 'ib:0:-:0')],
     [btn(T(ctx, 'a.btn_qotd'), 'qd'), btn(T(ctx, 'a.btn_card'), 'cd')],
     [btn(T(ctx, 'a.btn_profile'), 'pf'), btn(T(ctx, 'a.btn_filters'), 'fs')],
+    [btn(T(ctx, 'a.btn_qbox'), 'qb')],
     [btn(T(ctx, 'a.btn_settings'), 'as'), btn(T(ctx, 'btn.home'), 'm')],
   ];
   return show(ctx, 'anon_section', lines.join('\n'), kb);
@@ -485,7 +487,9 @@ export async function onAnonMessage(ctx, user, message, st) {
 
   // The recipient's filters: a filtered message is kept (folder 2) but not delivered.
   const words = await listWords(target.id);
-  const reason = filterReason(target, words, c.body, c.entities);
+  let reason = filterReason(target, words, c.body, c.entities);
+  // the smart filter (lib/ai.js), for recipients who keep it on: what a word list can't see
+  if (!reason && target.aAi && c.body && aiFlagged(await aiCheck(ctx, c.body))) reason = 'ai';
   const id = randomId(10);
   await createAnonMsg({
     id, fromId: user.id, toId: target.id, anon, fromMsg: Number(message.message_id) || null, kind: c.kind, body: c.body, norm, fileId: c.fileId, cat, q, cf, hash, folder: reason ? 2 : 0,

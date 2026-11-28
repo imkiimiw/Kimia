@@ -536,7 +536,7 @@ await scenario('input validation and the no-feedback fallback', async () => {
 await scenario('/admin: only numeric id 5557901897; everyone else refused', async () => {
   const p = await say(U.owner, '/admin');
   assert.match(p.text, /پنل مالک/);
-  assert.deepEqual(dataOf(p.kb), ['a:ch', 'a:add', 'a:j', 'a:ban', 'a:unban', 'a:st', 'a:rp', 'a:cf', 'a:bc', 'a:ad', 'a:cfs', 'a:wk', 'a:hl']);
+  assert.deepEqual(dataOf(p.kb), ['a:ch', 'a:add', 'a:j', 'a:ban', 'a:unban', 'a:st', 'a:rp', 'a:cf', 'a:bc', 'a:ad', 'a:cfs', 'a:wk', 'a:hl', 'a:ai']);
   assert.match((await say(U.ali, '/admin')).text, /فقط برای مالک/);
   for (const d of ['a', 'a:ch', 'a:bc', 'a:rp', 'a:rb:1']) assert.match((await press(U.ali, d)).answer.text, /فقط برای مالک/);
   assert.match((await say(person(710004242, 'owner_t'), '/admin')).text, /فقط برای مالک|Choose|عضو/);
@@ -774,7 +774,7 @@ const linkRe = new RegExp(`https://t\\.me/${BOT}\\?start=a_([0-9A-Za-z]{10})`);
 await scenario('anonymous section and personal link; a new link revokes the old; pause', async () => {
   const sec = await press(U.sara, 'an');
   assert.match(sec.text, /پیام ناشناس/);
-  assert.deepEqual(dataOf(sec.kb), ['al', 'ib:0:-:0', 'qd', 'cd', 'pf', 'fs', 'as', 'm']);
+  assert.deepEqual(dataOf(sec.kb), ['al', 'ib:0:-:0', 'qd', 'cd', 'pf', 'fs', 'qb', 'as', 'm']);
   const link = await say(U.sara, '/link');
   const old = linkRe.exec(link.text)[1];
   assert.ok(buttons(link.kb).some((b) => b.url && b.url.startsWith('https://t.me/share/url?url=')));

@@ -124,6 +124,7 @@ function toUser(r) {
     rcLast: num(r.rc_last),
     rcMedia: num(r.rc_media) === 1,
     qdPush: num(r.qd_push) === 1,
+    aAi: num(r.a_ai ?? 1) === 1, // the smart filter, when the owner has it on (lib/ai.js)
   };
 }
 
@@ -131,7 +132,7 @@ export const USER_COLS = sql`user_id, username, username_lc, first_name, first_s
   lang, tg_lang, blang, receipts, def_expiry, recent, join_until, join_ok, join_ver, anon_code, anon_on, anon_count,
   anon_unread, inbox_size, a_filter, a_links, a_text, a_silent, a_phone, q_mode, q_text, p_name, p_bio, p_photo,
   show_rating, rating_sum, rating_count, last_anon_at, strikes, strike_at, restricted_until, lv_day, lv_today,
-  lv_total, join_missing, rc_partner, rc_since, rc_last, rc_media, qd_push`;
+  lv_total, join_missing, rc_partner, rc_since, rc_last, rc_media, qd_push, a_ai`;
 export { toUser };
 
 export async function getUser(id) {
@@ -222,7 +223,7 @@ export async function setLang(id, lang) {
 // Per-user settings that are a single column; the name is checked against this list before it goes
 // into the SQL text (values are always bound parameters).
 const SETTING_COLUMNS = new Set(['anon_on', 'a_filter', 'a_links', 'a_text', 'a_silent', 'a_phone', 'show_rating', 'q_mode',
-  'q_text', 'p_name', 'p_bio', 'p_photo', 'receipts', 'def_expiry', 'rc_media', 'qd_push']);
+  'q_text', 'p_name', 'p_bio', 'p_photo', 'receipts', 'def_expiry', 'rc_media', 'qd_push', 'a_ai']);
 
 export async function setUserField(id, column, value) {
   if (!SETTING_COLUMNS.has(column)) throw new Error(`not a settings column: ${column}`);

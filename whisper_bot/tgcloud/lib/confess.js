@@ -8,6 +8,7 @@
 import {
   CF_COMMENT_GAP_SEC, CF_COMMENT_MAX, CF_COMMENTS_PAGE, CF_PER_DAY, CONFESSION_MAX, OWNER_ID,
 } from './config.js';
+import { aiCheck, aiFlagged, aiSelfHarm } from './ai.js';
 import { refuses } from './anon.js';
 import { botInfo, startLink } from './bot.js';
 import {
@@ -114,8 +115,13 @@ export async function submit(ctx, user, kv) {
   const no = await refusal(ctx, user, kv);
   if (no) return answer(ctx, T(ctx, no, { n: N(ctx, CF_PER_DAY) }), { alert: true });
   const d = st.data;
+  // the smart filter marks the card for the reviewers (it decides nothing itself)
+  const flags = [...(d.f || [])];
+  const v = await aiCheck(ctx, String(d.b));
+  if (aiFlagged(v)) flags.push(`ai_${v.category}`);
+  if (aiSelfHarm(v)) flags.push('self_harm');
   const id = await createConfession({
-    authorId: user.id, body: String(d.b), allowComments: !!d.c, allowDm: !!d.d && user.anonOn, flags: d.f || [], lang: ctx.lang,
+    authorId: user.id, body: String(d.b), allowComments: !!d.c, allowDm: !!d.d && user.anonOn, flags, lang: ctx.lang,
   });
   await clearState(user.id);
   await answer(ctx, T(ctx, 'cf.sent_short'));
@@ -309,6 +315,7 @@ export async function onComment(ctx, user, kv, message, st) {
   if (!text) return send(ctx, 'cf_text_only', T(ctx, 'cf.text_only'));
   if (text.length > CF_COMMENT_MAX) return send(ctx, 'cf_too_long', T(ctx, 'cf.too_long', { max: N(ctx, CF_COMMENT_MAX) }));
   const flags = flagsOf(text);
+  if (!flags.length && aiFlagged(await aiCheck(ctx, text))) flags.push('ai'); // comments are public
   if (flags.length) return send(ctx, 'cf_comment_refused', T(ctx, 'cf.comment_refused', { why: flagNames(ctx, flags) }));
   const count = await addComment(c.id, user.id, text);
   await clearState(user.id);

@@ -61,6 +61,7 @@ export const users = table('users', {
   rcLast: integer('rc_last').notNull().default(0), // their last message in the chat (flood gap, idle)
   rcMedia: integer('rc_media').notNull().default(0), // accepts photos, videos and files from partners
   qdPush: integer('qd_push').notNull().default(0), // gets the question of the day every morning
+  aAi: integer('a_ai').notNull().default(1), // the smart filter (lib/ai.js) checks messages to them, when the owner turned it on
 }, (t) => ({
   byUsername: index('idx_users_username').on(t.usernameLc),
   byAnonCode: uniqueIndex('uq_users_anon_code').on(t.anonCode),
@@ -363,4 +364,41 @@ export const rcBlocks = table('rc_blocks', {
   at: integer('at').notNull(),
 }, (t) => ({
   pair: uniqueIndex('uq_rc_blocks').on(t.userId, t.blockedId),
+}));
+
+// Anonymous question boxes for channels (lib/qbox.js): a user connects a channel they administer and
+// gets a link (start=q_<code>); questions arrive anonymously and the answers are posted to the channel.
+export const qboxes = table('qboxes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  ownerId: integer('owner_id').notNull(), // who connected it (an admin of the channel)
+  chatId: integer('chat_id').notNull(), // the channel
+  title: text('title'),
+  username: text('username'), // public channels: links to the posted answers
+  code: text('code').notNull(),
+  open: integer('open').notNull().default(1), // accepting questions
+  asked: integer('asked').notNull().default(0),
+  answered: integer('answered').notNull().default(0),
+  lang: text('lang').notNull().default('fa'), // the posts' language (the owner's when connecting)
+  createdAt: integer('created_at').notNull(),
+}, (t) => ({
+  byCode: uniqueIndex('uq_qboxes_code').on(t.code),
+  byChat: uniqueIndex('uq_qboxes_chat').on(t.chatId), // one box per channel
+  byOwner: index('idx_qboxes_owner').on(t.ownerId, t.id),
+}));
+
+// A question to a box. from_id is kept for limits and blocking only — never shown to anyone.
+export const qboxQuestions = table('qbox_questions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  boxId: integer('box_id').notNull(),
+  fromId: integer('from_id').notNull(),
+  body: text('body').notNull(),
+  status: text('status').notNull().default('new'), // new / answered / deleted / filtered
+  answer: text('answer'),
+  channelMsg: integer('channel_msg'),
+  createdAt: integer('created_at').notNull(),
+  answeredAt: integer('answered_at').notNull().default(0),
+}, (t) => ({
+  byBox: index('idx_qbq_box').on(t.boxId, t.status, t.id), // the owner's list
+  bySender: index('idx_qbq_from').on(t.fromId, t.createdAt), // the asker's limits
+  byAge: index('idx_qbq_age').on(t.status, t.createdAt), // lazy cleanup of filtered and deleted ones
 }));

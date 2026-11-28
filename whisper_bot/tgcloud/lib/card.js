@@ -5,15 +5,19 @@
 // user's chat, ready to save to the gallery for Instagram or to share in Telegram.
 //
 // Kinds: link (my anonymous link + question, with a QR code), q (the question of the day), msg (an
-// anonymous message I received, with an optional answer — never anything about who sent it).
+// anonymous message I received, with an optional answer — never anything about who sent it), qb (a
+// question to my channel's question box and my answer: posted to that channel, lib/qbox.js).
 import { InputFile } from 'sdk';
 import { getAnonMsg } from './astore.js';
 import { displayNameOf, ensureAnonCode, linkOf, ratingLine } from './anon.js';
-import { botInfo } from './bot.js';
+import { botInfo, startLink } from './bot.js';
 import { langOf, t } from './i18n.js';
 import { questionOf, questionOfDay } from './qotd.js';
+import { getBox, getQuestion } from './qstore.js';
 import { getKv, getUser } from './store.js';
-import { btn, call, show, webAppBtn } from './tg.js';
+import {
+  btn, call, describeError, show, urlBtn, webAppBtn,
+} from './tg.js';
 import { base64ToBytes } from './util.js';
 
 const T = (ctx, k, v) => t(ctx.lang, k, v);
@@ -54,6 +58,21 @@ export async function cardData(userId, input) {
       answer: t(lang, 'cd.ui_answer'), title: t(lang, 'cd.ui_title'),
     },
   };
+  if (input.k === 'qb') {
+    const own = await ownQuestion(user, input.id);
+    if (!own) return { error: 'NOT_YOURS' };
+    return {
+      ...base,
+      kind: 'qb',
+      name: own.box.title,
+      head: t(lang, 'qb.card_head'),
+      text: own.q.body,
+      answer: own.q.answer || '',
+      link: bot.username ? startLink(bot.username, `q_${own.box.code}`) : '',
+      foot: t(lang, 'qb.card_foot'),
+      labels: { ...base.labels, send: t(lang, 'qb.ui_send_channel'), sent: t(lang, 'qb.ui_sent_channel') },
+    };
+  }
   if (input.k === 'msg') {
     const m = /^[0-9A-Za-z]{10}$/.test(String(input.id)) ? await getAnonMsg(String(input.id)) : null;
     if (!m || m.toId !== user.id) return { error: 'NOT_YOURS' };
@@ -67,7 +86,14 @@ export async function cardData(userId, input) {
   return { ...base, kind: 'link', head: t(lang, 'cd.link_head'), text: questionOf(user) || t(lang, 'cd.link_text'), link, foot: t(lang, 'cd.link_foot') };
 }
 
-/** cardSend endpoint: the finished JPEG/PNG (base64) is sent to the caller's own chat as a photo. */
+/** A question of one of `user`'s boxes, with the box; null if it isn't theirs. */
+async function ownQuestion(user, id) {
+  const q = await getQuestion(id);
+  const box = q ? await getBox(q.boxId) : null;
+  return q && box && box.ownerId === user.id ? { q, box } : null;
+}
+
+/** cardSend endpoint: the finished JPEG/PNG (base64) goes to the caller's own chat — or, for kind qb, to their channel. */
 export async function cardSend(userId, input, ctx = { trace: [] }) {
   const user = await getUser(userId);
   if (!user) return { error: 'NO_USER' };
@@ -80,10 +106,25 @@ export async function cardSend(userId, input, ctx = { trace: [] }) {
   const lang = langOf(user);
   const kv = await getKv(['bot_id', 'bot_username']);
   const bot = await botInfo(ctx, kv);
+  const file = new InputFile(bytes, png ? 'card.png' : 'card.jpg', { type: png ? 'image/png' : 'image/jpeg' });
+  if (input.k === 'qb') { // a question box's Q&A card: posted to the channel, with a button to ask another
+    const own = await ownQuestion(user, input.id);
+    if (!own) return { error: 'NOT_YOURS' };
+    const kb = bot.username ? [[urlBtn(t(own.box.lang, 'qb.btn_ask'), startLink(bot.username, `q_${own.box.code}`))]] : null;
+    try {
+      await call(ctx, 'sendPhoto', {
+        chat_id: own.box.chatId, photo: file, caption: t(own.box.lang, 'qb.card_caption'), parse_mode: 'HTML', ...(kb ? { reply_markup: { inline_keyboard: kb } } : {}),
+      }, 'card_photo');
+    } catch (err) {
+      console.warn(`question card to the channel failed: ${describeError(err)}`);
+      return { error: 'POST_FAILED' };
+    }
+    return { ok: true, bytes: bytes.length, to: 'channel' };
+  }
   const link = bot.username && input.k !== 'msg' ? linkOf(bot.username, await ensureAnonCode(user)) : '';
   await call(ctx, 'sendPhoto', {
     chat_id: user.id,
-    photo: new InputFile(bytes, png ? 'card.png' : 'card.jpg', { type: png ? 'image/png' : 'image/jpeg' }),
+    photo: file,
     caption: link ? t(lang, 'cd.sent_caption_link', { link }) : t(lang, 'cd.sent_caption'),
     parse_mode: 'HTML',
   }, 'card_photo');

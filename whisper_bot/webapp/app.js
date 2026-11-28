@@ -1,7 +1,8 @@
 // The card maker Mini App. It asks the bot what to draw (endpoint cardData: only the user's own link,
-// question or received message), draws the card on a canvas in the user's own Telegram client — so
-// Persian, Russian and English text are shaped by real fonts — and sends the finished JPEG back
-// (endpoint cardSend); the bot posts it to the user's chat, ready for a Telegram or Instagram story.
+// question or received message, or a question to their channel's question box), draws the card on a
+// canvas in the user's own Telegram client — so Persian, Russian and English text are shaped by real
+// fonts — and sends the finished JPEG back (endpoint cardSend); the bot posts it to the user's chat,
+// ready for a Telegram or Instagram story — or, for a question box card (k=qb), to the channel.
 (function () {
   'use strict';
 
@@ -130,7 +131,8 @@
     var GAP = 44;
     var withQr = d.kind !== 'msg' && !!d.link;
     var qrSize = withQr ? (state.size === 'square' ? 200 : state.size === 'post' ? 240 : 300) : 0;
-    var answer = d.kind === 'msg' ? ($('answer').value || '').trim() : '';
+    var withAnswer = d.kind === 'msg' || d.kind === 'qb';
+    var answer = withAnswer ? ($('answer').value || '').trim() : '';
 
     // Everything outside the bubble first, so the bubble gets the rest.
     var head = layout(d.head, W - pad * 2, 200, 64, '700');
@@ -243,9 +245,10 @@
     $('send').disabled = false;
     $('send').onclick = send;
     var answer = $('answer');
-    if (data.kind === 'msg') {
+    if (data.kind === 'msg' || data.kind === 'qb') {
       answer.hidden = false;
       answer.placeholder = L.answer;
+      if (data.answer) answer.value = data.answer; // a question box card starts from the posted answer
       answer.oninput = draw;
     }
     buttons();

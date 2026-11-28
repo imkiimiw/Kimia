@@ -90,6 +90,23 @@ export const REACTIONS = ['❤', '🔥', '🤣', '😱', '😢'];
 // A media whisper's caption (the posted message never shows it; it opens in the bot's chat).
 export const MEDIA_WHISPER_MAX = 800;
 
+// Channel question boxes (lib/qbox.js).
+export const MAX_QBOXES = 5; // per user
+export const QB_QUESTION_MAX = 500;
+export const QB_ANSWER_MAX = 1000;
+export const QB_GAP_SEC = 20; // between two questions of one person
+export const QB_PER_BOX_HOUR = 5; // one person, one box
+export const QB_PER_DAY = 30; // one person, all boxes
+export const QB_NOTIFY_EVERY_SEC = 300; // "new questions" to the box's owner at most this often
+
+// The smart filter (lib/ai.js, Google Gemini). Model ids can be changed in /admin → 🤖.
+export const AI_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash-lite'];
+export const AI_DAILY_CAP = 2000; // checks per day (Tehran), then texts go unchecked until tomorrow
+export const AI_MIN_CONFIDENCE = 70; // percent, for a text to count as harmful
+export const AI_SLOW_MS = 8000; // an answer slower than this pauses the filter for AI_COOL_SEC
+export const AI_COOL_SEC = 600;
+export const AI_MAX_CHARS = 2000; // of a text sent for checking
+
 // The question of the day sent to those who asked for it, from this local hour on.
 export const DAILY_QUESTION_HOUR = 10;
 export const DAILY_BATCH = 25;

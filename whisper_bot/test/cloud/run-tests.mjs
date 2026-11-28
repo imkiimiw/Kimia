@@ -553,7 +553,7 @@ async function main() {
 
     await scenario('11. /admin: the owner gets the panel (with reports); a normal user is refused', () => {
       const own = ok(sendText(OWNER, '/admin'), { view: 'admin_panel' });
-      expect(own.data.join() === 'a:ch,a:add,a:j,a:ban,a:unban,a:st,a:rp,a:cf,a:bc,a:ad,a:cfs,a:wk,a:hl', `panel ${JSON.stringify(own.data)}`);
+      expect(own.data.join() === 'a:ch,a:add,a:j,a:ban,a:unban,a:st,a:rp,a:cf,a:bc,a:ad,a:cfs,a:wk,a:hl,a:ai', `panel ${JSON.stringify(own.data)}`);
       ok(sendText(T.sender, '/admin'), { view: 'admin_refused' });
       for (const d of ['a:ch', 'a:rp', 'a:bc']) {
         const btn = ok(pressPm(T.sender, d), { callback: true });

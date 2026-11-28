@@ -5,8 +5,10 @@ import { MAX_WORDS } from './config.js';
 import {
   addWord, deleteRatingsOf, deleteSomeMessages, deleteWords, listWords, removeWord,
 } from './astore.js';
+import { aiReady, aiStatus } from './ai.js';
 import { ensureAnonCode } from './anon.js';
 import { unlinkAuthor } from './cstore.js';
+import { forgetQboxUser } from './qstore.js';
 import { normalize } from './filter.js';
 import { num, t } from './i18n.js';
 import { clearState, setState, setUserField } from './store.js';
@@ -19,6 +21,7 @@ const onOff = (ctx, v) => T(ctx, v ? 'common.on' : 'common.off');
 
 const TOGGLES = {
   o: ['a_filter', 'aFilter'], l: ['a_links', 'aLinks'], p: ['a_phone', 'aPhone'], t: ['a_text', 'aText'], s: ['a_silent', 'aSilent'],
+  i: ['a_ai', 'aAi'],
 };
 
 export async function showFilters(ctx, user, note = '') {
@@ -27,6 +30,7 @@ export async function showFilters(ctx, user, note = '') {
     [btn(`${T(ctx, 'fs.btn_offensive')}: ${onOff(ctx, user.aFilter)}`, 'fs:o')],
     [btn(`${T(ctx, 'fs.btn_links')}: ${onOff(ctx, user.aLinks)}`, 'fs:l')],
     [btn(`${T(ctx, 'fs.btn_phone')}: ${onOff(ctx, user.aPhone)}`, 'fs:p')],
+    ...(aiReady(await aiStatus()) ? [[btn(`${T(ctx, 'fs.btn_ai')}: ${onOff(ctx, user.aAi)}`, 'fs:i')]] : []), // when the owner has it on
     [btn(`${T(ctx, 'fs.btn_text')}: ${onOff(ctx, user.aText)}`, 'fs:t')],
     [btn(`${T(ctx, 'fs.btn_silent')}: ${onOff(ctx, user.aSilent)}`, 'fs:s')],
     [btn(T(ctx, 'fs.btn_words', { n: N(ctx, words.length) }), 'fw'), btn(T(ctx, 'fs.btn_blocks'), 'bl:a')],
@@ -117,6 +121,7 @@ export async function deleteData(ctx, user) {
   await deleteWords(user.id);
   await deleteRatingsOf(user.id);
   await unlinkAuthor(user.id);
+  await forgetQboxUser(user.id);
   for (const col of ['p_name', 'p_bio', 'p_photo', 'q_text']) await setUserField(user.id, col, null);
   await setUserField(user.id, 'q_mode', 0);
   Object.assign(user, {
