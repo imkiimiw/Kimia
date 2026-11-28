@@ -131,6 +131,7 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
   function reachable(chatId) {
     const id = Number(chatId);
     if (state.unknownUsers.has(id)) return err(400, 'Bad Request: chat not found');
+    if (state.forbidden.has(id)) return err(403, 'Forbidden: bot is not a member of the channel chat');
     if (state.blocked.has(id)) return err(403, 'Forbidden: bot was blocked by the user');
     if (id > 0 && !state.privateChats.has(id)) return err(403, "Forbidden: bot can't initiate conversation with a user");
     return null;
@@ -156,6 +157,7 @@ export function createMockTelegram({ botId, botUsername = 'whisper_test_bot' }) 
       const r = reachable(p.chat_id);
       if (r) return r;
       if (!p[field]) return err(400, `Bad Request: there is no ${field} in the request`);
+      if (/^BAD/.test(String(p[field]))) return err(400, 'Bad Request: wrong file identifier/HTTP URL specified'); // a file Telegram refuses
       if (p.caption !== undefined) {
         if (!captionable) return err(400, 'Bad Request: caption is not allowed');
         const h = p.parse_mode === 'HTML' ? parseHtml(p.caption) : { plain: p.caption };

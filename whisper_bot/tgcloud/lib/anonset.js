@@ -6,6 +6,7 @@ import {
   addWord, deleteRatingsOf, deleteSomeMessages, deleteWords, listWords, removeWord,
 } from './astore.js';
 import { ensureAnonCode } from './anon.js';
+import { unlinkAuthor } from './cstore.js';
 import { normalize } from './filter.js';
 import { num, t } from './i18n.js';
 import { clearState, setState, setUserField } from './store.js';
@@ -115,6 +116,7 @@ export async function deleteData(ctx, user) {
   }
   await deleteWords(user.id);
   await deleteRatingsOf(user.id);
+  await unlinkAuthor(user.id);
   for (const col of ['p_name', 'p_bio', 'p_photo', 'q_text']) await setUserField(user.id, col, null);
   await setUserField(user.id, 'q_mode', 0);
   Object.assign(user, {

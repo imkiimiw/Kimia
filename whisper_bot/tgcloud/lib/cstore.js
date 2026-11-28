@@ -133,6 +133,19 @@ export async function lastCommentAt(authorId) {
   return num(r && r.created_at);
 }
 
+/**
+ * "Delete my data": the person's confessions and comments stay where they were posted, but nothing
+ * leads back to them any more (author 0: no anonymous messages, no notices, nobody to ban).
+ */
+export async function unlinkAuthor(userId) {
+  await db.run(sql`
+    UPDATE confessions SET author_id = 0 WHERE id IN (
+      SELECT id FROM confessions WHERE author_id = ${userId} ORDER BY id LIMIT 1000)`);
+  await db.run(sql`
+    UPDATE cf_comments SET author_id = 0 WHERE id IN (
+      SELECT id FROM cf_comments WHERE author_id = ${userId} ORDER BY created_at LIMIT 2000)`);
+}
+
 /** The first report of a comment only reaches the reviewers (kv cfrep:<id>). */
 export async function firstReport(commentId) {
   const r = await db.run(sql`

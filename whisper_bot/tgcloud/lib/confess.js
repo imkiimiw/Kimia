@@ -244,7 +244,7 @@ export async function rejectAndBan(ctx, staff, id) {
   if (!c) return answer(ctx, T(ctx, 'cf.not_found'), { alert: true });
   if (c.authorId === OWNER_ID || (!staff.owner && (await getStaff(c.authorId)))) return answer(ctx, T(ctx, 'adm.ban_staff'), { alert: true });
   await decide(c.id, 'rejected');
-  await setBanned(c.authorId, true);
+  if (c.authorId) await setBanned(c.authorId, true); // 0: the author deleted their data
   await answer(ctx, T(ctx, 'cf.banned_author'), { alert: true });
   return show(ctx, 'cf_review', reviewText(ctx, await getConfession(c.id)), reviewKeyboard(ctx, staff, { status: 'rejected' }), { secret: true });
 }

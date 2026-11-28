@@ -22,7 +22,7 @@ import { parseQuery } from './parse.js';
 import {
   addOpen, addSnoop, blockersOf, burnWhisper, createWhisper, deleteDraft, expireWhisper, getDraft, getDraftById,
   getKv, getRcpts, getUser, getUserByUsername, getWhisper, isBlocked, markInactive, markSeen, pinRecipient,
-  saveDraft, setInlineId, setRecent,
+  saveDraft, setInlineId, setRecent, unmarkSeen,
 } from './store.js';
 import {
   answer, btn, call, describeError, editInline, isApiError, send, sendMedia, urlBtn,
@@ -502,7 +502,11 @@ export async function handleDeepRead(ctx, message, wid) {
   if (isMedia(w)) {
     // protected: it can't be forwarded or saved from the chat
     const caption = `${head}${body ? `\n\n${esc(body)}` : ''}${burnNote}`;
-    await sendMedia(ctx, 'whisper_read', w.kind, w.fileId, caption, kb, ctx.chatId, { secret: true, protect: true, meta });
+    const sent = await sendMedia(ctx, 'whisper_read', w.kind, w.fileId, caption, kb, ctx.chatId, { secret: true, protect: true, meta });
+    if (!sent) { // Telegram refused the file: not an opening (and a one-time one can be tried again)
+      if (view.first) await unmarkSeen(w.id, role.rcpt.slot);
+      return send(ctx, 'whisper_media_failed', T(ctx, 'w.media_failed'));
+    }
   } else {
     await send(ctx, 'whisper_read', `${head}\n\n${esc(body)}${burnNote}`, kb, ctx.chatId, { secret: true, meta });
   }

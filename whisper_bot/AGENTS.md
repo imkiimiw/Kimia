@@ -156,12 +156,25 @@ The platform manages the bot's webhook for you, derived from your deployed
 ## This bot
 
 @Wanger_Shadowbot, in three languages (fa / en / ru: `lib/i18n.js`, dictionaries in `lib/i18n/*.js` with
-identical keys — `npm test` checks it). The first `/start` asks for the language; then two sections:
+identical keys — `npm test` checks it). The first `/start` asks for the language; then three sections:
 **whispers** (`@bot text @username` in any chat posts "🔒 یک نجوا برای @username"; only the recipients,
-up to 3, and the sender can read it) and **anonymous messages** (a personal link `start=a_<code>`).
+up to 3, and the sender can read it), **anonymous messages** (a personal link `start=a_<code>`) and the
+**random chat** — plus **confessions** once the owner has set a channel.
 The handlers delegate to `lib/router.js`, which documents the order of checks and every `callback_data`.
 
 - **Owner = numeric id `5557901897`** (`lib/config.js`), checked on every admin command and callback.
+  **Admins** the owner added (`admins` table, `lib/staff.js`) get only the permissions the owner gave
+  them; `getStaff`/`can` are checked on every `/admin`, every `a:*` button (`ADMIN_ACTIONS` in the router)
+  and every pending admin input (`STAFF_STATES`). Admins, confession settings, the scheduler and the 🩺
+  page are the owner's alone; an admin can't ban the owner or another admin.
+- **Confessions** (`lib/confess.js`, `lib/cstore.js`): the author is never shown — not to reviewers, not on
+  the post, not to someone messaging them anonymously (`cx_<id>` → their inbox, no profile card;
+  `anon_msgs.cf` keeps the author's replies anonymous too). Status changes are compare-and-set.
+- **Random chat** (`lib/rchat.js`): `users.rc_partner` on both rows, a queue per language (`rc_queue`,
+  matched on `users.blang`); the bot re-sends everything with `protect_content`, never forwards.
+- **Media whispers** (`lib/wmedia.js`) are made in the bot's chat and posted with the inline query
+  `mw_<id>`; **time capsules** (`>20:00`) have `whispers.opens_at`. The opt-in **daily question**
+  (`lib/daily.js`) goes out from 10:00 Tehran time in chunks that wake the bot.
 - **Whisper content lives only in the db** (`whispers.body`): never in callback_data, the posted message,
   or the handler trace (`secret: true` in `lib/tg.js`). The owner's stats are counts only. Every open by
   a recipient is announced to the sender with its count; people who press without being a recipient
@@ -182,7 +195,8 @@ The handlers delegate to `lib/router.js`, which documents the order of checks an
   stopped and deleted; one pending at a time; capped per hour). Expiry is checked on click, cleanup
   runs in small batches on later updates (`lib/maint.js`), broadcasts are a db queue that wakes itself
   forward. A post in the wake channel (`/admin → ⏱`) ticks an optional outside clock (`channel_post`).
-- **Every query is index-backed and LIMITed** (`lib/store.js`); totals are kv counters, never COUNT(*).
+- **Every query is index-backed and LIMITed** (`lib/store.js`); totals are kv counters; the few counts
+  (pending confessions, a language's recipients for a broadcast draft) are capped subqueries.
 - Handlers return `{ trace }` — every Bot API call with its view name — for `npx tgcloud run`.
 - Tests: `npm test` (static checks + local emulation in `test/sdk/`, strict mock in
   `test/mock-telegram.mjs`), `node test/webapp.mjs` (the Mini App in Chromium), `npm run test:cloud`

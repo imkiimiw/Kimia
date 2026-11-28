@@ -140,7 +140,6 @@ export async function find(ctx, user) {
     return show(ctx, 'rc_waiting', T(ctx, 'rc.waiting'), [[btn(T(ctx, 'rc.btn_cancel'), 'rc:x')]]);
   }
   await leaveQueue(user.id);
-  await bump('n_rchats', 1);
   const partner = await getUser(pid);
   const plang = langOf(partner);
   try {
@@ -154,6 +153,7 @@ export async function find(ctx, user) {
     return showHome(ctx, user, T(ctx, 'rc.partner_gone'));
   }
   user.rcPartner = pid;
+  await bump('n_rchats', 1); // a chat that really started
   ctx.messageId = null;
   return send(ctx, 'rc_connected', T(ctx, 'rc.connected'), null, ctx.chatId, { replyMarkup: controls(ctx.lang) });
 }

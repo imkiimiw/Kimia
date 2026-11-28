@@ -169,6 +169,13 @@ function sendText(uid, text, messageId = null) {
   return analyse(tgcloudRun('handlers/message', message, { update: { update_id: updateId(), message } }));
 }
 
+/** A message with other content than text (a photo, a voice…): `fields` go into the Message. */
+function sendRaw(uid, fields) {
+  const n = seq++;
+  const message = { message_id: 100000 + n, from: person(uid), chat: privateChat(uid), date: nowSec(), ...fields };
+  return analyse(tgcloudRun('handlers/message', message, { update: { update_id: updateId(), message } }));
+}
+
 function inlineQuery(uid, query) {
   const n = seq++;
   const q = { id: `${7000000000000000 + n}`, from: person(uid), query, offset: '', chat_type: 'supergroup' };
@@ -212,7 +219,8 @@ function analyse(r) {
   return { ...r, trace, screens, last, view: last ? last.view : null, text: last ? last.text || last.caption || '' : '', data, answers, answer: answers[0] || null, inline, edits, handlerError };
 }
 // Messages to someone else than the person acting (notifications, deliveries), not their screen.
-const NOT_SCREENS = ['owner_warning', 'read_receipt', 'curious_notice', 'owner_report', 'anon_deliver', 'anon_header', 'card_photo'];
+const NOT_SCREENS = ['owner_warning', 'read_receipt', 'curious_notice', 'owner_report', 'staff_report', 'anon_deliver', 'anon_header', 'card_photo',
+  'cf_review', 'cf_author', 'cf_new_comment', 'cf_comment_report', 'admin_welcome', 'rc_partner_left', 'daily_question', 'anon_reaction_note'];
 
 const byView = (res, view) => res.trace.filter((t) => t.view === view);
 
@@ -287,6 +295,7 @@ async function main() {
   devtools({ op: 'drop_fake_channels' });
   const maxBroadcast = start.maxBroadcast;
   const ownerAnon = devtools({ op: 'owner_anon' });
+  const startCf = devtools({ op: 'cf_kv' }); // the confession channel settings: 14k points them at @telegram
   const startAnon = Number((devtools({ op: 'kv_get', keys: ['n_anon'] })[0] || {}).value || 0);
   const startedAt = nowSec();
   console.log(`channels at start: ${originalChannels.map((c) => `@${c.username}`).join(', ') || '(none yet — the first update seeds them)'}\n`);
@@ -314,7 +323,7 @@ async function main() {
         const lang = id === T.third ? 'ru' : 'fa';
         const main = ok(pressPm(id, `L:${lang}`), { view: 'main', callback: true });
         expect(main.data.slice(0, 2).join() === 'ws,an', `main buttons ${JSON.stringify(main.data)}`);
-        expect((lang === 'ru' ? /Здесь два раздела/ : /دو بخش داریم/).test(main.text), main.text);
+        expect((lang === 'ru' ? /Случайный чат/ : /🎲 <b>چت تصادفی<\/b>/).test(main.text), main.text);
         const u = devtools({ op: 'user', user: id });
         expect(u.lang === lang && u.tg_lang === lang, `language saved: chosen ${u.lang}, Telegram ${u.tg_lang}`);
       }
@@ -544,7 +553,7 @@ async function main() {
 
     await scenario('11. /admin: the owner gets the panel (with reports); a normal user is refused', () => {
       const own = ok(sendText(OWNER, '/admin'), { view: 'admin_panel' });
-      expect(own.data.join() === 'a:ch,a:add,a:j,a:ban,a:unban,a:st,a:rp,a:bc,a:wk', `panel ${JSON.stringify(own.data)}`);
+      expect(own.data.join() === 'a:ch,a:add,a:j,a:ban,a:unban,a:st,a:rp,a:cf,a:bc,a:ad,a:cfs,a:wk,a:hl', `panel ${JSON.stringify(own.data)}`);
       ok(sendText(T.sender, '/admin'), { view: 'admin_refused' });
       for (const d of ['a:ch', 'a:rp', 'a:bc']) {
         const btn = ok(pressPm(T.sender, d), { callback: true });
@@ -722,8 +731,8 @@ async function main() {
       ok(pressPm(T.rcpt, `ap:${q.id}`), { view: 'anon_report_ask', callback: true });
       const done = ok(pressPm(T.rcpt, `apy:${q.id}`), { callback: true });
       expect(/گزارش شد/.test(done.answer.text), JSON.stringify(done.answer));
-      const note = byView(done, 'owner_report')[0];
-      expect(note && note.chat === OWNER, `owner notified ${JSON.stringify(byView(done, 'owner_report'))}`);
+      const note = byView(done, 'staff_report')[0];
+      expect(note && note.chat === OWNER, `owner notified ${JSON.stringify(byView(done, 'staff_report'))}`);
       const reports = devtools({ op: 'reports_by', user: T.rcpt });
       expect(reports.length === 1 && reports[0].status === 'open', `reports ${JSON.stringify(reports)}`);
       const list = ok(pressPm(OWNER, 'a:rp', PANEL_MID), { view: 'admin_reports', callback: true });
@@ -805,6 +814,111 @@ async function main() {
       return { detail: `a silent poll sent, stopped and deleted in the owner's chat; Telegram ran the bot again (wake_last ${before} → ${after})` };
     });
 
+    await scenario('14i. admins: the owner adds a test user; their panel has only the default permissions; owner-only buttons refused; removed', () => {
+      ok(pressPm(OWNER, 'a:ad', PANEL_MID), { view: 'admin_admins', callback: true });
+      ok(pressPm(OWNER, 'a:adn', PANEL_MID), { view: 'admin_admin_ask', callback: true });
+      const added = ok(sendText(OWNER, String(T.byId)), { view: 'admin_admin' });
+      expect(/ادمین شد/.test(added.text), added.text);
+      const row = devtools({ op: 'admin_row', user: T.byId });
+      expect(row && row.perms === 'cf,rp,ban,st', `admins row ${JSON.stringify(row)}`);
+      const panel = ok(sendText(T.byId, '/admin'), { view: 'admin_panel' });
+      expect(panel.data.join() === 'a:ban,a:unban,a:st,a:rp,a:cf', `admin's panel ${JSON.stringify(panel.data)}`);
+      for (const d of ['a:ad', 'a:hl', 'a:bc', 'a:ch', 'a:cfs']) {
+        const r = ok(pressPm(T.byId, d), { callback: true });
+        expect(alertIs(r, /دسترسی‌های تو نیست/), `${d}: ${JSON.stringify(r.answer)}`);
+      }
+      ok(pressPm(T.byId, 'a:st'), { view: 'admin_stats', callback: true });
+      ok(pressPm(OWNER, `a:adxy:${T.byId}`, PANEL_MID), { view: 'admin_admins', callback: true });
+      expect(!devtools({ op: 'admin_row', user: T.byId }), 'removed');
+      ok(sendText(T.byId, '/admin'), { view: 'admin_refused' });
+      return { detail: 'added by numeric id (cf, rp, ban, st); 5 buttons; owner-only refused; removed' };
+    });
+
+    await scenario('14j. random chat on the real database: queued by language, claimed; a partner Telegram can\'t reach ends it', () => {
+      const waiting = devtools({ op: 'rc_waiting_real' });
+      if (waiting.length) return { status: 'INFO', detail: `skipped: real people are waiting for a random chat (${waiting.join(', ')})` };
+      devtools({ op: 'join_cache', users: [T.sender, T.rcpt] });
+      ok(pressPm(T.sender, 'rc'), { view: 'rc_home', callback: true });
+      ok(pressPm(T.sender, 'rc:go'), { view: 'rc_waiting', callback: true });
+      let rc = devtools({ op: 'rc_of', users: [T.sender, T.rcpt] });
+      expect(rc[0].queued === 1 && rc[0].rc_partner === 0, `after the first search ${JSON.stringify(rc)}`);
+      const go = ok(pressPm(T.rcpt, 'rc:go'), { callback: true });
+      const tried = go.trace.find((t) => t.view === 'rc_connected' && t.chat === T.sender);
+      expect(tried && tried.ok === false, `the partner was told: ${JSON.stringify(go.trace.map((t) => [t.m, t.view, t.chat, t.ok]))}`);
+      expect(go.view === 'rc_home' && /در دسترس نیست/.test(go.text), `${go.view}: ${go.text}`);
+      rc = devtools({ op: 'rc_of', users: [T.sender, T.rcpt] });
+      expect(rc.every((r) => r.rc_partner === 0 && r.queued === 0), `after the match ${JSON.stringify(rc)}`);
+      return { detail: `queued, claimed, the partner unreachable (${tried.err}) → the chat ended for both` };
+    });
+
+    await scenario('14k. confession on the real database: write, choose, submit; the owner\'s card shows no author; a channel that refuses the post keeps it pending; reject', () => {
+      devtools({ op: 'cf_setup' });
+      devtools({ op: 'join_cache', users: [T.sender] });
+      ok(pressPm(T.sender, 'cf'), { view: 'cf_home', callback: true });
+      ok(pressPm(T.sender, 'cw'), { view: 'cf_write', callback: true });
+      const opts = ok(sendText(T.sender, 'zz cloud confession 09121234567'), { view: 'cf_options' });
+      expect(opts.data.join() === 'co:c,co:d,cs,cw,cf', `options ${JSON.stringify(opts.data)}`);
+      expect(/hidden/.test(opts.text), 'the draft is kept out of the trace');
+      ok(pressPm(T.sender, 'co:d'), { view: 'cf_options', callback: true });
+      const sent = ok(pressPm(T.sender, 'cs'), { view: 'cf_sent', callback: true });
+      const card = byView(sent, 'cf_review').find((t) => t.chat === OWNER);
+      expect(card && /hidden/.test(card.text), `the owner's review card ${JSON.stringify(card)}`);
+      expect(!JSON.stringify(card).includes(String(T.sender)) && !JSON.stringify(card).includes(uname(T.sender)), 'no author on the card');
+      const c = devtools({ op: 'confessions_by', user: T.sender })[0];
+      expect(c && c.status === 'pending' && c.allow_comments === 1 && c.allow_dm === 1 && c.flags === 'phone', `row ${JSON.stringify(c)}`);
+      const ap = ok(pressPm(OWNER, `a:cfa:${c.id}`, card.mid || null), { callback: true });
+      expect(alertIs(ap, /گذاشته نشد/), `approve: ${JSON.stringify(ap.answer)}`);
+      expect(devtools({ op: 'confessions_by', user: T.sender })[0].status === 'pending', 'back in the queue');
+      const rj = ok(pressPm(OWNER, `a:cfr:${c.id}`, card.mid || null), { callback: true });
+      expect(/رد شد/.test(rj.answer.text), `reject: ${JSON.stringify(rj.answer)}`);
+      expect(devtools({ op: 'confessions_by', user: T.sender })[0].status === 'rejected', 'rejected');
+      return { detail: `confession #${c.id}; card to the owner → ${card.ok ? 'delivered' : card.err}; the post refused (${(ap.trace.find((t) => t.view === 'cf_post') || {}).err}); rejected` };
+    });
+
+    await scenario('14l. media whisper and time capsule on the real database: made in the bot, posted inline; a refused file is not an opening; sealed until its time', () => {
+      devtools({ op: 'join_cache', users: [T.sender, T.rcpt] });
+      ok(pressPm(T.sender, 'wm'), { view: 'wmedia_ask', callback: true });
+      const ready = ok(sendRaw(T.sender, { photo: [{ file_id: 'AgACAgQAAxkBAAIzzCloudTestFakeFile', file_unique_id: 'zzcloud1', width: 9, height: 9 }], caption: 'zz cloud media @zzw_t2' }), { view: 'wmedia_ready' });
+      const wid = ready.last.meta && ready.last.meta.id;
+      const w = devtools({ op: 'whisper', id: wid });
+      expect(w && w.kind === 'photo' && w.file_id && w.rcpts[0].runame === 'zzw_t2' && w.body === 'zz cloud media', `row ${JSON.stringify(w)}`);
+      const q = ok(inlineQuery(T.sender, `mw_${wid}`));
+      const res = ((q.inline && q.inline.results) || [])[0];
+      expect(res && res.id === `m.${wid}` && /در ربات باز می‌شود/.test(res.message) && !res.message.includes('zz cloud media'), `result ${JSON.stringify(res)}`);
+      const c = ok(chosen(T.sender, `m.${wid}`, `mw_${wid}`));
+      expect(devtools({ op: 'whisper', id: wid }).inline_id === c.inlineId, 'the posted message is remembered');
+      ok(sendText(T.rcpt, `/start w_${wid}`), { view: 'whisper_media_failed' });
+      expect(devtools({ op: 'whisper', id: wid }).rcpts[0].seen_at === 0, 'not counted as opened');
+      const h = (new Date((nowSec() + 210 * 60) * 1000).getUTCHours() + 2) % 24;
+      const cap = makeWhisper(`zz cloud capsule @zzw_t2 >${String(h).padStart(2, '0')}:00`);
+      const opens = devtools({ op: 'whisper', id: cap.wid }).opens_at;
+      expect(opens > nowSec() + 3000, `opens_at ${opens}`);
+      const early = ok(pressInline(T.rcpt, `s:${cap.wid}`, cap.inlineId), { callback: true });
+      expect(alertIs(early, /باز می‌شود/), `early press: ${JSON.stringify(early.answer)}`);
+      return { detail: `media ${wid} posted (m.${wid}); capsule ${cap.wid} opens in ${Math.round((opens - nowSec()) / 60)} min` };
+    });
+
+    await scenario('14m. link views and reactions on the real database', () => {
+      devtools({ op: 'join_cache', users: [T.rcpt, T.byId] });
+      devtools({ op: 'unflood', users: [T.byId] });
+      const code = (ok(sendText(T.rcpt, '/link'), { view: 'anon_link' }).text.match(/start=a_(\w{10})/) || [])[1];
+      expect(code, 'no link');
+      const before = devtools({ op: 'user', user: T.rcpt });
+      const seen = devtools({ op: 'visits', owner: T.rcpt }).includes(T.byId);
+      ok(sendText(T.byId, `/start a_${code}`), { view: 'anon_profile' });
+      const after = devtools({ op: 'user', user: T.rcpt });
+      expect(after.lv_total === before.lv_total + (seen ? 0 : 1) && devtools({ op: 'visits', owner: T.rcpt }).includes(T.byId), `lv ${before.lv_total} → ${after.lv_total}`);
+      ok(sendText(T.byId, 'zz cloud message for a reaction'), { view: 'anon_sent' });
+      const m = devtools({ op: 'anon_msgs_to', user: T.rcpt })[0];
+      expect(m && m.from_id === T.byId, `the message ${JSON.stringify(m)}`);
+      const rx = ok(pressPm(T.rcpt, `ae:${m.id}:1`), { callback: true });
+      expect(/🔥/.test(rx.answer.text), `answer ${JSON.stringify(rx.answer)}`);
+      const set = rx.trace.find((t) => t.m === 'setMessageReaction');
+      expect(set && set.chat === T.byId, `tried on the sender's own message: ${JSON.stringify(rx.trace.map((t) => [t.m, t.view, t.chat, t.ok]))}`);
+      expect(devtools({ op: 'anon_msgs_to', user: T.rcpt })[0].reaction === '🔥', 'stored');
+      return { detail: `views ${before.lv_total} → ${after.lv_total}; reaction 🔥 → setMessageReaction ${set.ok ? 'ok' : set.err}` };
+    });
+
     await scenario('15. lazy cleanup: an unsent draft older than 24h is deleted on a later update', () => {
       devtools({ op: 'join_cache', users: [T.third, T.sender] });
       ok(inlineQuery(T.third, 'zz draft to age @zzw_t2'));
@@ -825,6 +939,7 @@ async function main() {
       devtools({ op: 'restore_kv', kv: startKv });
       devtools({ op: 'drop_broadcasts', after: maxBroadcast });
       devtools({ op: 'restore_owner_anon', value: ownerAnon });
+      devtools({ op: 'restore_cf_kv', kv: startCf });
       const removed = devtools({ op: 'cleanup', users: TEST_USERS });
       devtools({ op: 'restore_n_anon', value: startAnon, since: startedAt });
       console.log(`\nrestored: channels, join setting, the owner's anonymous settings; removed ${removed.removedUsers} test users and ${removed.removedWhispers} test whispers`);

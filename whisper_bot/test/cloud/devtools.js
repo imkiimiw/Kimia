@@ -5,16 +5,20 @@
 // test (the @telegram channel's id: the bot isn't a member there, so copyMessage gets a real 403),
 // fake channels (zz_fake_*), broadcasts the run created, and — to restore
 // the starting state — a channel row, the join setting and the owner's anonymous-section settings the
-// script saved before the test (plus the owner's inbox counters for messages the test users sent them).
+// script saved before the test (plus the owner's inbox counters for messages the test users sent them,
+// and the confession-channel settings, pointed at the @telegram channel for one scenario).
 import { api, db } from 'sdk';
 import { sql } from 'sdk/db';
 import { createCtx } from '../lib/tg.js';
+import { localDay } from '../lib/util.js';
 import { wakeSoon } from '../lib/wake.js';
 
 const OWNER_ID = 5557901897;
 const TARGET_403 = -1001005640892; // @telegram
 const TABLES = ['users', 'kv', 'channels', 'drafts', 'whispers', 'whisper_rcpts', 'snoops', 'blocks', 'user_state', 'broadcasts',
-  'anon_msgs', 'anon_blocks', 'anon_words', 'ratings', 'reports', 'strikes'];
+  'anon_msgs', 'anon_blocks', 'anon_words', 'ratings', 'reports', 'strikes', 'link_visits', 'admins', 'confessions', 'cf_comments',
+  'rc_queue', 'rc_blocks'];
+const CF_KEYS = ['cf_on', 'cf_chat', 'cf_chat_title', 'cf_username', 'cf_lang'];
 // The owner's own anonymous-section fields: saved before the run, restored after it.
 const OWNER_FIELDS = ['anon_code', 'anon_on', 'a_filter', 'a_links', 'a_text', 'a_silent', 'q_mode', 'q_text'];
 const TEST_IDS = [990000001, 990000002, 990000003, 990000004, 990000005, 990000009];
@@ -183,9 +187,45 @@ export default async function (input) {
     case 'anon_msgs_to': {
       const id = testUser(input.user);
       return db.all(sql`
-        SELECT id, from_id, anon, kind, cat, q, folder, unread, to_msg FROM anon_msgs
+        SELECT id, from_id, anon, kind, cat, q, cf, reaction, folder, unread, to_msg FROM anon_msgs
         WHERE to_id = ${id} ORDER BY created_at DESC LIMIT 20`);
     }
+    case 'admin_row':
+      return db.get(sql`SELECT user_id, perms FROM admins WHERE user_id = ${testUser(input.user)}`);
+    case 'rc_of': { // a test user's random-chat state: partner and place in the queue
+      const out = [];
+      for (const id of input.users.map(testUser)) {
+        const u = await db.get(sql`SELECT rc_partner FROM users WHERE user_id = ${id}`);
+        const q = await db.get(sql`SELECT lang FROM rc_queue WHERE user_id = ${id}`);
+        out.push({ user_id: id, rc_partner: u ? Number(u.rc_partner) : null, queued: q ? 1 : 0 });
+      }
+      return out;
+    }
+    case 'rc_waiting_real': // real people waiting for a random chat: the scenario would match them, so it's skipped
+      return (await db.all(sql`
+        SELECT lang FROM rc_queue WHERE (user_id < 990000001 OR user_id > 990000999) AND since > ${now - 600} LIMIT 5`)).map((r) => r.lang);
+    case 'cf_kv':
+      return db.all(sql`SELECT key, value FROM kv WHERE key IN (${list(CF_KEYS)})`);
+    case 'cf_setup': // the @telegram channel: the bot can't post there, so an approval is refused for real
+      for (const [key, value] of [['cf_on', '1'], ['cf_chat', String(TARGET_403)], ['cf_chat_title', 'zz cloud test'], ['cf_username', ''], ['cf_lang', 'fa']]) {
+        await db.run(sql`INSERT INTO kv (key, value) VALUES (${key}, ${value}) ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
+      }
+      return true;
+    case 'restore_cf_kv': {
+      const saved = new Map((input.kv || []).map((r) => [r.key, r.value]));
+      for (const key of CF_KEYS) {
+        if (saved.has(key)) await db.run(sql`INSERT INTO kv (key, value) VALUES (${key}, ${saved.get(key)}) ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
+        else await db.run(sql`DELETE FROM kv WHERE key = ${key}`);
+      }
+      return true;
+    }
+    case 'confessions_by':
+      return db.all(sql`
+        SELECT id, status, allow_comments, allow_dm, flags, channel_msg FROM confessions WHERE author_id = ${testUser(input.user)}
+        ORDER BY id DESC LIMIT 10`);
+    case 'visits': // who opened a test user's link today
+      return (await db.all(sql`
+        SELECT visitor_id FROM link_visits WHERE owner_id = ${testUser(input.owner)} AND day = ${Number(localDay())} LIMIT 50`)).map((r) => Number(r.visitor_id));
     case 'ratings_of':
       return db.get(sql`SELECT rating_sum, rating_count FROM users WHERE user_id = ${testUser(input.user)}`);
     case 'reports_by': {
@@ -280,6 +320,31 @@ export default async function (input) {
       await db.run(sql`DELETE FROM ratings WHERE rater_id IN (${list(users)}) OR target_id IN (${list(users)})`);
       await db.run(sql`DELETE FROM reports WHERE reporter_id IN (${list(users)}) OR sender_id IN (${list(users)})`);
       await db.run(sql`DELETE FROM strikes WHERE sender_id IN (${list(users)}) OR by_id IN (${list(users)})`);
+      // link visits by test users to real people's links: off those people's counters
+      const visits = await db.all(sql`
+        SELECT owner_id, day, count(*) AS n FROM link_visits WHERE visitor_id IN (${list(users)}) AND owner_id NOT IN (${list(users)})
+        GROUP BY owner_id, day LIMIT 50`);
+      for (const v of visits) {
+        await db.run(sql`
+          UPDATE users SET lv_total = max(0, lv_total - ${Number(v.n)}),
+            lv_today = CASE WHEN lv_day = ${Number(v.day)} THEN max(0, lv_today - ${Number(v.n)}) ELSE lv_today END
+          WHERE user_id = ${v.owner_id}`);
+      }
+      await db.run(sql`DELETE FROM link_visits WHERE visitor_id IN (${list(users)}) OR owner_id IN (${list(users)})`);
+      // admins, the random chat, confessions and comments of test users
+      await db.run(sql`DELETE FROM admins WHERE user_id IN (${list(users)})`);
+      await db.run(sql`DELETE FROM rc_queue WHERE user_id IN (${list(users)})`);
+      await db.run(sql`DELETE FROM rc_blocks WHERE user_id IN (${list(users)}) OR blocked_id IN (${list(users)})`);
+      await db.run(sql`UPDATE users SET rc_partner = 0 WHERE rc_partner IN (${list(users)})`);
+      const cfs = (await db.all(sql`SELECT id FROM confessions WHERE author_id IN (${list(users)}) LIMIT 200`)).map((r) => r.id);
+      for (const id of cfs) {
+        const cms = await db.all(sql`SELECT id FROM cf_comments WHERE confession_id = ${id} LIMIT 500`);
+        for (const c of cms) await db.run(sql`DELETE FROM kv WHERE key = ${`cfrep:${c.id}`}`);
+        await db.run(sql`DELETE FROM cf_comments WHERE confession_id = ${id}`);
+        await db.run(sql`DELETE FROM confessions WHERE id = ${id}`);
+      }
+      if (cfs.length) await bump('n_confessions', -cfs.length);
+      await db.run(sql`DELETE FROM cf_comments WHERE author_id IN (${list(users)})`);
       let removed = 0;
       let reachable = 0;
       for (const id of users) {

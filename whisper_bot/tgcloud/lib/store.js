@@ -472,6 +472,11 @@ export async function markSeen(whisperId, slot) {
   return r.rowsAffected > 0;
 }
 
+/** Takes back a first view whose content couldn't be delivered (the media was refused). */
+export async function unmarkSeen(whisperId, slot) {
+  await db.run(sql`UPDATE whisper_rcpts SET seen_at = 0 WHERE whisper_id = ${whisperId} AND slot = ${slot}`);
+}
+
 /** Counts one more opening by this recipient; returns the new count. */
 export async function addOpen(whisperId, slot) {
   const r = await db.run(sql`
@@ -797,7 +802,7 @@ export async function countReachable(lang) {
 // ---------- stats ----------
 
 export async function stats() {
-  const kv = await getKv(['n_users', 'n_active', 'n_whispers', 'n_anon', 'day']);
+  const kv = await getKv(['n_users', 'n_active', 'n_whispers', 'n_anon', 'day', 'n_rchats', 'n_confessions', 'n_cf_posted']);
   const banned = await db.get(sql`SELECT count(*) AS n FROM users WHERE banned = 1`);
   const reports = await db.get(sql`SELECT count(*) AS n FROM (SELECT 1 FROM reports WHERE status = 'open' LIMIT 100)`);
   const day = localDay();
@@ -811,5 +816,8 @@ export async function stats() {
     banned: num(banned && banned.n),
     reports: num(reports && reports.n),
     channels: await countChannels(),
+    rchats: num(kv.n_rchats),
+    confessions: num(kv.n_confessions),
+    posted: num(kv.n_cf_posted),
   };
 }

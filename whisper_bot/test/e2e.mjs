@@ -1424,6 +1424,15 @@ await scenario('media whisper: made in the bot, posted with the inline query; op
   const mine = await press(s, `wo:${wid2}`);
   assert.equal(mine.calls.find((c) => c.method === 'sendPhoto').params.protect_content, true);
   assert.match((await press(x, `wo:${wid2}`)).text, /مال تو نیست/);
+  // Telegram refuses the file: not an opening — nothing marked, nobody told, a one-time one not burned
+  await press(s, 'wm');
+  const bad = await say(s, undefined, { document: { file_id: 'BADdoc', file_unique_id: 'bd1' }, caption: '! @mw_r' });
+  const wid3 = bad.r.trace.find((e) => e.view === 'wmedia_ready').meta.id;
+  const fail = await say(r, `/start w_${wid3}`);
+  assert.match(fail.text, /تلگرام این فایل را نفرستاد/);
+  assert.equal(sentTo(fail.calls, s.id).length, 0, 'the sender is not told');
+  const after = row('SELECT w.state, r.seen_at, r.opens FROM whispers w JOIN whisper_rcpts r ON r.whisper_id = w.id WHERE w.id = ?', wid3);
+  assert.deepEqual([after.state, after.seen_at, after.opens], [0, 0, 0]);
 });
 
 await scenario('daily question: opt-in; from 10:00 Tehran the first update starts it, in chunks that wake the bot; once a day', async () => {
@@ -1654,6 +1663,13 @@ await scenario('confession limits: three a day per person; text only; closed whe
   await press(U.owner, 'a:cfst');
   assert.match((await press(U.ali, 'cw')).answer.text, /فعال نیست/);
   await press(U.owner, 'a:cfst');
+  // "delete my data": the confessions stay where they are, but no longer lead back to their author
+  const annsBefore = rows('SELECT id FROM confessions WHERE author_id = ?', U.ann.id).map((r) => r.id);
+  assert.ok(annsBefore.length >= 1);
+  await press(U.ann, 'dd');
+  assert.match((await press(U.ann, 'ddy')).text, /fresh link/);
+  assert.equal(count(`SELECT count(*) AS n FROM confessions WHERE author_id = ${U.ann.id}`), 0);
+  for (const id of annsBefore) assert.equal(confession(id).author_id, 0);
 });
 
 // =====================================================================================
@@ -1828,7 +1844,7 @@ await scenario('security: whisper and anonymous texts never in callback_data or 
   assert.deepEqual(leaks, []);
   const rejected = mock.state.calls.filter((c) => !c.result.ok
     && !['getChatMember', 'copyMessage', 'sendMessage', 'answerCallbackQuery', 'getChat'].includes(c.method)
-    && !/message is not modified|message to react not found/.test(c.result.description));
+    && !/message is not modified|message to react not found|wrong file identifier/.test(c.result.description));
   assert.deepEqual(rejected.map((c) => `${c.method}: ${c.result.description}`), []);
   const badSends = mock.state.calls.filter((c) => ['sendMessage', 'copyMessage', 'sendPhoto'].includes(c.method) && !c.result.ok && c.result.error_code === 400 && !/can't be copied|chat not found/.test(c.result.description));
   assert.deepEqual(badSends.map((c) => `${c.method}: ${c.result.description}`), []);

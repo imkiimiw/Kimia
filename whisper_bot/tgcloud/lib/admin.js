@@ -199,6 +199,9 @@ export async function showStats(ctx) {
     anon: N(ctx, s.anon),
     reports: N(ctx, s.reports),
     channels: N(ctx, s.channels),
+    rchats: N(ctx, s.rchats),
+    cf: N(ctx, s.confessions),
+    cfp: N(ctx, s.posted),
   }), [toPanel(ctx)]);
 }
 
