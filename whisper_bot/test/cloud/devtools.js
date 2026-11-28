@@ -232,6 +232,17 @@ export default async function (input) {
         ON CONFLICT(chat_id) DO NOTHING RETURNING id`);
       return r.rows && r.rows[0] ? Number(r.rows[0].id) : null;
     }
+    case 'qbox_flood': { // a test user who asked their 30 questions of the day already (the daily limit, whatever the timing)
+      const user = testUser(input.user);
+      const box = await db.get(sql`SELECT id, owner_id FROM qboxes WHERE id = ${Number(input.box)}`);
+      testUser(box && box.owner_id);
+      for (let i = 0; i < 30; i += 1) {
+        await db.run(sql`
+          INSERT INTO qbox_questions (box_id, from_id, body, status, created_at) VALUES (${box.id}, ${user}, 'zz flood', 'deleted', ${now - 100 - i})`);
+      }
+      await bump('n_qbq', 30); // the cleanup takes them off again
+      return true;
+    }
     case 'qbox_questions': {
       const box = await db.get(sql`SELECT id, owner_id FROM qboxes WHERE id = ${Number(input.box)}`);
       if (!box) return [];

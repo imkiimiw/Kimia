@@ -932,8 +932,10 @@ async function main() {
       ok(sendText(T.third, '/start q_zzCloudBx1'), { view: 'qbox_ask' });
       const sent = ok(sendText(T.third, 'zz cloud question?'), { view: 'qbox_sent' });
       expect(byView(sent, 'qbox_notice').some((t) => t.chat === T.byId), 'the owner is told');
+      // the limits, whatever the timing of the runs (a platform's rate limit can spread them far apart)
+      devtools({ op: 'qbox_flood', user: T.third, box });
       ok(sendText(T.third, '/start q_zzCloudBx1'), { view: 'qbox_ask' });
-      ok(sendText(T.third, 'zz again'), { view: 'qbox_limit_gap' });
+      ok(sendText(T.third, 'zz again'), { view: 'qbox_limit_day' });
       ok(sendText(T.third, '/cancel'));
       const list = ok(pressPm(T.byId, `qb:l:${box}:0`), { view: 'qbox_question', callback: true });
       expect(/hidden/.test(list.text) && list.last.meta.total === 1, `the owner's list ${JSON.stringify(list.last)}`);
@@ -943,11 +945,11 @@ async function main() {
       const ans = ok(sendText(T.byId, 'zz cloud answer'), { view: 'qbox_post_failed' });
       const post = byView(ans, 'qbox_post')[0];
       expect(post && post.ok === false, `the post to @telegram: ${JSON.stringify(post)}`);
-      const qs = devtools({ op: 'qbox_questions', box });
-      expect(qs.length === 1 && qs[0].status === 'new' && !qs[0].answer, `kept unanswered ${JSON.stringify(qs)}`);
+      const asked = devtools({ op: 'qbox_questions', box }).find((x) => x.id === qid);
+      expect(asked && asked.status === 'new' && !asked.answer, `kept unanswered ${JSON.stringify(asked)}`);
       ok(pressPm(T.byId, `qb:xy:${box}`), { view: 'qbox_list', callback: true });
       expect(devtools({ op: 'qbox_questions', box }).length === 0, 'deleted with the box');
-      return { detail: `box ${box}; question asked, the gap enforced; the post refused (${post.err}); deleted` };
+      return { detail: `box ${box}; question asked, the daily limit enforced; the post refused (${post.err}); deleted` };
     });
 
     await scenario('14o. the Mini App inbox endpoint on the platform: list, read, react, archive, reply — only the caller\'s own messages', () => {
