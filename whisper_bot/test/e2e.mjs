@@ -2,6 +2,7 @@
 // platform's `sdk` (test/sdk/: SQLite via node:sqlite + a Bot API client) and a strict mock Bot API.
 // Run: npm test   (the local check; test/cloud/run-tests.mjs runs the scenarios on Telegram Serverless)
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import { createMockTelegram } from './mock-telegram.mjs';
 import { db, rawDatabase, setupDatabase } from './sdk/db.mjs';
 import * as schema from '../tgcloud/schema.js';
@@ -20,6 +21,7 @@ mock.addChat('not_admin_chan', { admin: false });
 mock.addChat('some_person', { type: 'private' });
 mock.addChat('wake_room', { title: 'Wake room' }); // the owner's private channel for the bot's wakes
 mock.addChat('confess_room', { title: 'Confessions' }); // the confession channel
+mock.addChat('qbox_chan', { title: 'Q Channel' }); // a user's channel with a question box
 process.env.TG_MOCK_URL = `http://127.0.0.1:${await mock.listen()}`;
 setupDatabase(schema); // what `npx tgcloud migrate` does on the platform
 
@@ -92,6 +94,7 @@ async function say(u, text, extra = {}) {
   mock.state.privateChats.add(u.id);
   const message = { message_id: 50000 + seq++, from: u, chat: { id: u.id, type: 'private', first_name: u.first_name }, date: nowSec(), ...extra };
   if (text !== undefined) message.text = text;
+  mock.seedMessage(u.id, message.message_id, text || '…'); // the user's message is in the chat (the bot may delete it)
   const cmd = /^\/[A-Za-z0-9_]+/.exec(text || '');
   if (cmd) message.entities = [{ type: 'bot_command', offset: 0, length: cmd[0].length }];
   const r = track(await onMessage(message, { update: { update_id: seq++, message } }));
@@ -1784,6 +1787,267 @@ await scenario('random chat: a partner who blocked the bot ends the chat; restri
   assert.equal(userRow(a).rc_partner, 0, 'the quiet chat ended');
   assert.ok(queued(a));
   await press(a, 'rc:x');
+});
+
+// =====================================================================================
+// Channel question boxes (lib/qbox.js)
+// =====================================================================================
+
+const qChan = mock.state.chats.get('@qbox_chan');
+const fwdQChan = () => ({ forward_origin: { type: 'channel', chat: { id: qChan.id, type: 'channel', title: qChan.title }, message_id: 3, date: nowSec() } });
+let qbCode = null;
+
+await scenario('question box: a channel admin connects their channel; questions arrive anonymously; the answer is posted to the channel', async () => {
+  const host = person(799000001, 'qb_host');
+  join(host);
+  await onboard(host);
+  assert.ok(dataOf((await press(host, 'an')).kb).includes('qb'));
+  assert.deepEqual(dataOf((await press(host, 'qb')).kb), ['qb:n', 'an']);
+  await press(host, 'qb:n');
+  assert.match((await say(host, 'fwd', { forward_origin: { type: 'channel', chat: { id: mock.state.chats.get('@not_admin_chan').id, type: 'channel', title: 'x' }, message_id: 1, date: nowSec() } })).text, /ربات در «.*» ادمین نیست/);
+  assert.match((await say(host, 'fwd', fwdQChan())).text, /تو در «Q Channel» ادمین نیستی/, 'only an admin of the channel');
+  mock.setMember('qbox_chan', host.id, { status: 'administrator' });
+  const made = await say(host, 'fwd', fwdQChan());
+  assert.match(made.text, /صندوق سؤال «Q Channel» ساخته شد[\s\S]*start=q_(\w{10})/);
+  qbCode = /start=q_(\w{10})/.exec(made.text)[1];
+  const box = row('SELECT * FROM qboxes WHERE code = ?', qbCode);
+  assert.deepEqual([box.owner_id, box.chat_id, box.open], [host.id, qChan.id, 1]);
+  // another admin of the same channel can't make a second box, and isn't told whose it is
+  mock.setMember('qbox_chan', U.mina.id, { status: 'administrator' });
+  await press(U.mina, 'qb:n');
+  const taken = await say(U.mina, 'fwd', fwdQChan());
+  assert.match(taken.text, /از قبل صندوق سؤال دارد/);
+  noTrace(taken.calls, U.mina.id, host);
+  // a visitor asks
+  advance(5);
+  const ask = await say(U.ali, `/start q_${qbCode}`);
+  assert.match(ask.text, /سؤال ناشناس از «Q Channel»/);
+  const question = 'برنامه‌ی کانال برای ماه بعد چیه؟';
+  ANON_SECRETS.add(question);
+  const sent = await say(U.ali, question);
+  assert.match(sent.text, /سؤالت ناشناس برای «Q Channel» فرستاده شد/);
+  const notice = sentTo(sent.calls, host.id).find((c) => /سؤال ناشناس تازه/.test(c.params.text));
+  assert.ok(notice, 'the owner is told');
+  noTrace(sent.calls, host.id, U.ali);
+  assert.match((await say(U.ali, `/start q_${qbCode}`)).text, /سؤال ناشناس از/);
+  assert.match((await say(U.ali, 'یکی دیگه')).text, /کمی صبر کن/, 'a gap between questions');
+  await say(U.ali, '/cancel');
+  // filtered questions never reach the owner, and the asker sees the usual confirmation
+  advance(30);
+  await say(U.reza, `/start q_${qbCode}`);
+  const spam = await say(U.reza, 'عضو شو t.me/spam_channel');
+  assert.equal(spam.r.filtered, 'link');
+  assert.match(spam.text, /فرستاده شد/);
+  assert.equal(count(`SELECT count(*) AS n FROM qbox_questions WHERE box_id = ${box.id} AND status = 'new'`), 1);
+  // the owner reads and answers: posted to the channel with an "ask your own" button
+  const q1 = await press(host, `qb:l:${box.id}:0`);
+  assert.match(q1.text, /سؤال ۱ از ۱/);
+  assert.ok(q1.text.includes(question));
+  noTrace(q1.calls, host.id, U.ali);
+  const qid = q1.r.trace.find((x) => x.view === 'qbox_question').meta.id;
+  await press(host, `qb:a:${qid}`);
+  const answered = await say(host, 'ماه بعد یک مسابقه داریم 🎉');
+  const post = answered.calls.find((c) => c.method === 'sendMessage' && Number(c.params.chat_id) === qChan.id);
+  assert.ok(post && post.params.text.includes(question) && post.params.text.includes('ماه بعد یک مسابقه داریم'));
+  assert.deepEqual(buttons(post.params.reply_markup.inline_keyboard).map((b) => b.url), [`https://t.me/${BOT}?start=q_${qbCode}`]);
+  noTrace(answered.calls, qChan.id, U.ali);
+  const toAsker = sentTo(answered.calls, U.ali.id)[0];
+  assert.match(toAsker.params.text, /به سؤالی که از «Q Channel» پرسیدی جواب داده شد/);
+  assert.equal(toAsker.params.reply_markup.inline_keyboard[0][0].url, `https://t.me/qbox_chan/${post.result.result.message_id}`);
+  assert.ok(buttons(answered.kb).some((b) => b.web_app && /k=qb&id=/.test(b.web_app.url)), 'make it an image card');
+  const qrow = row('SELECT status, channel_msg FROM qbox_questions WHERE id = ?', qid);
+  assert.deepEqual([qrow.status, qrow.channel_msg], ['answered', post.result.result.message_id]);
+  assert.match((await press(host, `qb:a:${qid}`)).answer.text, /دیگر نیست/, 'answered once');
+  // the card: only for the box's owner, posted to the channel
+  const ctx = { initData: { user: { id: host.id } } };
+  const card = await cardDataEndpoint({ k: 'qb', id: qid }, ctx);
+  assert.deepEqual([card.kind, card.text, card.answer, card.name, card.link], ['qb', question, 'ماه بعد یک مسابقه داریم 🎉', 'Q Channel', `https://t.me/${BOT}?start=q_${qbCode}`]);
+  await assert.rejects(() => cardDataEndpoint({ k: 'qb', id: qid }, { initData: { user: { id: U.ali.id } } }), /Not available/);
+  const bytes = new Uint8Array(4000);
+  bytes.set([0xff, 0xd8, 0xff, 0xe0]);
+  const B = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let b64 = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const n = (bytes[i] << 16) | ((bytes[i + 1] || 0) << 8) | (bytes[i + 2] || 0);
+    b64 += B[(n >> 18) & 63] + B[(n >> 12) & 63] + (i + 1 < bytes.length ? B[(n >> 6) & 63] : '=') + (i + 2 < bytes.length ? B[n & 63] : '=');
+  }
+  const r = await cardSendEndpoint({ k: 'qb', id: qid, image: `data:image/jpeg;base64,${b64}` }, ctx);
+  assert.equal(r.to, 'channel');
+  const photo = mock.state.media[mock.state.media.length - 1];
+  assert.equal(photo.chat_id, qChan.id);
+  await assert.rejects(() => cardSendEndpoint({ k: 'qb', id: qid, image: `data:image/jpeg;base64,${b64}` }, { initData: { user: { id: U.ali.id } } }), /Card not sent/);
+});
+
+await scenario('question box: block an asker without learning who; pause; a new link; the owner\'s own link; delete', async () => {
+  const host = person(799000001, 'qb_host');
+  const box = row('SELECT * FROM qboxes WHERE code = ?', qbCode);
+  advance(30);
+  await say(U.nima, `/start q_${qbCode}`);
+  await say(U.nima, 'یک سؤال برای بلاک');
+  const q = await press(host, `qb:l:${box.id}:0`);
+  const qid = q.r.trace.find((x) => x.view === 'qbox_question').meta.id;
+  const blk = await press(host, `qb:b:${qid}`);
+  assert.match(blk.answer.text, /بلاک شد/);
+  noTrace(blk.calls, host.id, U.nima);
+  assert.match((await say(U.nima, `/start q_${qbCode}`)).text, /این کاربر پیام‌های تو را نمی‌پذیرد/, 'the blocked asker is refused');
+  assert.match((await press(U.reza, `qb:v:${box.id}`)).answer.text, /مال تو نیست/, 'only the owner manages it');
+  await press(host, `qb:t:${box.id}`);
+  assert.match((await say(U.ivan, `/start q_${qbCode}`)).text, /Ящик вопросов «Q Channel» пока на паузе/, 'paused');
+  await press(host, `qb:t:${box.id}`);
+  const renewed = await press(host, `qb:r:${box.id}`);
+  const newCode = /start=q_(\w{10})/.exec(renewed.text)[1];
+  assert.notEqual(newCode, qbCode);
+  assert.match((await say(U.ali, `/start q_${qbCode}`)).text, /معتبر نیست/, 'the old link stops');
+  qbCode = newCode;
+  assert.match((await say(host, `/start q_${qbCode}`)).text, /صندوق سؤال کانال خودت است/);
+  await press(host, `qb:x:${box.id}`);
+  assert.match((await press(host, `qb:xy:${box.id}`)).text, /پاک شد/);
+  assert.equal(count(`SELECT count(*) AS n FROM qbox_questions WHERE box_id = ${box.id}`), 0);
+  assert.equal(row('SELECT 1 AS x FROM qboxes WHERE id = ?', box.id), undefined);
+  assert.match((await say(U.ali, `/start q_${qbCode}`)).text, /معتبر نیست/);
+});
+
+// =====================================================================================
+// The smart filter (lib/ai.js) against a stand-in for Google Gemini
+// =====================================================================================
+
+const gemini = { requests: [], mode: 'ok' };
+const geminiServer = http.createServer((req, res) => {
+  let raw = '';
+  req.on('data', (c) => { raw += c; });
+  req.on('end', () => {
+    const body = JSON.parse(raw || '{}');
+    gemini.requests.push({ url: req.url, key: req.headers['x-goog-api-key'], body, raw });
+    if (gemini.mode === '429') {
+      res.writeHead(429, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { code: 429, message: 'Resource has been exhausted (e.g. check quota).' } }));
+      return;
+    }
+    const text = (((body.contents || [])[0] || {}).parts || [])[0]?.text || '';
+    let v = { harmful: false, category: 'none', confidence: 3 };
+    if (/بی‌ارزش|worthless/.test(text)) v = { harmful: true, category: 'harassment', confidence: 95 };
+    if (/خودم را بکشم/.test(text)) v = { harmful: true, category: 'self_harm', confidence: 90 };
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(v) }] }, finishReason: 'STOP' }] }));
+  });
+});
+await new Promise((r) => geminiServer.listen(0, '127.0.0.1', r));
+rawDatabase().prepare("INSERT INTO kv (key, value) VALUES ('ai_base', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+  .run(`http://127.0.0.1:${geminiServer.address().port}/v1beta`);
+const AI_KEY = 'AIzaSyTEST_key_1234567890abcdefghijk';
+const { localDay } = await import('../tgcloud/lib/util.js');
+
+await scenario('smart filter: the owner enters the key in the bot (the message is deleted, the key never shown again), tests it, turns it on', async () => {
+  const s0 = await press(U.owner, 'a:ai');
+  assert.match(s0.text, /فیلتر هوشمند[\s\S]*کلید: ثبت نشده/);
+  assert.deepEqual(dataOf(s0.kb), ['a:aik', 'a']);
+  assert.ok(!dataOf((await press(U.sara, 'fs')).kb).includes('fs:i'), 'no switch for users while it is off');
+  await press(U.owner, 'a:aik');
+  const bad = await say(U.owner, 'short');
+  assert.ok(bad.calls.some((c) => c.method === 'deleteMessage' && c.params.message_id === bad.message.message_id), 'deleted at once');
+  assert.match(bad.text, /شبیه کلید API نیست/);
+  const ok = await say(U.owner, AI_KEY);
+  assert.ok(ok.calls.some((c) => c.method === 'deleteMessage' && c.params.message_id === ok.message.message_id));
+  assert.match(ok.text, /کلید ذخیره شد و کار می‌کند/);
+  assert.match(ok.text, /AIza…hijk/);
+  assert.equal(gemini.requests.length, 1);
+  const first = gemini.requests[0];
+  assert.equal(first.key, AI_KEY);
+  assert.match(first.url, /^\/v1beta\/models\/gemini-3\.5-flash-lite:generateContent$/);
+  assert.equal(first.body.generationConfig.responseMimeType, 'application/json');
+  await press(U.owner, 'a:aio');
+  assert.equal(row("SELECT value FROM kv WHERE key = 'ai_on'").value, '1');
+  const test = await press(U.owner, 'a:ait');
+  assert.match(test.text, /✅ سالم[\s\S]*🚫 آزاردهنده — آزار و تحقیر \(۹۵٪\)/);
+  const leaked = JSON.stringify([mock.state.calls.map((c) => c.params), results]);
+  assert.ok(!leaked.includes(AI_KEY), 'the key is in no message and no trace');
+});
+
+await scenario('smart filter: a hurtful message without swear words is filtered; the recipient can turn it off; self-harm is never hidden; only the text is sent', async () => {
+  const aHost = person(800000001, 'ai_host');
+  const aVis = person(800000002, 'ai_vis', 'fa', 'Visitor');
+  for (const u of [aHost, aVis]) {
+    join(u);
+    await onboard(u);
+  }
+  const code = /start=a_(\w{10})/.exec((await say(aHost, '/link')).text)[1];
+  const before = gemini.requests.length;
+  await say(aVis, `/start a_${code}`);
+  const hurt = await say(aVis, 'تو یه آدم بی‌ارزشی که هیچکس دوستت نداره');
+  assert.equal(hurt.r.filtered, 'ai');
+  assert.equal(sentTo(hurt.calls, aHost.id).length, 0, 'not delivered');
+  assert.match(hurt.text, /پیامت ناشناس فرستاده شد/, 'the sender sees the usual confirmation');
+  assert.equal(gemini.requests.length, before + 1);
+  for (const r of gemini.requests) for (const s of [String(aVis.id), aVis.username, aVis.first_name, String(aHost.id), aHost.username]) assert.ok(!r.raw.includes(s), `"${s}" sent to Gemini`);
+  const fs = await press(aHost, 'fs');
+  assert.ok(buttons(fs.kb).some((b) => b.callback_data === 'fs:i' && /فیلتر هوشمند: روشن/.test(b.text)));
+  await press(aHost, 'fs:i');
+  advance(5);
+  await say(aVis, `/start a_${code}`);
+  const through = await say(aVis, 'باز هم می‌گویم تو بی‌ارزشی');
+  assert.equal(sentTo(through.calls, aHost.id).length, 1, 'turned off: delivered');
+  assert.equal(gemini.requests.length, before + 1, 'and not even sent for checking');
+  await press(aHost, 'fs:i');
+  advance(5);
+  await say(aVis, `/start a_${code}`);
+  const sad = await say(aVis, 'خیلی خسته‌ام، گاهی فکر می‌کنم خودم را بکشم');
+  assert.equal(sad.r.filtered, undefined, 'self-harm: delivered');
+  assert.equal(sentTo(sad.calls, aHost.id).length, 1);
+  // a confession: the reviewers' card is marked; a hurtful comment is refused
+  await press(aVis, 'cf');
+  await press(aVis, 'cw');
+  await say(aVis, 'رئیسم یه آدم بی‌ارزشه و همه ازش متنفرن');
+  const cs = await press(aVis, 'cs');
+  const card = sentTo(cs.calls, OWNER).find((c) => /برای بررسی/.test(c.params.text));
+  assert.match(card.params.text, /فیلترها: 🤖 آزار و تحقیر/);
+  noTrace(cs.calls, OWNER, aVis);
+  await say(aVis, '/start cm_1');
+  await press(aVis, 'cc:1');
+  assert.match((await say(aVis, 'نویسنده بی‌ارزشه')).text, /🤖 محتوای آزاردهنده/);
+  await say(aVis, '/cancel');
+});
+
+await scenario('smart filter: fails open — over Google\'s quota it pauses, with the daily cap it rests, a changed model is used, a removed key stops it', async () => {
+  const aHost = person(800000001, 'ai_host');
+  const aVis = person(800000002, 'ai_vis', 'fa', 'Visitor');
+  const code = /start=a_(\w{10})/.exec((await say(aHost, '/link')).text)[1];
+  const send = async (text) => {
+    advance(5);
+    await say(aVis, `/start a_${code}`);
+    return say(aVis, text);
+  };
+  gemini.mode = '429';
+  const n0 = gemini.requests.length;
+  const r1 = await send('اولی بی‌ارزش');
+  assert.equal(sentTo(r1.calls, aHost.id).length, 1, 'unchecked: delivered');
+  assert.equal(gemini.requests.length, n0 + 1);
+  assert.ok(Number(row("SELECT value FROM kv WHERE key = 'ai_cool'").value) > nowSec(), 'paused');
+  assert.match(row("SELECT value FROM kv WHERE key = 'ai_err'").value, /429 Resource has been exhausted/);
+  assert.match((await press(U.owner, 'a:ai')).text, /آخرین خطا[\s\S]*429/);
+  gemini.mode = 'ok';
+  await send('دومی بی‌ارزش');
+  assert.equal(gemini.requests.length, n0 + 1, 'not asked while paused');
+  advance(700);
+  const r3 = await send('سومی بی‌ارزش');
+  assert.equal(r3.r.filtered, 'ai', 'back after the pause');
+  rawDatabase().prepare("UPDATE kv SET value = ? WHERE key = 'ai_day'").run(`${localDay()}:2000`);
+  const r4 = await send('چهارمی بی‌ارزش');
+  assert.equal(sentTo(r4.calls, aHost.id).length, 1, 'over the daily cap: unchecked');
+  rawDatabase().prepare("UPDATE kv SET value = ? WHERE key = 'ai_day'").run(`${localDay()}:0`);
+  await press(U.owner, 'a:aim');
+  await press(U.owner, 'a:aims:1');
+  await send('پنجمی بی‌ارزش');
+  assert.match(gemini.requests[gemini.requests.length - 1].url, /gemini-3\.1-flash-lite:generateContent/);
+  await press(U.owner, 'a:aimc');
+  assert.match((await say(U.owner, 'Bad Model!')).text, /نام مدل فقط/);
+  assert.match((await say(U.owner, 'gemini-x-test')).text, /gemini-x-test/);
+  assert.match((await press(U.owner, 'a:aix')).text, /کلید حذف شد/);
+  const n1 = gemini.requests.length;
+  const r6 = await send('ششمی بی‌ارزش');
+  assert.equal(sentTo(r6.calls, aHost.id).length, 1);
+  assert.equal(gemini.requests.length, n1, 'no key: nothing sent');
+  assert.match((await press(U.reza, 'a:ai')).answer.text, /فقط برای مالک/);
+  geminiServer.close();
 });
 
 // =====================================================================================
